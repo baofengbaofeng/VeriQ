@@ -103,9 +103,7 @@ export function tinyAssets(arch: "x64" | "arm64" = "x64") {
  */
 export function assetWorkflowSteps(cacheRoot: string): readonly Record<string, unknown>[] {
     const project = fileURLToPath(new URL("../../../srv", import.meta.url));
-    const workflow = fileURLToPath(
-        new URL("../../../../.github/workflows/runtime-payload-macos.yml", import.meta.url),
-    );
+    const workflow = fileURLToPath(new URL("../../../../.github/workflows/runtime-payload-macos.yml", import.meta.url));
     const result = execFileSync(
         "uv",
         [

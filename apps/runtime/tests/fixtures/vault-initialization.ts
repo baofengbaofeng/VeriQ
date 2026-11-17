@@ -40,10 +40,7 @@ export async function verifyEmptyInitialization(directory: string, options: Cred
         versionId: randomUUID(),
     };
     try {
-        assert.equal(
-            (await options.backend.get(original, AbortSignal.timeout(5000))).status,
-            "missing",
-        );
+        assert.equal((await options.backend.get(original, AbortSignal.timeout(5000))).status, "missing");
         await assert.rejects(new SecretStore(directory, options).resolve(ref), /VAULT_KEY_MISSING/);
         await new CredentialProfile(directory, options).recoverInitialization();
         const active = JSON.parse(await readFile(join(directory, "vault/profile.json"), "utf8"));
@@ -51,13 +48,8 @@ export async function verifyEmptyInitialization(directory: string, options: Cred
         assert.notEqual(active.keyVersion, pending.keyVersion);
         assert.equal(active.state, "active");
         await new SecretStore(directory, options).set(ref, "synthetic-recovered-secret");
-        assert.equal(
-            await new SecretStore(directory, options).resolve(ref),
-            "synthetic-recovered-secret",
-        );
-        const history = JSON.parse(
-            await readFile(join(directory, "vault/initialization.json"), "utf8"),
-        );
+        assert.equal(await new SecretStore(directory, options).resolve(ref), "synthetic-recovered-secret");
+        const history = JSON.parse(await readFile(join(directory, "vault/initialization.json"), "utf8"));
         assert.equal(history.previous[0].keyVersion, original.keyVersion);
         assert.equal(history.previous[0].status, "absent");
         return {
@@ -69,20 +61,12 @@ export async function verifyEmptyInitialization(directory: string, options: Cred
         };
     } finally {
         const current = JSON.parse(await readFile(join(directory, "vault/profile.json"), "utf8"));
-        for (const scope of [
-            original,
-            { profileId: current.profileId, keyVersion: current.keyVersion },
-        ]) {
+        for (const scope of [original, { profileId: current.profileId, keyVersion: current.keyVersion }]) {
             assert(
-                ["ok", "missing"].includes(
-                    (await options.backend.delete(scope, AbortSignal.timeout(5000))).status,
-                ),
+                ["ok", "missing"].includes((await options.backend.delete(scope, AbortSignal.timeout(5000))).status),
                 "VAULT_RECOVERY_KEY_CLEANUP_FAILED",
             );
-            assert.equal(
-                (await options.backend.get(scope, AbortSignal.timeout(5000))).status,
-                "missing",
-            );
+            assert.equal((await options.backend.get(scope, AbortSignal.timeout(5000))).status, "missing");
         }
     }
 }

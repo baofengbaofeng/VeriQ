@@ -109,10 +109,7 @@ test("client caps raw response bytes before a complete frame", async () => {
             socket: path,
             nonce: "1".repeat(64),
         }));
-        await assert.rejects(
-            new DesktopAgentClient(root).call({ operation: "status" }),
-            /AGENT_RESPONSE_LIMIT/,
-        );
+        await assert.rejects(new DesktopAgentClient(root).call({ operation: "status" }), /AGENT_RESPONSE_LIMIT/);
     } finally {
         for (const socket of sockets) socket.destroy();
         await new Promise<void>((resolve) => server.close(() => resolve()));

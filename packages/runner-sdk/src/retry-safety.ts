@@ -49,10 +49,6 @@ export class RetryObservation {
         this.context.off("page", this.page);
         this.context.off("close", this.close);
         for (const page of this.pages) page.off("websocket", this.websocket);
-        return this.writes
-            ? "WRITE_POSSIBLE"
-            : finalized && this.closed
-              ? "READ_ONLY_OBSERVED"
-              : "UNKNOWN";
+        return this.writes ? "WRITE_POSSIBLE" : finalized && this.closed ? "READ_ONLY_OBSERVED" : "UNKNOWN";
     }
 }

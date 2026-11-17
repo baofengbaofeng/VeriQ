@@ -13,10 +13,7 @@ export class DarwinVaultBackend extends VaultHelperBackend {
      * 密生命周期输出，失败不自动降级为明文存储。
      * 本函数没有 shell、命令参数或环境搜索入口，也不触发原生钥匙串自测或默认信任修改。
      */
-    constructor(
-        distribution: RuntimeDistribution,
-        options: ConstructorParameters<typeof VaultHelperBackend>[1] = {},
-    ) {
+    constructor(distribution: RuntimeDistribution, options: ConstructorParameters<typeof VaultHelperBackend>[1] = {}) {
         if (process.platform !== "darwin") throw new Error("VAULT_PLATFORM_UNSUPPORTED");
         super(distribution, options);
     }

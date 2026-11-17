@@ -1,16 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
-import {
-    lstat,
-    mkdtemp,
-    mkdir,
-    readFile,
-    readdir,
-    rename,
-    rm,
-    symlink,
-    writeFile,
-} from "node:fs/promises";
+import { lstat, mkdtemp, mkdir, readFile, readdir, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -124,13 +114,8 @@ test("keeps nested duplicate instances, original manifests, ownership and comple
             "node_modules/pkg",
             "node_modules/pkg/node_modules/pkg",
         ]);
-        const own = records.filter(
-            (entry) => entry.kind === "file" && entry.path.endsWith("own.js"),
-        );
-        assert.deepEqual(
-            own.map((entry) => entry.owner).sort(),
-            packages.map((entry) => entry.path).sort(),
-        );
+        const own = records.filter((entry) => entry.kind === "file" && entry.path.endsWith("own.js"));
+        assert.deepEqual(own.map((entry) => entry.owner).sort(), packages.map((entry) => entry.path).sort());
         assert.equal(records.filter((entry) => entry.kind === "bin").length, 2);
     }));
 
@@ -157,20 +142,12 @@ test("does not follow poisoned links and maps workspace endpoints lexically", ()
             await Promise.all(
                 result.artifacts
                     .filter((ref) => ref.kind === "inventory")
-                    .map(async (ref) =>
-                        JSON.parse(await readFile(join(evidenceDir, ref.path), "utf8")),
-                    ),
+                    .map(async (ref) => JSON.parse(await readFile(join(evidenceDir, ref.path), "utf8"))),
             )
         ).flat();
         assert.equal(result.totals.links, 3);
-        assert.equal(
-            records.find((entry) => entry.path === "node_modules/local").workspaceSource,
-            "packages/local",
-        );
-        assert.equal(
-            records.find((entry) => entry.path === "node_modules/poison").workspaceSource,
-            null,
-        );
+        assert.equal(records.find((entry) => entry.path === "node_modules/local").workspaceSource, "packages/local");
+        assert.equal(records.find((entry) => entry.path === "node_modules/poison").workspaceSource, null);
     }));
 
 // 生产上限只允许在测试中缩小，任何非法清单、计数、路径或正文超限都必须抛出而不能截断成成功；同时核验未知选项和超大限额
@@ -194,9 +171,7 @@ for (const [label, setup, limits] of [
     test(`rejects ${label}`, () =>
         fixture(async ({ root, evidenceDir }) => {
             await setup(root);
-            await assert.rejects(
-                collectLayoutMetadata({ root, evidenceDir, workspaceRoots: [], limits }),
-            );
+            await assert.rejects(collectLayoutMetadata({ root, evidenceDir, workspaceRoots: [], limits }));
         }));
 }
 
@@ -204,9 +179,7 @@ for (const [label, setup, limits] of [
 // 行网络获取、pnpm 安装或真实工作流。
 test("import is inert in an empty working directory", () =>
     fixture(async ({ root }) => {
-        const target = pathToFileURL(
-            join(import.meta.dirname, "../../../.github/scripts/production-layout.mjs"),
-        ).href;
+        const target = pathToFileURL(join(import.meta.dirname, "../../../.github/scripts/production-layout.mjs")).href;
         const result = await runBoundedAssetCli({
             executable: process.execPath,
             args: [
@@ -272,8 +245,7 @@ test("journals actual transitions and refuses expired overall admission", async 
 // 默丢弃尾部成员的另一种截断方式。
 test("chunks inventories without omissions under a reduced JSON budget", () =>
     fixture(async ({ root, evidenceDir }) => {
-        for (let index = 0; index < 16; index++)
-            await writeFile(join(root, `file-${index}`), "body");
+        for (let index = 0; index < 16; index++) await writeFile(join(root, `file-${index}`), "body");
         const result = await collectLayoutMetadata({
             root,
             evidenceDir,
@@ -289,11 +261,7 @@ test("chunks inventories without omissions under a reduced JSON budget", () =>
             records.push(...JSON.parse(bytes));
         }
         assert.equal(records.filter((entry) => entry.kind === "file").length, 16);
-        assert.equal(
-            new Set(records.filter((entry) => entry.kind === "file").map((entry) => entry.path))
-                .size,
-            16,
-        );
+        assert.equal(new Set(records.filter((entry) => entry.kind === "file").map((entry) => entry.path)).size, 16);
     }));
 
 // 工作区端点不接受根外或非规范路径，包入口清单也不能借链接从外部读入；失败发生在内容解引用之前，输入根与证据根重叠时同
@@ -382,13 +350,11 @@ const inheritedPipeFixture = async (delayMs) => {
     let ready = null,
         result = null,
         cleanup = "UNCONFIRMED",
-        primaryError = null;
+        primaryError = null,
+        cleanupError = null;
     try {
         const journal = await runStages({
-            stages: [
-                nodeStage("inherited-pipe", direct, 2000),
-                nodeStage("observe", "process.exit(0)"),
-            ],
+            stages: [nodeStage("inherited-pipe", direct, 2000), nodeStage("observe", "process.exit(0)")],
             deadlineMs: Date.now() + 12000,
         });
         result = journal[0].commands[0].result;
@@ -424,7 +390,6 @@ const inheritedPipeFixture = async (delayMs) => {
         );
     } catch (error) {
         primaryError = error;
-        throw error;
     } finally {
         // release 文件只对本次 nonce 生效，DONE 在继承的两个描述符真实关闭之后写入；条件轮询有独立短期限，失败时保留夹
         // 具并报告未知，不能在仍可能存在 writer 时递归删除以制造清理成功表象。
@@ -433,54 +398,60 @@ const inheritedPipeFixture = async (delayMs) => {
             await writeFile(releasePath + ".tmp", JSON.stringify({ nonce }));
             await rename(releasePath + ".tmp", releasePath);
             let done;
-            while (!done) {
-                if (Date.now() > end) throw new Error("Fixture DONE deadline exceeded");
+            let pollingError = null;
+            while (!done && !pollingError) {
+                if (Date.now() > end) {
+                    pollingError = new Error("Fixture DONE deadline exceeded");
+                    break;
+                }
                 try {
                     done = JSON.parse(await readFile(donePath, "utf8"));
                 } catch (error) {
-                    if (error.code !== "ENOENT") throw error;
+                    if (error.code !== "ENOENT") pollingError = error;
                 }
-                if (!done) {
+                if (!done && !pollingError) {
                     let failure;
                     try {
                         failure = JSON.parse(await readFile(errorPath, "utf8"));
                     } catch (error) {
-                        if (error.code !== "ENOENT") throw error;
+                        if (error.code !== "ENOENT") pollingError = error;
                     }
-                    if (failure)
-                        throw new Error(`Fixture inheritor failed: ${JSON.stringify(failure)}`);
-                    await new Promise((resolve) => setTimeout(resolve, 20));
+                    if (failure && !pollingError)
+                        pollingError = new Error(`Fixture inheritor failed: ${JSON.stringify(failure)}`);
+                    if (!pollingError) await new Promise((resolve) => setTimeout(resolve, 20));
                 }
             }
-            assert.equal(done.kind, "DONE");
-            assert.equal(done.nonce, nonce);
-            if (ready) assert.equal(done.pid, ready.pid);
-            assert.equal(done.descriptorsClosed, true);
-            assert.equal(done.reason, "RELEASE");
-            await rm(root, { recursive: true });
-            await assert.rejects(lstat(root), { code: "ENOENT" });
-            cleanup = "REMOVED_AFTER_DONE";
+            if (pollingError) {
+                cleanupError = pollingError;
+            } else {
+                assert.equal(done.kind, "DONE");
+                assert.equal(done.nonce, nonce);
+                if (ready) assert.equal(done.pid, ready.pid);
+                assert.equal(done.descriptorsClosed, true);
+                assert.equal(done.reason, "RELEASE");
+                await rm(root, { recursive: true });
+                await assert.rejects(lstat(root), { code: "ENOENT" });
+                cleanup = "REMOVED_AFTER_DONE";
+            }
         } catch (error) {
-            if (primaryError)
-                throw new AggregateError(
-                    [primaryError, error],
-                    "Fixture assertion and cleanup failed",
-                );
-            throw error;
+            cleanupError = error;
         } finally {
-            console.log(
-                JSON.stringify({ fixture: "inherited-pipe", delayMs, nonce, root, cleanup }),
-            );
+            console.log(JSON.stringify({ fixture: "inherited-pipe", delayMs, nonce, root, cleanup }));
         }
     }
+    if (cleanupError) {
+        if (primaryError)
+            throw new AggregateError([primaryError, cleanupError], "Fixture assertion and cleanup failed");
+        throw cleanupError;
+    }
+    if (primaryError) throw primaryError;
 };
 
 test("actual unknown close follows actual inheritor READY", () => inheritedPipeFixture(0));
 
 // 额外的真实启动延迟超过旧夹具的一百二十毫秒，但不会改变生产期限或进程关闭谓词；该场景只运行一次，必须先收到实际继承者
 // READY 再观察未知关闭，不依赖重复执行或操作系统专用跳过来取得绿色结果。
-test("delayed startup establishes READY before unchanged unknown-close predicates", () =>
-    inheritedPipeFixture(250));
+test("delayed startup establishes READY before unchanged unknown-close predicates", () => inheritedPipeFixture(250));
 
 // 真实固定版本的工具入口是 ESM loader 加 ESM bundle，兼容 CJS shim 不能推导出同名 dist 文件；微型夹具保留原始清单与实际
 // 文件摘要，但任何夹具包体都不执行，错误扩展名必须在真实文件读取时暴露。
@@ -495,10 +466,7 @@ const pnpmFixture = (body) =>
         await writeFile(join(packageRoot, "package.json"), original);
         await writeFile(join(packageRoot, "bin/pnpm.cjs"), "import('./pnpm.mjs');\n");
         await writeFile(join(packageRoot, "bin/pnpm.mjs"), "await import('../dist/pnpm.mjs');\n");
-        await writeFile(
-            join(packageRoot, "dist/pnpm.mjs"),
-            "throw new Error('Fixture bodies must never execute');\n",
-        );
+        await writeFile(join(packageRoot, "dist/pnpm.mjs"), "throw new Error('Fixture bodies must never execute');\n");
         return body({ base, ownedRoot: root, packageRoot, original });
     });
 
@@ -560,11 +528,7 @@ for (const [label, change, pattern] of [
         },
         /PNPM_PACKAGE_IDENTITY/,
     ],
-    [
-        "missing implementation",
-        async ({ packageRoot }) => rm(join(packageRoot, "dist/pnpm.mjs")),
-        /ENOENT/,
-    ],
+    ["missing implementation", async ({ packageRoot }) => rm(join(packageRoot, "dist/pnpm.mjs")), /ENOENT/],
     [
         "linked loader",
         async ({ packageRoot }) => {
@@ -612,10 +576,7 @@ for (const [label, change, pattern] of [
 // 算，也不把绝对路径正常化当作对外部来源的访问许可。
 test("rejects pinned pnpm root escape and expired binding deadline", () =>
     pnpmFixture(async ({ packageRoot, ownedRoot, base }) => {
-        await assert.rejects(
-            bindPinnedPnpm({ packageRoot, ownedRoot: join(base, "other") }),
-            /PNPM_PACKAGE_BOUNDARY/,
-        );
+        await assert.rejects(bindPinnedPnpm({ packageRoot, ownedRoot: join(base, "other") }), /PNPM_PACKAGE_BOUNDARY/);
         await assert.rejects(
             bindPinnedPnpm({ packageRoot, ownedRoot, deadlineMs: Date.now() - 1 }),
             /PRODUCER_DEADLINE/,

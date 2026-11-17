@@ -26,8 +26,7 @@ export async function loadRelease(root: string, version: string): Promise<Engine
     const raw = await readFile(join(root, "inventory.json"));
     if (raw.length > 1024 * 1024) throw new Error("ENGINE_INVENTORY_LIMIT");
     const inventory = JSON.parse(raw.toString()) as ApprovedEngineInventoryV1;
-    if (validateSchema("ApprovedEngineInventoryV1", inventory).length)
-        throw new Error("INVALID_ENGINE_INVENTORY");
+    if (validateSchema("ApprovedEngineInventoryV1", inventory).length) throw new Error("INVALID_ENGINE_INVENTORY");
     const entry = inventory.engines.find((e) => e.engineVersion === version);
     if (!entry) throw new Error("ENGINE_NOT_APPROVED");
     const files: Record<string, Uint8Array> = {};
@@ -43,20 +42,11 @@ export async function loadRelease(root: string, version: string): Promise<Engine
             throw new Error("INVALID_RELEASE_PATH");
         const bytes = await readFile(join(root, file.path));
         total += bytes.length;
-        if (
-            total > 128 * 1024 * 1024 ||
-            bytes.length !== file.sizeBytes ||
-            sha256(bytes) !== file.sha256
-        )
+        if (total > 128 * 1024 * 1024 || bytes.length !== file.sizeBytes || sha256(bytes) !== file.sha256)
             throw new Error("RELEASE_HASH_MISMATCH");
         files[file.path] = bytes;
     }
-    for (const required of [
-        "package.json",
-        "package-lock.json",
-        "dependencies.json",
-        "engine/compiler.tgz",
-    ])
+    for (const required of ["package.json", "package-lock.json", "dependencies.json", "engine/compiler.tgz"])
         if (!files[required]) throw new Error("INCOMPLETE_RELEASE");
     return { entry, files, inventoryHash: sha256(canonicalBytes(entry)) };
 }

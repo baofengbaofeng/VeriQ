@@ -31,16 +31,15 @@ test("generated public contracts retain names and job discrimination", () => {
 });
 
 test("generated clients can retrieve publish receipts and authenticated content", () => {
+    type ValidationReceiptResource = "/api/v1/workspaces/{workspaceId}/jobs/{jobId}/validation-receipt";
     type Receipt =
-        PlatformPaths["/api/v1/workspaces/{workspaceId}/jobs/{jobId}/validation-receipt"]["get"]["responses"][200][
-            "content"]["application/json"]["data"];
+        PlatformPaths[ValidationReceiptResource]["get"]["responses"][200]["content"]["application/json"]["data"];
     expectTypeOf<Receipt>().toHaveProperty("id");
     expectTypeOf<Receipt>().toHaveProperty("revision");
     expectTypeOf<Receipt>().toHaveProperty("sourceHash");
     expectTypeOf<Receipt>().toHaveProperty("engineVersion");
-    type Headers =
-        PlatformPaths["/internal/v1/workspaces/{workspaceId}/attempts/{attemptId}/content/{sha256}"]["get"][
-            "parameters"]["header"];
+    type AttemptContentResource = "/internal/v1/workspaces/{workspaceId}/attempts/{attemptId}/content/{sha256}";
+    type Headers = PlatformPaths[AttemptContentResource]["get"]["parameters"]["header"];
     expectTypeOf<Headers>().toHaveProperty("X-VeriQ-Lease-Token");
     expectTypeOf<Headers>().toHaveProperty("X-VeriQ-Fencing-Token");
 });

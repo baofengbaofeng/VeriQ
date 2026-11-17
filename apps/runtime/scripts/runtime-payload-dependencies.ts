@@ -4,16 +4,7 @@ import { fileURLToPath } from "node:url";
 import { canonicalBytes } from "@veriq/contracts";
 import { collectLayoutMetadata, classifyCommandResult } from "./runtime-dependency-layout.mjs";
 import { ArchiveTransaction } from "./runtime-payload-transaction.ts";
-import {
-    InputReader,
-    contentLimit,
-    decode,
-    fail,
-    freeze,
-    limits,
-    paths,
-    sha,
-} from "./runtime-payload-tree.ts";
+import { InputReader, contentLimit, decode, fail, freeze, limits, paths, sha } from "./runtime-payload-tree.ts";
 import { checked, document, equal, schemas, setEqual } from "./runtime-payload-receipts.ts";
 import {
     scanRuntimeLiteralImports,
@@ -31,15 +22,8 @@ import {
     writeDependencyView,
 } from "./runtime-dependency-files.ts";
 import { isNode24Version } from "../src/node-version.ts";
-import {
-    collectRuntimeDependencyClosure,
-    lockSections,
-    type LayoutRecord,
-} from "./runtime-dependency-closure.ts";
-import {
-    materializeRuntimeWorkspacePackages,
-    type WorkspaceGenerationEvidence,
-} from "./runtime-workspace-packages.ts";
+import { collectRuntimeDependencyClosure, lockSections, type LayoutRecord } from "./runtime-dependency-closure.ts";
+import { materializeRuntimeWorkspacePackages, type WorkspaceGenerationEvidence } from "./runtime-workspace-packages.ts";
 import type { HostBuildInvocation, HostBuildObservation } from "./runtime-payload-entries.ts";
 import type {
     Bin,
@@ -167,8 +151,7 @@ async function observeInstallation(
     const artifacts: { path: string; bytes: Buffer }[] = [];
     for (const artifact of layout.artifacts) {
         const bytes = await files.read(join(evidenceDir, artifact.path), limits.json);
-        if (bytes.length !== artifact.bytes || sha(bytes) !== artifact.sha256)
-            fail("PAYLOAD_SOURCE_CHANGED");
+        if (bytes.length !== artifact.bytes || sha(bytes) !== artifact.sha256) fail("PAYLOAD_SOURCE_CHANGED");
         artifacts.push({ path: artifact.path, bytes });
         if (artifact.kind === "inventory") {
             const value = decode(bytes);
@@ -184,14 +167,8 @@ async function observeInstallation(
  * 消费者需求直接从已经完成的入口和执行树字节分析，并保留实际 Runtime 相对路径；独立 tsx 根显式加入，内建和相对边仍由已
  * 有分类器检查，不从包清单把所有 Runtime 声明误当成实际入口根。
  */
-async function readConsumers(
-    options: DependencyInputOptions["consumers"],
-    signal: AbortSignal | undefined,
-) {
-    const reader = new InputReader(options.inputRoot, signal, [
-        options.entries.root,
-        options.execution.root,
-    ]);
+async function readConsumers(options: DependencyInputOptions["consumers"], signal: AbortSignal | undefined) {
+    const reader = new InputReader(options.inputRoot, signal, [options.entries.root, options.execution.root]);
     await reader.initialize();
     const roots = [{ consumer: "package.json", specifier: "tsx" }];
     const members: { path: string; bytes: Buffer }[] = [];
@@ -200,8 +177,7 @@ async function readConsumers(
         ["execution", options.execution],
     ] as const) {
         const inventory = await document<TreeInventory>(reader, tree.inventory, schemas.inventory);
-        if (inventory.treeKind !== (kind === "entry" ? "entries" : "execution"))
-            fail("PAYLOAD_TREE_MISMATCH");
+        if (inventory.treeKind !== (kind === "entry" ? "entries" : "execution")) fail("PAYLOAD_TREE_MISMATCH");
         await reader.tree(tree, inventory, inventory.treeKind);
         reader.planScripts(
             tree,
@@ -212,12 +188,7 @@ async function readConsumers(
             members.push({ path: `${kind}/${file.path}`, bytes });
             if (!/\.(?:mjs|cjs|js)$/.test(file.path)) continue;
             for (const fact of scanRuntimeLiteralImports(bytes, file.path)) {
-                const edge = classifyRuntimeModuleEdge(
-                    fact,
-                    file.path,
-                    inventory.files,
-                    kind === "execution",
-                );
+                const edge = classifyRuntimeModuleEdge(fact, file.path, inventory.files, kind === "execution");
                 if (edge.kind === "external")
                     roots.push({ consumer: `${kind}/${file.path}`, specifier: edge.specifier });
             }
@@ -227,9 +198,7 @@ async function readConsumers(
     return {
         reader,
         members,
-        roots: [
-            ...new Map(roots.map((root) => [`${root.consumer}:${root.specifier}`, root])).values(),
-        ],
+        roots: [...new Map(roots.map((root) => [`${root.consumer}:${root.specifier}`, root])).values()],
     };
 }
 
@@ -238,8 +207,7 @@ async function readConsumers(
  * ，空目录也保留，不能只复制文件后忽略安装树的其它普通成员。
  */
 function parents(path: string, directories: Set<string>) {
-    for (let current = posix.dirname(path); current !== "."; current = posix.dirname(current))
-        directories.add(current);
+    for (let current = posix.dirname(path); current !== "."; current = posix.dirname(current)) directories.add(current);
 }
 
 /**
@@ -249,8 +217,7 @@ function parents(path: string, directories: Set<string>) {
  */
 function binDeclarations(pkg: Record<string, unknown>) {
     if (pkg.bin === undefined) return [] as [string, string][];
-    const raw =
-        typeof pkg.bin === "string" ? { [String(pkg.name).split("/").pop()!]: pkg.bin } : pkg.bin;
+    const raw = typeof pkg.bin === "string" ? { [String(pkg.name).split("/").pop()!]: pkg.bin } : pkg.bin;
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) fail("PAYLOAD_BIN_UNSUPPORTED");
     return Object.entries(raw).map(([name, target]) => {
         if (
@@ -333,16 +300,13 @@ export async function withDependencyInputViews<T>(
     }
     // 新生产器和观察器必须同时匹配当前执行源码，不能只把一个自报 SourceBinding 复制到安装目录；模块 URL 固定相对当前生
     // 产器，调用者无法替换宿主代码路径选择另一份生成实现。
-    for (const path of requiredSources.filter(
-        (path) => path.endsWith(".ts") || path.endsWith(".mjs"),
-    )) {
+    for (const path of requiredSources.filter((path) => path.endsWith(".ts") || path.endsWith(".mjs"))) {
         const expected = metadata.source.files.find((ref) => ref.path === path)!;
         const url = path.startsWith(".github/")
             ? new URL(`../../../${path}`, import.meta.url)
             : new URL(path.slice("apps/runtime/scripts/".length), import.meta.url);
         const bytes = await files.read(fileURLToPath(url), contentLimit(path));
-        if (bytes.length !== expected.sizeBytes || sha(bytes) !== expected.sha256)
-            fail("PAYLOAD_SOURCE_CHANGED");
+        if (bytes.length !== expected.sizeBytes || sha(bytes) !== expected.sha256) fail("PAYLOAD_SOURCE_CHANGED");
     }
     const toolFacts: { path: string; sizeBytes: number; sha256: string }[] = [];
     for (const tool of [host.executable, host.pnpmCli, metadata.targetNode.executable]) {
@@ -350,8 +314,7 @@ export async function withDependencyInputViews<T>(
         const fixed = await realpath(tool);
         toolFacts.push(await files.fact(fixed));
     }
-    if (!isAbsolute(host.pnpmStore) || resolve(host.pnpmStore) !== host.pnpmStore)
-        fail("PAYLOAD_PATH");
+    if (!isAbsolute(host.pnpmStore) || resolve(host.pnpmStore) !== host.pnpmStore) fail("PAYLOAD_PATH");
     for (let current = host.pnpmStore; ; current = dirname(current)) {
         if (!(await lstat(current)).isDirectory()) fail("PAYLOAD_PATH");
         if (current === dirname(current)) break;
@@ -424,26 +387,12 @@ export async function withDependencyInputViews<T>(
     // 原始 manifests 或锁文件使冻结安装看起来成功。
     for (const ref of metadata.source.files) {
         const bytes = await files.read(join(installation, ref.path), contentLimit(ref.path));
-        if (bytes.length !== ref.sizeBytes || sha(bytes) !== ref.sha256)
-            fail("PAYLOAD_SOURCE_CHANGED");
+        if (bytes.length !== ref.sizeBytes || sha(bytes) !== ref.sha256) fail("PAYLOAD_SOURCE_CHANGED");
     }
-    const observed = await observeInstallation(
-        installation,
-        join(buildRoot, "layout"),
-        metadata.source,
-        files,
-    );
+    const observed = await observeInstallation(installation, join(buildRoot, "layout"), metadata.source, files);
     for (const artifact of observed.artifacts)
-        await writeDependencyView(
-            work,
-            `input-evidence/dependencies-layout/${artifact.path}`,
-            artifact.bytes,
-        );
-    const layoutRef = await writeDependencyJson(
-        work,
-        "input-evidence/dependencies-layout.json",
-        observed.layout,
-    );
+        await writeDependencyView(work, `input-evidence/dependencies-layout/${artifact.path}`, artifact.bytes);
+    const layoutRef = await writeDependencyJson(work, "input-evidence/dependencies-layout.json", observed.layout);
     const generated = await materializeRuntimeWorkspacePackages({
         sourceRoot: work.inputRoot,
         outputRoot: generatedRoot,
@@ -461,9 +410,7 @@ export async function withDependencyInputViews<T>(
         lock,
         arch: metadata.dependencies.target.arch,
     });
-    const selected = new Set(
-        closure.packages.filter((pkg) => !pkg.generated).map((pkg) => pkg.physicalRoot),
-    );
+    const selected = new Set(closure.packages.filter((pkg) => !pkg.generated).map((pkg) => pkg.physicalRoot));
     const selectedFiles = observed.records.filter(
         (record) =>
             record.kind === "file" &&
@@ -479,9 +426,7 @@ export async function withDependencyInputViews<T>(
         generatedFiles.reduce((sum, ref) => sum + ref.sizeBytes, 0);
     if (dependencyBytes > limits.total) fail("PAYLOAD_LIMIT");
     await work.plan(
-        dependencyBytes +
-            metadata.source.files.reduce((sum, ref) => sum + ref.sizeBytes, 0) +
-            limits.evidence,
+        dependencyBytes + metadata.source.files.reduce((sum, ref) => sum + ref.sizeBytes, 0) + limits.evidence,
         selectedFiles.length + generatedFiles.length + metadata.source.files.length + 4096,
     );
     const directories = new Set<string>(),
@@ -503,8 +448,7 @@ export async function withDependencyInputViews<T>(
                     .split("/")
                     .includes("node_modules"),
         );
-        if (!pkg.generated && ownRecords.some((record) => record.kind === "link"))
-            fail("PAYLOAD_GRAPH_MISMATCH");
+        if (!pkg.generated && ownRecords.some((record) => record.kind === "link")) fail("PAYLOAD_GRAPH_MISMATCH");
         const ownFiles = pkg.generated
             ? pkg.generated.files.map((ref) => ({
                   path: ref.path,
@@ -512,10 +456,7 @@ export async function withDependencyInputViews<T>(
                   expected: ref,
               }))
             : ownRecords
-                  .filter(
-                      (record) =>
-                          record.kind === "file" && !record.path.split("/").includes(".bin"),
-                  )
+                  .filter((record) => record.kind === "file" && !record.path.split("/").includes(".bin"))
                   .map((record) => ({
                       path: record.path.slice(pkg.physicalRoot.length + 1),
                       source: join(installation, record.path),
@@ -531,22 +472,12 @@ export async function withDependencyInputViews<T>(
             if (fileSources.has(path)) fail("PAYLOAD_COLLISION");
             fileSources.set(path, item.source);
             parents(path, directories);
-            const ref = await copyDependencyView(
-                work,
-                files,
-                item.source,
-                `dependencies/${path}`,
-                item.expected,
-            );
+            const ref = await copyDependencyView(work, files, item.source, `dependencies/${path}`, item.expected);
             inventoryFiles.push({ ...ref, path, mode: ref.mode as FileFact["mode"] });
             await copyDependencySourceFile(resolutionRoot, path, item.source, files);
         }
         for (const record of ownRecords)
-            if (
-                !pkg.generated &&
-                record.kind === "directory" &&
-                !record.path.split("/").includes(".bin")
-            ) {
+            if (!pkg.generated && record.kind === "directory" && !record.path.split("/").includes(".bin")) {
                 await files.directory(join(installation, record.path));
                 const path = `${pkg.root}/${record.path.slice(pkg.physicalRoot.length + 1)}`;
                 directories.add(path);
@@ -582,10 +513,8 @@ export async function withDependencyInputViews<T>(
             ownTreeSha256: sha(canonicalBytes({ directories: ownDirectories, files: own })),
         });
     }
-    for (const directory of [...directories].sort())
-        await work.mkdir(`views/dependencies/${directory}`);
-    for (const member of consumers.members)
-        await writeDependencySource(resolutionRoot, member.path, member.bytes);
+    for (const directory of [...directories].sort()) await work.mkdir(`views/dependencies/${directory}`);
+    for (const member of consumers.members) await writeDependencySource(resolutionRoot, member.path, member.bytes);
     await writeDependencySource(
         resolutionRoot,
         "package.json",
@@ -625,9 +554,9 @@ export async function withDependencyInputViews<T>(
                 const targetArch = metadata.dependencies.target.arch === "x64" ? "x86_64" : "arm64";
                 if (arch.stdout.toString().trim() !== targetArch) fail("PAYLOAD_BIN_UNSUPPORTED");
                 const text = load.stdout.toString(),
-                    versions = [
-                        ...text.matchAll(/^\s*(?:minos|version)\s+(\d+\.\d+(?:\.\d+)?)\s*$/gm),
-                    ].map((row) => row[1]!);
+                    versions = [...text.matchAll(/^\s*(?:minos|version)\s+(\d+\.\d+(?:\.\d+)?)\s*$/gm)].map(
+                        (row) => row[1]!,
+                    );
                 if (
                     versions.length !== 1 ||
                     Number(versions[0]!.split(".")[0]) > 15 ||
@@ -678,58 +607,46 @@ export async function withDependencyInputViews<T>(
     // 余命令保留完整正文并使用 owner 摘要派生的私有命名空间，使每个声明都有唯一可检查的启
     // 动路径。
     const aliasGroups = new Map<string, Bin[]>();
-    for (const bin of bins)
-        aliasGroups.set(bin.aliasPath, [...(aliasGroups.get(bin.aliasPath) ?? []), bin]);
+    for (const bin of bins) aliasGroups.set(bin.aliasPath, [...(aliasGroups.get(bin.aliasPath) ?? []), bin]);
     for (const [alias, group] of aliasGroups) {
         const sourcePaths = observed.records
             .filter(
                 (record) =>
-                    (record.kind === "file" || record.kind === "link") &&
-                    runtimeAliasPath(record.path) === alias,
+                    (record.kind === "file" || record.kind === "link") && runtimeAliasPath(record.path) === alias,
             )
             .map((record) => record.path)
             .sort();
         const actualTargets = new Set<string>();
         for (const sourcePath of sourcePaths) {
             const record = observed.records.find(
-                (entry) =>
-                    entry.path === sourcePath && (entry.kind === "file" || entry.kind === "link"),
+                (entry) => entry.path === sourcePath && (entry.kind === "file" || entry.kind === "link"),
             );
             if (!record) continue;
             if (record.kind === "link") {
-                if (!record.target || posix.isAbsolute(record.target))
-                    fail("PAYLOAD_BIN_UNSUPPORTED");
-                actualTargets.add(
-                    posix.normalize(posix.join(posix.dirname(sourcePath), record.target)),
-                );
+                if (!record.target || posix.isAbsolute(record.target)) fail("PAYLOAD_BIN_UNSUPPORTED");
+                actualTargets.add(posix.normalize(posix.join(posix.dirname(sourcePath), record.target)));
             } else {
                 const bytes = await files.read(join(installation, sourcePath), limits.javascript);
-                if (record.bytes !== bytes.length || record.sha256 !== sha(bytes))
-                    fail("PAYLOAD_SOURCE_CHANGED");
+                if (record.bytes !== bytes.length || record.sha256 !== sha(bytes)) fail("PAYLOAD_SOURCE_CHANGED");
                 const lines = bytes
                     .toString()
                     .split("\n")
                     .filter((line) => /^\s*exec\s/.test(line));
                 if (!lines.length) unsupportedDependency("DEPENDENCY_BIN_SHIM_UNSUPPORTED");
                 for (const line of lines) {
-                    const node =
-                        /^\s*exec\s+(?:"\$basedir\/node"|node)\s+"\$basedir\/([^"\r\n]+)"\s+"\$@"\s*$/.exec(
-                            line,
-                        );
+                    const node = /^\s*exec\s+(?:"\$basedir\/node"|node)\s+"\$basedir\/([^"\r\n]+)"\s+"\$@"\s*$/.exec(
+                        line,
+                    );
                     const native = /^\s*exec\s+"\$basedir\/([^"\r\n]+)"\s+"\$@"\s*$/.exec(line);
                     const target = node?.[1] ?? native?.[1];
                     if (!target) unsupportedDependency("DEPENDENCY_BIN_SHIM_UNSUPPORTED");
-                    actualTargets.add(
-                        posix.normalize(posix.join(posix.dirname(sourcePath), target)),
-                    );
+                    actualTargets.add(posix.normalize(posix.join(posix.dirname(sourcePath), target)));
                 }
             }
         }
         const winners = group.filter((bin) => {
             const pkg = closure.packages.find((item) => item.id === bin.owner)!;
-            return actualTargets.has(
-                `${pkg.physicalRoot}/${bin.targetPath.slice(pkg.root.length + 1)}`,
-            );
+            return actualTargets.has(`${pkg.physicalRoot}/${bin.targetPath.slice(pkg.root.length + 1)}`);
         });
         if (winners.length !== 1 || actualTargets.size !== 1)
             unsupportedDependency("DEPENDENCY_BIN_WINNER_ABSENT_OR_AMBIGUOUS");
@@ -771,8 +688,7 @@ export async function withDependencyInputViews<T>(
                 (bin as { aliasPath: string }).aliasPath =
                     `${posix.dirname(alias)}/.veriq/${sha(Buffer.from(bin.owner))}/${bin.name}`;
     }
-    for (const directory of [...directories].sort())
-        await work.mkdir(`views/dependencies/${directory}`);
+    for (const directory of [...directories].sort()) await work.mkdir(`views/dependencies/${directory}`);
     await work.createDependencyInputLinks(bins, inventoryLinks);
     const requests = [
         ...closure.rootBindings.map((binding) => ({
@@ -785,9 +701,7 @@ export async function withDependencyInputViews<T>(
         })),
     ];
     const baseRequests = [
-        ...new Map(
-            requests.map((request) => [`${request.consumer}:${request.specifier}`, request]),
-        ).values(),
+        ...new Map(requests.map((request) => [`${request.consumer}:${request.specifier}`, request])).values(),
     ];
     const witnesses = new Map<string, string[]>();
     for (const edge of closure.edges) {
@@ -798,9 +712,7 @@ export async function withDependencyInputViews<T>(
             .filter((file) => file.path.startsWith(`${target.root}/bin/`))
             .map((file) => file.path.slice(target.root.length + 1))
             .slice(0, 32);
-        const declaredBins = binDeclarations(target.manifest).map(([, path]) =>
-            posix.normalize(path),
-        );
+        const declaredBins = binDeclarations(target.manifest).map(([, path]) => posix.normalize(path));
         const specifiers = [
             ...new Set([
                 edge.alias,
@@ -813,16 +725,10 @@ export async function withDependencyInputViews<T>(
         for (const specifier of specifiers) requests.push({ consumer, specifier });
     }
     const uniqueRequests = [
-        ...new Map(
-            requests.map((request) => [`${request.consumer}:${request.specifier}`, request]),
-        ).values(),
+        ...new Map(requests.map((request) => [`${request.consumer}:${request.specifier}`, request])).values(),
     ];
     if (uniqueRequests.length > limits.edges) fail("PAYLOAD_LIMIT");
-    await writeDependencySource(
-        buildRoot,
-        "resolver-requests.json",
-        canonicalBytes(uniqueRequests),
-    );
+    await writeDependencySource(buildRoot, "resolver-requests.json", canonicalBytes(uniqueRequests));
     const resolverPath = join(installation, "apps/runtime/scripts/runtime-dependency-resolver.mjs");
     const resolverResultPath = join(buildRoot, "resolver-result.json");
     const actualResolution = await run(
@@ -838,10 +744,7 @@ export async function withDependencyInputViews<T>(
     );
     const resolverDigest = decode(actualResolution.stdout) as { sizeBytes: number; sha256: string };
     const resolverBytes = await files.read(resolverResultPath, limits.json);
-    if (
-        resolverDigest.sizeBytes !== resolverBytes.length ||
-        resolverDigest.sha256 !== sha(resolverBytes)
-    )
+    if (resolverDigest.sizeBytes !== resolverBytes.length || resolverDigest.sha256 !== sha(resolverBytes))
         fail("PAYLOAD_GRAPH_MISMATCH");
     const resolved = decode(resolverBytes) as {
         nodeVersion: string;
@@ -874,9 +777,7 @@ export async function withDependencyInputViews<T>(
             );
     const resolutions: Resolution[] = [];
     for (const request of baseRequests) {
-        const candidates = witnesses.get(`${request.consumer}:${request.specifier}`) ?? [
-            request.specifier,
-        ];
+        const candidates = witnesses.get(`${request.consumer}:${request.specifier}`) ?? [request.specifier];
         const rows = candidates.map((specifier) => {
             const matching = resolved.resolutions.filter(
                 (row) => row.consumer === request.consumer && row.specifier === specifier,
@@ -888,12 +789,8 @@ export async function withDependencyInputViews<T>(
         // 所有候选都交给真实 Node，不能自己解释 exports 或把文件存在等同于
         // 已解析成功。
         const row =
-            rows.find(
-                (candidate) => candidate.import.path !== null || candidate.require.path !== null,
-            ) ?? rows[0]!;
-        const choices = [row.import.path, row.require.path].filter(
-            (path): path is string => path !== null,
-        );
+            rows.find((candidate) => candidate.import.path !== null || candidate.require.path !== null) ?? rows[0]!;
+        const choices = [row.import.path, row.require.path].filter((path): path is string => path !== null);
         const from =
             owner(request.consumer)?.id ??
             (request.consumer === "package.json"
@@ -901,9 +798,7 @@ export async function withDependencyInputViews<T>(
                 : request.consumer.startsWith("entry/")
                   ? "$entry"
                   : "$execution");
-        const edge = closure.edges.find(
-            (item) => item.from === from && item.alias === request.specifier,
-        );
+        const edge = closure.edges.find((item) => item.from === from && item.alias === request.specifier);
         const binding = closure.rootBindings.find(
             (item) => item.consumer === request.consumer && item.specifier === request.specifier,
         );
@@ -916,11 +811,7 @@ export async function withDependencyInputViews<T>(
             unsupportedDependency("DEPENDENCY_CONDITIONAL_INSTANCE_SPLIT");
         if (
             !choices.length ||
-            choices.some(
-                (path) =>
-                    owner(path)?.id !== expected ||
-                    !inventoryFiles.some((file) => file.path === path),
-            )
+            choices.some((path) => owner(path)?.id !== expected || !inventoryFiles.some((file) => file.path === path))
         )
             fail("PAYLOAD_GRAPH_MISMATCH");
         resolutions.push({
@@ -931,11 +822,11 @@ export async function withDependencyInputViews<T>(
             to: expected,
         });
     }
-    const proofEvidence = await writeDependencyJson(
-        work,
-        "input-evidence/dependencies-resolver.json",
-        { requests: uniqueRequests, actual: resolved, command: commands[commands.length - 1] },
-    );
+    const proofEvidence = await writeDependencyJson(work, "input-evidence/dependencies-resolver.json", {
+        requests: uniqueRequests,
+        actual: resolved,
+        command: commands[commands.length - 1],
+    });
     const graph: DependencyGraph = {
         instances,
         edges: closure.edges,
@@ -969,26 +860,18 @@ export async function withDependencyInputViews<T>(
         ],
         inventory.directories,
     );
-    const inventoryRef = await writeDependencyJson(
-        work,
-        "input-evidence/dependencies-inventory.json",
-        inventory,
-    );
+    const inventoryRef = await writeDependencyJson(work, "input-evidence/dependencies-inventory.json", inventory);
     const optionalDecisions: DependenciesReceipt["optionalDecisions"][number][] = [];
     for (const [index, decision] of closure.decisions.entries()) {
         const { detail, ...fact } = decision;
         optionalDecisions.push({
             ...fact,
-            evidence: await writeDependencyJson(
-                work,
-                `input-evidence/dependencies-optional-${index}.json`,
-                {
-                    ...decision,
-                    resolverEvidence: proofEvidence,
-                    layoutEvidence: layoutRef,
-                    sourceLock: lockRef,
-                },
-            ),
+            evidence: await writeDependencyJson(work, `input-evidence/dependencies-optional-${index}.json`, {
+                ...decision,
+                resolverEvidence: proofEvidence,
+                layoutEvidence: layoutRef,
+                sourceLock: lockRef,
+            }),
         });
     }
     const sourceBinding = await writeDependencyJson(
@@ -1003,28 +886,22 @@ export async function withDependencyInputViews<T>(
         "input-evidence/dependencies-workspace-generation.json",
         generated,
     );
-    const commandEvidence = await writeDependencyJson(
-        work,
-        "input-evidence/dependencies-command.json",
-        {
-            schemaVersion: 1,
-            kind: "DEPENDENCIES_PRODUCTION_COMMANDS",
-            commands,
-            toolFacts,
-            sourceBinding,
-            layout: layoutRef,
-            generation: generationRef,
-            resolution: proofEvidence,
-            aliases: aliasEvidence,
-            sourceLockSha256: sha(originalLock),
-            lockAfterSha256: sha(
-                await files.read(join(installation, "pnpm-lock.yaml"), limits.javascript),
-            ),
-            aliasPolicy:
-                "Actual public alias winner retained; other declared commands use owner SHA256 private aliases; all " +
-                "target bodies remain unchanged",
-        },
-    );
+    const commandEvidence = await writeDependencyJson(work, "input-evidence/dependencies-command.json", {
+        schemaVersion: 1,
+        kind: "DEPENDENCIES_PRODUCTION_COMMANDS",
+        commands,
+        toolFacts,
+        sourceBinding,
+        layout: layoutRef,
+        generation: generationRef,
+        resolution: proofEvidence,
+        aliases: aliasEvidence,
+        sourceLockSha256: sha(originalLock),
+        lockAfterSha256: sha(await files.read(join(installation, "pnpm-lock.yaml"), limits.javascript)),
+        aliasPolicy:
+            "Actual public alias winner retained; other declared commands use owner SHA256 private aliases; all " +
+            "target bodies remain unchanged",
+    });
     const receipt: DependenciesReceipt = checked(
         {
             schemaVersion: 1,
@@ -1049,11 +926,7 @@ export async function withDependencyInputViews<T>(
     const tree: BoundTree = {
         root: "dependencies",
         inventory: inventoryRef,
-        buildReceipt: await writeDependencyJson(
-            work,
-            "input-evidence/dependencies-receipt.json",
-            receipt,
-        ),
+        buildReceipt: await writeDependencyJson(work, "input-evidence/dependencies-receipt.json", receipt),
     };
     const viewRoot = join(work.scratch, "views"),
         view = new InputReader(viewRoot, work.signal, ["dependencies"]);

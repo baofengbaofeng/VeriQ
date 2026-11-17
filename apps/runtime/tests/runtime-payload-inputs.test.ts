@@ -44,10 +44,7 @@ for (const arch of ["x64", "arm64"] as const)
             assert.equal(report.trees.execution.fileCount, 8);
             assert.ok(Object.isFrozen(report.trees.entries.inventory.files));
             assert.ok(Object.isFrozen(report.checkedEvidence));
-            assert.equal(
-                new Set(report.checkedEvidence.map((r) => r.path)).size,
-                report.checkedEvidence.length,
-            );
+            assert.equal(new Set(report.checkedEvidence.map((r) => r.path)).size, report.checkedEvidence.length);
             assert.ok(report.checkedEvidence.some((r) => r.path === "archives/node.tar.gz"));
         }, model(arch)));
 
@@ -116,12 +113,7 @@ async function cli(args: string[]) {
     return await new Promise<{ code: number | null; out: string; err: string }>((done) => {
         const p = spawn(
             process.execPath,
-            [
-                "--import",
-                "tsx",
-                resolve(import.meta.dirname, "../scripts/inspect-macos-runtime-inputs.mjs"),
-                ...args,
-            ],
+            ["--import", "tsx", resolve(import.meta.dirname, "../scripts/inspect-macos-runtime-inputs.mjs"), ...args],
             { cwd: resolve(import.meta.dirname, ".."), stdio: ["ignore", "pipe", "pipe"] },
         );
         let out = "",
@@ -147,11 +139,7 @@ test("actual inspect CLI emits complete JSON and rejects duplicate unknown missi
         assert.equal(ok.code, 0, ok.err);
         assert.equal(JSON.parse(ok.out).pending.length, 5);
         assert.equal(ok.err, "");
-        for (const bad of [
-            [...args, "--unknown", "secret"],
-            [...args, "--inputs", "secret"],
-            args.slice(0, -1),
-        ]) {
+        for (const bad of [[...args, "--unknown", "secret"], [...args, "--inputs", "secret"], args.slice(0, -1)]) {
             const result = await cli(bad);
             assert.notEqual(result.code, 0);
             assert.equal(result.out, "");
@@ -180,8 +168,7 @@ test("every populated recipe DTO rejects required unknown and wrong-type mutatio
         for (const action of ["missing", "unknown", "type"]) {
             const value = JSON.parse(bytes(seed.recipe).toString()) as Record<string, unknown>;
             let selected: unknown = value;
-            for (const key of location)
-                selected = (selected as Record<string | number, unknown>)[key];
+            for (const key of location) selected = (selected as Record<string | number, unknown>)[key];
             const object = selected as Record<string, unknown>,
                 key = Object.keys(object)[0]!;
             if (action === "missing") delete object[key];
@@ -206,22 +193,23 @@ async function cancellation(
     closeMode: "normal" | "second" | "timeout" = "normal",
 ) {
     const hold = closeMode !== "normal";
-    const source = `process.argv.splice(1,0,'inspect');import fs from 'node:fs/promises';import{syncBuiltinESMExpor` +
+    const source =
+        `process.argv.splice(1,0,'inspect');import fs from 'node:fs/promises';import{syncBuiltinESMExpor` +
         `ts}from'node:module';const alive=setInterval(()=>{},1000);const original=fs.open;fs.open=async(...args)=>{` +
         `const handle=await original(...args);if(String(args[0]).endsWith('/archives/node.tar.gz')){` +
         `${
             hold
                 ? "handle.close=()=>{process.stderr.write('TEST_C" +
-                    [
-                        "LOSE_STARTED\\n');retur" +
-                        "n new Promise(()=>{});};"] : ""}` +
-                        `const originalStream=handle.createReadStream.bind(handle);handle.createReadStream=options=` +
-                            `>{const stream=originalStream({...options,highWaterMark:1});stream.once('data',()=>{st` +
-                            `ream._read=()=>{};process.stderr.write('TEST_READ_STARTED\\n');});return stream;};}ret` +
-                            `urn handle;};syncBuiltinESMExports();try{await import(` +
-                            `${
-                                JSON.stringify(resolve(import.meta.dirname, "../scripts/inspect-macos-runtime-inputs" +
-                                    ".mjs"))});}finally{clearInterval(alive);}`;
+                  ["LOSE_STARTED\\n');retur" + "n new Promise(()=>{});};"]
+                : ""
+        }` +
+        `const originalStream=handle.createReadStream.bind(handle);handle.createReadStream=options=` +
+        `>{const stream=originalStream({...options,highWaterMark:1});stream.once('data',()=>{st` +
+        `ream._read=()=>{};process.stderr.write('TEST_READ_STARTED\\n');});return stream;};}ret` +
+        `urn handle;};syncBuiltinESMExports();try{await import(` +
+        `${JSON.stringify(
+            resolve(import.meta.dirname, "../scripts/inspect-macos-runtime-inputs" + ".mjs"),
+        )});}finally{clearInterval(alive);}`;
     return await new Promise<{ code: number | null; out: string; err: string }>((done, reject) => {
         const child = spawn(
             process.execPath,

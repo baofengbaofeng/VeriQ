@@ -20,6 +20,16 @@ import { runBoundedAssetCli } from "../../apps/runtime/scripts/runtime-assets-ci
 
 const JSON_LIMIT = 4 * 1024 ** 2,
     ARTIFACT_LIMIT = 2 * 1024 ** 2;
+// 已交付构建与安装脚本只保留 Git 对象身份，不参与入口来源或执行；选择和最终完整清单共用冻结的精确排序集合，新增邻近钩子
+// 仍应拒绝，不能从目录扫描或当前执行位自动扩张此政策。
+const EXECUTABLE_EXCLUSIONS = Object.freeze([
+    "build.sh",
+    "deploy/desktop/linux/before-install.sh",
+    "deploy/desktop/linux/before-remove.sh",
+    "deploy/desktop/macos/scripts/preinstall",
+    "deploy/install.sh",
+    "deploy/start.sh",
+]);
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const refFor = (path, bytes) => ({ path, sizeBytes: bytes.length, sha256: hash(bytes) });
 const now = () => new Date().toISOString();
@@ -92,7 +102,7 @@ export function admitEntryRun(value) {
 }
 
 /**
- * 来源选择依据完整提交树的原始 Git 模式而非当前执行位，只排除三个已批准脚本；保留每个对象身份与排除原因，链接、
+ * 来源选择依据完整提交树的原始 Git 模式而非当前执行位，只排除六个已批准脚本；保留每个对象身份与排除原因，链接、
  * 子模块、新执行文件、重复路径及父目录大小写碰撞全部拒绝。
  */
 export function selectGitInventory(raw) {
@@ -120,8 +130,7 @@ export function selectGitInventory(raw) {
         }
         if (mode === "100644") selected.push({ path, mode, gitBlob });
         else {
-            if (!["build.sh", "deploy/install.sh", "deploy/start.sh"].includes(path))
-                fail("ENTRY_GIT");
+            if (!EXECUTABLE_EXCLUSIONS.includes(path)) fail("ENTRY_GIT");
             excluded.push({ path, mode, gitBlob, reason: "TRACKED_EXECUTABLE" });
         }
     }
@@ -624,11 +633,7 @@ async function bindCheckout(root, commit, command) {
     const inventory = selectGitInventory(Buffer.from(rows.join("")));
     if (
         inventory.selected.length + inventory.excluded.length !== names.length ||
-        !equal(inventory.excluded.map((v) => v.path).sort(), [
-            "build.sh",
-            "deploy/install.sh",
-            "deploy/start.sh",
-        ])
+        !equal(inventory.excluded.map((v) => v.path).sort(), EXECUTABLE_EXCLUSIONS)
     )
         fail("ENTRY_GIT");
     const pipeline =

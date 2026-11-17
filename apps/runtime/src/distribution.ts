@@ -6,11 +6,7 @@ import type { ExecutionPaths } from "./execution/paths.ts";
 import { loadRelease } from "./execution/release.ts";
 import { doctor } from "./doctor.ts";
 import { isNode24Version, isIndependentNode24 } from "./node-version.ts";
-import {
-    verifyMacRuntimeManifestV2,
-    type MacChromeLayout,
-    type MacRuntimeArch,
-} from "./distribution-manifest-v2.ts";
+import { verifyMacRuntimeManifestV2, type MacChromeLayout, type MacRuntimeArch } from "./distribution-manifest-v2.ts";
 
 /**
  * 安装发行描述只保存经过物理库存校验后的路径和独立版本，签名来源认证由安装器负责而不是由自报清单代替；
@@ -77,10 +73,8 @@ export async function loadMacRuntimeDistribution(
     trusted: TrustedMacRuntime,
 ): Promise<RuntimeDistribution> {
     const policy = structuredClone(trusted);
-    if (process.platform !== "darwin" || process.arch !== policy.arch)
-        throw new Error("RUNTIME_HOST_TARGET_MISMATCH");
-    if (!/^[0-9a-f]{64}$/.test(policy.manifestSha256))
-        throw new Error("RUNTIME_TRUSTED_IDENTITY_INVALID");
+    if (process.platform !== "darwin" || process.arch !== policy.arch) throw new Error("RUNTIME_HOST_TARGET_MISMATCH");
+    if (!/^[0-9a-f]{64}$/.test(policy.manifestSha256)) throw new Error("RUNTIME_TRUSTED_IDENTITY_INVALID");
     const inventory = await verifyMacRuntimeManifestV2(directory, {
         arch: policy.arch,
         layout: policy.layout,
@@ -149,29 +143,18 @@ export async function loadMacRuntimeDistribution(
  * 描述本身的来源认证仍由安装、签名和可信启动路径负责。
  * 非 Mac 保留已有第一版加载合同，缺少桌面描述的 Mac 包明确失败，不退回源码 Node、全局 Chrome 或自报清单。
  */
-export async function loadInstalledRuntimeDistribution(
-    directory: string,
-): Promise<RuntimeDistribution> {
+export async function loadInstalledRuntimeDistribution(directory: string): Promise<RuntimeDistribution> {
     if (process.platform !== "darwin") return loadRuntimeDistribution(directory);
     const parent = resolve(directory, "..");
     if ((await realpath(parent)) !== parent) throw new Error("RUNTIME_LINK_FORBIDDEN");
     const descriptor = await member(parent, "desktop-release.json");
     const info = await lstat(descriptor, { bigint: true });
-    if (info.nlink !== 1n || info.size > 1024n * 1024n)
-        throw new Error("RUNTIME_RELEASE_DESCRIPTOR_INVALID");
-    const handle = await open(
-        descriptor,
-        constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
-    );
+    if (info.nlink !== 1n || info.size > 1024n * 1024n) throw new Error("RUNTIME_RELEASE_DESCRIPTOR_INVALID");
+    const handle = await open(descriptor, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
     let bytes: Buffer;
     try {
         const opened = await handle.stat({ bigint: true });
-        if (
-            !opened.isFile() ||
-            opened.dev !== info.dev ||
-            opened.ino !== info.ino ||
-            opened.size !== info.size
-        )
+        if (!opened.isFile() || opened.dev !== info.dev || opened.ino !== info.ino || opened.size !== info.size)
             throw new Error("RUNTIME_RELEASE_DESCRIPTOR_CHANGED");
         const buffer = Buffer.alloc(Number(info.size) + 1);
         let position = 0;
@@ -208,10 +191,9 @@ function portable(value: unknown): value is string {
         typeof value === "string" &&
         value.length > 0 &&
         value.length <= 1024 &&
+        // biome-ignore lint/suspicious/noControlCharactersInRegex: 有意拒绝路径控制字符与 DEL，属安全校验而非误写
         !/[\\:\x00-\x1f\x7f]/.test(value) &&
-        value
-            .split("/")
-            .every((part) => !!part && part !== "." && part !== ".." && !/[. ]$/.test(part))
+        value.split("/").every((part) => !!part && part !== "." && part !== ".." && !/[. ]$/.test(part))
     );
 }
 
@@ -226,8 +208,7 @@ async function member(root: string, name: string) {
         path = join(path, part);
         const info = await lstat(path);
         if (info.isSymbolicLink()) throw new Error("RUNTIME_LINK_FORBIDDEN");
-        if (index < parts.length - 1 ? !info.isDirectory() : !info.isFile())
-            throw new Error("RUNTIME_FILE_MISMATCH");
+        if (index < parts.length - 1 ? !info.isDirectory() : !info.isFile()) throw new Error("RUNTIME_FILE_MISMATCH");
     }
     return path;
 }
@@ -319,9 +300,7 @@ export async function loadRuntimeDistribution(directory: string): Promise<Runtim
         engineVersion: manifest.engineVersion,
         engineDirectory,
         browserExecutable: take(
-            process.platform === "win32"
-                ? "browser/chrome-win64/chrome.exe"
-                : "browser/chrome-linux64/chrome",
+            process.platform === "win32" ? "browser/chrome-win64/chrome.exe" : "browser/chrome-linux64/chrome",
         ),
         agentExecutable: take(`roles/agent/veriq_agent${suffix}`),
         cliExecutable: take(`roles/cli/veriq_cli${suffix}`),

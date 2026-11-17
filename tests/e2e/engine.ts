@@ -23,11 +23,7 @@ export async function testEngine(root: string, environment: NodeJS.ProcessEnv = 
               "1.0.0",
               "4ac7053892d4dbeb957fbda59d9b70dd13a1b5b4ea3ea7acce310b9bfc431bcd",
           ];
-    if (
-        !isAbsolute(directory) ||
-        !/^\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?$/.test(version) ||
-        !/^[a-f0-9]{64}$/.test(hash)
-    )
+    if (!isAbsolute(directory) || !/^\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?$/.test(version) || !/^[a-f0-9]{64}$/.test(hash))
         throw new Error("INVALID_TEST_ENGINE");
     const release = await loadRelease(directory, version);
     if (release.inventoryHash !== hash) throw new Error("TEST_ENGINE_HASH_MISMATCH");

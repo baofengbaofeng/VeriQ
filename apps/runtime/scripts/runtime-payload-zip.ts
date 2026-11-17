@@ -129,10 +129,7 @@ export class ZipRanges {
             if (this.ranges[mid]!.start < start) low = mid + 1;
             else high = mid;
         }
-        if (
-            (low && this.ranges[low - 1]!.end > start) ||
-            (low < this.ranges.length && this.ranges[low]!.start < end)
-        )
+        if ((low && this.ranges[low - 1]!.end > start) || (low < this.ranges.length && this.ranges[low]!.start < end))
             throw new RuntimePayloadError("PAYLOAD_ARCHIVE_RANGE");
         this.ranges.splice(low, 0, { start, end });
     }
@@ -144,16 +141,15 @@ export class ZipRanges {
  */
 export async function scanZip(path: string, scan: ArchiveScan, fileSize: number) {
     let fd: number | undefined = await new Promise<number>((resolve, reject) =>
-        open(
-            path,
-            constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
-            (error, value) => (error ? reject(error) : resolve(value)),
+        open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK, (error, value) =>
+            error ? reject(error) : resolve(value),
         ),
     );
     let zip: ZipFile | undefined,
         stream: Readable | undefined,
         closure: ReturnType<typeof trackZipClosure> | undefined,
         failed = false;
+    let closeError: unknown;
     const ranges = new ZipRanges();
     let metadata = 0,
         count = 0;
@@ -189,8 +185,7 @@ export async function scanZip(path: string, scan: ArchiveScan, fileSize: number)
                 local.fileNameLength +
                 local.extraFieldLength;
             if (
-                entry.fileNameLength + entry.extraFieldLength + entry.fileCommentLength >
-                    64 * 1024 ||
+                entry.fileNameLength + entry.extraFieldLength + entry.fileCommentLength > 64 * 1024 ||
                 local.fileNameLength + local.extraFieldLength > 64 * 1024 ||
                 metadata > 4 * 1024 ** 2
             )
@@ -256,15 +251,12 @@ export async function scanZip(path: string, scan: ArchiveScan, fileSize: number)
                 unsupported("ZIP_METHOD_FLAGS", {
                     methodUnsupported: ![0, 8].includes(entry.compressionMethod),
                     flagsUnsupported: !!(entry.generalPurposeBitFlag & ~0x80e),
-                    storedFlags:
-                        entry.compressionMethod === 0 && !!(entry.generalPurposeBitFlag & 6),
+                    storedFlags: entry.compressionMethod === 0 && !!(entry.generalPurposeBitFlag & 6),
                 });
             if (
                 !(entry.generalPurposeBitFlag & 8) &&
-                ((local.compressedSize !== 0xffffffff &&
-                    local.compressedSize !== entry.compressedSize) ||
-                    (local.uncompressedSize !== 0xffffffff &&
-                        local.uncompressedSize !== entry.uncompressedSize) ||
+                ((local.compressedSize !== 0xffffffff && local.compressedSize !== entry.compressedSize) ||
+                    (local.uncompressedSize !== 0xffffffff && local.uncompressedSize !== entry.uncompressedSize) ||
                     local.crc32 !== entry.crc32)
             )
                 scan.tx.fail("PAYLOAD_ARCHIVE_RANGE");
@@ -272,14 +264,10 @@ export async function scanZip(path: string, scan: ArchiveScan, fileSize: number)
                 rawMode = entry.externalFileAttributes >>> 16,
                 type = rawMode & 0o170000,
                 directory = entry.fileName.endsWith("/");
-            if (
-                (host !== 3 && host !== 0) ||
-                (host === 3 && ![0, 0o100000, 0o040000, 0o120000].includes(type))
-            )
+            if ((host !== 3 && host !== 0) || (host === 3 && ![0, 0o100000, 0o040000, 0o120000].includes(type)))
                 unsupported("ZIP_HOST_TYPE", {
                     hostUnsupported: host !== 3 && host !== 0,
-                    typeUnsupported:
-                        host === 3 && ![0, 0o100000, 0o040000, 0o120000].includes(type),
+                    typeUnsupported: host === 3 && ![0, 0o100000, 0o040000, 0o120000].includes(type),
                 });
             if (
                 (host === 0 && rawMode) ||
@@ -294,8 +282,7 @@ export async function scanZip(path: string, scan: ArchiveScan, fileSize: number)
                     dosDirectory: !!(entry.externalFileAttributes & 0x10) && !directory,
                 });
             const kind = type === 0o120000 ? "link" : directory ? "directory" : "file";
-            const mode =
-                host === 3 && rawMode ? rawMode & 0o7777 : kind === "directory" ? 0o755 : 0o644;
+            const mode = host === 3 && rawMode ? rawMode & 0o7777 : kind === "directory" ? 0o755 : 0o644;
             setArchiveRejectionContext(scan, context);
             stream = await zip.openReadStreamPromise(entry);
             scan.tx.check();
@@ -316,10 +303,7 @@ export async function scanZip(path: string, scan: ArchiveScan, fileSize: number)
                 if (crc >>> 0 !== entry.crc32 >>> 0) scan.tx.fail("PAYLOAD_ARCHIVE_CRC");
             };
             try {
-                await scan.entry(
-                    { path: entry.fileName, kind, mode, size: entry.uncompressedSize },
-                    content(stream),
-                );
+                await scan.entry({ path: entry.fileName, kind, mode, size: entry.uncompressedSize }, content(stream));
                 await completion;
             } finally {
                 stream.destroy();
@@ -345,9 +329,10 @@ export async function scanZip(path: string, scan: ArchiveScan, fileSize: number)
             if (closure) await closure.settle();
             else if (fd !== undefined) await closeUntransferredZipFd(fd, scan.tx);
         } catch (error) {
-            if (!failed) throw error;
+            if (!failed) closeError = error;
         }
     }
+    if (closeError !== undefined) throw closeError;
 }
 /**
  * 每次 central 准入都同时监听结束、错误和当前 entry，并在任何结果后移除另外两个监听；不预读下一成员或访问库私有游标，异

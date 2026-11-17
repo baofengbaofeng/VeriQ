@@ -115,15 +115,13 @@ test("distribution rejects linked members and unsafe manifest paths", async () =
  * 载器，原有二十四点二十二点一历史样本仍保留而不是批量改写旧事实。
  */
 test("distribution validates stable Node24 manifest versions", async () => {
-    const cases = JSON.parse(
-        await readFile(new URL("./fixtures/node24-versions.json", import.meta.url), "utf8"),
-    ) as { version: string; supported: boolean }[];
+    const cases = JSON.parse(await readFile(new URL("./fixtures/node24-versions.json", import.meta.url), "utf8")) as {
+        version: string;
+        supported: boolean;
+    }[];
     const { root, manifest } = await fixture();
     try {
-        for (const { version, supported } of [
-            ...cases,
-            { version: "24.20.0\n", supported: false },
-        ]) {
+        for (const { version, supported } of [...cases, { version: "24.20.0\n", supported: false }]) {
             manifest.nodeVersion = version;
             await writeFile(join(root, "runtime-manifest.json"), JSON.stringify(manifest));
             if (supported) {
@@ -157,8 +155,7 @@ test("installed role binds exact verified Node identity and rejects copied capab
             Object.defineProperty(process.versions, "node", { ...node, value: "24.22.1" });
             assert.throws(() => assertRuntimeRole(loaded, role), /RUNTIME_ROLE_MISMATCH/);
             assert.throws(
-                () =>
-                    assertRuntimeRole({ ...loaded, nodeVersion: "24.22.1" } as typeof loaded, role),
+                () => assertRuntimeRole({ ...loaded, nodeVersion: "24.22.1" } as typeof loaded, role),
                 /RUNTIME_ROLE_MISMATCH/,
             );
         }

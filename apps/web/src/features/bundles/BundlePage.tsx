@@ -42,11 +42,7 @@ export function BundlePage() {
         <Panel title={tx("离线包 / Offline bundles")}>
             <label>
                 {tx("空间 / Workspace")}
-                <select
-                    aria-label={tx("Bundle Workspace")}
-                    value={selected}
-                    onChange={(e) => select(e.target.value)}
-                >
+                <select aria-label={tx("Bundle Workspace")} value={selected} onChange={(e) => select(e.target.value)}>
                     {items.map((w) => (
                         <option key={w.id} value={w.id}>
                             {w.name}
@@ -118,8 +114,7 @@ export function BundleWorkspaceView({
     });
     const versions = useInfiniteQuery({
         queryKey: ["workspace", "bundle-versions", workspaceId, resource],
-        queryFn: ({ pageParam, signal: q }) =>
-            resources.versions(resource, pageParam, AbortSignal.any([combined, q])),
+        queryFn: ({ pageParam, signal: q }) => resources.versions(resource, pageParam, AbortSignal.any([combined, q])),
         initialPageParam: undefined as string | undefined,
         getNextPageParam: (p) => p.nextCursor ?? undefined,
         enabled: !!resource && kind !== "DRAFT",
@@ -134,8 +129,7 @@ export function BundleWorkspaceView({
     });
     const bundles = useInfiniteQuery({
         queryKey: ["workspace", "bundles", workspaceId, adapter],
-        queryFn: ({ pageParam, signal: q }) =>
-            adapter.list(pageParam, AbortSignal.any([combined, q])),
+        queryFn: ({ pageParam, signal: q }) => adapter.list(pageParam, AbortSignal.any([combined, q])),
         initialPageParam: undefined as string | undefined,
         getNextPageParam: (p) => p.nextCursor ?? undefined,
         enabled: canDownload,
@@ -241,9 +235,7 @@ export function BundleWorkspaceView({
                         >
                             <option value="CASE">{tx("用例 / Case")}</option>
                             <option value="SUITE">{tx("套件 / Suite")}</option>
-                            {canEdit && (
-                                <option value="DRAFT">{tx("草稿调试 / Draft DEBUG")}</option>
-                            )}
+                            {canEdit && <option value="DRAFT">{tx("草稿调试 / Draft DEBUG")}</option>}
                         </select>
                     </label>
                     <label>
@@ -259,9 +251,7 @@ export function BundleWorkspaceView({
                             <option value="">{tx("请选择 / Select")}</option>
                             {resourceOptions(
                                 items.filter((r) =>
-                                    kind === "DRAFT"
-                                        ? ["CASE", "SUITE"].includes(r.kind)
-                                        : r.kind === kind,
+                                    kind === "DRAFT" ? ["CASE", "SUITE"].includes(r.kind) : r.kind === kind,
                                 ),
                             )}
                         </select>
@@ -272,9 +262,7 @@ export function BundleWorkspaceView({
                             <select
                                 data-testid="bundle-version"
                                 multiple={kind === "CASE"}
-                                value={
-                                    kind === "CASE" ? (version ? version.split(",") : []) : version
-                                }
+                                value={kind === "CASE" ? (version ? version.split(",") : []) : version}
                                 onChange={(e) =>
                                     setVersion(
                                         kind === "CASE"
@@ -336,8 +324,7 @@ export function BundleWorkspaceView({
                             <ul aria-label={tx("Selected case versions")}>
                                 {basket.map((item) => (
                                     <li key={item.version.id} data-testid="bundle-selected-case">
-                                        {item.resource.name} · v{item.version.versionNo} ·{" "}
-                                        {item.version.id}
+                                        {item.resource.name} · v{item.version.versionNo} · {item.version.id}
                                         <button
                                             type="button"
                                             aria-label={tx("Remove {{value0}} v{{value1}}", {
@@ -346,9 +333,7 @@ export function BundleWorkspaceView({
                                             })}
                                             onClick={() =>
                                                 setBasket((current) =>
-                                                    current.filter(
-                                                        (v) => v.version.id !== item.version.id,
-                                                    ),
+                                                    current.filter((v) => v.version.id !== item.version.id),
                                                 )
                                             }
                                         >
@@ -409,9 +394,7 @@ export function BundleWorkspaceView({
                         disabled={
                             busy ||
                             !environmentVersion ||
-                            (kind === "CASE"
-                                ? !basket.length
-                                : !resource || (kind === "SUITE" && !version))
+                            (kind === "CASE" ? !basket.length : !resource || (kind === "SUITE" && !version))
                         }
                         onClick={() => void exportBundle()}
                     >

@@ -74,19 +74,12 @@ test("native artifact context includes streamed Attempts and rejects cross-scope
             }),
     });
     const actions: Parameters<DesktopBridge["artifact"]>[0][] = [];
-    const adapter = nativeCloudReports(
-        workspaceId,
-        new CloudReportAdapter(workspaceId),
-        async (input) => {
-            actions.push(input);
-        },
-    );
+    const adapter = nativeCloudReports(workspaceId, new CloudReportAdapter(workspaceId), async (input) => {
+        actions.push(input);
+    });
     assert.equal((await adapter.report(runId)).cases.length, 0);
     assert(adapter.nativeArtifact);
-    await assert.rejects(
-        adapter.nativeArtifact(attemptId, attemptId, "trace"),
-        /REPORT_CONTEXT_MISSING/,
-    );
+    await assert.rejects(adapter.nativeArtifact(attemptId, attemptId, "trace"), /REPORT_CONTEXT_MISSING/);
     const controller = new AbortController();
     await adapter.subscribe(
         runId,
@@ -97,9 +90,7 @@ test("native artifact context includes streamed Attempts and rejects cross-scope
         controller.signal,
     );
     await adapter.nativeArtifact(attemptId, attemptId, "trace");
-    assert.deepEqual(actions, [
-        { local: false, runId, attemptId, artifactId: attemptId, action: "trace" },
-    ]);
+    assert.deepEqual(actions, [{ local: false, runId, attemptId, artifactId: attemptId, action: "trace" }]);
     next = {
         ...streamed,
         run: { ...streamed.run, workspaceId: "66666666-6666-4666-8666-666666666666" },

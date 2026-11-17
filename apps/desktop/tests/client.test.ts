@@ -20,10 +20,7 @@ test("agent client rejects a connection closed without response", { timeout: 150
             socket: path,
             nonce: "1".repeat(64),
         }));
-        await assert.rejects(
-            new DesktopAgentClient(root).call({ operation: "status" }),
-            /AGENT_CONNECTION_CLOSED/,
-        );
+        await assert.rejects(new DesktopAgentClient(root).call({ operation: "status" }), /AGENT_CONNECTION_CLOSED/);
     } finally {
         await new Promise<void>((resolve) => server.close(() => resolve()));
         await rm(root, { recursive: true, force: true });

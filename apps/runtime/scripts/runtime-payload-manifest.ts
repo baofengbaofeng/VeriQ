@@ -1,8 +1,5 @@
 import { canonicalBytes } from "@veriq/contracts";
-import {
-    parseMacRuntimeManifestV2,
-    type MacChromeLayout,
-} from "../src/distribution-manifest-v2.ts";
+import { parseMacRuntimeManifestV2, type MacChromeLayout } from "../src/distribution-manifest-v2.ts";
 import type { FileFact, LinkFact, Recipe, Ref, TreeKind } from "./runtime-payload-inputs.ts";
 
 /**
@@ -73,9 +70,7 @@ export function manifestBytes(
             executablePath: layout.executablePath,
         },
         directories: [...directories].sort(),
-        files: [...files]
-            .sort((a, b) => (a.path < b.path ? -1 : 1))
-            .map(({ origins: _origins, ...fact }) => fact),
+        files: [...files].sort((a, b) => (a.path < b.path ? -1 : 1)).map(({ origins: _origins, ...fact }) => fact),
         links: [...links].sort((a, b) => (a.path < b.path ? -1 : 1)),
     });
     parseMacRuntimeManifestV2(bytes, { arch: recipe.target.arch, layout });

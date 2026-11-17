@@ -33,20 +33,15 @@ export type ResetLink = Schemas["ResetLinkDTO"];
  * 系统管理员用户列表的游标与过滤查询形状，绑定 GET /admin/users 的 OpenAPI 参数。email 过滤为前缀匹配语义。
  * limit/cursor 变更会触发 AdminUsers 重新拉取，避免跨页状态串扰。
  */
-export type UserListQuery = NonNullable<
-    PlatformPaths["/api/v1/admin/users"]["get"]["parameters"]["query"]
->;
+export type UserListQuery = NonNullable<PlatformPaths["/api/v1/admin/users"]["get"]["parameters"]["query"]>;
 /**
  * 账户会话列表查询形状，绑定 GET /account/sessions，支持 limit 与 cursor 分页。与管理端用户会话列表形状不同。Account
  * 页用其控制每页条数并在 Load more 时追加 items。
  */
-export type SessionListQuery = NonNullable<
-    PlatformPaths["/api/v1/account/sessions"]["get"]["parameters"]["query"]
->;
+export type SessionListQuery = NonNullable<PlatformPaths["/api/v1/account/sessions"]["get"]["parameters"]["query"]>;
 function queryString(options: Record<string, string | number | boolean | undefined>): string {
     const query = new URLSearchParams();
-    for (const [key, value] of Object.entries(options))
-        if (value !== undefined) query.set(key, String(value));
+    for (const [key, value] of Object.entries(options)) if (value !== undefined) query.set(key, String(value));
     return query.size ? "?" + query.toString() : "";
 }
 let csrfToken = "";
@@ -182,12 +177,9 @@ export async function request<T>(
         const body = await response.json();
         active?.throwIfAborted();
         if (response.status === 401) expireSession(owner, body.code, active);
-        if (!response.ok)
-            throw new ApiError(body.code, body.message, response.status, body.requestId);
-        if (ownsSession(owner, active) && typeof body.data?.csrfToken === "string")
-            csrfToken = body.data.csrfToken;
-        if (path === "/auth/logout" && changesCookie && ownsSession(owner, active))
-            sessionOwner += 1;
+        if (!response.ok) throw new ApiError(body.code, body.message, response.status, body.requestId);
+        if (ownsSession(owner, active) && typeof body.data?.csrfToken === "string") csrfToken = body.data.csrfToken;
+        if (path === "/auth/logout" && changesCookie && ownsSession(owner, active)) sessionOwner += 1;
         return body.data as T;
     } finally {
         // 旧请求结束时只释放属于自己的控制器，不能擦除较新登录或退出的取消句柄；已完成请求的 Cookie 事实不能通过代次检
@@ -201,8 +193,7 @@ export async function request<T>(
  */
 export const api = {
     setup: () => request<Schemas["SetupDTO"]>("/setup"),
-    initialize: (data: Schemas["SetupRequest"]) =>
-        request<Schemas["UserDTO"]>("/setup", "POST", data),
+    initialize: (data: Schemas["SetupRequest"]) => request<Schemas["UserDTO"]>("/setup", "POST", data),
     login: (data: Schemas["LoginRequest"]) => request<Session>("/auth/login", "POST", data),
     session: () => request<Session>("/auth/session"),
     logout: () => request<Schemas["Empty"]>("/auth/logout", "POST", {}),
@@ -210,20 +201,16 @@ export const api = {
     sessions: (options: SessionListQuery = {}) =>
         request<AccountSessions>("/account/sessions" + queryString({ ...options })),
     revokeOwn: () => request<Schemas["Empty"]>("/account/sessions/revoke", "POST", {}),
-    password: (data: Schemas["ChangePasswordRequest"]) =>
-        request<Schemas["Empty"]>("/account/password", "POST", data),
-    resetRequest: (email: string) =>
-        request<Schemas["Empty"]>("/auth/password-reset", "POST", { email }),
+    password: (data: Schemas["ChangePasswordRequest"]) => request<Schemas["Empty"]>("/account/password", "POST", data),
+    resetRequest: (email: string) => request<Schemas["Empty"]>("/auth/password-reset", "POST", { email }),
     resetConfirm: (data: Schemas["ResetPasswordRequest"]) =>
         request<Schemas["Empty"]>("/auth/password-reset/confirm", "POST", data),
     users: (options: UserListQuery = {}) =>
         request<Schemas["AdminUsersDTO"]>("/admin/users" + queryString({ ...options })),
     createUser: (data: Schemas["CreateUserRequest"]) => request<User>("/admin/users", "POST", data),
-    updateUser: (id: string, data: Schemas["UpdateUserRequest"]) =>
-        request<User>(`/admin/users/${id}`, "PATCH", data),
+    updateUser: (id: string, data: Schemas["UpdateUserRequest"]) => request<User>(`/admin/users/${id}`, "PATCH", data),
     resetLink: (id: string) => request<ResetLink>(`/admin/users/${id}/reset-link`, "POST", {}),
-    revokeUser: (id: string) =>
-        request<Schemas["Empty"]>(`/admin/users/${id}/sessions/revoke`, "POST", {}),
+    revokeUser: (id: string) => request<Schemas["Empty"]>(`/admin/users/${id}/sessions/revoke`, "POST", {}),
     workspaces: (cursor?: string, signal?: AbortSignal) =>
         request<Schemas["WorkspaceDTOPageEnvelope"]["data"]>(
             "/workspaces" + queryString({ cursor }),
@@ -260,12 +247,7 @@ export const api = {
     invite: (id: string, data: Schemas["InviteRequest"], signal?: AbortSignal) =>
         request<Schemas["InviteDTO"]>(`/workspaces/${id}/invitations`, "POST", data, signal),
     revokeInvitation: (ws: string, id: string, signal?: AbortSignal) =>
-        request<Schemas["Empty"]>(
-            `/workspaces/${ws}/invitations/${id}`,
-            "DELETE",
-            undefined,
-            signal,
-        ),
+        request<Schemas["Empty"]>(`/workspaces/${ws}/invitations/${id}`, "DELETE", undefined, signal),
     acceptInvitation: (data: Schemas["InvitationAcceptRequest"]) =>
         request<Schemas["UserDTO"]>("/auth/invitations/accept", "POST", data),
 };
@@ -308,12 +290,7 @@ export const runtimeApi = {
             signal,
         ),
     inspect: (userCode: string, signal?: AbortSignal) =>
-        request<Schemas["EnrollmentPreview"]>(
-            "/runtime-enrollments/inspect",
-            "POST",
-            { userCode },
-            signal,
-        ),
+        request<Schemas["EnrollmentPreview"]>("/runtime-enrollments/inspect", "POST", { userCode }, signal),
     approve: (id: string, data: Schemas["EnrollmentApprove"], signal?: AbortSignal) =>
         request<Runtime>(`/runtime-enrollments/${id}/approve`, "POST", data, signal),
     grants: (ws: string, id: string, data: Schemas["RuntimeGrantWrite"], signal?: AbortSignal) =>
@@ -330,12 +307,7 @@ export const runtimeApi = {
             signal,
         ),
     createAccount: (ws: string, name: string, signal?: AbortSignal) =>
-        request<Schemas["ServiceAccountDTO"]>(
-            `/workspaces/${ws}/service-accounts`,
-            "POST",
-            { name },
-            signal,
-        ),
+        request<Schemas["ServiceAccountDTO"]>(`/workspaces/${ws}/service-accounts`, "POST", { name }, signal),
     issueToken: (ws: string, id: string, signal?: AbortSignal) =>
         request<Schemas["ServiceTokenDTO"]>(
             `/workspaces/${ws}/service-accounts/${id}/tokens`,
@@ -344,12 +316,7 @@ export const runtimeApi = {
             signal,
         ),
     disableAccount: (ws: string, id: string, signal?: AbortSignal) =>
-        request<Schemas["ServiceAccountDTO"]>(
-            `/workspaces/${ws}/service-accounts/${id}/disable`,
-            "POST",
-            {},
-            signal,
-        ),
+        request<Schemas["ServiceAccountDTO"]>(`/workspaces/${ws}/service-accounts/${id}/disable`, "POST", {}, signal),
 };
 
 /**
@@ -384,10 +351,7 @@ export async function streamRequest(path: string, data: unknown, signal: AbortSi
  */
 export function streamAuthorizationError(response: Response, payload: unknown): ApiError {
     const code =
-        payload !== null &&
-        typeof payload === "object" &&
-        "code" in payload &&
-        typeof payload.code === "string"
+        payload !== null && typeof payload === "object" && "code" in payload && typeof payload.code === "string"
             ? payload.code
             : "REPORT_ACCESS_CHANGED";
     const owner = streamOwners.get(response);

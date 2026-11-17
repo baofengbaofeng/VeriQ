@@ -1,15 +1,5 @@
 import { constants, type BigIntStats } from "node:fs";
-import {
-    mkdir,
-    lstat,
-    open,
-    readdir,
-    readlink,
-    realpath,
-    unlink,
-    symlink,
-    chmod,
-} from "node:fs/promises";
+import { mkdir, lstat, open, readdir, readlink, realpath, unlink, symlink, chmod } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { dirname, isAbsolute, join, posix, relative as nativeRelative } from "node:path";
@@ -18,12 +8,7 @@ import { canonicalBytes } from "@veriq/contracts";
 import { DependencyFiles } from "./runtime-dependency-files.ts";
 import { materializeRuntimeWorkspacePackages } from "./runtime-workspace-packages.ts";
 import { collectLayoutMetadata } from "./runtime-dependency-layout.mjs";
-import {
-    dependencyDeclarations,
-    lockSections,
-    packageAlias,
-    type LayoutRecord,
-} from "./runtime-dependency-closure.ts";
+import { dependencyDeclarations, lockSections, packageAlias, type LayoutRecord } from "./runtime-dependency-closure.ts";
 import { scanRuntimeLiteralImports, classifyRuntimeModuleEdge } from "./runtime-payload-graph.ts";
 import { renderBinShim } from "./runtime-payload-bins.ts";
 import { limits, relative, sha } from "./runtime-payload-tree.ts";
@@ -77,24 +62,20 @@ class NativeBuildFiles extends DependencyFiles {
             return;
         }
         const before = await lstat(path, { bigint: true });
-        if (!before.isFile() || before.size > BigInt(cap))
-            throw new Error("RUNTIME_V1_INPUT_FILE_INVALID");
+        if (!before.isFile() || before.size > BigInt(cap)) throw new Error("RUNTIME_V1_INPUT_FILE_INVALID");
         const previous = this.nativeObserved.get(path);
-        if (previous && !same(previous.identity, before))
-            throw new Error("RUNTIME_V1_INPUT_CHANGED");
+        if (previous && !same(previous.identity, before)) throw new Error("RUNTIME_V1_INPUT_CHANGED");
         const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
         const digest = createHash("sha256");
         let count = 0;
         try {
-            if (!same(before, await handle.stat({ bigint: true })))
-                throw new Error("RUNTIME_V1_INPUT_CHANGED");
+            if (!same(before, await handle.stat({ bigint: true }))) throw new Error("RUNTIME_V1_INPUT_CHANGED");
             while (true) {
                 const bytes = Buffer.alloc(65536);
                 const { bytesRead } = await handle.read(bytes, 0, bytes.length, count);
                 if (!bytesRead) break;
                 count += bytesRead;
-                if (count > cap || count > Number(before.size))
-                    throw new Error("RUNTIME_V1_INPUT_LIMIT");
+                if (count > cap || count > Number(before.size)) throw new Error("RUNTIME_V1_INPUT_LIMIT");
                 digest.update(bytes.subarray(0, bytesRead));
                 yield bytes.subarray(0, bytesRead);
             }
@@ -180,11 +161,7 @@ async function pinnedTool(material: RuntimeV1Material): Promise<void> {
  * optional peer 只记录实际物理查找缺失，普通依赖与 required peer
  * 永远不能省略。这里只复用 C04 的固定锁块解析，不实现另一个 YAML 或 exports 解释器，遇到不支持的标量结构保持失败。
  */
-function excludedOptional(
-    lock: ReturnType<typeof lockSections>,
-    alias: string,
-    requested: string,
-): unknown {
+function excludedOptional(lock: ReturnType<typeof lockSections>, alias: string, requested: string): unknown {
     const key = `${alias}@${requested}`,
         body = lock.packages.get(key);
     if (!body) throw new Error("RUNTIME_V1_OPTIONAL_LOCK_MISSING");
@@ -192,9 +169,7 @@ function excludedOptional(
     for (const name of ["os", "cpu"]) {
         const row = new RegExp(`^ {8}${name}: \\[([^\\]]*)\\]\\s*$`, "m").exec(body);
         if (row) {
-            fields[name] = row[1]!
-                .split(",")
-                .map((item) => item.trim().replace(/^['"]|['"]$/g, ""));
+            fields[name] = row[1]!.split(",").map((item) => item.trim().replace(/^['"]|['"]$/g, ""));
             if (fields[name]!.some((item) => !/^!?[a-z0-9_-]+$/i.test(item)))
                 throw new Error("RUNTIME_V1_OPTIONAL_METADATA_UNSUPPORTED");
         } else if (new RegExp(`^ {8}${name}:`, "m").test(body))
@@ -204,9 +179,7 @@ function excludedOptional(
         values &&
         (values.includes("!any") ||
             values.includes(`!${value}`) ||
-            (values.some((item) => !item.startsWith("!")) &&
-                !values.includes("any") &&
-                !values.includes(value)));
+            (values.some((item) => !item.startsWith("!")) && !values.includes("any") && !values.includes(value)));
     if (!excluded(fields.os, process.platform) && !excluded(fields.cpu, process.arch))
         throw new Error("RUNTIME_V1_APPLICABLE_OPTIONAL_MISSING");
     return {
@@ -225,8 +198,7 @@ function excludedOptional(
  */
 function outputRoot(physical: string): string {
     if (physical.startsWith("node_modules/")) return physical;
-    if (physical.startsWith("apps/runtime/node_modules/"))
-        return physical.slice("apps/runtime/".length);
+    if (physical.startsWith("apps/runtime/node_modules/")) return physical.slice("apps/runtime/".length);
     for (const name of ["contracts", "runner-sdk"])
         if (physical.startsWith(`packages/${name}/node_modules/`))
             return `node_modules/@veriq/${name}/${physical.slice(`packages/${name}/`.length)}`;
@@ -283,8 +255,7 @@ export async function prepareRuntimeV1Dependencies(
         "apps/runtime/scripts/runtime-dependency-closure.ts",
         ".github/scripts/production-layout.mjs",
     ])
-        if (!source.files.some((file) => file.path === path))
-            throw new Error("RUNTIME_V1_DEPENDENCY_SOURCE_MISSING");
+        if (!source.files.some((file) => file.path === path)) throw new Error("RUNTIME_V1_DEPENDENCY_SOURCE_MISSING");
     const compilerFiles = new NativeBuildFiles();
     await pinnedTool(config.pnpmPackage);
     const pnpmCli = await realpath(config.pnpmCli),
@@ -296,9 +267,7 @@ export async function prepareRuntimeV1Dependencies(
     )
         throw new Error("RUNTIME_V1_PNPM_ENTRY_UNBOUND");
     const pnpmManifest = JSON.parse(
-        (
-            await compilerFiles.read(join(config.pnpmPackage.root, "package.json"), limits.package)
-        ).toString(),
+        (await compilerFiles.read(join(config.pnpmPackage.root, "package.json"), limits.package)).toString(),
     ) as { name?: string; version?: string };
     if (pnpmManifest.name !== "pnpm" || pnpmManifest.version !== "11.25.0")
         throw new Error("RUNTIME_V1_PNPM_PACKAGE_IDENTITY_MISMATCH");
@@ -307,16 +276,9 @@ export async function prepareRuntimeV1Dependencies(
     const installation = join(options.workRoot, "installation"),
         generatedRoot = join(options.workRoot, "generated"),
         layoutRoot = join(options.workRoot, "runtime");
-    for (const path of [installation, generatedRoot, layoutRoot])
-        await mkdir(path, { mode: 0o700 });
+    for (const path of [installation, generatedRoot, layoutRoot]) await mkdir(path, { mode: 0o700 });
     for (const ref of source.files)
-        await copyReleaseFile(
-            join(options.sourceRoot, ref.path),
-            installation,
-            ref.path,
-            ref,
-            0o644,
-        );
+        await copyReleaseFile(join(options.sourceRoot, ref.path), installation, ref.path, ref, 0o644);
     // 当前实际宿主实现也必须匹配独立源码绑定，不能只复制一份伪造同形实现到 installation；导入工具及发射器随后继续用
     // held 输入记录真实执行源码和 TypeScript 文件身份。
     for (const path of source.files.filter(
@@ -379,15 +341,14 @@ export async function prepareRuntimeV1Dependencies(
         source,
         files: compilerFiles,
     });
-    const compilerIdentities = (
-        items: readonly { path: string; sizeBytes: number; sha256: string }[],
-    ) =>
+    const compilerIdentities = (items: readonly { path: string; sizeBytes: number; sha256: string }[]) =>
         [...items]
             .sort((a, b) => a.path.localeCompare(b.path))
             .map(({ path, sizeBytes, sha256 }) => ({ path, sizeBytes, sha256 }));
-    const actualCompiler = generated.compilerImplementation.map(
-        ({ absolutePath, ...identity }) => ({ path: absolutePath, ...identity }),
-    );
+    const actualCompiler = generated.compilerImplementation.map(({ absolutePath, ...identity }) => ({
+        path: absolutePath,
+        ...identity,
+    }));
     if (
         JSON.stringify(compilerIdentities(actualCompiler)) !==
         JSON.stringify(compilerIdentities(config.compilerImplementation))
@@ -399,21 +360,14 @@ export async function prepareRuntimeV1Dependencies(
     // 定工作区的链接并复制普通生成包，原始源码、锁和工具目录从不修改。
     let projectionMembers = 0;
     const normalize = async (path: string, stack: readonly string[] = []): Promise<void> => {
-        if (++projectionMembers > 40000 || path.split("/").length > 64)
-            throw new Error("RUNTIME_V1_DEPENDENCY_LIMIT");
+        if (++projectionMembers > 40000 || path.split("/").length > 64) throw new Error("RUNTIME_V1_DEPENDENCY_LIMIT");
         const absolute = join(installation, path),
             before = await lstat(absolute);
         if (before.isSymbolicLink()) {
             if (path.split("/").includes(".bin")) return;
             const endpoint = inside(installation, await realpath(absolute));
-            const manifest =
-                endpoint && source.files.find((file) => file.path === `${endpoint}/package.json`);
-            if (
-                !endpoint ||
-                !manifest ||
-                !/^(?:packages|apps)\/[^/]+$/.test(endpoint) ||
-                stack.includes(endpoint)
-            )
+            const manifest = endpoint && source.files.find((file) => file.path === `${endpoint}/package.json`);
+            if (!endpoint || !manifest || !/^(?:packages|apps)\/[^/]+$/.test(endpoint) || stack.includes(endpoint))
                 throw new Error("RUNTIME_V1_INSTALL_LINK_UNSUPPORTED");
             const originalTarget = await readlink(absolute);
             const generation = generated.packages.find((pkg) => pkg.sourceRoot === endpoint);
@@ -423,9 +377,7 @@ export async function prepareRuntimeV1Dependencies(
             for (const ref of generation?.files ??
                 originals.map((file) => ({ ...file, path: file.path.slice(endpoint.length + 1) })))
                 await copyReleaseFile(
-                    generation
-                        ? join(generation.generatedRoot, ref.path)
-                        : join(installation, endpoint, ref.path),
+                    generation ? join(generation.generatedRoot, ref.path) : join(installation, endpoint, ref.path),
                     installation,
                     `${path}/${ref.path}`,
                     ref,
@@ -459,28 +411,16 @@ export async function prepareRuntimeV1Dependencies(
                     lineage: readonly string[],
                     mappings: readonly (readonly [string, string])[],
                 ): Promise<void> => {
-                    if (depth > 64 || ++projectionMembers > 40000)
-                        throw new Error("RUNTIME_V1_DEPENDENCY_DEPTH");
+                    if (depth > 64 || ++projectionMembers > 40000) throw new Error("RUNTIME_V1_DEPENDENCY_DEPTH");
                     const info = await lstat(join(installation, from));
                     if (info.isSymbolicLink()) {
-                        const target = inside(
-                            installation,
-                            await realpath(join(installation, from)),
-                        );
+                        const target = inside(installation, await realpath(join(installation, from)));
                         if (!target) throw new Error("RUNTIME_V1_INSTALL_LINK_UNSUPPORTED");
                         if (from.split("/").includes(".bin")) {
-                            const mapping = [...mappings]
-                                .reverse()
-                                .find(([prefix]) => target.startsWith(prefix + "/"));
-                            const mapped = mapping
-                                ? `${mapping[1]}/${target.slice(mapping[0].length + 1)}`
-                                : target;
+                            const mapping = [...mappings].reverse().find(([prefix]) => target.startsWith(prefix + "/"));
+                            const mapped = mapping ? `${mapping[1]}/${target.slice(mapping[0].length + 1)}` : target;
                             await releaseDirectory(installation, posix.dirname(to));
-                            await symlink(
-                                posix.relative(posix.dirname(to), mapped),
-                                join(installation, to),
-                                "file",
-                            );
+                            await symlink(posix.relative(posix.dirname(to), mapped), join(installation, to), "file");
                             linkEvidence.push({
                                 path: to,
                                 originalAlias: from,
@@ -489,11 +429,8 @@ export async function prepareRuntimeV1Dependencies(
                             });
                             return;
                         }
-                        if (lineage.includes(target))
-                            throw new Error("RUNTIME_V1_INSTALL_LINK_UNSUPPORTED");
-                        const selected = generated.packages.find(
-                            (pkg) => pkg.sourceRoot === target,
-                        );
+                        if (lineage.includes(target)) throw new Error("RUNTIME_V1_INSTALL_LINK_UNSUPPORTED");
+                        const selected = generated.packages.find((pkg) => pkg.sourceRoot === target);
                         if (!selected) throw new Error("RUNTIME_V1_INSTALL_LINK_UNSUPPORTED");
                         await releaseDirectory(installation, to);
                         for (const ref of selected.files)
@@ -505,12 +442,12 @@ export async function prepareRuntimeV1Dependencies(
                                 0o644,
                             );
                         workspaceOrigins.set(to, target);
-                        const ownNested = await lstat(
-                            join(installation, target, "node_modules"),
-                        ).catch((error: NodeJS.ErrnoException) => {
-                            if (error.code !== "ENOENT") throw error;
-                            return null;
-                        });
+                        const ownNested = await lstat(join(installation, target, "node_modules")).catch(
+                            (error: NodeJS.ErrnoException) => {
+                                if (error.code !== "ENOENT") throw error;
+                                return null;
+                            },
+                        );
                         if (ownNested)
                             await clone(
                                 `${target}/node_modules`,
@@ -522,13 +459,7 @@ export async function prepareRuntimeV1Dependencies(
                     } else if (info.isDirectory()) {
                         await releaseDirectory(installation, to);
                         for (const name of await readdir(join(installation, from)))
-                            await clone(
-                                `${from}/${name}`,
-                                `${to}/${name}`,
-                                depth + 1,
-                                lineage,
-                                mappings,
-                            );
+                            await clone(`${from}/${name}`, `${to}/${name}`, depth + 1, lineage, mappings);
                     } else if (info.isFile())
                         await copyReleaseFile(
                             join(installation, from),
@@ -539,19 +470,12 @@ export async function prepareRuntimeV1Dependencies(
                         );
                     else throw new Error("RUNTIME_V1_INSTALL_TYPE_UNSUPPORTED");
                 };
-                await clone(
-                    cloneBase,
-                    projectedBase,
-                    0,
-                    [...stack, endpoint],
-                    [[cloneBase, projectedBase]],
-                );
+                await clone(cloneBase, projectedBase, 0, [...stack, endpoint], [[cloneBase, projectedBase]]);
             }
             return;
         }
         if (before.isDirectory())
-            for (const name of await readdir(absolute))
-                await normalize(path ? `${path}/${name}` : name, stack);
+            for (const name of await readdir(absolute)) await normalize(path ? `${path}/${name}` : name, stack);
         else if (!before.isFile()) throw new Error("RUNTIME_V1_INSTALL_TYPE_UNSUPPORTED");
     };
     await normalize("");
@@ -565,20 +489,14 @@ export async function prepareRuntimeV1Dependencies(
     const records: LayoutRecord[] = [];
     const observedFiles = new NativeBuildFiles();
     for (const artifact of layout.artifacts) {
-        const bytes = await observedFiles.read(
-            join(options.workRoot, "observer", artifact.path),
-            limits.json,
-        );
+        const bytes = await observedFiles.read(join(options.workRoot, "observer", artifact.path), limits.json);
         if (bytes.length !== artifact.bytes || sha(bytes) !== artifact.sha256)
             throw new Error("RUNTIME_V1_LAYOUT_CHANGED");
         await writeReleaseBytes(options.evidenceRoot, `dependency-layout/${artifact.path}`, bytes);
-        if (artifact.kind === "inventory")
-            records.push(...(JSON.parse(bytes.toString()) as LayoutRecord[]));
+        if (artifact.kind === "inventory") records.push(...(JSON.parse(bytes.toString()) as LayoutRecord[]));
     }
     const observedPackages = new Map(
-        records
-            .filter((record) => record.kind === "package")
-            .map((record) => [record.path, record]),
+        records.filter((record) => record.kind === "package").map((record) => [record.path, record]),
     );
     const packages: Array<{
         id: string;
@@ -589,13 +507,8 @@ export async function prepareRuntimeV1Dependencies(
     }> = [];
     const byPhysical = new Map<string, (typeof packages)[number]>(),
         byOutput = new Map<string, string>();
-    const discover = async (
-        alias: string,
-        from: string,
-    ): Promise<(typeof packages)[number] | null> => {
-        for (const base of createRequire(join(installation, from, "package.json")).resolve.paths(
-            alias,
-        ) ?? []) {
+    const discover = async (alias: string, from: string): Promise<(typeof packages)[number] | null> => {
+        for (const base of createRequire(join(installation, from, "package.json")).resolve.paths(alias) ?? []) {
             if (inside(installation, base) === null) continue;
             const candidate = join(base, alias),
                 info = await lstat(candidate).catch((error: NodeJS.ErrnoException) => {
@@ -610,23 +523,16 @@ export async function prepareRuntimeV1Dependencies(
             if (previous) return previous;
             if (packages.length >= limits.instances) throw new Error("RUNTIME_V1_DEPENDENCY_LIMIT");
             const manifest = JSON.parse(
-                (
-                    await observedFiles.read(join(candidate, "package.json"), limits.package)
-                ).toString(),
+                (await observedFiles.read(join(candidate, "package.json"), limits.package)).toString(),
             ) as Record<string, unknown>;
-            if (
-                !manifest ||
-                typeof manifest.name !== "string" ||
-                typeof manifest.version !== "string"
-            )
+            if (!manifest || typeof manifest.name !== "string" || typeof manifest.version !== "string")
                 throw new Error("RUNTIME_V1_PACKAGE_IDENTITY_INVALID");
             const root = outputRoot(physical);
             if (byOutput.has(root) && byOutput.get(root) !== physical)
                 throw new Error("RUNTIME_V1_INSTALL_SCOPE_COLLISION");
             byOutput.set(root, physical);
             let snapshot: string;
-            if (workspaceOrigins.has(physical))
-                snapshot = `source-workspace:${workspaceOrigins.get(physical)}`;
+            if (workspaceOrigins.has(physical)) snapshot = `source-workspace:${workspaceOrigins.get(physical)}`;
             else {
                 const key = `${manifest.name}@${manifest.version}`;
                 let candidates = [...lock.snapshots.keys()].filter(
@@ -636,16 +542,14 @@ export async function prepareRuntimeV1Dependencies(
                     (item) => item.kind === "peer" || item.kind === "optional-peer",
                 )) {
                     if (candidates.length <= 1) break;
-                    for (const lookup of createRequire(
-                        join(candidate, "package.json"),
-                    ).resolve.paths(peer.alias) ?? []) {
+                    for (const lookup of createRequire(join(candidate, "package.json")).resolve.paths(peer.alias) ??
+                        []) {
                         if (inside(installation, lookup) === null) continue;
                         const peerPath = join(lookup, peer.alias, "package.json");
                         const peerBytes = await observedFiles
                             .read(peerPath, limits.package)
                             .catch((error: NodeJS.ErrnoException) => {
-                                if (error.code !== "ENOENT" && error.code !== "ENOTDIR")
-                                    throw error;
+                                if (error.code !== "ENOENT" && error.code !== "ENOTDIR") throw error;
                                 return null;
                             });
                         if (peerBytes) {
@@ -677,26 +581,14 @@ export async function prepareRuntimeV1Dependencies(
         );
         for (const file of inventory.files) {
             if (kind === "entry" && !/\.(?:js|mjs|cjs)$/.test(file.path)) continue;
-            const bytes = await observedFiles.read(
-                join(options.runtimeRoot, kind, file.path),
-                limits.javascript,
-            );
+            const bytes = await observedFiles.read(join(options.runtimeRoot, kind, file.path), limits.javascript);
             for (const fact of scanRuntimeLiteralImports(bytes, file.path)) {
-                const edge = classifyRuntimeModuleEdge(
-                    fact,
-                    file.path,
-                    inventory.files,
-                    kind === "execution",
-                );
+                const edge = classifyRuntimeModuleEdge(fact, file.path, inventory.files, kind === "execution");
                 if (edge.kind !== "external") continue;
                 const target = await discover(packageAlias(edge.specifier), "apps/runtime");
                 if (!target) throw new Error("RUNTIME_V1_ROOT_DEPENDENCY_MISSING");
                 if (
-                    !roots.some(
-                        (root) =>
-                            root.consumer === `${kind}/${file.path}` &&
-                            root.specifier === edge.specifier,
-                    )
+                    !roots.some((root) => root.consumer === `${kind}/${file.path}` && root.specifier === edge.specifier)
                 )
                     roots.push({
                         consumer: `${kind}/${file.path}`,
@@ -748,8 +640,7 @@ export async function prepareRuntimeV1Dependencies(
                     .split("/")
                     .includes("node_modules"),
         );
-        if (own.some((record) => record.kind === "link"))
-            throw new Error("RUNTIME_V1_PACKAGE_LINK_UNSUPPORTED");
+        if (own.some((record) => record.kind === "link")) throw new Error("RUNTIME_V1_PACKAGE_LINK_UNSUPPORTED");
         for (const record of own) {
             const path = `${pkg.root}/${record.path.slice(pkg.physical.length + 1)}`;
             if (record.kind === "directory") await releaseDirectory(layoutRoot, path);
@@ -769,8 +660,7 @@ export async function prepareRuntimeV1Dependencies(
     for (const pkg of packages) {
         const raw = pkg.manifest.bin;
         if (raw === undefined) continue;
-        const declarations =
-            typeof raw === "string" ? { [String(pkg.manifest.name).split("/").at(-1)!]: raw } : raw;
+        const declarations = typeof raw === "string" ? { [String(pkg.manifest.name).split("/").at(-1)!]: raw } : raw;
         if (!declarations || typeof declarations !== "object" || Array.isArray(declarations))
             throw new Error("RUNTIME_V1_BIN_DECLARATION_INVALID");
         for (const [name, value] of Object.entries(declarations)) {
@@ -818,23 +708,15 @@ export async function prepareRuntimeV1Dependencies(
                     header.readUInt16LE(peOffset + 4) === 0x8664;
                 if (first.startsWith("#!") || (process.platform === "linux" ? !elf : !pe))
                     throw new Error("RUNTIME_V1_NATIVE_BIN_ARCHITECTURE_INVALID");
-                inspection = await writeReleaseJson(
-                    options.evidenceRoot,
-                    `dependency-native-bin-${bins.length}.json`,
-                    {
-                        kind: "NATIVE_V1_ARCHITECTURE_HEADER",
-                        platform: process.platform,
-                        arch: process.arch,
-                        path: targetPath,
-                        sha256: target.sha256,
-                        method:
-                            process.platform === "linux"
-                                ? "HELD_ELF64_X86_64_HEADER"
-                                : "HELD_PE_COFF_AMD64_HEADER",
-                        boundary:
-                            "Architecture header only; no execution, signature or minimum OS acceptance.",
-                    },
-                );
+                inspection = await writeReleaseJson(options.evidenceRoot, `dependency-native-bin-${bins.length}.json`, {
+                    kind: "NATIVE_V1_ARCHITECTURE_HEADER",
+                    platform: process.platform,
+                    arch: process.arch,
+                    path: targetPath,
+                    sha256: target.sha256,
+                    method: process.platform === "linux" ? "HELD_ELF64_X86_64_HEADER" : "HELD_PE_COFF_AMD64_HEADER",
+                    boundary: "Architecture header only; no execution, signature or minimum OS acceptance.",
+                });
             }
             const install = pkg.root.lastIndexOf("node_modules/");
             bins.push({
@@ -868,14 +750,9 @@ export async function prepareRuntimeV1Dependencies(
         );
         for (const record of originalAliases) {
             if (record.kind === "link")
-                actualTargets.add(
-                    posix.normalize(posix.join(posix.dirname(record.path), record.target!)),
-                );
+                actualTargets.add(posix.normalize(posix.join(posix.dirname(record.path), record.target!)));
             else {
-                const bytes = await observedFiles.read(
-                    join(installation, record.path),
-                    limits.package,
-                );
+                const bytes = await observedFiles.read(join(installation, record.path), limits.package);
                 const lines = bytes
                     .toString()
                     .split("\n")
@@ -887,21 +764,16 @@ export async function prepareRuntimeV1Dependencies(
                         "",
                     ).exec(line);
                     if (!match) throw new Error("RUNTIME_V1_BIN_SHIM_UNSUPPORTED");
-                    actualTargets.add(
-                        posix.normalize(posix.join(posix.dirname(record.path), match[1]!)),
-                    );
+                    actualTargets.add(posix.normalize(posix.join(posix.dirname(record.path), match[1]!)));
                 }
                 if (!lines.length) throw new Error("RUNTIME_V1_BIN_SHIM_UNSUPPORTED");
             }
         }
         const winners = group.filter((bin) => {
             const pkg = packages.find((item) => item.id === bin.owner)!;
-            return actualTargets.has(
-                `${pkg.physical}/${bin.targetPath.slice(pkg.root.length + 1)}`,
-            );
+            return actualTargets.has(`${pkg.physical}/${bin.targetPath.slice(pkg.root.length + 1)}`);
         });
-        if (winners.length !== 1 || actualTargets.size !== 1)
-            throw new Error("RUNTIME_V1_BIN_WINNER_AMBIGUOUS");
+        if (winners.length !== 1 || actualTargets.size !== 1) throw new Error("RUNTIME_V1_BIN_WINNER_AMBIGUOUS");
         const winner = winners[0]!;
         binAliases.push({
             alias,
@@ -911,9 +783,7 @@ export async function prepareRuntimeV1Dependencies(
         });
         for (const bin of group) {
             const path =
-                bin === winner
-                    ? alias
-                    : `${posix.dirname(alias)}/.veriq/${sha(Buffer.from(bin.owner))}/${bin.name}`;
+                bin === winner ? alias : `${posix.dirname(alias)}/.veriq/${sha(Buffer.from(bin.owner))}/${bin.name}`;
             const rendered = renderBinShim({ ...bin, aliasPath: path });
             await writeReleaseBytes(
                 layoutRoot,
@@ -922,29 +792,22 @@ export async function prepareRuntimeV1Dependencies(
                     ? Buffer.from(
                           Buffer.from(rendered)
                               .toString()
-                              .replaceAll(
-                                  "roles/runner/veriq_runner",
-                                  "roles/runner/veriq_runner.exe",
-                              ),
+                              .replaceAll("roles/runner/veriq_runner", "roles/runner/veriq_runner.exe"),
                       )
                     : rendered,
             );
             if (process.platform === "win32") {
                 const base = posix.dirname(path),
-                    runner = posix
-                        .relative(base, "roles/runner/veriq_runner.exe")
-                        .replaceAll("/", "\\"),
+                    runner = posix.relative(base, "roles/runner/veriq_runner.exe").replaceAll("/", "\\"),
                     target = posix.relative(base, bin.targetPath).replaceAll("/", "\\");
-                if (/[\x00-\x1f%!^&()]/.test(runner + target))
-                    throw new Error("RUNTIME_V1_BIN_CMD_PATH_UNSUPPORTED");
+                // biome-ignore lint/suspicious/noControlCharactersInRegex: 有意拒绝控制字符与 DEL 路径输入的安全校验
+                if (/[\x00-\x1f%!^&()]/.test(runner + target)) throw new Error("RUNTIME_V1_BIN_CMD_PATH_UNSUPPORTED");
                 await writeReleaseBytes(
                     layoutRoot,
                     `${path}.cmd`,
                     Buffer.from(
                         `@echo off\r\n${
-                            bin.launcher === "node"
-                                ? `@"%~dp0${runner}" "%~dp0${target}"`
-                                : `@"%~dp0${target}"`
+                            bin.launcher === "node" ? `@"%~dp0${runner}" "%~dp0${target}"` : `@"%~dp0${target}"`
                         } %*\r\n`,
                     ),
                 );
@@ -979,10 +842,7 @@ export async function prepareRuntimeV1Dependencies(
             target = packages.find((pkg) => pkg.id === edge.to)!;
         addRequest(`${from.root}/package.json`, edge.alias);
         for (const bin of bins.filter((bin) => bin.owner === target.id))
-            addRequest(
-                `${from.root}/package.json`,
-                `${edge.alias}/${bin.targetPath.slice(target.root.length + 1)}`,
-            );
+            addRequest(`${from.root}/package.json`, `${edge.alias}/${bin.targetPath.slice(target.root.length + 1)}`);
         addRequest(`${from.root}/package.json`, `${edge.alias}/package.json`);
     }
     const request = await writeReleaseJson(options.workRoot, "resolver-requests.json", requests);
@@ -1044,9 +904,7 @@ export async function prepareRuntimeV1Dependencies(
         return (
             successes.length > 0 &&
             successes.every(
-                (item) =>
-                    owner(item.path!)?.id === id &&
-                    outputFiles.some((file) => file.path === item.path),
+                (item) => owner(item.path!)?.id === id && outputFiles.some((file) => file.path === item.path),
             )
         );
     };
@@ -1054,8 +912,7 @@ export async function prepareRuntimeV1Dependencies(
         const row = result.resolutions.find(
             (item) => item.consumer === root.consumer && item.specifier === root.specifier,
         );
-        if (!row || !resolvedTo(row, root.to, true))
-            throw new Error("RUNTIME_V1_LITERAL_ROOT_RESOLUTION_FAILED");
+        if (!row || !resolvedTo(row, root.to, true)) throw new Error("RUNTIME_V1_LITERAL_ROOT_RESOLUTION_FAILED");
     }
     for (const edge of edges.filter((edge) => edge.to !== null)) {
         const consumer = `${packages.find((pkg) => pkg.id === edge.from)!.root}/package.json`;
@@ -1080,11 +937,7 @@ export async function prepareRuntimeV1Dependencies(
         "dependency-workspace-generation.json",
         generated,
     );
-    const inventoryRef = await writeReleaseJson(
-        options.evidenceRoot,
-        "dependency-inventory.json",
-        inventory,
-    );
+    const inventoryRef = await writeReleaseJson(options.evidenceRoot, "dependency-inventory.json", inventory);
     const graphRef = await writeReleaseJson(options.evidenceRoot, "dependency-graph.json", {
         packages,
         edges,
@@ -1098,11 +951,7 @@ export async function prepareRuntimeV1Dependencies(
         pnpmCli,
         typescriptImplementation: config.compilerImplementation,
     });
-    const layoutRef = await writeReleaseJson(
-        options.evidenceRoot,
-        "dependency-layout.json",
-        layout,
-    );
+    const layoutRef = await writeReleaseJson(options.evidenceRoot, "dependency-layout.json", layout);
     const projectionRef = await writeReleaseJson(
         options.evidenceRoot,
         "dependency-workspace-projection.json",

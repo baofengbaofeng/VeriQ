@@ -49,11 +49,10 @@ export class SecretStore {
         if (validateSchema("JsonValue", value).length) throw new Error("INVALID_SECRET_VALUE");
         key(ref);
         if (this.profile) return this.profile.transaction((tx) => tx.set(ref, value));
-        await updatePrivate<Record<string, JsonValue>>(
-            this.directory,
-            "local-secrets.json",
-            (old) => ({ ...old, [key(ref)]: value }),
-        );
+        await updatePrivate<Record<string, JsonValue>>(this.directory, "local-secrets.json", (old) => ({
+            ...old,
+            [key(ref)]: value,
+        }));
     }
     /**
      * 公开方法 remove 删除指定钉选引用的本机密钥：不影响其他版本条目（remove/LOCAL_CREDENTIAL_MISSING）。
@@ -61,26 +60,18 @@ export class SecretStore {
     async remove(ref: SecretReference) {
         key(ref);
         if (this.profile) return this.profile.transaction((tx) => tx.removeBusiness(ref));
-        await updatePrivate<Record<string, JsonValue>>(
-            this.directory,
-            "local-secrets.json",
-            (old) => {
-                const next = old ?? {};
-                delete next[key(ref)];
-                return next;
-            },
-        );
+        await updatePrivate<Record<string, JsonValue>>(this.directory, "local-secrets.json", (old) => {
+            const next = old ?? {};
+            delete next[key(ref)];
+            return next;
+        });
     }
     /**
      * 公开方法 clear 清空本机密钥表：用于开发目录重置：不影响信任根或其他私有配置（clear/LOCAL_CREDENTIAL_MISSING）。
      */
     async clear() {
         if (this.profile) return this.profile.transaction((tx) => tx.removeBusiness());
-        await updatePrivate<Record<string, JsonValue>>(
-            this.directory,
-            "local-secrets.json",
-            () => ({}),
-        );
+        await updatePrivate<Record<string, JsonValue>>(this.directory, "local-secrets.json", () => ({}));
     }
     /**
      * 公开方法 resolve 按完整钉选引用读取密钥：缺失时抛出 LOCAL_CREDENTIAL_MISSING，绝不回落最新版本。
@@ -89,10 +80,7 @@ export class SecretStore {
         const pin = key(ref);
         if (this.profile) return this.profile.transaction((tx) => tx.resolve(ref));
         try {
-            const data = await readPrivate<Record<string, JsonValue>>(
-                this.directory,
-                "local-secrets.json",
-            );
+            const data = await readPrivate<Record<string, JsonValue>>(this.directory, "local-secrets.json");
             if (!Object.hasOwn(data, pin)) throw new Error();
             return data[pin]!;
         } catch {
@@ -119,9 +107,7 @@ export class SecretResolver {
         if (
             ref.issuerId !== attempt.issuerId ||
             ref.workspaceId !== attempt.workspaceId ||
-            !attempt.secretVersions.some(
-                (p) => p.secretRef === ref.secretRef && p.versionId === ref.versionId,
-            )
+            !attempt.secretVersions.some((p) => p.secretRef === ref.secretRef && p.versionId === ref.versionId)
         )
             throw new Error("CREDENTIAL_SCOPE_MISMATCH");
         return this.store.resolve(ref);

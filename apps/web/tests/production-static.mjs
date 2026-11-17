@@ -55,12 +55,7 @@ try {
     // API 拼写或资源发布错误。
     // 本上下文已经登录，错误不能仅靠匿名权限拒绝来通过。
     // 每个请求独立检查状态与 Content-Type。
-    for (const path of [
-        "/api/v1/missing",
-        "/internal/v1/missing",
-        "/assets/missing.js",
-        "/unknown-page",
-    ]) {
+    for (const path of ["/api/v1/missing", "/internal/v1/missing", "/assets/missing.js", "/unknown-page"]) {
         const response = await context.request.get(`${origin}${path}`, {
             headers: { Accept: "text/html" },
         });

@@ -19,8 +19,5 @@ test("offline attempts retain variant execution, physical stop and retry safety 
         variantKey: "a".repeat(64),
     };
     assert.deepEqual(validateSchema("OfflineAttemptV1", value), []);
-    assert.notDeepEqual(
-        validateSchema("OfflineAttemptV1", { ...value, processStopped: "yes" }),
-        [],
-    );
+    assert.notDeepEqual(validateSchema("OfflineAttemptV1", { ...value, processStopped: "yes" }), []);
 });

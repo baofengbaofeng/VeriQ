@@ -47,8 +47,7 @@ function observation() {
                 sources: [...sources].sort(),
                 outputs: outputs.sort((a, b) => a.path.localeCompare(b.path)),
             });
-            if (Buffer.byteLength(bytes) > 4 * 1024 ** 2)
-                this.error("Entry observation limit exceeded");
+            if (Buffer.byteLength(bytes) > 4 * 1024 ** 2) this.error("Entry observation limit exceeded");
             this.emitFile({ type: "asset", fileName: traceName, source: bytes });
         },
     };

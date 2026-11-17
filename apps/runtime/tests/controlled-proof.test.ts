@@ -83,10 +83,7 @@ test("controlled proof requires exact committed identity and platform pair", asy
         "chromePid",
     ]) {
         const changed = journal() as Record<string, unknown>;
-        changed[field] =
-            field === "uid" || field.endsWith("Pid") || field === "ownerGeneration"
-                ? 999
-                : "mismatch";
+        changed[field] = field === "uid" || field.endsWith("Pid") || field === "ownerGeneration" ? 999 : "mismatch";
         assert.equal(validateControlledPair(changed, proof(), expected), false, field);
     }
     for (const changed of [
@@ -144,17 +141,11 @@ test("controlled proof bounds roster and distinguishes planned absence and autho
             },
         };
         assert.equal(validateControlledPair(record, value, expected), true);
-        assert.equal(
-            validateControlledPair(record, { ...value, chrome: proof().chrome }, expected),
-            false,
-        );
+        assert.equal(validateControlledPair(record, { ...value, chrome: proof().chrome }, expected), false);
     }
     const cancelled = { ...proof(), outer: { ...proof().outer, code: 130 } };
     assert.equal(validateControlledPair(journal(), cancelled, expected), false);
-    assert.equal(
-        validateControlledPair({ ...journal(), cancellationAuthorized: true }, cancelled, expected),
-        true,
-    );
+    assert.equal(validateControlledPair({ ...journal(), cancellationAuthorized: true }, cancelled, expected), true);
     for (const invalid of [
         { bytes: 1048577, count: 3, sha256: "a".repeat(64) },
         { bytes: 1, count: 4, sha256: "a".repeat(64) },
@@ -178,14 +169,7 @@ test("controlled proof bounds roster and distinguishes planned absence and autho
         },
     };
     assert.equal(validateControlledPair(journal(), emptyPrefix, expected), false);
-    assert.equal(
-        validateControlledPair(
-            { ...journal(), cancellationAuthorized: true },
-            emptyPrefix,
-            expected,
-        ),
-        true,
-    );
+    assert.equal(validateControlledPair({ ...journal(), cancellationAuthorized: true }, emptyPrefix, expected), true);
 });
 
 /**
@@ -248,22 +232,14 @@ test("both final journals require fixed prefix, complete seals and CLI exit auth
     const direct = frames(binding, [{ code: null, signal: "SIGINT" }]);
     assert.throws(() => verifyControlledJournals(journal(), direct, Buffer.alloc(0)), /CONTROLLED/);
     assert.deepEqual(
-        verifyControlledJournals(
-            { ...journal(), cancellationAuthorized: true },
-            direct,
-            Buffer.alloc(0),
-        ),
+        verifyControlledJournals({ ...journal(), cancellationAuthorized: true }, direct, Buffer.alloc(0)),
         { commands: summary(direct, 1), cli: summary(Buffer.alloc(0), 0) },
     );
     const empty = frames(binding, []);
-    assert.deepEqual(
-        verifyControlledJournals(
-            { ...journal(), cancellationAuthorized: true },
-            empty,
-            Buffer.alloc(0),
-        ),
-        { commands: summary(empty, 0), cli: summary(Buffer.alloc(0), 0) },
-    );
+    assert.deepEqual(verifyControlledJournals({ ...journal(), cancellationAuthorized: true }, empty, Buffer.alloc(0)), {
+        commands: summary(empty, 0),
+        cli: summary(Buffer.alloc(0), 0),
+    });
 });
 
 /**
@@ -296,10 +272,7 @@ test("controlled process directory rejects bare JSON roles and preserves recogni
  */
 test("controlled history binds Claim kind, generation and Attempt to the process identity", async () => {
     const module = await implementation();
-    assert.ok(
-        "matchesControlledClaim" in module,
-        "Claim/process identity validator must be implemented",
-    );
+    assert.ok("matchesControlledClaim" in module, "Claim/process identity validator must be implemented");
     const claim = { attemptId, jobKind: "TEST", fencingToken: 7 };
     assert.equal(module.matchesControlledClaim(journal(), claim), true);
     for (const changed of [

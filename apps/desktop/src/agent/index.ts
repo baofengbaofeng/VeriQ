@@ -2,12 +2,7 @@ import { join, basename, dirname } from "node:path";
 import { unlink } from "node:fs/promises";
 import { acquireDesktopProfileOwner } from "../../../runtime/src/credentials/ownership.ts";
 import { AttemptBroker } from "../../../runtime/src/execution/broker.ts";
-import {
-    privateDirectory,
-    readPrivate,
-    updatePrivate,
-    removePrivate,
-} from "../../../runtime/src/offline/config.ts";
+import { privateDirectory, readPrivate, updatePrivate, removePrivate } from "../../../runtime/src/offline/config.ts";
 import { assertRuntimeRole } from "../../../runtime/src/distribution.ts";
 import { DesktopAgent, type AgentConfiguration } from "./service";
 import { isIndependentNode24 } from "../../../runtime/src/node-version.ts";
@@ -58,11 +53,9 @@ async function main() {
             await broker.close();
         } finally {
             try {
-                await removePrivate(root, "desktop-agent.json").catch(
-                    (error: NodeJS.ErrnoException) => {
-                        if (error.code !== "ENOENT") throw error;
-                    },
-                );
+                await removePrivate(root, "desktop-agent.json").catch((error: NodeJS.ErrnoException) => {
+                    if (error.code !== "ENOENT") throw error;
+                });
             } finally {
                 await release();
             }
@@ -71,16 +64,11 @@ async function main() {
     const broker = new AttemptBroker(
         join(root, "desktop-agent.sock"),
         async (message) => {
-            if (
-                message.type !== "desktop" ||
-                !message.command ||
-                typeof message.command !== "object"
-            )
+            if (message.type !== "desktop" || !message.command || typeof message.command !== "object")
                 throw new Error("AGENT_OPERATION_DENIED");
             try {
                 const value = await service.dispatch(message.command);
-                if (JSON.stringify(value).length > 30 * 1024 * 1024)
-                    throw new Error("AGENT_RESPONSE_LIMIT");
+                if (JSON.stringify(value).length > 30 * 1024 * 1024) throw new Error("AGENT_RESPONSE_LIMIT");
                 if ("operation" in message.command && message.command.operation === "stop")
                     setTimeout(() => void stop(), 30);
                 return { ok: true, value };

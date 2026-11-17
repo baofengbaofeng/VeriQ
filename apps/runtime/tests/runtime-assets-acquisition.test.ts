@@ -2,10 +2,7 @@ import "../scripts/runtime-payload-inputs.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { spawnSync } from "node:child_process";
-import {
-    validatedAssetBody,
-    acquireMacRuntimeAssets,
-} from "../scripts/runtime-assets-acquisition.ts";
+import { validatedAssetBody, acquireMacRuntimeAssets } from "../scripts/runtime-assets-acquisition.ts";
 import type { Ref } from "../scripts/runtime-payload-inputs.ts";
 import { ArchiveTransaction } from "../scripts/runtime-payload-transaction.ts";
 import { assetsFixture, fact } from "./fixtures/runtime-assets.ts";
@@ -42,15 +39,7 @@ for (const digest of [fact("body", bytes).sha256, null])
             }
         }));
 for (const [name, statusCode, rawHeaders, expectedSize, expectedHash, maximumBytes, code] of [
-    [
-        "status",
-        206,
-        ["Content-Length", String(bytes.length)],
-        bytes.length,
-        null,
-        1024,
-        "PAYLOAD_IO",
-    ],
+    ["status", 206, ["Content-Length", String(bytes.length)], bytes.length, null, 1024, "PAYLOAD_IO"],
     ["missing length", 200, [], bytes.length, null, 1024, "PAYLOAD_IO"],
     [
         "duplicate length",
@@ -70,42 +59,10 @@ for (const [name, statusCode, rawHeaders, expectedSize, expectedHash, maximumByt
         1024,
         "PAYLOAD_IO",
     ],
-    [
-        "short",
-        200,
-        ["Content-Length", String(bytes.length + 1)],
-        bytes.length + 1,
-        null,
-        1024,
-        "PAYLOAD_ARCHIVE_HASH",
-    ],
-    [
-        "overflow",
-        200,
-        ["Content-Length", String(bytes.length - 1)],
-        bytes.length - 1,
-        null,
-        1024,
-        "PAYLOAD_LIMIT",
-    ],
-    [
-        "hash",
-        200,
-        ["Content-Length", String(bytes.length)],
-        bytes.length,
-        "0".repeat(64),
-        1024,
-        "PAYLOAD_ARCHIVE_HASH",
-    ],
-    [
-        "budget",
-        200,
-        ["Content-Length", String(bytes.length)],
-        bytes.length,
-        null,
-        1,
-        "PAYLOAD_LIMIT",
-    ],
+    ["short", 200, ["Content-Length", String(bytes.length + 1)], bytes.length + 1, null, 1024, "PAYLOAD_ARCHIVE_HASH"],
+    ["overflow", 200, ["Content-Length", String(bytes.length - 1)], bytes.length - 1, null, 1024, "PAYLOAD_LIMIT"],
+    ["hash", 200, ["Content-Length", String(bytes.length)], bytes.length, "0".repeat(64), 1024, "PAYLOAD_ARCHIVE_HASH"],
+    ["budget", 200, ["Content-Length", String(bytes.length)], bytes.length, null, 1, "PAYLOAD_LIMIT"],
 ] as const)
     test(`validated production body rejects ${name}`, async () => {
         await assert.rejects(
@@ -161,12 +118,7 @@ test("bad source refuses acquisition before requests and outputs", async () =>
             { code: "PAYLOAD_RECEIPT_MISMATCH" },
         );
     }));
-for (const args of [
-    [],
-    ["--arch", "x64"],
-    ["--unknown", "x64"],
-    ["--arch", "x64", "--arch", "arm64"],
-])
+for (const args of [[], ["--arch", "x64"], ["--unknown", "x64"], ["--arch", "x64", "--arch", "arm64"]])
     test(`acquisition CLI rejects flags ${JSON.stringify(args)}`, () => {
         const child = spawnSync(
             process.execPath,
@@ -211,10 +163,8 @@ test("wrong source and altered actual host facts create zero requests", async ()
                 };
                 if (change === "extra") facts.extra = true;
                 if (change === "missing") facts.files = facts.files.slice(1);
-                if (change === "duplicate")
-                    facts.files = [...facts.files.slice(1), facts.files[1]!];
-                if (change === "host")
-                    facts.files[0] = { ...facts.files[0]!, sha256: "0".repeat(64) };
+                if (change === "duplicate") facts.files = [...facts.files.slice(1), facts.files[1]!];
+                if (change === "host") facts.files[0] = { ...facts.files[0]!, sha256: "0".repeat(64) };
                 if (change === "commit") facts.commit = "b".repeat(40);
                 if (change === "arch") facts.arch = "arm64";
                 if (change === "version") facts.nodeVersion = "24.0.0";
@@ -257,8 +207,7 @@ for (const scenario of ["status", "redirect", "headers-timeout", "cancel", "clos
         let calls = 0,
             requestClosed = false;
         const controller = new AbortController();
-        if (["headers-timeout", "close"].includes(scenario))
-            t.mock.timers.enable({ apis: ["setTimeout"] });
+        if (["headers-timeout", "close"].includes(scenario)) t.mock.timers.enable({ apis: ["setTimeout"] });
         ArchiveTransaction.prototype.checkSpace = async function () {
             this.check();
         };
@@ -278,8 +227,7 @@ for (const scenario of ["status", "redirect", "headers-timeout", "cancel", "clos
                     }
                     const res = new PassThrough() as unknown as import("node:http").IncomingMessage;
                     res.statusCode = scenario === "redirect" ? 302 : 500;
-                    res.rawHeaders =
-                        scenario === "redirect" ? ["Location", "https://unapproved.invalid/"] : [];
+                    res.rawHeaders = scenario === "redirect" ? ["Location", "https://unapproved.invalid/"] : [];
                     res.setTimeout = () => res;
                     callback(res);
                     if (scenario === "close") setImmediate(() => t.mock.timers.tick(5001));
@@ -314,8 +262,7 @@ for (const scenario of ["status", "redirect", "headers-timeout", "cancel", "clos
                             (e as { code: string }).code,
                             scenario === "cancel" ? "PAYLOAD_CANCELLED" : "PAYLOAD_IO",
                         );
-                        if (scenario === "close")
-                            assert.equal((e as { cleanup: string }).cleanup, "INCOMPLETE");
+                        if (scenario === "close") assert.equal((e as { cleanup: string }).cleanup, "INCOMPLETE");
                         return true;
                     },
                 );
@@ -375,10 +322,7 @@ test("actual stored checksum text validates and altered text fails", async () =>
     const { checkNodeChecksum } = await import("../scripts/runtime-assets-observation.ts");
     const bytes = officialNodeChecksumFixture();
     assert.equal(bytes.length, 3171);
-    assert.equal(
-        fact("checksum", bytes).sha256,
-        "fdfbffc969c0f604beff0124d409b33a43b53f5c681d6220f80023e0d6df9dc4",
-    );
+    assert.equal(fact("checksum", bytes).sha256, "fdfbffc969c0f604beff0124d409b33a43b53f5c681d6220f80023e0d6df9dc4");
     checkNodeChecksum(bytes);
     bytes[0] = bytes[0]! ^ 1;
     assert.throws(() => checkNodeChecksum(bytes), { code: "PAYLOAD_ARCHIVE_HASH" });
@@ -402,25 +346,11 @@ test("committed checksum regression runs without any private evidence directory"
         for (const name of ["package.json", "tsconfig.json"])
             await copyFile(join(root, "apps/runtime", name), join(runtime, name));
         await copyFile(join(root, "tsconfig.base.json"), join(base, "tsconfig.base.json"));
-        await copyFile(
-            fileURLToPath(import.meta.url),
-            join(runtime, "tests/runtime-assets-acquisition.test.ts"),
-        );
-        for (const name of [
-            "runtime-assets.ts",
-            "runtime-payload.ts",
-            "runtime-payload-archives.ts",
-        ])
-            await copyFile(
-                join(root, "apps/runtime/tests/fixtures", name),
-                join(runtime, "tests/fixtures", name),
-            );
+        await copyFile(fileURLToPath(import.meta.url), join(runtime, "tests/runtime-assets-acquisition.test.ts"));
+        for (const name of ["runtime-assets.ts", "runtime-payload.ts", "runtime-payload-archives.ts"])
+            await copyFile(join(root, "apps/runtime/tests/fixtures", name), join(runtime, "tests/fixtures", name));
         await symlink(join(root, "apps/runtime/scripts"), join(runtime, "scripts"), "dir");
-        await symlink(
-            join(root, "apps/runtime/node_modules"),
-            join(runtime, "node_modules"),
-            "dir",
-        );
+        await symlink(join(root, "apps/runtime/node_modules"), join(runtime, "node_modules"), "dir");
         await symlink(join(root, "node_modules"), join(base, "node_modules"), "dir");
         await assert.rejects(lstat(join(base, ".superpowers")), { code: "ENOENT" });
         // 嵌套测试进程必须移除父 runner 的内部 IPC 上下文并显式使用文本报告，否则 Node 会把独立 child 当作已有 runner

@@ -89,9 +89,7 @@ const installedCapabilities = new WeakSet<object>();
  * 浏览器仅检查固定公共库存路径可执行，不在能力签发期间提前派生 Chrome 或把探针结果提升成完整产
  * 品 ready。
  */
-export async function createDarwinSource(
-    options: DarwinSourceOptions,
-): Promise<DarwinSourceCapability> {
+export async function createDarwinSource(options: DarwinSourceOptions): Promise<DarwinSourceCapability> {
     if (process.platform !== "darwin" || !isIndependentNode24(process.versions))
         throw new Error("DARWIN_SOURCE_NODE24_REQUIRED");
     const stopTimeoutMs = options.stopTimeoutMs ?? 30000;
@@ -133,10 +131,7 @@ export async function createDarwinDistribution(
     options: DarwinSourceOptions,
 ): Promise<DarwinSourceCapability> {
     const temporaryDirectory = options.temporaryDirectory;
-    if (
-        process.platform !== "darwin" ||
-        (!process.versions.electron && !isIndependentNode24(process.versions))
-    )
+    if (process.platform !== "darwin" || (!process.versions.electron && !isIndependentNode24(process.versions)))
         throw new Error("DARWIN_INSTALLED_HOST_REQUIRED");
     verifiedNativeAddon(distribution);
     bindDarwinDistribution(distribution);

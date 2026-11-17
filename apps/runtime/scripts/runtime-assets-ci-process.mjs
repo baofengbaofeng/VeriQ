@@ -86,10 +86,7 @@ export function runBoundedAssetCli({ executable, args, cwd, timeoutMs }) {
             if (admitted) stop();
             else {
                 clearTimeout(timer);
-                deadline ??= setTimeout(
-                    () => finish(child.exitCode, child.signalCode, false),
-                    6000,
-                );
+                deadline ??= setTimeout(() => finish(child.exitCode, child.signalCode, false), 6000);
             }
         });
         child.once("close", (exit, signal) => finish(exit, signal, true));

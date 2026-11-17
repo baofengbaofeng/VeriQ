@@ -54,10 +54,7 @@ function object(shape: Record<string, Check>): Check {
             fail("PAYLOAD_INPUT_INVALID");
         const record = value as Record<string, unknown>,
             keys = Object.keys(record);
-        if (
-            keys.length !== Object.keys(shape).length ||
-            Object.keys(shape).some((k) => !Object.hasOwn(record, k))
-        )
+        if (keys.length !== Object.keys(shape).length || Object.keys(shape).some((k) => !Object.hasOwn(record, k)))
             fail("PAYLOAD_INPUT_INVALID");
         for (const [key, check] of Object.entries(shape)) {
             const descriptor = Object.getOwnPropertyDescriptor(record, key);
@@ -83,8 +80,8 @@ function array(check: Check, max: number = limits.entries): Check {
  */
 function text(max = 2048): Check {
     return (value) => {
-        if (typeof value !== "string" || !value || /[\x00-\x1f\x7f]/.test(value))
-            fail("PAYLOAD_INPUT_INVALID");
+        // biome-ignore lint/suspicious/noControlCharactersInRegex: 有意拒绝控制字符与 DEL 路径输入的安全校验
+        if (typeof value !== "string" || !value || /[\x00-\x1f\x7f]/.test(value)) fail("PAYLOAD_INPUT_INVALID");
         if (Buffer.byteLength(value) > max) fail("PAYLOAD_LIMIT");
     };
 }
@@ -124,8 +121,7 @@ const hash = match(/^[a-f0-9]{64}$/),
         relative(v);
     };
 const size: Check = (value) => {
-    if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0)
-        fail("PAYLOAD_INPUT_INVALID");
+    if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) fail("PAYLOAD_INPUT_INVALID");
     if (value > limits.file) fail("PAYLOAD_LIMIT");
 };
 const digestShape = { sizeBytes: size, sha256: hash };
@@ -260,10 +256,7 @@ export const schemas = {
         kind: one("MAC_RUNTIME_PAYLOAD_INPUTS"),
         target,
         source: object({ commit, archive: ref, binding: ref, pnpmLock: ref }),
-        tools: array(
-            object({ name: toolName, version: text(128), artifactSha256: hash, evidence: ref }),
-            8,
-        ),
+        tools: array(object({ name: toolName, version: text(128), artifactSha256: hash, evidence: ref }), 8),
         node: archive,
         chrome: archive,
         chromeLayout: ref,
@@ -305,10 +298,7 @@ export const schemas = {
                 ),
             }),
         ),
-        embeddedWorkspaces: array(
-            object({ name: text(), version, sourcePaths: array(path) }),
-            limits.instances,
-        ),
+        embeddedWorkspaces: array(object({ name: text(), version, sourcePaths: array(path) }), limits.instances),
     }),
     execution: object({
         ...base("EXECUTION_SOURCE_COPY"),
@@ -430,9 +420,7 @@ export async function document<T>(reader: InputReader, ref: Ref, check: Check): 
  * 混淆 engine inventory 与 entry 两种身份。
  */
 export const equal = (a: unknown, b: unknown) =>
-    a !== undefined &&
-    b !== undefined &&
-    Buffer.from(canonicalBytes(a)).equals(Buffer.from(canonicalBytes(b)));
+    a !== undefined && b !== undefined && Buffer.from(canonicalBytes(a)).equals(Buffer.from(canonicalBytes(b)));
 /**
  * 集合比较拒绝重复值并忽略工具列表的合法排列顺序，适用于冻结合同规定的精确名称集合；数组里重复同一工具仍然失败，不能靠
  * Set 去重静默修复不合法输入。
@@ -454,13 +442,10 @@ export function recipePolicy(recipe: Recipe, expected: ExpectedPayloadInputs) {
         recipe.chromeLayout.sha256 !== expected.chromeLayoutSha256
     )
         fail("PAYLOAD_EXPECTED_MISMATCH");
-    const roots = (["entries", "execution", "dependencies", "native", "engine"] as const).map(
-        (k) => recipe[k].root,
-    );
+    const roots = (["entries", "execution", "dependencies", "native", "engine"] as const).map((k) => recipe[k].root);
     paths(roots);
     for (const a of roots)
-        for (const b of roots)
-            if (a !== b && (a.startsWith(b + "/") || b.startsWith(a + "/"))) fail("PAYLOAD_PATH");
+        for (const b of roots) if (a !== b && (a.startsWith(b + "/") || b.startsWith(a + "/"))) fail("PAYLOAD_PATH");
     if (new Set(roots).size !== 5) fail("PAYLOAD_PATH");
     const tools = recipe.tools;
     if (new Set(tools.map((t) => t.name)).size !== tools.length) fail("PAYLOAD_INPUT_INVALID");
@@ -474,8 +459,7 @@ export function recipePolicy(recipe: Recipe, expected: ExpectedPayloadInputs) {
         if (tools.find((t) => t.name === name)?.version !== v) fail("PAYLOAD_RECEIPT_MISMATCH");
     if (
         recipe.node.format !== "tar.gz" ||
-        recipe.node.topDirectory !==
-            `node-v${recipe.target.nodeVersion}-darwin-${recipe.target.arch}` ||
+        recipe.node.topDirectory !== `node-v${recipe.target.nodeVersion}-darwin-${recipe.target.arch}` ||
         recipe.node.upstream.version !== recipe.target.nodeVersion ||
         recipe.chrome.format !== "zip" ||
         recipe.chrome.topDirectory !== `chrome-mac-${recipe.target.arch}` ||
@@ -550,8 +534,7 @@ export async function verifyReceipts(recipe: Recipe, reader: InputReader) {
         )
             fail("PAYLOAD_RECEIPT_MISMATCH");
     for (const l of layout.layout.allowedLinks)
-        if (!layout.layout.frameworkRoots.some((r) => l.path.startsWith(r + "/")))
-            fail("PAYLOAD_RECEIPT_MISMATCH");
+        if (!layout.layout.frameworkRoots.some((r) => l.path.startsWith(r + "/"))) fail("PAYLOAD_RECEIPT_MISMATCH");
     const load = async <R>(kind: TreeKind, check: Check) => {
         const tree = recipe[kind],
             inventory = await document<TreeInventory>(reader, tree.inventory, schemas.inventory),
@@ -603,20 +586,14 @@ export async function verifyReceipts(recipe: Recipe, reader: InputReader) {
     ];
     for (const inventory of inventories) admitContent(inventory.files);
     if (
-        inventories.reduce(
-            (n, i) => n + i.directories.length + i.files.length + i.links.length,
-            0,
-        ) > limits.entries ||
+        inventories.reduce((n, i) => n + i.directories.length + i.files.length + i.links.length, 0) > limits.entries ||
         inventories.reduce((n, i) => n + i.links.length, 0) > limits.links ||
-        inventories.reduce((n, i) => n + i.files.reduce((sum, f) => sum + f.sizeBytes, 0), 0) >
-            limits.total
+        inventories.reduce((n, i) => n + i.files.reduce((sum, f) => sum + f.sizeBytes, 0), 0) > limits.total
     )
         fail("PAYLOAD_LIMIT");
     // 先核所有 AST 文件声明与跨树总预算，再读取任何树的正文，避免把大 JS 当四 MiB JSON 或等到分配后才拒绝；asset 中的
     // JS 也需要检查字面导入，不能通过角色标记绕开图完整性。
-    const codeOutputs = entries.receipt.outputs.filter(
-        (o) => o.kind !== "asset" || /\.(?:js|mjs|cjs)$/.test(o.path),
-    );
+    const codeOutputs = entries.receipt.outputs.filter((o) => o.kind !== "asset" || /\.(?:js|mjs|cjs)$/.test(o.path));
     reader.planScripts(
         recipe.entries,
         codeOutputs.map((o) => {
@@ -647,15 +624,7 @@ export async function verifyReceipts(recipe: Recipe, reader: InputReader) {
         [engine, ["node", "pnpm"]],
     ] as const)
         if (!setEqual(r.receipt.build.toolNames, names)) fail("PAYLOAD_RECEIPT_MISMATCH");
-    const names = [
-        ...new Set([
-            "node",
-            "pnpm",
-            "tar",
-            "yauzl",
-            ...all.flatMap((r) => r.receipt.build.toolNames),
-        ]),
-    ];
+    const names = [...new Set(["node", "pnpm", "tar", "yauzl", ...all.flatMap((r) => r.receipt.build.toolNames)])];
     if (
         !setEqual(
             recipe.tools.map((t) => t.name),
@@ -699,10 +668,8 @@ export async function verifyReceipts(recipe: Recipe, reader: InputReader) {
             fail("PAYLOAD_RECEIPT_MISMATCH");
     }
     for (const workspace of entries.receipt.embeddedWorkspaces) {
-        if (!workspace.sourcePaths.length || !workspace.name.startsWith("@veriq/"))
-            fail("PAYLOAD_RECEIPT_MISMATCH");
-        for (const p of workspace.sourcePaths)
-            if (!sourceMap.has(p)) fail("PAYLOAD_RECEIPT_MISMATCH");
+        if (!workspace.sourcePaths.length || !workspace.name.startsWith("@veriq/")) fail("PAYLOAD_RECEIPT_MISMATCH");
+        for (const p of workspace.sourcePaths) if (!sourceMap.has(p)) fail("PAYLOAD_RECEIPT_MISMATCH");
         const manifests = source.files.filter((f) => f.path.endsWith("/package.json"));
         let matched = false;
         for (const manifest of manifests) {
@@ -739,10 +706,7 @@ export async function verifyReceipts(recipe: Recipe, reader: InputReader) {
             addon = output.path === "veriq_private_files.node";
         const productionSources = addon
             ? ["apps/runtime/native/darwin/addon.cc", "apps/runtime/native/darwin/private-files.h"]
-            : [
-                  "apps/runtime/native/vault/darwin-vault.mm",
-                  "apps/runtime/native/vault/darwin-acl.hpp",
-              ];
+            : ["apps/runtime/native/vault/darwin-vault.mm", "apps/runtime/native/vault/darwin-acl.hpp"];
         if (
             !setEqual(
                 output.sourceFiles.map((f) => f.path),
@@ -757,9 +721,7 @@ export async function verifyReceipts(recipe: Recipe, reader: InputReader) {
             !f ||
             f.sha256 !== output.sha256 ||
             output.targetName !==
-                (output.path === "veriq_private_files.node"
-                    ? "veriq_private_files"
-                    : "veriq_agent") ||
+                (output.path === "veriq_private_files.node" ? "veriq_private_files" : "veriq_agent") ||
             output.architecture !== (recipe.target.arch === "x64" ? "x86_64" : "arm64")
         )
             fail("PAYLOAD_NATIVE_INPUT_INVALID");
@@ -783,8 +745,7 @@ export async function verifyReceipts(recipe: Recipe, reader: InputReader) {
     )
         fail("PAYLOAD_ENGINE_INPUT_INVALID");
     const raw = decode(await reader.member(recipe.engine, invFact));
-    if (validateSchema("ApprovedEngineInventoryV1", raw).length)
-        fail("PAYLOAD_ENGINE_INPUT_INVALID");
+    if (validateSchema("ApprovedEngineInventoryV1", raw).length) fail("PAYLOAD_ENGINE_INPUT_INVALID");
     const original = raw as ApprovedEngineInventoryV1,
         matched = original.engines.filter((e) => e.engineVersion === recipe.target.engineVersion);
     if (matched.length !== 1) fail("PAYLOAD_ENGINE_INPUT_INVALID");
@@ -834,16 +795,14 @@ export async function verifyReceipts(recipe: Recipe, reader: InputReader) {
     }
     if (!setEqual(engine.inventory.directories, [...parents])) fail("PAYLOAD_ENGINE_INPUT_INVALID");
     const deps = engine.inventory.files.find((f) => f.path === "dependencies.json")!;
-    if (!equal(decode(await reader.member(recipe.engine, deps)), er.dependencies))
-        fail("PAYLOAD_ENGINE_INPUT_INVALID");
+    if (!equal(decode(await reader.member(recipe.engine, deps)), er.dependencies)) fail("PAYLOAD_ENGINE_INPUT_INVALID");
     const linker = dependencies.receipt.linker;
     if (
         linker.sourceLockSha256 !== recipe.source.pnpmLock.sha256 ||
         linker.lockAfterSha256 !== recipe.source.pnpmLock.sha256
     )
         fail("PAYLOAD_RECEIPT_MISMATCH");
-    for (const decision of dependencies.receipt.optionalDecisions)
-        await reader.ref(decision.evidence);
+    for (const decision of dependencies.receipt.optionalDecisions) await reader.ref(decision.evidence);
     return {
         sourceBinding: source,
         nodeReceipt: node,
@@ -857,13 +816,7 @@ export async function verifyReceipts(recipe: Recipe, reader: InputReader) {
  * 第三方原生 bin 使用独立检查 DTO，不能冒充 VeriQ 两个正式原生产物；这里绑定真实检查记录、目标摘要和最小系统声明，但不
  * 执行 MachO 或认证外部检查工具的真实性。
  */
-export async function nativeBin(
-    reader: InputReader,
-    ref: Ref,
-    recipe: Recipe,
-    path: string,
-    hash: string,
-) {
+export async function nativeBin(reader: InputReader, ref: Ref, recipe: Recipe, path: string, hash: string) {
     const info = await document<NativeBinInspection>(reader, ref, schemas.nativeBin);
     const parts = info.minimumOs.split(".").map(Number);
     if (

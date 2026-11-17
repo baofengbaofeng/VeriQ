@@ -42,18 +42,12 @@ async function clean(backend: VaultKeyBackend, scopes: VaultKeyScope[]) {
 test("Windows vault requires verified inventory capability and refuses copied objects", async () => {
     const absent = await windowsVaultDistribution();
     try {
-        assert.throws(
-            () => installedCredentials(absent.distribution),
-            /RUNTIME_VAULT_CAPABILITY_UNVERIFIED/,
-        );
+        assert.throws(() => installedCredentials(absent.distribution), /RUNTIME_VAULT_CAPABILITY_UNVERIFIED/);
     } finally {
         await absent.cleanup();
     }
     await fixture(async (_root, backend, distribution) => {
-        assert.throws(
-            () => installedCredentials({ ...distribution }),
-            /RUNTIME_VAULT_CAPABILITY_UNVERIFIED/,
-        );
+        assert.throws(() => installedCredentials({ ...distribution }), /RUNTIME_VAULT_CAPABILITY_UNVERIFIED/);
         assert.equal((await backend.probe(signal())).status, "ready");
     });
 });
@@ -102,8 +96,7 @@ test("Credential Manager case-insensitive target lookup cannot merge exact UUID 
             for (const [index, scope] of [upper, lower].entries()) {
                 const value = await backend.get(scope, signal());
                 assert.equal(value.status, "ok");
-                if (value.status === "ok")
-                    assert(value.key.equals(keys[index]!), "VAULT_SCOPE_COLLISION");
+                if (value.status === "ok") assert(value.key.equals(keys[index]!), "VAULT_SCOPE_COLLISION");
             }
             assert.equal((await backend.get(otherProfile, signal())).status, "missing");
         } finally {
@@ -130,13 +123,12 @@ test("production profile migration and reopen use real Windows credentials witho
         };
         const context = installedCredentials(distribution);
         let scope: VaultKeyScope | undefined;
+        let closeError: unknown;
         try {
             await new SecretStore(profile).set(ref, "synthetic-windows-vault-password");
             await new DeviceStore(profile).save(device);
             await new CredentialProfile(profile, context).migrate();
-            const manifest = JSON.parse(
-                await readFile(join(profile, "vault/profile.json"), "utf8"),
-            );
+            const manifest = JSON.parse(await readFile(join(profile, "vault/profile.json"), "utf8"));
             scope = { profileId: manifest.profileId, keyVersion: manifest.keyVersion };
             assert.equal(
                 await new SecretStore(profile, installedCredentials(distribution)).resolve(ref),
@@ -149,24 +141,20 @@ test("production profile migration and reopen use real Windows credentials witho
                 assert.equal(bytes.includes("synthetic-windows-vault-password"), false);
             }
             await new DeviceStore(profile, context).remove();
-            assert.equal(
-                await new SecretStore(profile, context).resolve(ref),
-                "synthetic-windows-vault-password",
-            );
+            assert.equal(await new SecretStore(profile, context).resolve(ref), "synthetic-windows-vault-password");
             await new SecretStore(profile, context).clear();
         } finally {
             if (!scope) {
                 try {
-                    const value = JSON.parse(
-                        await readFile(join(profile, "vault/profile.json"), "utf8"),
-                    );
+                    const value = JSON.parse(await readFile(join(profile, "vault/profile.json"), "utf8"));
                     scope = { profileId: value.profileId, keyVersion: value.keyVersion };
                 } catch (error) {
-                    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+                    if ((error as NodeJS.ErrnoException).code !== "ENOENT") closeError = error;
                 }
             }
             if (scope) await clean(backend, [scope]);
         }
+        if (closeError !== undefined) throw closeError;
     }));
 
 /**
@@ -175,9 +163,7 @@ test("production profile migration and reopen use real Windows credentials witho
  */
 test("Windows helper deadline observes real exit and retains mutation uncertainty", async () => {
     const { WindowsVaultBackend } = await import("../../src/credentials/windows.ts");
-    const driver = await readFile(
-        new URL("../../build/native-tests/veriq_vault_wait.exe", import.meta.url),
-    );
+    const driver = await readFile(new URL("../../build/native-tests/veriq_vault_wait.exe", import.meta.url));
     assert(!driver.equals(await helper()));
     const own = await windowsVaultDistribution(driver);
     const observations: import("../../src/credentials/helper.ts").VaultHelperObservation[] = [];
@@ -188,13 +174,8 @@ test("Windows helper deadline observes real exit and retains mutation uncertaint
         });
         const start = performance.now();
         assert.equal(
-            (
-                await backend.set(
-                    { profileId: randomUUID(), keyVersion: randomUUID() },
-                    randomBytes(32),
-                    signal(),
-                )
-            ).status,
+            (await backend.set({ profileId: randomUUID(), keyVersion: randomUUID() }, randomBytes(32), signal()))
+                .status,
             "mutation-unconfirmed",
         );
         assert(performance.now() - start < 2000, "VAULT_HELPER_STOP_BUDGET");
@@ -244,12 +225,10 @@ test("formal Windows helper refuses malformed frames and exits on owned control 
         try {
             if (frame === undefined) child.stdin.destroy();
             else child.stdin.write(frame);
-            const result = await new Promise<{ code: number | null; signal: string | null }>(
-                (resolve, reject) => {
-                    child.once("error", reject);
-                    child.once("close", (code, signal) => resolve({ code, signal }));
-                },
-            );
+            const result = await new Promise<{ code: number | null; signal: string | null }>((resolve, reject) => {
+                child.once("error", reject);
+                child.once("close", (code, signal) => resolve({ code, signal }));
+            });
             assert.equal(excess, false, "VAULT_HELPER_OUTPUT_LIMIT");
             assert.equal(result.signal, null);
             assert.equal(stdout, "");

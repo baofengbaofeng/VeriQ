@@ -62,10 +62,9 @@ it("prearms and answers an expected prompt; mismatched dialog is dismissed witho
 });
 it("fails and dismisses an unexpected dialog", async () => {
     const ctx = createStepContext(f.options);
-    expect(
-        (await executeStep(step({ id: "prompt", action: "click", target: "prompt" }), ctx))
-            .errorCode,
-    ).toBe("UNEXPECTED_DIALOG");
+    expect((await executeStep(step({ id: "prompt", action: "click", target: "prompt" }), ctx)).errorCode).toBe(
+        "UNEXPECTED_DIALOG",
+    );
     ctx.dispose();
 });
 it("captures popup into explicit pageKey without changing original page", async () => {
@@ -176,9 +175,7 @@ it("makes wrapper popup available to children and keeps omitted pageKey on the o
     const r = await executeStep(wrapper, ctx);
     expect(r.status).toBe("PASSED");
     expect(ctx.pages.has("wrapper")).toBe(true);
-    expect(await (await ctx.pages.get("wrapper")!).getByTestId("name").inputValue()).toBe(
-        "wrapper-value",
-    );
+    expect(await (await ctx.pages.get("wrapper")!).getByTestId("name").inputValue()).toBe("wrapper-value");
     expect(await ctx.page.getByTestId("name").inputValue()).toBe("");
     ctx.dispose();
 });

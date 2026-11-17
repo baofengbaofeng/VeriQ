@@ -1,24 +1,14 @@
 /**
  * Test-only actual locked engine release; no fabricated receipt/publication.
  */
-import {
-    mkdirSync,
-    writeFileSync,
-    readFileSync,
-    copyFileSync,
-    rmSync,
-    existsSync,
-    readdirSync,
-} from "node:fs";
+import { mkdirSync, writeFileSync, readFileSync, copyFileSync, rmSync, existsSync, readdirSync } from "node:fs";
 import { resolve, dirname, join } from "node:path";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 const root = resolve(".superpowers/cache/t11");
 const hash = createHash("sha256");
 function sources(path) {
-    for (const file of readdirSync(path, { withFileTypes: true }).sort((a, b) =>
-        a.name.localeCompare(b.name),
-    )) {
+    for (const file of readdirSync(path, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
         const p = join(path, file.name);
         if (file.isDirectory()) sources(p);
         else {
@@ -41,11 +31,7 @@ mkdirSync(root, { recursive: true });
 execFileSync("pnpm", ["--filter", "@veriq/runtime", "build:launcher"], {
     stdio: "inherit",
 });
-if (
-    existsSync(stamp) &&
-    readFileSync(stamp, "utf8") === fingerprint &&
-    existsSync(join(release, "inventory.json"))
-)
+if (existsSync(stamp) && readFileSync(stamp, "utf8") === fingerprint && existsSync(join(release, "inventory.json")))
     process.exit(0);
 // Bootstrapping only an engine archive, never inserting resource versions or receipts.
 const source = join(root, "source.json");

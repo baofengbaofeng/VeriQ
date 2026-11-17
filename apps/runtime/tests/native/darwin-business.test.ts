@@ -7,17 +7,7 @@ import assert from "node:assert/strict";
 import { test, before, after } from "node:test";
 import fs from "node:fs/promises";
 import { syncBuiltinESMExports } from "node:module";
-import {
-    mkdtemp,
-    realpath,
-    rm,
-    readFile,
-    readdir,
-    mkdir,
-    writeFile,
-    chmod,
-    lstat,
-} from "node:fs/promises";
+import { mkdtemp, realpath, rm, readFile, readdir, mkdir, writeFile, chmod, lstat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, basename } from "node:path";
 import { createServer } from "node:http";
@@ -46,20 +36,11 @@ import { LocalReports } from "../../src/offline/reports.ts";
 import { LocalStore } from "../../src/offline/store.ts";
 import { uploadOffline } from "../../src/offline/upload.ts";
 import { darwinNative, type DarwinPrivateDirectory } from "../../src/native/darwin.ts";
-import {
-    privateDirectory,
-    readPrivate,
-    updatePrivate,
-    readBoundedFile,
-} from "../../src/offline/config.ts";
+import { privateDirectory, readPrivate, updatePrivate, readBoundedFile } from "../../src/offline/config.ts";
 import { AttemptBroker, createDarwinBrokerDirectory } from "../../src/execution/broker.ts";
 import { id } from "../../../../packages/compiler/tests/helpers.ts";
 
-assert.equal(
-    process.platform,
-    "darwin",
-    "Actual macOS is required; all-skip Linux is not business evidence",
-);
+assert.equal(process.platform, "darwin", "Actual macOS is required; all-skip Linux is not business evidence");
 let root: string;
 let activeBusinessFixtures = 0,
     retainBusinessRoot = false;
@@ -96,10 +77,7 @@ function privateJson(bytes: string | Buffer): any {
         throw new Error("PRIVATE_TEST_JSON_INVALID");
     }
 }
-function reportNativeFailure(
-    phase: "OFFLINE_RUN" | "BROWSER_LAUNCH" | "FIXTURE_CLEANUP",
-    error: unknown,
-): void {
+function reportNativeFailure(phase: "OFFLINE_RUN" | "BROWSER_LAUNCH" | "FIXTURE_CLEANUP", error: unknown): void {
     const value = error instanceof Error ? error.message : "";
     const codes = new Set([
         "LOCAL_OWNERSHIP_LOST",
@@ -139,10 +117,7 @@ async function fixtureBefore<T>(operation: Promise<T>, deadline: number): Promis
                 () => ({ ok: false as const }),
             ),
             new Promise<{ ok: false }>((resolve) => {
-                timer = setTimeout(
-                    () => resolve({ ok: false }),
-                    Math.max(0, deadline - performance.now()),
-                );
+                timer = setTimeout(() => resolve({ ok: false }), Math.max(0, deadline - performance.now()));
             }),
         ]);
         if (!result.ok) throw new Error("OWNED_FIXTURE_CLEANUP_UNCONFIRMED");
@@ -179,8 +154,7 @@ async function reportPlaywrightFacts(path: string): Promise<void> {
                 facts.moduleMissing ||= /ERR_MODULE_NOT_FOUND|Cannot find module/.test(item);
                 facts.typeError ||= /TypeError/.test(item);
                 facts.referenceError ||= /ReferenceError/.test(item);
-                facts.syntaxError ||=
-                    /SyntaxError|Unexpected token|does not provide an export/.test(item);
+                facts.syntaxError ||= /SyntaxError|Unexpected token|does not provide an export/.test(item);
                 facts.assertion ||= /AssertionError|expect\(|Expected:|Received:/.test(item);
             } else if (item && typeof item === "object")
                 for (const [key, child] of Object.entries(item)) visit(child, key, depth + 1);
@@ -211,11 +185,11 @@ async function scanArchive(bytes: Buffer, check: (bytes: Buffer) => void): Promi
             zip.on("entry", (entry) => {
                 try {
                     assert.ok(
-                        ++entries <= 4096 &&
-                            entry.uncompressedSize <= 16 * 1024 * 1024 &&
-                            (total += entry.uncompressedSize) <= 64 * 1024 * 1024,
+                        ++entries <= 4096 && entry.uncompressedSize <= 16 * 1024 * 1024,
                         "Archive expansion limit",
                     );
+                    total += entry.uncompressedSize;
+                    assert.ok(total <= 64 * 1024 * 1024, "Archive expansion limit");
                     check(Buffer.from(entry.fileName));
                     zip.openReadStream(entry, (error, stream) => {
                         if (error) {
@@ -268,10 +242,7 @@ async function observeBusiness(
         | "OFFLINE_PASS"
         | "OFFLINE_ASSERT_FAIL"
         | "OFFLINE_CONNECT_FAIL",
-    run: (
-        inspect: (bytes: Buffer, name: string) => Promise<void>,
-        assertClean: () => void,
-    ) => Promise<void>,
+    run: (inspect: (bytes: Buffer, name: string) => Promise<void>, assertClean: () => void) => Promise<void>,
     connectFailure = false,
     expectedHeadless?: boolean,
 ) {
@@ -310,8 +281,7 @@ async function observeBusiness(
         if (operationalReferences.some((contains) => contains(bytes))) {
             hits++;
             operationalInputs.referenceHits++;
-            containers["operational-input-reference"] =
-                (containers["operational-input-reference"] ?? 0) + 1;
+            containers["operational-input-reference"] = (containers["operational-input-reference"] ?? 0) + 1;
         }
         for (const endpoint of endpoints) {
             const token = new URL(endpoint).pathname.slice(1);
@@ -324,9 +294,7 @@ async function observeBusiness(
                     Buffer.from(value).toString("base64"),
                     Buffer.from(value).toString("base64url"),
                 ]);
-                if (
-                    [...forms].some((form) => form.length > 0 && bytes.includes(Buffer.from(form)))
-                ) {
+                if ([...forms].some((form) => form.length > 0 && bytes.includes(Buffer.from(form)))) {
                     hits++;
                     containers[currentContainer] = (containers[currentContainer] ?? 0) + 1;
                     let visited = 0;
@@ -379,9 +347,7 @@ async function observeBusiness(
         if (role === "JUNIT") junit++;
         if (role === "MAIN_HTML") {
             html++;
-            const embedded = bytes
-                .toString()
-                .match(/(?:data:application\/zip;base64,)([A-Za-z0-9+/=]+)/);
+            const embedded = bytes.toString().match(/(?:data:application\/zip;base64,)([A-Za-z0-9+/=]+)/);
             assert.ok(embedded, "HTML must contain the actual embedded report ZIP");
             archives++;
             currentContainer = "report.html:decoded-zip";
@@ -420,18 +386,14 @@ async function observeBusiness(
     ProcessSupervisor.prototype.start = async function (...args: Parameters<typeof start>) {
         const child = await start.apply(this, args);
         owned.push(child);
-        const invocation = privateJson(
-            await readFile(join(args[1].cwd, "invocation.json"), "utf8"),
-        );
+        const invocation = privateJson(await readFile(join(args[1].cwd, "invocation.json"), "utf8"));
         const observation = observeBusinessExit(child.exited, async () => {
             const value = await child.exited;
             console.log(
                 JSON.stringify({
                     nativeWorkerExit: {
                         code: value.code,
-                        signal: [null, "SIGINT", "SIGTERM", "SIGKILL"].includes(value.signal)
-                            ? value.signal
-                            : "OTHER",
+                        signal: [null, "SIGINT", "SIGTERM", "SIGKILL"].includes(value.signal) ? value.signal : "OTHER",
                     },
                 }),
             );
@@ -451,6 +413,8 @@ async function observeBusiness(
         observations.push(observation);
         return { ...child, exited: observation.exited };
     };
+    let cleanupError: unknown;
+    let disclosureError: unknown;
     try {
         await run(inspect, assertClean);
         runReturned = true;
@@ -492,35 +456,31 @@ async function observeBusiness(
         const deadline = performance.now() + 30000;
         try {
             for (const process of owned) {
-                if (process.child.exitCode === null && process.child.signalCode === null)
-                    process.child.kill("SIGKILL");
+                if (process.child.exitCode === null && process.child.signalCode === null) process.child.kill("SIGKILL");
                 await fixtureBefore(process.exited, deadline);
             }
             for (const server of servers) {
                 const child = server.process();
                 if (child.exitCode === null && child.signalCode === null) {
-                    const exited = new Promise<void>((resolve) =>
-                        child.once("exit", () => resolve()),
-                    );
+                    const exited = new Promise<void>((resolve) => child.once("exit", () => resolve()));
                     await fixtureBefore(server.kill(), deadline);
                     await fixtureBefore(exited, deadline);
                 }
             }
-            await fixtureBefore(
-                Promise.allSettled(observations.map((observation) => observation.exited)),
-                deadline,
-            );
+            await fixtureBefore(Promise.allSettled(observations.map((observation) => observation.exited)), deadline);
         } catch (error) {
             retainBusinessRoot = true;
             reportNativeFailure("FIXTURE_CLEANUP", error);
-            throw new Error("OWNED_FIXTURE_CLEANUP_UNCONFIRMED");
+            cleanupError = new Error("OWNED_FIXTURE_CLEANUP_UNCONFIRMED");
         } finally {
             ProcessSupervisor.prototype.start = start;
             chromium.launchServer = launchServer;
             activeBusinessFixtures--;
-            if (hits > 0) throw new Error("PRIVATE_ENDPOINT_DISCLOSURE");
+            if (hits > 0) disclosureError = new Error("PRIVATE_ENDPOINT_DISCLOSURE");
         }
     }
+    if (disclosureError !== undefined) throw disclosureError;
+    if (cleanupError !== undefined) throw cleanupError;
 }
 
 /**
@@ -538,8 +498,7 @@ test(
                 darwinSource: source,
                 browserExecutable: chromium.executablePath(),
                 inspect: async ({ result, uploads, events }) => {
-                    for (const upload of uploads.values())
-                        await inspect(upload.bytes, upload.filename);
+                    for (const upload of uploads.values()) await inspect(upload.bytes, upload.filename);
                     await inspect(
                         Buffer.from(JSON.stringify({ completion: result.completion, events })),
                         "events-completion.json",
@@ -563,8 +522,7 @@ test(
                     darwinSource: source,
                     connectFailure: true,
                     inspect: async ({ result, uploads, events }) => {
-                        for (const upload of uploads.values())
-                            await inspect(upload.bytes, upload.filename);
+                        for (const upload of uploads.values()) await inspect(upload.bytes, upload.filename);
                         await inspect(
                             Buffer.from(JSON.stringify({ completion: result.completion, events })),
                             "events-completion.json",
@@ -582,23 +540,12 @@ test(
  */
 async function offlineReportScenario(failing: boolean, connectFailure = false) {
     const server = createServer((request, response) => {
-        response.setHeader(
-            "Content-Type",
-            request.url === "/me" ? "application/json" : "text/html",
-        );
-        response.end(
-            request.url === "/me"
-                ? JSON.stringify({ id: "reader" })
-                : '<div data-testid="name">Ready</div>',
-        );
+        response.setHeader("Content-Type", request.url === "/me" ? "application/json" : "text/html");
+        response.end(request.url === "/me" ? JSON.stringify({ id: "reader" }) : '<div data-testid="name">Ready</div>');
     });
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
-    const f = await fixture(
-        engine.distribution,
-        origin,
-        failing ? origin + "/wrong" : origin + "/",
-    );
+    const f = await fixture(engine.distribution, origin, failing ? origin + "/wrong" : origin + "/");
     try {
         const bundle = await verifyBundle(await f.archive(), {
             trust: f.trust,
@@ -617,11 +564,7 @@ async function offlineReportScenario(failing: boolean, connectFailure = false) {
         const local = join(f.dir, "local"),
             source = await createDarwinSource({ temporaryDirectory: root });
         await observeBusiness(
-            connectFailure
-                ? "OFFLINE_CONNECT_FAIL"
-                : failing
-                  ? "OFFLINE_ASSERT_FAIL"
-                  : "OFFLINE_PASS",
+            connectFailure ? "OFFLINE_CONNECT_FAIL" : failing ? "OFFLINE_ASSERT_FAIL" : "OFFLINE_PASS",
             async (inspect, assertClean) => {
                 const result = await diagnosedOfflineRun(bundle, {
                     trust: f.trust,
@@ -634,10 +577,7 @@ async function offlineReportScenario(failing: boolean, connectFailure = false) {
                     headless: false,
                 });
                 assertClean();
-                assert.equal(
-                    result.outcome,
-                    connectFailure ? "ERROR" : failing ? "FAILED" : "PASSED",
-                );
+                assert.equal(result.outcome, connectFailure ? "ERROR" : failing ? "FAILED" : "PASSED");
                 assert.equal(result.attempts[0]!.processStopScope, "CONTROLLED_WORKER_BROWSER");
                 assert.equal(result.attempts[0]!.processStopped, true);
                 const reports = new LocalReports(local, () => true),
@@ -657,16 +597,10 @@ async function offlineReportScenario(failing: boolean, connectFailure = false) {
                         ),
                         artifact.path,
                     );
-                await inspect(
-                    Buffer.from(JSON.stringify({ result, snapshot })),
-                    "offline-result-report.json",
-                );
+                await inspect(Buffer.from(JSON.stringify({ result, snapshot })), "offline-result-report.json");
 
                 const received = new Map<string, Buffer>(),
-                    metadata = new Map<
-                        string,
-                        { sizeBytes: number; sha256: string; path: string }
-                    >();
+                    metadata = new Map<string, { sizeBytes: number; sha256: string; path: string }>();
                 let imports = 0,
                     observedScope = 0,
                     uploadFailed = false;
@@ -680,10 +614,7 @@ async function offlineReportScenario(failing: boolean, connectFailure = false) {
                             response.setHeader("Content-Type", "application/json");
                             response.end(JSON.stringify({ data }));
                         };
-                        assert.equal(
-                            request.headers["idempotency-key"],
-                            "offline_" + result.localRunId,
-                        );
+                        assert.equal(request.headers["idempotency-key"], "offline_" + result.localRunId);
                         if (path.endsWith("/result-import-uploads")) {
                             const key = randomUUID();
                             received.set(key, Buffer.alloc(0));
@@ -745,8 +676,7 @@ async function offlineReportScenario(failing: boolean, connectFailure = false) {
                     assert.equal(observedScope, 2);
                     assert.equal(uploadFailed, false);
                     assert.ok(received.size >= result.attempts[0]!.artifacts.length);
-                    for (const [key, bytes] of received)
-                        await inspect(bytes, metadata.get(key)!.path);
+                    for (const [key, bytes] of received) await inspect(bytes, metadata.get(key)!.path);
                 } finally {
                     transport.closeAllConnections();
                     await new Promise<void>((resolve) => transport.close(() => resolve()));
@@ -757,8 +687,7 @@ async function offlineReportScenario(failing: boolean, connectFailure = false) {
                 try {
                     assert.equal(store.active(), undefined);
                     assert.equal(
-                        store.result(result.workspaceId, result.localRunId).attempts[0]!
-                            .processStopScope,
+                        store.result(result.workspaceId, result.localRunId).attempts[0]!.processStopScope,
                         "CONTROLLED_WORKER_BROWSER",
                     );
                 } finally {
@@ -918,6 +847,8 @@ async function offlineScenario(
         owned.push(child);
         return child;
     };
+    let cleanupFailure: unknown;
+    let directoryFailure: unknown;
     try {
         if (testSignal?.aborted) throw new Error("BUSINESS_TEST_CANCELLED");
         await new Promise<void>((resolve, reject) => {
@@ -969,8 +900,7 @@ async function offlineScenario(
         try {
             for (const child of owned) {
                 try {
-                    if (child.child.exitCode === null && child.child.signalCode === null)
-                        child.child.kill("SIGKILL");
+                    if (child.child.exitCode === null && child.child.signalCode === null) child.child.kill("SIGKILL");
                     await fixtureBefore(child.exited, cleanupDeadline());
                 } catch {
                     cleanupConfirmed = false;
@@ -1007,14 +937,15 @@ async function offlineScenario(
             try {
                 if (!cleanupConfirmed) {
                     retainBusinessRoot = true;
-                    throw new Error("OWNED_FIXTURE_CLEANUP_UNCONFIRMED");
-                }
-                try {
-                    await f?.close();
-                    directoryRetired = true;
-                } catch {
-                    retainBusinessRoot = true;
-                    throw new Error("OWNED_FIXTURE_DIRECTORY_UNCONFIRMED");
+                    cleanupFailure = new Error("OWNED_FIXTURE_CLEANUP_UNCONFIRMED");
+                } else {
+                    try {
+                        await f?.close();
+                        directoryRetired = true;
+                    } catch {
+                        retainBusinessRoot = true;
+                        directoryFailure = new Error("OWNED_FIXTURE_DIRECTORY_UNCONFIRMED");
+                    }
                 }
             } finally {
                 console.log(
@@ -1031,16 +962,15 @@ async function offlineScenario(
             }
         }
     }
+    if (cleanupFailure !== undefined) throw cleanupFailure;
+    if (directoryFailure !== undefined) throw directoryFailure;
 }
 
 /**
  * 离线操作一创建就附加拒绝处理，结果的有界阶段投影在目录清理前完成；异常只输出固定代码和类型分类，不能把内部错误 cause
  * 或私有控制配置交给 TAP，同时原始业务枚举与停止断言保持不变。
  */
-function diagnosedOfflineRun(
-    bundle: Parameters<typeof runOffline>[0],
-    config: Parameters<typeof runOffline>[1],
-) {
+function diagnosedOfflineRun(bundle: Parameters<typeof runOffline>[0], config: Parameters<typeof runOffline>[1]) {
     return runOffline(bundle, config).then(
         async (result) => {
             const work = join(config.root, "work", result.attempts[0]?.attemptId ?? "unreached");
@@ -1083,11 +1013,7 @@ test(
                 assert.ok(performance.now() - at < 30000);
                 const proof = privateJson(
                     await readFile(
-                        join(
-                            local,
-                            "processes",
-                            `${result.attempts[0]!.attemptId}.controlled.json`,
-                        ),
+                        join(local, "processes", `${result.attempts[0]!.attemptId}.controlled.json`),
                         "utf8",
                     ),
                 );
@@ -1132,11 +1058,7 @@ test(
                 expectCancelled: true,
                 onPage: () => {
                     controller.abort();
-                    assert.equal(
-                        deadlines.length,
-                        1,
-                        "Online abort must initiate stop before any prewait",
-                    );
+                    assert.equal(deadlines.length, 1, "Online abort must initiate stop before any prewait");
                 },
             });
             assert.equal(deadlines.length, 1);
@@ -1196,45 +1118,31 @@ test(
  * 首次租约，也不能因浏览器或 worker 最终退出而改写未知证明。
  */
 for (const invalid of ["expired", "nan", "infinity"] as const)
-    test(
-        `actual Darwin ${invalid} stop deadline closes admission and remains sticky`,
-        { timeout: 180000 },
-        async () =>
-            offlineScenario(async ({ config, bundle }) => {
-                const start = ProcessSupervisor.prototype.start;
-                let tested = false;
-                ProcessSupervisor.prototype.start = async function (...args) {
-                    const owned = await start.apply(this, args);
-                    tested = true;
-                    const deadline =
-                        invalid === "expired"
-                            ? performance.now() - 1
-                            : invalid === "nan"
-                              ? NaN
-                              : Infinity;
-                    const at = performance.now(),
-                        first = this.terminateAttempt(args[0], "TEST_EXPIRED", deadline);
-                    assert.equal(
-                        this.terminateAttempt(args[0], "TEST_EXTENSION", at + 30000),
-                        first,
-                    );
-                    assert.equal((await first).processStopped, false);
-                    assert.ok(
-                        performance.now() - at < 1000,
-                        "Expired deadline cannot wait for a fresh graceful budget",
-                    );
-                    await owned.exited;
-                    return owned;
-                };
-                try {
-                    const result = await diagnosedOfflineRun(bundle, config);
-                    assert.equal(tested, true);
-                    assert.equal(result.attempts[0]!.processStopped, false);
-                    assert.notEqual(result.outcome, "PASSED");
-                } finally {
-                    ProcessSupervisor.prototype.start = start;
-                }
-            }),
+    test(`actual Darwin ${invalid} stop deadline closes admission and remains sticky`, { timeout: 180000 }, async () =>
+        offlineScenario(async ({ config, bundle }) => {
+            const start = ProcessSupervisor.prototype.start;
+            let tested = false;
+            ProcessSupervisor.prototype.start = async function (...args) {
+                const owned = await start.apply(this, args);
+                tested = true;
+                const deadline = invalid === "expired" ? performance.now() - 1 : invalid === "nan" ? NaN : Infinity;
+                const at = performance.now(),
+                    first = this.terminateAttempt(args[0], "TEST_EXPIRED", deadline);
+                assert.equal(this.terminateAttempt(args[0], "TEST_EXTENSION", at + 30000), first);
+                assert.equal((await first).processStopped, false);
+                assert.ok(performance.now() - at < 1000, "Expired deadline cannot wait for a fresh graceful budget");
+                await owned.exited;
+                return owned;
+            };
+            try {
+                const result = await diagnosedOfflineRun(bundle, config);
+                assert.equal(tested, true);
+                assert.equal(result.attempts[0]!.processStopped, false);
+                assert.notEqual(result.outcome, "PASSED");
+            } finally {
+                ProcessSupervisor.prototype.start = start;
+            }
+        }),
     );
 
 /**
@@ -1307,11 +1215,7 @@ test(
                 close: directory.close.bind(directory),
                 replace(name, temporary, bytes, limit) {
                     directory.replace(name, temporary, bytes, limit);
-                    if (
-                        !publications &&
-                        name.endsWith(".json") &&
-                        privateJson(bytes).state === "RUNNING"
-                    ) {
+                    if (!publications && name.endsWith(".json") && privateJson(bytes).state === "RUNNING") {
                         publications++;
                         throw Object.assign(new Error("TEST_COMMIT_UNCONFIRMED"), {
                             code: "COMMIT_UNCONFIRMED",
@@ -1363,8 +1267,7 @@ test(
                 if (
                     !injected &&
                     sql === "COMMIT" &&
-                    this.prepare("SELECT state FROM veriq_local_owner WHERE singleton=1").get()
-                        ?.state === "RUNNING"
+                    this.prepare("SELECT state FROM veriq_local_owner WHERE singleton=1").get()?.state === "RUNNING"
                 ) {
                     exec.call(this, sql);
                     injected = true;
@@ -1461,17 +1364,11 @@ test(
                 assert.equal(attempt.processStopped, true);
                 assert.equal(attempt.processStopScope, "CONTROLLED_WORKER_BROWSER");
                 const proof = privateJson(
-                    await readFile(
-                        join(local, "processes", `${attempt.attemptId}.controlled.json`),
-                        "utf8",
-                    ),
+                    await readFile(join(local, "processes", `${attempt.attemptId}.controlled.json`), "utf8"),
                 );
                 assert.equal(proof.ownerGeneration, index + 1);
             }
-            const snapshot = await new LocalReports(local, () => true).snapshot(
-                result.workspaceId,
-                result.localRunId,
-            );
+            const snapshot = await new LocalReports(local, () => true).snapshot(result.workspaceId, result.localRunId);
             assert.equal(snapshot.reports[0]!.cases[0]!.attempts.length, 2);
             assert.ok(
                 snapshot.reports[0]!.cases[0]!.attempts.every(
@@ -1593,21 +1490,13 @@ test(
             darwinSource: source,
             inspect: async ({ root: directory, result, supervisor, run }) => {
                 assert.ok(result.completion);
-                const journals = darwinNative().openPrivateDirectory(
-                    join(directory, "agent", "attempts"),
-                    false,
-                );
+                const journals = darwinNative().openPrivateDirectory(join(directory, "agent", "attempts"), false);
                 try {
                     const name = `${result.stop.attemptId}.json`,
                         record = privateJson(journals.read(name, 65536));
                     if (run === 1) record.claim.fencingToken++;
                     else record.claim.jobKind = "VALIDATE";
-                    journals.replace(
-                        name,
-                        `.${randomUUID()}.tmp`,
-                        Buffer.from(JSON.stringify(record)),
-                        65536,
-                    );
+                    journals.replace(name, `.${randomUUID()}.tmp`, Buffer.from(JSON.stringify(record)), 65536);
                 } finally {
                     journals.close();
                 }
@@ -1677,9 +1566,7 @@ test(
                 };
                 let timeout: ReturnType<typeof setTimeout> | undefined;
                 let running: ReturnType<typeof runOffline> | undefined;
-                let watch:
-                    | ReturnType<typeof watchBusinessRun<Awaited<ReturnType<typeof runOffline>>>>
-                    | undefined;
+                let watch: ReturnType<typeof watchBusinessRun<Awaited<ReturnType<typeof runOffline>>>> | undefined;
                 try {
                     running = diagnosedOfflineRun(bundle, config);
                     watch = watchBusinessRun(running, context.signal);
@@ -1696,10 +1583,7 @@ test(
                         Promise.race([
                             firstStop,
                             new Promise<never>((_resolve, reject) => {
-                                timeout = setTimeout(
-                                    () => reject(new Error("PERSISTED_CANCEL_OBSERVATION_LATE")),
-                                    600,
-                                );
+                                timeout = setTimeout(() => reject(new Error("PERSISTED_CANCEL_OBSERVATION_LATE")), 600);
                             }),
                         ]),
                         "STOP",
@@ -1872,9 +1756,7 @@ test(
                     stopped();
                     return terminate.apply(this, args);
                 };
-                let watch:
-                    | ReturnType<typeof watchBusinessRun<Awaited<ReturnType<typeof runOffline>>>>
-                    | undefined;
+                let watch: ReturnType<typeof watchBusinessRun<Awaited<ReturnType<typeof runOffline>>>> | undefined;
                 try {
                     running = diagnosedOfflineRun(bundle, config);
                     watch = watchBusinessRun(running, context.signal);
@@ -1927,10 +1809,7 @@ test(
  * 整保密扫描组，必须证明报告拒绝并不损伤实际 CONTROLLED 停机回执，而且不会产生附件、交付请
  * 求或可读本地证据。
  */
-async function invalidFinalJson(
-    label: "ONLINE_JSON_INVALID" | "OFFLINE_JSON_INVALID",
-    run: () => Promise<void>,
-) {
+async function invalidFinalJson(label: "ONLINE_JSON_INVALID" | "OFFLINE_JSON_INVALID", run: () => Promise<void>) {
     const start = ProcessSupervisor.prototype.start,
         launch = chromium.launchServer.bind(chromium);
     const observations: { exited: Promise<unknown>; assertClean(): void }[] = [];
@@ -1983,24 +1862,18 @@ async function invalidFinalJson(
         const deadline = performance.now() + 30000;
         try {
             for (const child of children) {
-                if (child.child.exitCode === null && child.child.signalCode === null)
-                    child.child.kill("SIGKILL");
+                if (child.child.exitCode === null && child.child.signalCode === null) child.child.kill("SIGKILL");
                 await fixtureBefore(child.exited, deadline);
             }
             for (const server of servers) {
                 const child = server.process();
                 if (child.exitCode === null && child.signalCode === null) {
-                    const exited = new Promise<void>((resolve) =>
-                        child.once("exit", () => resolve()),
-                    );
+                    const exited = new Promise<void>((resolve) => child.once("exit", () => resolve()));
                     await fixtureBefore(server.kill(), deadline);
                     await fixtureBefore(exited, deadline);
                 }
             }
-            await fixtureBefore(
-                Promise.allSettled(observations.map((observation) => observation.exited)),
-                deadline,
-            );
+            await fixtureBefore(Promise.allSettled(observations.map((observation) => observation.exited)), deadline);
         } finally {
             ProcessSupervisor.prototype.start = start;
             chromium.launchServer = launch;
@@ -2029,10 +1902,7 @@ test(
                     assert.equal(result.files.length, 0);
                     assert.equal(uploads.size, 0);
                     assert.equal(deliveries, 0);
-                    assert.equal(
-                        events.filter((event) => event.type === "ARTIFACT_CREATED").length,
-                        0,
-                    );
+                    assert.equal(events.filter((event) => event.type === "ARTIFACT_CREATED").length, 0);
                 },
             }),
         );
@@ -2052,20 +1922,12 @@ test(
                 assert.equal(attempt.processStopped, true);
                 assert.equal(attempt.processStopScope, "CONTROLLED_WORKER_BROWSER");
                 assert.equal(attempt.artifacts.length, 0);
-                assert.equal(
-                    attempt.events.filter((event) => event.type === "ARTIFACT_CREATED").length,
-                    0,
-                );
+                assert.equal(attempt.events.filter((event) => event.type === "ARTIFACT_CREATED").length, 0);
                 const reports = new LocalReports(local, () => true),
                     snapshot = await reports.snapshot(result.workspaceId, result.localRunId);
                 assert.equal(snapshot.artifacts[attempt.attemptId]!.length, 0);
                 await assert.rejects(
-                    reports.readRaw(
-                        result.workspaceId,
-                        result.localRunId,
-                        attempt.attemptId,
-                        randomUUID(),
-                    ),
+                    reports.readRaw(result.workspaceId, result.localRunId, attempt.attemptId, randomUUID()),
                     /LOCAL_ARTIFACT_NOT_FOUND/,
                 );
                 await assert.rejects(lstat(join(local, "work", attempt.attemptId, "evidence")), {

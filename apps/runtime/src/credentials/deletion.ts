@@ -30,9 +30,7 @@ export type CredentialDeletion = {
  * 删除日志每次从私有文件严格解析，有限唯一成员和确切字段结构阻止损坏元数据授权任意删除；只将真实缺失解释为没有删除意
  * 图，解析失败或已完成却仍记录未确认密钥都不能进入普通初始化。
  */
-export async function readCredentialDeletion(
-    files: VaultFiles,
-): Promise<CredentialDeletion | undefined> {
+export async function readCredentialDeletion(files: VaultFiles): Promise<CredentialDeletion | undefined> {
     const wire = await files.read(NAME);
     if (wire === undefined) return undefined;
     let value: CredentialDeletion;
@@ -79,8 +77,7 @@ export async function readCredentialDeletion(
  */
 export async function requireNotDeleting(files: VaultFiles): Promise<void> {
     const journal = await readCredentialDeletion(files);
-    if (journal)
-        fail(journal.state === "deleted" ? "profile-deleted" : "profile-deletion-required");
+    if (journal) fail(journal.state === "deleted" ? "profile-deleted" : "profile-deletion-required");
 }
 async function observedKey(
     backend: VaultKeyBackend,
@@ -109,21 +106,12 @@ export async function retireCredentialFiles(
     backend: VaultKeyBackend,
     journal: CredentialDeletion,
 ): Promise<void> {
-    if (
-        !(await files.containsOnly([
-            NAME,
-            "profile.json",
-            "initialization.json",
-            ...journal.records,
-        ]))
-    )
+    if (!(await files.containsOnly([NAME, "profile.json", "initialization.json", ...journal.records])))
         fail("deletion-data-conflict");
     const manifest = await files.read("profile.json");
-    if (manifest !== undefined && digest(manifest) !== journal.manifestHash)
-        fail("deletion-conflict");
+    if (manifest !== undefined && digest(manifest) !== journal.manifestHash) fail("deletion-conflict");
     let present = false;
-    for (const entry of journal.keys)
-        if (await observedKey(backend, journal, entry)) present = true;
+    for (const entry of journal.keys) if (await observedKey(backend, journal, entry)) present = true;
     if (journal.state === "deleted" && !present) {
         if (!(await files.containsOnly([NAME]))) fail("deletion-data-conflict");
         return;

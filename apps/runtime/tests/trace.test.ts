@@ -51,10 +51,7 @@ test(
             let archive = "";
             unzip.stdout.on("data", (b) => (archive += b));
             await once(unzip, "close");
-            assert.ok(
-                archive.includes(secret),
-                "Raw Trace demonstrably retains the synthetic secret",
-            );
+            assert.ok(archive.includes(secret), "Raw Trace demonstrably retains the synthetic secret");
             assert.ok(archive.includes("Authorization") && archive.includes("session="));
             assert.equal(
                 JSON.stringify(
@@ -68,15 +65,11 @@ test(
                 ).includes(secret),
                 false,
             );
-            child = spawn(
-                process.execPath,
-                ["--import", "tsx", "src/cli.ts", "trace", "open", trace.path],
-                {
-                    cwd: process.cwd(),
-                    env: { ...process.env, CI: "1" },
-                    stdio: ["ignore", "pipe", "pipe"],
-                },
-            );
+            child = spawn(process.execPath, ["--import", "tsx", "src/cli.ts", "trace", "open", trace.path], {
+                cwd: process.cwd(),
+                env: { ...process.env, CI: "1" },
+                stdio: ["ignore", "pipe", "pipe"],
+            });
             let output = "";
             let errors = "";
             child.stderr!.on("data", (b) => (errors += b));
@@ -86,15 +79,11 @@ test(
                     const match = output.match(/Listening on (http:\/\/127\.0\.0\.1:[^\s]+)/);
                     if (match) resolve(match[1]!);
                 });
-                child!.once("exit", (code) =>
-                    reject(new Error(`Trace CLI exited ${code}: ${errors}`)),
-                );
+                child!.once("exit", (code) => reject(new Error(`Trace CLI exited ${code}: ${errors}`)));
             });
             const viewer = await browser.newPage();
             await viewer.goto(url);
-            await viewer.waitForFunction(() =>
-                document.body.innerText.toLowerCase().includes("fill"),
-            );
+            await viewer.waitForFunction(() => document.body.innerText.toLowerCase().includes("fill"));
             assert.ok((await viewer.locator("body").innerText()).toLowerCase().includes("fill"));
             assert.equal(new URL(viewer.url()).hostname, "127.0.0.1");
         } finally {

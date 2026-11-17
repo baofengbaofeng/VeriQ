@@ -163,15 +163,9 @@ test("an installation missing its native launcher fails closed without compiling
          * 供 build 下的原生 launcher，断言必须实际到达业务派生前的正式能力检查。
          */
         await cp(new URL("../src", import.meta.url), join(root, "src"), { recursive: true });
-        await symlink(
-            fileURLToPath(new URL("../node_modules", import.meta.url)),
-            join(root, "node_modules"),
-            "dir",
-        );
+        await symlink(fileURLToPath(new URL("../node_modules", import.meta.url)), join(root, "node_modules"), "dir");
         await writeFile(join(root, "package.json"), JSON.stringify({ type: "module" }));
-        const { ProcessSupervisor } = await import(
-            pathToFileURL(join(root, "src/execution/processes.ts")).href
-        );
+        const { ProcessSupervisor } = await import(pathToFileURL(join(root, "src/execution/processes.ts")).href);
         const supervisor = new ProcessSupervisor(join(root, "journal"));
         await assert.rejects(
             supervisor.start("missing", {

@@ -43,10 +43,7 @@ test("arbitrary transport fields and device-token operations are rejected", () =
         { operation: "pollEnrollment", data: { deviceCode: "secret" } },
         { operation: "session", path: "/internal/v1/runtime" },
     ])
-        assert.throws(
-            () => resolveOperation(value, undefined),
-            /IPC_OPERATION_DENIED|IPC_PAYLOAD_INVALID/,
-        );
+        assert.throws(() => resolveOperation(value, undefined), /IPC_OPERATION_DENIED|IPC_PAYLOAD_INVALID/);
 });
 
 test("foreign workspace is rejected before a resource request", () => {

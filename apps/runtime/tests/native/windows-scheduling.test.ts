@@ -60,9 +60,7 @@ test("Windows guardian drains when cancellation precedes its next synchronous co
     const role = join(root, "veriq_runner.exe");
     const id = "scheduled-read";
     const journalPath = join(root, "processes", `${id}.process.json`);
-    const launcher = fileURLToPath(
-        new URL("../../build/native-tests/veriq_guardian_scheduled.exe", import.meta.url),
-    );
+    const launcher = fileURLToPath(new URL("../../build/native-tests/veriq_guardian_scheduled.exe", import.meta.url));
     const processes = new ProcessSupervisor(join(root, "processes"), 500, launcher);
     const failures: unknown[] = [];
     let owned: OwnedProcess | undefined;
@@ -113,14 +111,10 @@ test("Windows guardian drains when cancellation precedes its next synchronous co
                     owned.child.stdin?.end();
                 }
             }
-            const receipt = await bounded(() =>
-                processes.terminateAttempt(id, "CONTROL_READ_RACE_FINALLY"),
-            );
+            const receipt = await bounded(() => processes.terminateAttempt(id, "CONTROL_READ_RACE_FINALLY"));
             context.diagnostic(`Controlled read cleanup receipt: ${JSON.stringify(receipt)}`);
             assert.equal(receipt.processStopped, true, `Unproved cleanup: ${receipt.reason}`);
-            const proof = JSON.parse(
-                await readFile(join(root, "processes", `${id}.drained.json`), "utf8"),
-            );
+            const proof = JSON.parse(await readFile(join(root, "processes", `${id}.drained.json`), "utf8"));
             assert.equal(proof.state, "DRAINED");
             assert(journal);
             assert.equal(proof.nonce, journal.nonce);
@@ -138,9 +132,7 @@ test("Windows guardian drains when cancellation precedes its next synchronous co
                 await bounded(() => rm(root, { recursive: true, force: true }));
             } catch (error) {
                 failures.push(error);
-                context.diagnostic(
-                    `Controlled read removal failed; preserve remaining evidence: ${root}`,
-                );
+                context.diagnostic(`Controlled read removal failed; preserve remaining evidence: ${root}`);
             }
         }
     }

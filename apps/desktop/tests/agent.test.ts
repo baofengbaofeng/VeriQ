@@ -38,10 +38,7 @@ test("agent refuses arbitrary path and process operations", async () => {
             { operation: "spawn", command: "sh" },
             { operation: "status", path: "/etc/passwd" },
         ])
-            await assert.rejects(
-                agent.dispatch(value),
-                /AGENT_OPERATION_DENIED|IPC_PAYLOAD_INVALID/,
-            );
+            await assert.rejects(agent.dispatch(value), /AGENT_OPERATION_DENIED|IPC_PAYLOAD_INVALID/);
     } finally {
         await rm(root, { recursive: true, force: true });
     }

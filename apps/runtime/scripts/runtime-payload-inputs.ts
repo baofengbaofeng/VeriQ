@@ -235,8 +235,7 @@ export type NativeOutput = Frozen<{
  * 令必须使用自身独立检查记录，不能冒充这里的两个 VeriQ
  * 产品输出。
  */
-export type NativeReceipt = ReceiptBase<"NATIVE_PRODUCTION_BUILD"> &
-    Frozen<{ outputs: NativeOutput[] }>;
+export type NativeReceipt = ReceiptBase<"NATIVE_PRODUCTION_BUILD"> & Frozen<{ outputs: NativeOutput[] }>;
 /**
  * 依赖实例保持精确安装根、真实 name/version、锁 snapshot 文本、package 正文摘要和自有树规范摘要；同名同版本的不同 peer
  * 上下文必须分别保留实例路径与编号，不能按包名去重而丢失解析边界。
@@ -545,10 +544,7 @@ export class RuntimePayloadError extends Error {
  * 纯解析在任何异步操作前复制原始字节并独立验证期望字段，摘要匹配后仍逐项核目标与来源政策；返回深冻结配方只表示结构和独
  * 立来源绑定成立，所有引用正文留待真实核验。
  */
-export function parseRuntimePayloadInputs(
-    bytes: Uint8Array,
-    expected: ExpectedPayloadInputs,
-): Recipe {
+export function parseRuntimePayloadInputs(bytes: Uint8Array, expected: ExpectedPayloadInputs): Recipe {
     return admitRuntimePayloadInputs(bytes, expected).recipe;
 }
 /**
@@ -560,10 +556,7 @@ export function admitRuntimePayloadInputs(bytes: Uint8Array, expected: ExpectedP
     if (bytes.byteLength > limits.json) fail("PAYLOAD_LIMIT");
     const snapshot = Uint8Array.from(bytes);
     schemas.expected(expected);
-    const policy = checked<ExpectedPayloadInputs>(
-        JSON.parse(JSON.stringify(expected)),
-        schemas.expected,
-    );
+    const policy = checked<ExpectedPayloadInputs>(JSON.parse(JSON.stringify(expected)), schemas.expected);
     const digest = sha(snapshot);
     if (digest !== policy.recipeSha256) fail("PAYLOAD_EXPECTED_MISMATCH");
     const recipe = checked<Recipe>(decode(snapshot), schemas.recipe);
@@ -584,8 +577,7 @@ export async function verifyRuntimePayloadInputs(
     const { recipe, recipeSha256 } = admitRuntimePayloadInputs(bytes, expected);
     if (typeof inputRoot !== "string" || (signal !== undefined && !(signal instanceof AbortSignal)))
         fail("PAYLOAD_INPUT_INVALID");
-    if (!isNode24Version(process.versions.node) || typeof crc32 !== "function")
-        fail("PAYLOAD_INPUT_INVALID");
+    if (!isNode24Version(process.versions.node) || typeof crc32 !== "function") fail("PAYLOAD_INPUT_INVALID");
     const reader = new InputReader(inputRoot, signal, [
         recipe.entries.root,
         recipe.execution.root,
@@ -604,9 +596,7 @@ export async function verifyRuntimePayloadInputs(
             recipeSha256,
             recipe,
             ...verified,
-            checkedEvidence: [...reader.checked.values()].sort((a, b) =>
-                a.path < b.path ? -1 : 1,
-            ),
+            checkedEvidence: [...reader.checked.values()].sort((a, b) => (a.path < b.path ? -1 : 1)),
             graphStatus: "STATIC_REFERENCES_VERIFIED",
             pending: [
                 "ARCHIVE_MEMBERS",

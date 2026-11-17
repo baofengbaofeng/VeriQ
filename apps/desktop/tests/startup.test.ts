@@ -74,10 +74,7 @@ test("pending startup rejects competing mutations and releases after failure", a
         };
         assert.equal(status.preparing?.operation, "run");
         fixture.release();
-        assert.match(
-            String(((await fixture.first) as { error: Error }).error),
-            /BUNDLE_WORKSPACE_MISMATCH/,
-        );
+        assert.match(String(((await fixture.first) as { error: Error }).error), /BUNDLE_WORKSPACE_MISMATCH/);
         await assert.rejects(fixture.agent.dispatch(run), /BUNDLE_WORKSPACE_MISMATCH/);
     } finally {
         await fixture.dispose();
@@ -94,10 +91,7 @@ test("startup cancellation targets its operation and waits for release", async (
         const status = (await fixture.agent.dispatch({ operation: "status" })) as {
             preparing: { id: string };
         };
-        await assert.rejects(
-            fixture.agent.dispatch({ operation: "cancel", startupId: uuid }),
-            /STARTUP_NOT_FOUND/,
-        );
+        await assert.rejects(fixture.agent.dispatch({ operation: "cancel", startupId: uuid }), /STARTUP_NOT_FOUND/);
         let finished = false;
         const cancelled = fixture.agent
             .dispatch({ operation: "cancel", startupId: status.preparing.id })
@@ -110,10 +104,7 @@ test("startup cancellation targets its operation and waits for release", async (
         await assert.rejects(fixture.agent.dispatch(run), /AGENT_BUSY/);
         fixture.release();
         await cancelled;
-        assert.match(
-            String(((await fixture.first) as { error: Error }).error),
-            /AGENT_START_CANCELLED/,
-        );
+        assert.match(String(((await fixture.first) as { error: Error }).error), /AGENT_START_CANCELLED/);
         await assert.rejects(fixture.agent.dispatch(run), /BUNDLE_WORKSPACE_MISMATCH/);
         const { LocalStore } = await import("../../runtime/src/offline/store.ts");
         const { DatabaseSync } = await import("node:sqlite");
@@ -122,17 +113,17 @@ test("startup cancellation targets its operation and waits for release", async (
         store.reserve(uuid, current, "33333333-3333-4333-8333-333333333333");
         store.close();
         const db = new DatabaseSync(fixture.root + "/offline/veriq.sqlite");
-        db.prepare(
-            "INSERT INTO veriq_local_runs(id,workspace_id,created_at,state) VALUES(?,?,?,?)",
-        ).run(uuid, uuid, new Date().toISOString(), "FINISHED");
+        db.prepare("INSERT INTO veriq_local_runs(id,workspace_id,created_at,state) VALUES(?,?,?,?)").run(
+            uuid,
+            uuid,
+            new Date().toISOString(),
+            "FINISHED",
+        );
         db.close();
         const controller = new AbortController();
         Reflect.set(fixture.agent, "selectedWorkspace", uuid);
         Reflect.set(fixture.agent, "runController", controller);
-        await assert.rejects(
-            fixture.agent.dispatch({ operation: "cancel", runId: uuid }),
-            /RUN_NOT_ACTIVE/,
-        );
+        await assert.rejects(fixture.agent.dispatch({ operation: "cancel", runId: uuid }), /RUN_NOT_ACTIVE/);
         assert.equal(controller.signal.aborted, false);
         await fixture.agent.dispatch({ operation: "cancel", runId: current });
         assert.equal(controller.signal.aborted, true);
@@ -153,10 +144,7 @@ test("stop drains the reserved startup and prevents later work", async () => {
         await assert.rejects(fixture.agent.dispatch(run), /AGENT_BUSY|AGENT_STOPPED/);
         fixture.release();
         assert.deepEqual(await stopped, { stopped: true });
-        assert.match(
-            String(((await fixture.first) as { error: Error }).error),
-            /AGENT_START_CANCELLED/,
-        );
+        assert.match(String(((await fixture.first) as { error: Error }).error), /AGENT_START_CANCELLED/);
         await assert.rejects(fixture.agent.dispatch(run), /AGENT_STOPPED/);
     } finally {
         await fixture.dispose();

@@ -136,8 +136,7 @@ const en = {
         "Clears only local resume metadata. It does not delete server resources or revoke credentials. Use a separat" +
         "e Workspace when changing configuration.",
     errors: {
-        TARGET_ORIGIN_INVALID:
-            "Use an HTTPS origin without path or credentials; HTTP is limited to loopback.",
+        TARGET_ORIGIN_INVALID: "Use an HTTPS origin without path or credentials; HTTP is limited to loopback.",
         SAMPLE_PACKAGE_INVALID: "Installed sample manifest or DSL is invalid.",
         SELECTION_INVALID: "Select an actual Workspace and Runtime.",
         IMPORT_OPTIONS_CHANGED:
@@ -146,17 +145,14 @@ const en = {
         ADAPTER_INVALID: "Selected authentication adapter is unavailable or is not HTTP Bearer.",
         CREDENTIAL_SELECTION_INVALID:
             "Selected credential was revoked, has another reference, or does not allow the identity.",
-        CREDENTIAL_INPUT_INVALID:
-            "New credentials require separate tokens of at least 24 characters.",
-        RESOURCE_CHANGED:
-            "An existing sample resource was archived or changed. The wizard will not overwrite it.",
+        CREDENTIAL_INPUT_INVALID: "New credentials require separate tokens of at least 24 characters.",
+        RESOURCE_CHANGED: "An existing sample resource was archived or changed. The wizard will not overwrite it.",
         VALIDATION_TIMEOUT:
             "Actual compilation did not finish. Check the managed Runtime and approved engine, then resume.",
         VALIDATION_FAILED: "Actual compilation failed. Inspect the Job diagnostics.",
         RECEIPT_CHANGED: "The compilation receipt differs from the current draft or source hash.",
         PLAN_CHANGED: "The original plan was archived or edited. The wizard will not overwrite it.",
-        CONFIG_INVALID:
-            "Provide valid role, identities, references, build, and validation timeout.",
+        CONFIG_INVALID: "Provide valid role, identities, references, build, and validation timeout.",
         WORKSPACE_REQUIRED: "Select or create a Workspace first.",
         STORAGE_UNAVAILABLE:
             "Resume metadata could not be saved. This page can resume in memory; after refresh, reload actual server" +

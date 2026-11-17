@@ -16,11 +16,7 @@ import { SampleWorkspaceWizard } from "../examples/SampleWorkspaceWizard";
 
 const roles = ["OWNER", "ADMIN", "EDITOR", "EXECUTOR", "VIEWER"] as const;
 const message = (error: Error | null) =>
-    error instanceof ApiError
-        ? error.message
-        : error
-          ? "Unable to load Workspace data. Please retry."
-          : "";
+    error instanceof ApiError ? error.message : error ? "Unable to load Workspace data. Please retry." : "";
 
 /**
  * 拥有空间列表、成员与邀请分页 UI 状态；写操作调用 create/rename/archive/invite/updateMember。选择变更经
@@ -55,9 +51,7 @@ export function WorkspacePage() {
     if (!user) return <Navigate to="/login" />;
     return (
         <Panel title={tx("Workspaces")}>
-            <p>
-                {tx("One project is one Workspace. Membership controls access to its resources.")}
-            </p>
+            <p>{tx("One project is one Workspace. Membership controls access to its resources.")}</p>
             {workspaces.isPending && <p role="status">{tx("Loading Workspaces…")}</p>}
             {workspaces.error && (
                 <>
@@ -71,11 +65,7 @@ export function WorkspacePage() {
             {!!items.length && (
                 <label>
                     {tx("Current Workspace")}
-                    <select
-                        data-testid="workspace-selector"
-                        value={selected}
-                        onChange={(e) => select(e.target.value)}
-                    >
+                    <select data-testid="workspace-selector" value={selected} onChange={(e) => select(e.target.value)}>
                         <option value="" disabled>
                             {tx("Select Workspace")}
                         </option>
@@ -117,9 +107,7 @@ export function WorkspacePage() {
                         workspaceId={
                             items.some(
                                 (item) =>
-                                    item.id === selected &&
-                                    !item.archived &&
-                                    ["OWNER", "ADMIN"].includes(item.role),
+                                    item.id === selected && !item.archived && ["OWNER", "ADMIN"].includes(item.role),
                             )
                                 ? selected
                                 : undefined
@@ -169,9 +157,7 @@ export function WorkspacePage() {
                 </button>
             </form>
             <Notice error={a.error} />
-            {selected && (
-                <WorkspaceDetail key={user.id + selected} id={selected} identity={user.id} />
-            )}
+            {selected && <WorkspaceDetail key={user.id + selected} id={selected} identity={user.id} />}
         </Panel>
     );
 }
@@ -192,8 +178,7 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
         initialPageParam: undefined as string | undefined,
         getNextPageParam: (page) => page.nextCursor ?? undefined,
     });
-    const canManage =
-        detail.data && ["OWNER", "ADMIN"].includes(detail.data.role) && !detail.data.archived;
+    const canManage = detail.data && ["OWNER", "ADMIN"].includes(detail.data.role) && !detail.data.archived;
     const invites = useInfiniteQuery({
         queryKey: [...key, "invitations"],
         queryFn: ({ pageParam, signal }) => api.invitations(id, pageParam, signal),
@@ -223,12 +208,7 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
             <p>
                 {ws.key} · {ws.role} · {ws.archived ? tx("Archived") : tx("Active")}
             </p>
-            <button
-                type="button"
-                data-testid="workspace-refresh"
-                onClick={() => void a.run(refresh)}
-                disabled={a.busy}
-            >
+            <button type="button" data-testid="workspace-refresh" onClick={() => void a.run(refresh)} disabled={a.busy}>
                 {tx("Refresh Workspace")}
             </button>
             {canManage && (
@@ -351,13 +331,7 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
                     >
                         <label>
                             {tx("Email")}
-                            <input
-                                name="email"
-                                type="email"
-                                data-testid="invite-email"
-                                required
-                                maxLength={254}
-                            />
+                            <input name="email" type="email" data-testid="invite-email" required maxLength={254} />
                         </label>
                         <label>
                             {tx("Role")}
@@ -370,11 +344,7 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
                             </select>
                         </label>
                         <label className="check">
-                            <input
-                                type="checkbox"
-                                name="sendEmail"
-                                data-testid="invite-email-send"
-                            />
+                            <input type="checkbox" name="sendEmail" data-testid="invite-email-send" />
                             {tx("Send by configured SMTP")}
                         </label>
                         <button type="submit" data-testid="invite-create" disabled={a.busy}>
@@ -410,8 +380,7 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
                             .flatMap((page) => page.items)
                             .map((invite) => (
                                 <li key={invite.id} data-testid={`invitation-${invite.email}`}>
-                                    {invite.email} · {invite.role} · {invite.status}{" "}
-                                    {tx(" · Expires")}{" "}
+                                    {invite.email} · {invite.role} · {invite.status} {tx(" · Expires")}{" "}
                                     {new Date(invite.expiresAt).toLocaleString(undefined, {
                                         timeZone: "Asia/Shanghai",
                                     })}{" "}
@@ -422,11 +391,7 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
                                             disabled={a.busy}
                                             onClick={() =>
                                                 void a.run(async () => {
-                                                    await api.revokeInvitation(
-                                                        id,
-                                                        invite.id,
-                                                        signal,
-                                                    );
+                                                    await api.revokeInvitation(id, invite.id, signal);
                                                     await refresh();
                                                     a.setMessage("Invitation revoked");
                                                 })
@@ -514,12 +479,7 @@ function MemberRow({
                         disabled={a.busy}
                         onClick={() =>
                             void a.run(async () => {
-                                await api.updateMember(
-                                    workspace.id,
-                                    member.userId,
-                                    { role, status },
-                                    signal,
-                                );
+                                await api.updateMember(workspace.id, member.userId, { role, status }, signal);
                                 await refresh();
                                 a.setMessage("Member updated");
                             })
@@ -628,16 +588,8 @@ export function AcceptInvitation() {
                             </p>
                         ) : (
                             <>
-                                <Field
-                                    name="email"
-                                    label={tx("Invited account email")}
-                                    type="email"
-                                />
-                                <Field
-                                    name="password"
-                                    label={tx("Current account password")}
-                                    type="password"
-                                />
+                                <Field name="email" label={tx("Invited account email")} type="email" />
+                                <Field name="password" label={tx("Current account password")} type="password" />
                             </>
                         )}
                         <button type="submit" data-testid="invite-accept" disabled={a.busy}>

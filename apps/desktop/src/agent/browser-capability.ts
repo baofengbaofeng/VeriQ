@@ -28,8 +28,7 @@ export async function probeBrowser(
     if (!executable) return { available: false, source: "Not configured" };
     const name = basename(executable).toLowerCase();
     const shell = name.includes("headless") || name.includes("shell");
-    if (headed && shell)
-        return { available: false, source: "Headless shell cannot provide visible windows" };
+    if (headed && shell) return { available: false, source: "Headless shell cannot provide visible windows" };
     if (headed && !["chrome", "chrome.exe", "chromium", "chromium.exe"].includes(name))
         return { available: false, source: "Unrecognized headed browser distribution" };
     try {

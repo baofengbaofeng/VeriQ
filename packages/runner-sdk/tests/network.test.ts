@@ -29,9 +29,7 @@ beforeAll(async () => {
     browser = await chromium.launch({
         // 测试默认交由已锁定 Playwright 选择匹配浏览器，仅当操作员明确指定路径时覆盖；系统安装的 Chromium
         // 不能成为未记录的正式门禁输入。
-        ...(process.env.VERIQ_TEST_CHROMIUM
-            ? { executablePath: process.env.VERIQ_TEST_CHROMIUM }
-            : {}),
+        ...(process.env.VERIQ_TEST_CHROMIUM ? { executablePath: process.env.VERIQ_TEST_CHROMIUM } : {}),
         headless: true,
         args: ["--no-sandbox"],
         env: {
@@ -113,8 +111,7 @@ it.each([
             { page, apiBaseURL: origin, allowedOrigins: [origin], registry },
         );
         await page.evaluate(async (bodies) => {
-            for (const body of bodies)
-                await fetch("/save", { method: "POST", body: JSON.stringify(body) });
+            for (const body of bodies) await fetch("/save", { method: "POST", body: JSON.stringify(body) });
         }, bodies);
         if (error) await expect(h.finalize()).rejects.toThrow(error);
         else expect((await h.finalize()).matchedCount).toBe(2);
@@ -269,36 +266,31 @@ it("ordinary request-only finalization accepts a candidate while its response bo
         h.dispose();
     }
 });
-it.each(["dispose", "cancel"] as const)(
-    "pending first-candidate acquisition responds to %s",
-    async (mode) => {
-        const registry = new sdk.ObserverRegistry(),
-            controller = new AbortController();
-        const h = sdk.armObserver(
-            {
-                id: "pending",
-                method: "GET",
-                path: "/never",
-                window: { mode: "UNTIL_ACTION_SETTLED", quietMs: 0 },
-            },
-            {
-                page,
-                apiBaseURL: origin,
-                allowedOrigins: [origin],
-                registry,
-                signal: controller.signal,
-            },
-        );
-        const pending = h.finalize();
-        if (mode === "dispose") h.dispose();
-        else controller.abort();
-        await expect(pending).rejects.toThrow(
-            mode === "dispose" ? "OBSERVER_DISPOSED" : "CANCELLED",
-        );
-        h.dispose();
-        expect(registry.activeCount()).toBe(0);
-    },
-);
+it.each(["dispose", "cancel"] as const)("pending first-candidate acquisition responds to %s", async (mode) => {
+    const registry = new sdk.ObserverRegistry(),
+        controller = new AbortController();
+    const h = sdk.armObserver(
+        {
+            id: "pending",
+            method: "GET",
+            path: "/never",
+            window: { mode: "UNTIL_ACTION_SETTLED", quietMs: 0 },
+        },
+        {
+            page,
+            apiBaseURL: origin,
+            allowedOrigins: [origin],
+            registry,
+            signal: controller.signal,
+        },
+    );
+    const pending = h.finalize();
+    if (mode === "dispose") h.dispose();
+    else controller.abort();
+    await expect(pending).rejects.toThrow(mode === "dispose" ? "OBSERVER_DISPOSED" : "CANCELLED");
+    h.dispose();
+    expect(registry.activeCount()).toBe(0);
+});
 it("a request arriving after the acquisition deadline cannot satisfy an ordinary observer", async () => {
     const registry = new sdk.ObserverRegistry();
     const h = sdk.armObserver(

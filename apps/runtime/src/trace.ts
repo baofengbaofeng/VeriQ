@@ -23,8 +23,7 @@ export async function openTrace(
     if (/^[a-z][a-z0-9+.-]*:\/\//i.test(path)) throw new Error("LOCAL_TRACE_PATH_REQUIRED");
     const source = resolve(path),
         info = await stat(source);
-    if (!info.isFile() || info.size > 32 * 1024 * 1024 || !info.size)
-        throw new Error("INVALID_TRACE_FILE");
+    if (!info.isFile() || info.size > 32 * 1024 * 1024 || !info.size) throw new Error("INVALID_TRACE_FILE");
     const directory = await mkdtemp(join(tmpdir(), "veriq-trace-view-"));
     const copy = join(directory, "trace.zip");
     try {
@@ -47,11 +46,7 @@ export async function openTrace(
                 allowedFileRoots: () => [directory],
             });
             try {
-                if (
-                    !["stop", "rootUrl", "urlPrefix"].every(
-                        (name) => typeof server[name] === "function",
-                    )
-                )
+                if (!["stop", "rootUrl", "urlPrefix"].every((name) => typeof server[name] === "function"))
                     throw new Error("TRACE_VIEWER_INTERFACE_MISMATCH");
                 const origin = new URL(server.rootUrl("precise"));
                 const prefix = new URL(server.urlPrefix("precise"));
@@ -64,8 +59,7 @@ export async function openTrace(
                 )
                     throw new Error("TRACE_VIEWER_INTERFACE_MISMATCH");
                 const address =
-                    server.urlPrefix("precise") +
-                    api.traceViewerPath("file?path=" + encodeURIComponent(copy), {});
+                    server.urlPrefix("precise") + api.traceViewerPath("file?path=" + encodeURIComponent(copy), {});
                 signal.throwIfAborted();
                 await ready(address, process.pid);
                 if (!signal.aborted)

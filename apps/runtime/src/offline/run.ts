@@ -36,11 +36,7 @@ import { LocalStore, type Ownership } from "./store.ts";
 import { reverifyInstalled, type VerifiedBundle } from "./verify.ts";
 import type { TrustStore } from "./trust.ts";
 import { readBoundedFile } from "./config.ts";
-import {
-    developmentExecutionPaths,
-    containedPath,
-    type ExecutionPaths,
-} from "../execution/paths.ts";
+import { developmentExecutionPaths, containedPath, type ExecutionPaths } from "../execution/paths.ts";
 import { offlineWorkerEnvironment } from "./worker-environment.ts";
 /**
  * 公开接口 OfflineConfig 描述断网执行所需的本机目录、浏览器与发行配置：不含任何平台租约字段（OfflineConfig）。
@@ -94,13 +90,11 @@ const variantKey = (execution: ExecutionSnapshotV1) =>
         ]),
     );
 const code = (error: unknown) =>
-    error instanceof Error && /^[A-Z_]{1,80}$/.test(error.message)
-        ? error.message
-        : "OFFLINE_EXECUTION_ERROR";
+    error instanceof Error && /^[A-Z_]{1,80}$/.test(error.message) ? error.message : "OFFLINE_EXECUTION_ERROR";
 const aggregate = (outcomes: string[]): Outcome =>
-    (
-        ["ERROR", "INCOMPLETE", "FAILED", "CANCELLED", "UNSTABLE", "SKIPPED", "PASSED"] as Outcome[]
-    ).find((o) => outcomes.includes(o)) ?? "INCOMPLETE";
+    (["ERROR", "INCOMPLETE", "FAILED", "CANCELLED", "UNSTABLE", "SKIPPED", "PASSED"] as Outcome[]).find((o) =>
+        outcomes.includes(o),
+    ) ?? "INCOMPLETE";
 function selectedSuite(checked: Checked): string | undefined {
     const selection = JSON.parse(checked.contents.get("selection.json")!.toString()) as {
         suiteVersionId?: string;
@@ -109,8 +103,7 @@ function selectedSuite(checked: Checked): string | undefined {
         selection.suiteVersionId ??
         (checked.dslOnly &&
         checked.snapshot.assets.some(
-            (a) =>
-                a.versionId === checked.snapshot.validationTarget?.versionId && a.kind === "SUITE",
+            (a) => a.versionId === checked.snapshot.validationTarget?.versionId && a.kind === "SUITE",
         )
             ? checked.snapshot.validationTarget!.versionId
             : undefined)
@@ -131,17 +124,13 @@ function variants(checked: Checked, runId: string, config: OfflineConfig): Execu
     ) as unknown as EnvironmentV1;
     if (!environment) throw new Error("BUNDLE_ENVIRONMENT_MISSING");
     for (const [field, value] of Object.entries(config.overrides ?? {})) {
-        if (
-            !["baseURL", "apiBaseURL", "fixtureBaseURL"].includes(field) ||
-            !config.authorizeOverride?.(field, value)
-        )
+        if (!["baseURL", "apiBaseURL", "fixtureBaseURL"].includes(field) || !config.authorizeOverride?.(field, value))
             throw new Error("ENVIRONMENT_OVERRIDE_UNAUTHORIZED");
         const url = new URL(value);
         if (!["http:", "https:"].includes(url.protocol) || url.username || url.password)
             throw new Error("INVALID_ENVIRONMENT_OVERRIDE");
         (environment as unknown as Record<string, unknown>)[field] = value;
-        if (!environment.allowedOrigins.includes(url.origin))
-            environment.allowedOrigins.push(url.origin);
+        if (!environment.allowedOrigins.includes(url.origin)) environment.allowedOrigins.push(url.origin);
     }
     const suiteId = selectedSuite(checked);
     const suite = suiteId ? source.assets.find((a) => a.versionId === suiteId) : undefined;
@@ -162,9 +151,7 @@ function variants(checked: Checked, runId: string, config: OfflineConfig): Execu
           }));
     const executions: ExecutionSnapshotV1[] = [];
     for (const [index, entry] of entries.entries()) {
-        const asset = source.assets.find(
-            (a) => a.versionId === entry.versionId && a.kind === "CASE",
-        );
+        const asset = source.assets.find((a) => a.versionId === entry.versionId && a.kind === "CASE");
         if (!asset) throw new Error("BUNDLE_CASE_MISSING");
         const document = asset.document as unknown as {
             roleKey: string;
@@ -244,8 +231,7 @@ async function attempt(
     result: OfflineAttemptV1;
     owner: Ownership;
 }> {
-    const source =
-        config.darwinSource === undefined ? undefined : requireDarwinSource(config.darwinSource);
+    const source = config.darwinSource === undefined ? undefined : requireDarwinSource(config.darwinSource);
     let owner = ownership;
     const runId = execution.runId,
         work = join(config.root, "work", attemptId),
@@ -266,10 +252,7 @@ async function attempt(
     let privateEndpoint: string | undefined,
         retainPrivateReports = false;
     const pendingDownloads: string[] = [];
-    const privacyReporter = join(
-        work,
-        "node_modules/@veriq/runner-sdk/src/endpoint-json-reporter.js",
-    );
+    const privacyReporter = join(work, "node_modules/@veriq/runner-sdk/src/endpoint-json-reporter.js");
     let cancellationObserver: ReturnType<typeof setInterval> | undefined;
     const controller = new AbortController();
     /**
@@ -277,8 +260,7 @@ async function attempt(
      * finally 共享同一预算，不以 ACK、短等待或未赋值的 child 推断已经退出或没
      * 有派生。
      */
-    const stopOnce = (why: string) =>
-        (stopOperation ??= processes.terminateAttempt(attemptId, why));
+    const stopOnce = (why: string) => (stopOperation ??= processes.terminateAttempt(attemptId, why));
     const unspawned = async () => {
         if (spawning) return;
         if (source) {
@@ -310,8 +292,7 @@ async function attempt(
     const abort = () => stopRequest("USER_CANCELLED");
     config.signal?.addEventListener("abort", abort, { once: true });
     if (config.signal?.aborted) abort();
-    const append = (fact: Fact) =>
-        store.append(runId, executionEvent(attemptId, ++sequence, fact), owner);
+    const append = (fact: Fact) => store.append(runId, executionEvent(attemptId, ++sequence, fact), owner);
     const resolver = new SecretResolver(config.secrets);
     const context = {
         issuerId: checked.manifest.issuerId,
@@ -351,10 +332,7 @@ async function attempt(
         if (controller.signal.aborted || store.cancelled(runId)) throw new Error("USER_CANCELLED");
         // Fail explicitly before launching; secrets stay in this host and private IPC only.
         for (const pin of execution.secretVersions)
-            await resolver.resolve(
-                { ...context, secretRef: pin.secretRef, versionId: pin.versionId },
-                context,
-            );
+            await resolver.resolve({ ...context, secretRef: pin.secretRef, versionId: pin.versionId }, context);
         const release = await loadRelease(config.releaseDirectory, checked.manifest.engineVersion);
         if (source) source.native.openPrivateDirectory(work, true).close();
         else await mkdir(work, { recursive: true, mode: 0o700 });
@@ -373,18 +351,14 @@ async function attempt(
         } else {
             const descriptor = JSON.parse(
                 checked.contents
-                    .get(
-                        `provenance/${compilationRoot(checked, execution.caseVersionId)}/descriptor.json`,
-                    )!
+                    .get(`provenance/${compilationRoot(checked, execution.caseVersionId)}/descriptor.json`)!
                     .toString(),
             ) as CompiledAssetBundle;
             await write("bundle.json", canonicalBytes(descriptor));
             for (const file of descriptor.files)
                 await write(
                     file.path,
-                    checked.contents.get(
-                        `compiled/${compilationRoot(checked, execution.caseVersionId)}/${file.path}`,
-                    )!,
+                    checked.contents.get(`compiled/${compilationRoot(checked, execution.caseVersionId)}/${file.path}`)!,
                 );
             for (const [path, bytes] of Object.entries(release.files)) {
                 if (path === "engine/compiler.tgz") await write(path, bytes);
@@ -394,54 +368,46 @@ async function attempt(
         }
         await write("execution.json", canonicalBytes(execution));
         await write("release.json", canonicalBytes(release.entry));
-        broker = new AttemptBroker(
-            join(brokerDirectory?.path ?? tmp, "control.sock"),
-            async (message) => {
-                if (message.type === "status")
-                    return { cancelled: controller.signal.aborted || store.cancelled(runId) };
-                if (message.type === "credential") {
-                    if (controller.signal.aborted || store.cancelled(runId))
-                        throw new Error("ATTEMPT_STOPPING");
-                    return resolver.resolve(
-                        {
-                            ...(message.reference as {
-                                workspaceId: string;
-                                secretRef: string;
-                                versionId: string;
-                            }),
-                            issuerId: checked.manifest.issuerId,
-                        },
-                        context,
-                    );
-                }
-                if (message.type === "event") {
-                    const event = message.event as SdkEvent;
-                    append(sdkFact(event));
-                    if (event.type === "CASE_FINISHED") caseResult = event.result;
-                    return {};
-                }
-                if (message.type === "restricted") {
-                    const evidence = message.evidence as {
-                        kind: string;
-                        path: string;
-                        sensitivity: string;
-                    };
-                    if (
-                        evidence.kind !== "DOWNLOAD" ||
-                        evidence.sensitivity !== "CREDENTIAL_RESTRICTED" ||
-                        !containedPath(
-                            source ? join(work, "downloads") : tmp!,
-                            resolve(evidence.path),
-                        )
-                    )
-                        throw new Error("UNSAFE_EVIDENCE");
-                    if (source) pendingDownloads.push(evidence.path);
-                    else await add(evidence.path, "DOWNLOAD", `download-${artifacts.length}.bin`);
-                    return {};
-                }
-                throw new Error("INVALID_IPC_OPERATION");
-            },
-        );
+        broker = new AttemptBroker(join(brokerDirectory?.path ?? tmp, "control.sock"), async (message) => {
+            if (message.type === "status") return { cancelled: controller.signal.aborted || store.cancelled(runId) };
+            if (message.type === "credential") {
+                if (controller.signal.aborted || store.cancelled(runId)) throw new Error("ATTEMPT_STOPPING");
+                return resolver.resolve(
+                    {
+                        ...(message.reference as {
+                            workspaceId: string;
+                            secretRef: string;
+                            versionId: string;
+                        }),
+                        issuerId: checked.manifest.issuerId,
+                    },
+                    context,
+                );
+            }
+            if (message.type === "event") {
+                const event = message.event as SdkEvent;
+                append(sdkFact(event));
+                if (event.type === "CASE_FINISHED") caseResult = event.result;
+                return {};
+            }
+            if (message.type === "restricted") {
+                const evidence = message.evidence as {
+                    kind: string;
+                    path: string;
+                    sensitivity: string;
+                };
+                if (
+                    evidence.kind !== "DOWNLOAD" ||
+                    evidence.sensitivity !== "CREDENTIAL_RESTRICTED" ||
+                    !containedPath(source ? join(work, "downloads") : tmp!, resolve(evidence.path))
+                )
+                    throw new Error("UNSAFE_EVIDENCE");
+                if (source) pendingDownloads.push(evidence.path);
+                else await add(evidence.path, "DOWNLOAD", `download-${artifacts.length}.bin`);
+                return {};
+            }
+            throw new Error("INVALID_IPC_OPERATION");
+        });
         await broker.open();
         const executionPaths = config.execution ?? developmentExecutionPaths();
         const invocation = {
@@ -460,9 +426,7 @@ async function attempt(
         if (!source) await write("invocation.json", canonicalBytes(invocation));
         for (const file of ["provider.mjs", "compile-entry.mjs"])
             await copyFile(
-                file === "provider.mjs"
-                    ? executionPaths.providerEntry
-                    : executionPaths.compileEntry,
+                file === "provider.mjs" ? executionPaths.providerEntry : executionPaths.compileEntry,
                 join(work, file),
             );
         const pw = {
@@ -490,11 +454,7 @@ async function attempt(
                 },
             },
         };
-        if (!source)
-            await write(
-                "playwright.config.mjs",
-                Buffer.from(`export default ${JSON.stringify(pw)};`),
-            );
+        if (!source) await write("playwright.config.mjs", Buffer.from(`export default ${JSON.stringify(pw)};`));
         if (controller.signal.aborted || store.cancelled(runId)) throw new Error("USER_CANCELLED");
         const environment = offlineWorkerEnvironment(
             tmp,
@@ -540,15 +500,11 @@ async function attempt(
                       headless: config.headless ?? true,
                       downloadsPath: invocation.downloads,
                       prepare: (context) => {
-                          if (controller.signal.aborted || store.cancelled(runId))
-                              throw new Error("USER_CANCELLED");
-                          if (!context.wsEndpoint)
-                              throw new Error("DARWIN_BROWSER_ENDPOINT_REQUIRED");
+                          if (controller.signal.aborted || store.cancelled(runId)) throw new Error("USER_CANCELLED");
+                          if (!context.wsEndpoint) throw new Error("DARWIN_BROWSER_ENDPOINT_REQUIRED");
                           context.publish(
                               "invocation.json",
-                              Buffer.from(
-                                  canonicalBytes({ ...invocation, controlled: context.controlled }),
-                              ),
+                              Buffer.from(canonicalBytes({ ...invocation, controlled: context.controlled })),
                           );
                           privateEndpoint = context.wsEndpoint;
                           const { launchOptions: _launchOptions, ...use } = pw.use;
@@ -577,8 +533,7 @@ async function attempt(
                   }
                 : undefined,
         );
-        if ((controller.signal.aborted || store.cancelled(runId)) && source)
-            stopRequest("USER_CANCELLED");
+        if ((controller.signal.aborted || store.cancelled(runId)) && source) stopRequest("USER_CANCELLED");
         child = await starting;
         if (controller.signal.aborted || store.cancelled(runId)) {
             stopRequest("USER_CANCELLED");
@@ -611,27 +566,21 @@ async function attempt(
          * 错误不借用 CLI 的业务退出码或受控停止范围，私有原始目录仅在保密定稿不确定时保留用于定位。
          */
         if (source) {
-            if (controller.signal.aborted || store.cancelled(runId))
-                throw new Error(failure ?? "USER_CANCELLED");
+            if (controller.signal.aborted || store.cancelled(runId)) throw new Error(failure ?? "USER_CANCELLED");
             try {
                 source.native.openPrivateDirectory(tmp, false).close();
                 if (!privateEndpoint) throw new Error("REPORT_PRIVACY_UNCONFIRMED");
                 const gate = (await import(pathToFileURL(privacyReporter).href)) as {
-                    verifyEndpointJsonFile?: (
-                        path: string,
-                        endpoints: readonly string[],
-                    ) => Promise<void>;
+                    verifyEndpointJsonFile?: (path: string, endpoints: readonly string[]) => Promise<void>;
                 };
-                if (typeof gate.verifyEndpointJsonFile !== "function")
-                    throw new Error("REPORT_PRIVACY_UNCONFIRMED");
+                if (typeof gate.verifyEndpointJsonFile !== "function") throw new Error("REPORT_PRIVACY_UNCONFIRMED");
                 await gate.verifyEndpointJsonFile(join(tmp, "playwright.json"), [privateEndpoint]);
                 source.native.openPrivateDirectory(tmp, false).close();
             } catch {
                 retainPrivateReports = true;
                 throw new Error("REPORT_PRIVACY_UNCONFIRMED");
             }
-            for (const path of pendingDownloads)
-                await add(path, "DOWNLOAD", `download-${artifacts.length}.bin`);
+            for (const path of pendingDownloads) await add(path, "DOWNLOAD", `download-${artifacts.length}.bin`);
         }
         if (!caseResult) {
             try {
@@ -717,15 +666,11 @@ async function attempt(
             artifacts,
             execution,
             processStopped: stop.processStopped,
-            ...(stop.processStopScope !== undefined
-                ? { processStopScope: stop.processStopScope }
-                : {}),
+            ...(stop.processStopScope !== undefined ? { processStopScope: stop.processStopScope } : {}),
             retrySafety: caseResult?.retrySafety ?? "UNKNOWN",
             sourceKind: checked.dslOnly ? "DRAFT_DEBUG" : "PUBLISHED",
             variantKey: variantKey(execution),
-            ...((failure ?? caseResult?.errorCode)
-                ? { failureCode: (failure ?? caseResult?.errorCode)! }
-                : {}),
+            ...((failure ?? caseResult?.errorCode) ? { failureCode: (failure ?? caseResult?.errorCode)! } : {}),
             ...(diagnostics ? { diagnostics } : {}),
         },
     };
@@ -738,15 +683,13 @@ export async function runOffline(
     config: OfflineConfig,
 ): Promise<OfflineResultV1> {
     if (config.darwinSource !== undefined) requireDarwinSource(config.darwinSource);
-    if (config.headless !== undefined && typeof config.headless !== "boolean")
-        throw new Error("INVALID_BROWSER_MODE");
+    if (config.headless !== undefined && typeof config.headless !== "boolean") throw new Error("INVALID_BROWSER_MODE");
     const checked = await reverifyInstalled(bundle.directory, {
         trust: config.trust,
         ...(config.debug !== undefined ? { debug: config.debug } : {}),
     });
     const choices = { browsers: config.browsers ?? ["chromium"] };
-    if (validateSchema("OfflineExecutionChoicesV1", choices).length)
-        throw new Error("INVALID_EXECUTION_CHOICES");
+    if (validateSchema("OfflineExecutionChoicesV1", choices).length) throw new Error("INVALID_EXECUTION_CHOICES");
     const executionChoices = choices as NonNullable<OfflineResultV1["executionChoices"]>;
     const runId = randomUUID(),
         executions = variants(checked, runId, config),
@@ -798,27 +741,14 @@ export async function runOffline(
                 attempts: pending,
             };
         };
-        let owner = store.reserve(
-            checked.manifest.workspaceId,
-            runId,
-            attemptId,
-            initial(executions[0]!),
-        );
+        let owner = store.reserve(checked.manifest.workspaceId, runId, attemptId, initial(executions[0]!));
         for (const execution of executions) {
             if (attempts.length) {
                 attemptId = randomUUID();
                 owner = store.nextAttempt(runId, attemptId, owner, initial(execution));
             }
             store.checkpoint(initial(execution), owner);
-            const firstRun = await attempt(
-                checked,
-                execution,
-                attemptId,
-                config,
-                store,
-                processes,
-                owner,
-            );
+            const firstRun = await attempt(checked, execution, attemptId, config, store, processes, owner);
             owner = firstRun.owner;
             const first = firstRun.result;
             attempts.push(first);
@@ -835,15 +765,7 @@ export async function runOffline(
                     namespace: "attempt_" + randomUUID().replaceAll("-", ""),
                 };
                 owner = store.nextAttempt(runId, attemptId, owner, initial(retriedExecution));
-                const secondRun = await attempt(
-                    checked,
-                    retriedExecution,
-                    attemptId,
-                    config,
-                    store,
-                    processes,
-                    owner,
-                );
+                const secondRun = await attempt(checked, retriedExecution, attemptId, config, store, processes, owner);
                 owner = secondRun.owner;
                 const second = secondRun.result;
                 attempts.push(second);
@@ -874,8 +796,7 @@ export async function runOffline(
             actualEnvironment: executions[0]!.environment,
             attempts: attempts as OfflineResultV1["attempts"],
         };
-        if (validateSchema("OfflineResultV1", result).length)
-            throw new Error("INVALID_OFFLINE_RESULT");
+        if (validateSchema("OfflineResultV1", result).length) throw new Error("INVALID_OFFLINE_RESULT");
         store.finish(result, owner);
         return result;
     } finally {
@@ -917,17 +838,10 @@ export async function recoverOffline(
         result.finishedAt = new Date().toISOString();
         for (const attempt of result.attempts) {
             if (attempt.attemptId !== owner.attemptId) continue;
-            attempt.events = store.events(
-                owner.workspaceId,
-                owner.runId,
-                attempt.attemptId,
-                0,
-                10000,
-            );
+            attempt.events = store.events(owner.workspaceId, owner.runId, attempt.attemptId, 0, 10000);
             attempt.lastSequence = attempt.events.length;
             attempt.processStopped = stop.processStopped;
-            if (stop.processStopScope !== undefined)
-                attempt.processStopScope = stop.processStopScope;
+            if (stop.processStopScope !== undefined) attempt.processStopScope = stop.processStopScope;
             else delete attempt.processStopScope;
             attempt.outcome = "INCOMPLETE";
             attempt.failureCode = "LOCAL_RECOVERY";
@@ -938,11 +852,7 @@ export async function recoverOffline(
         store.close();
     }
 }
-async function safeRetry(
-    checked: Checked,
-    attempt: OfflineAttemptV1,
-    root: string,
-): Promise<boolean> {
+async function safeRetry(checked: Checked, attempt: OfflineAttemptV1, root: string): Promise<boolean> {
     const asset = checked.snapshot.assets.find((a) => a.versionId === attempt.caseVersionId);
     const fixture = (
         asset?.document as

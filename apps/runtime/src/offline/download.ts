@@ -2,7 +2,7 @@
  * 本文件仅从精确 Origin 以 Bearer 拉取离线包：禁止重定向与 Cookie：并限制流式下载体积上限（download）。
  */
 
-import { open, unlink, mkdir, lstat } from "node:fs/promises";
+import { open, unlink, mkdir, lstat, type FileHandle } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { controlOrigin, type DeviceConfig } from "../enrollment.ts";
@@ -32,7 +32,7 @@ export async function downloadBundle(
     const parent = await lstat(dirname(destination));
     if (!parent.isDirectory() || parent.isSymbolicLink()) throw new Error("UNSAFE_DESTINATION");
     const temporary = join(dirname(destination), `.${randomUUID()}.part`);
-    let fd;
+    let fd: FileHandle | undefined;
     try {
         fd = await open(temporary, "wx", 0o600);
         let size = 0;

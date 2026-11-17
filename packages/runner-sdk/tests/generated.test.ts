@@ -11,8 +11,7 @@ import { actualDistribution } from "./distribution.js";
 import { fixture } from "./helpers.js";
 const exec = promisify(execFile);
 it(
-    "installs the actual emitted SDK closure offline an" +
-        "d executes generated TS through Playwright Chromium",
+    "installs the actual emitted SDK closure offline an" + "d executes generated TS through Playwright Chromium",
     async () => {
         const root = await mkdtemp(join(tmpdir(), "veriq-real-sdk-")),
             f = await fixture();
@@ -151,9 +150,7 @@ it(
                 },
             );
             expect(
-                ts
-                    .getPreEmitDiagnostics(generated)
-                    .map((d) => ts.flattenDiagnosticMessageText(d.messageText, "\n")),
+                ts.getPreEmitDiagnostics(generated).map((d) => ts.flattenDiagnosticMessageText(d.messageText, "\n")),
             ).toEqual([]);
             const execution = {
                 schemaVersion: "1.0",
@@ -214,21 +211,17 @@ it(
                     `T_CH` +
                     `ROMIUM} : {}),args:['--no-sandbox']}}};`,
             );
-            const processOutput = await exec(
-                "node",
-                ["node_modules/@playwright/test/cli.js", "test"],
-                {
-                    cwd: emitted,
-                    env: {
-                        ...process.env,
-                        VERIQ_TEST_SYNTHETIC_SECRET: syntheticSecret,
-                        VERIQ_EXECUTION_CONTEXT_MODULE: join(emitted, "context.mjs"),
-                        XDG_CACHE_HOME: join(root, "xdg-cache"),
-                        XDG_CONFIG_HOME: join(root, "xdg-config"),
-                    },
-                    timeout: 45000,
+            const processOutput = await exec("node", ["node_modules/@playwright/test/cli.js", "test"], {
+                cwd: emitted,
+                env: {
+                    ...process.env,
+                    VERIQ_TEST_SYNTHETIC_SECRET: syntheticSecret,
+                    VERIQ_EXECUTION_CONTEXT_MODULE: join(emitted, "context.mjs"),
+                    XDG_CACHE_HOME: join(root, "xdg-cache"),
+                    XDG_CONFIG_HOME: join(root, "xdg-config"),
                 },
-            );
+                timeout: 45000,
+            });
             expect(processOutput.stdout + processOutput.stderr).not.toContain(syntheticSecret);
             const events = await readFile(join(emitted, "events.jsonl"), "utf8");
             expect(events).not.toContain(syntheticSecret);
@@ -242,9 +235,7 @@ it(
                 flaky: 0,
             });
             expect(
-                f.requests
-                    .filter((r) => r.path === "/save" && r.method === "POST")
-                    .map((r) => JSON.parse(r.body)),
+                f.requests.filter((r) => r.path === "/save" && r.method === "POST").map((r) => JSON.parse(r.body)),
             ).toEqual([{ code: "attempt-generated" }]);
             await writeFile(
                 join(emitted, "context.mjs"),
@@ -274,9 +265,7 @@ it(
                 flaky: 0,
             });
             expect(JSON.stringify(failed)).toContain("AUTH_PROVIDER_REQUIRED");
-            expect(
-                f.requests.filter((r) => r.path === "/save" && r.method === "POST"),
-            ).toHaveLength(1);
+            expect(f.requests.filter((r) => r.path === "/save" && r.method === "POST")).toHaveLength(1);
         } finally {
             await f.close();
             await rm(root, { recursive: true, force: true });

@@ -32,32 +32,22 @@ export async function editorScope(page: Page, key: string): Promise<EditorScope>
     await page.getByTestId("resource-workspace").selectOption(workspaceId);
     return { workspaceId, key, headers };
 }
-export async function createResource(
-    page: Page,
-    kind: ResourceKind,
-    key: string,
-): Promise<S["ResourceDTO"]> {
+export async function createResource(page: Page, kind: ResourceKind, key: string): Promise<S["ResourceDTO"]> {
     await page.getByTestId("resource-kind").selectOption(kind);
     await page.getByTestId("resource-key").fill(key);
     await page.getByTestId("resource-name").fill(key);
-    const response = page.waitForResponse(
-        (r) => r.url().endsWith("/resources") && r.request().method() === "POST",
-    );
+    const response = page.waitForResponse((r) => r.url().endsWith("/resources") && r.request().method() === "POST");
     await page.getByTestId("resource-create").click();
     const created = await response;
     expect(created.status(), await created.text()).toBe(201);
     await expect(
-        page
-            .getByTestId("resource-editor")
-            .getByRole("heading", { name: `${key} · ${kind}`, exact: true }),
+        page.getByTestId("resource-editor").getByRole("heading", { name: `${key} · ${kind}`, exact: true }),
     ).toBeVisible();
     return (await created.json()).data;
 }
 export async function saveDraft(page: Page): Promise<S["DraftDTO"]> {
     await expect(page.getByTestId("case.validation-errors")).toHaveCount(0);
-    const response = page.waitForResponse(
-        (r) => r.url().endsWith("/draft") && r.request().method() === "PUT",
-    );
+    const response = page.waitForResponse((r) => r.url().endsWith("/draft") && r.request().method() === "PUT");
     await page.getByTestId("resource-save").click();
     const saved = await response;
     expect(saved.status(), await saved.text()).toBe(200);
@@ -82,11 +72,7 @@ export async function replaceEditorJson(page: Page, text: string) {
                         };
                     }
                 ).editContext;
-                return (
-                    !!context &&
-                    context.selectionStart === 0 &&
-                    context.selectionEnd === context.text.length
-                );
+                return !!context && context.selectionStart === 0 && context.selectionEnd === context.text.length;
             }),
         )
         .toBe(true);
@@ -103,9 +89,7 @@ export async function applyDocument(page: Page, content: ResourceDocumentV1) {
     await expect(page.getByTestId("case.validation-errors")).toHaveCount(0);
 }
 export async function queueValidation(page: Page): Promise<S["JobDTO"]> {
-    const response = page.waitForResponse(
-        (r) => r.url().endsWith("/validate") && r.request().method() === "POST",
-    );
+    const response = page.waitForResponse((r) => r.url().endsWith("/validate") && r.request().method() === "POST");
     await page.getByTestId("case.validate").click();
     const queued = await response;
     expect(queued.status(), await queued.text()).toBe(202);
@@ -115,14 +99,10 @@ export async function managedCompiler(page: Page, scope: EditorScope, evidenceTa
     const profile = await mkdtemp("/tmp/vq11-f-");
     const command = (args: string[], input = "") =>
         new Promise<{ code: number | null; output: string }>((resolve, reject) => {
-            const child = spawn(
-                process.execPath,
-                ["--import", "tsx", "src/cli.ts", "--config-dir", profile, ...args],
-                {
-                    cwd: fileURLToPath(new URL("../../runtime/", import.meta.url)),
-                    stdio: ["pipe", "pipe", "pipe"],
-                },
-            );
+            const child = spawn(process.execPath, ["--import", "tsx", "src/cli.ts", "--config-dir", profile, ...args], {
+                cwd: fileURLToPath(new URL("../../runtime/", import.meta.url)),
+                stdio: ["pipe", "pipe", "pipe"],
+            });
             let output = "";
             child.stdout.on("data", (data) => (output += String(data)));
             child.stderr.on("data", (data) => (output += String(data)));
@@ -187,9 +167,7 @@ export async function managedCompiler(page: Page, scope: EditorScope, evidenceTa
         });
         const status = (await (await page.request.get(base + `/jobs/${job.id}`)).json()).data;
         expect(status.outcome).toBe("PASSED");
-        const response = page.waitForResponse(
-            (r) => r.url().endsWith("/publish") && r.request().method() === "POST",
-        );
+        const response = page.waitForResponse((r) => r.url().endsWith("/publish") && r.request().method() === "POST");
         await page.getByTestId("case.publish").click();
         const published = await response;
         expect(published.status(), await published.text()).toBe(201);
@@ -205,9 +183,7 @@ export async function managedCompiler(page: Page, scope: EditorScope, evidenceTa
         }
         const stops = [];
         for (const name of entries.filter((name) => name.endsWith(".process.json"))) {
-            const journal = JSON.parse(
-                await readFile(join(profile, "agent/processes", name), "utf8"),
-            );
+            const journal = JSON.parse(await readFile(join(profile, "agent/processes", name), "utf8"));
             stops.push({
                 attemptId: journal.attemptId,
                 state: journal.state,

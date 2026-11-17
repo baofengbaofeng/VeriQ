@@ -40,18 +40,10 @@ async function member(directory: string, name: string, retire: boolean): Promise
         if (directoryInfo.uid !== process.getuid!() || directoryInfo.mode & 0o077)
             throw new Error("COOKIE_STORAGE_NOT_PRIVATE");
         const path = `/proc/self/fd/${parent.fd}/${name}`;
-        const file = await open(
-            path,
-            constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
-        );
+        const file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
         try {
             const info = await file.stat();
-            if (
-                !info.isFile() ||
-                info.uid !== process.getuid!() ||
-                info.mode & 0o077 ||
-                info.size > limit
-            )
+            if (!info.isFile() || info.uid !== process.getuid!() || info.mode & 0o077 || info.size > limit)
                 throw new Error("COOKIE_STORAGE_NOT_PRIVATE");
             if (retire) {
                 await unlink(path);
@@ -85,10 +77,7 @@ export async function prepareCookieStorage(
 ): Promise<void> {
     let state: "active" | "resetting" | undefined;
     try {
-        const value = await readPrivate<{ version: number; state: string }>(
-            profile,
-            "cookie-protection.json",
-        );
+        const value = await readPrivate<{ version: number; state: string }>(profile, "cookie-protection.json");
         if (
             !value ||
             value.version !== 1 ||
@@ -113,8 +102,6 @@ export async function prepareCookieStorage(
             state: "resetting",
         }));
     }
-    if (present)
-        for (const directory of directories)
-            for (const name of names) await member(directory, name, true);
+    if (present) for (const directory of directories) for (const name of names) await member(directory, name, true);
     await updatePrivate(profile, "cookie-protection.json", () => ({ version: 1, state: "active" }));
 }

@@ -76,9 +76,8 @@ export const newAssertion = (): AssertionV1 => ({
 });
 function defaults(type: string, network: string[]) {
     const source =
-        (type === "request" || type === "requestField" || type === "requestCount"
-            ? "request:"
-            : "response:") + (network[0] ?? "observer");
+        (type === "request" || type === "requestField" || type === "requestCount" ? "request:" : "response:") +
+        (network[0] ?? "observer");
     if (type === "template") return { type, versionId: "" };
     const base = { type, operator: operators[type]![0] };
     if (type === "ui") return { ...base, target: "name", expected: true };
@@ -176,9 +175,7 @@ function AssertionFields({
     if (!a) return null;
     const type = a.type,
         operator = "operator" in a ? a.operator : "";
-    const offeredTypes = assertionTypes.filter(
-        (type) => phase !== "BEFORE" || !networkAssertionTypes.has(type),
-    );
+    const offeredTypes = assertionTypes.filter((type) => phase !== "BEFORE" || !networkAssertionTypes.has(type));
     const setType = (type: string) =>
         set(path, {
             id: a.id,
@@ -187,21 +184,14 @@ function AssertionFields({
             ...(a.timeoutMs === undefined ? {} : { timeoutMs: a.timeoutMs }),
             ...defaults(type, phase === "BEFORE" ? [] : (network ?? [])),
         });
-    const number =
-        ["httpStatus", "requestCount", "duration"].includes(type) || operator === "countEquals";
-    const boolean = ["visible", "enabled", "checked", "attached", "editable", "exists"].includes(
-        operator,
-    );
+    const number = ["httpStatus", "requestCount", "duration"].includes(type) || operator === "countEquals";
+    const boolean = ["visible", "enabled", "checked", "attached", "editable", "exists"].includes(operator);
     return (
         <>
             <Field name={`${path}.id`} label={tx("断言 ID / Assertion ID")} />
             <label>
                 {tx("断言类型 / Assertion type")}
-                <select
-                    data-testid={`${path}.type`}
-                    value={type}
-                    onChange={(e) => setType(e.target.value)}
-                >
+                <select data-testid={`${path}.type`} value={type} onChange={(e) => setType(e.target.value)}>
                     {!offeredTypes.includes(type) && (
                         <option value={type} disabled>
                             {type} {tx(" · 不适用于前置阶段 / Not available BEFORE")}
@@ -227,11 +217,7 @@ function AssertionFields({
                         kind="ASSERTION_TEMPLATE"
                         versions={versions}
                     />
-                    <JsonField
-                        name={`${path}.parameters`}
-                        label={tx("模板实参 / Template bindings")}
-                        allowBinding
-                    />
+                    <JsonField name={`${path}.parameters`} label={tx("模板实参 / Template bindings")} allowBinding />
                 </>
             ) : (
                 <>
@@ -245,14 +231,7 @@ function AssertionFields({
                                 set(`${path}.operator`, next);
                                 set(
                                     `${path}.expected`,
-                                    [
-                                        "visible",
-                                        "enabled",
-                                        "checked",
-                                        "attached",
-                                        "editable",
-                                        "exists",
-                                    ].includes(next)
+                                    ["visible", "enabled", "checked", "attached", "editable", "exists"].includes(next)
                                         ? true
                                         : next === "countEquals"
                                           ? 1
@@ -271,9 +250,7 @@ function AssertionFields({
                             ))}
                         </select>
                     </label>
-                    {type === "ui" && (
-                        <Field name={`${path}.target`} label={tx("元素 key / Target")} />
-                    )}
+                    {type === "ui" && <Field name={`${path}.target`} label={tx("元素 key / Target")} />}
                     {["ui", "url"].includes(type) && (
                         <Field
                             name={`${path}.pageKey`}
@@ -283,9 +260,7 @@ function AssertionFields({
                             optional
                             hint={
                                 scope === "CASE"
-                                    ? tx(
-                                          "仅显式选择；公共流程内部新页面不泄漏到调用方 / Explicit lexical page scope",
-                                      )
+                                    ? tx("仅显式选择；公共流程内部新页面不泄漏到调用方 / Explicit lexical page scope")
                                     : tx(
                                           "可填写调用方页面 key；实际调用时验证作用域，省略仍为原始页面。 /" +
                                               " Symbolic caller page key; checked at " +
@@ -321,21 +296,13 @@ function AssertionFields({
                     )}
                     {type === "eventually" && (
                         <>
-                            <Field
-                                name={`${path}.query.path`}
-                                label={tx("只读 GET 路径 / Read-only query path")}
-                            />
+                            <Field name={`${path}.query.path`} label={tx("只读 GET 路径 / Read-only query path")} />
                             <JsonField
                                 name={`${path}.query.query`}
                                 label={tx("查询参数 / Query parameters")}
                                 allowBinding
                             />
-                            <Field
-                                name={`${path}.intervalMs`}
-                                label={tx("轮询间隔 ms / Interval")}
-                                number
-                                optional
-                            />
+                            <Field name={`${path}.intervalMs`} label={tx("轮询间隔 ms / Interval")} number optional />
                             <small>{tx("GET 只读轮询，不重放写操作 / Read-only polling")}</small>
                         </>
                     )}

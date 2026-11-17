@@ -13,11 +13,7 @@ export function actualDistribution(root: string): EngineDistribution {
         built = join(root, "built");
     const sources = (path: string): string[] =>
         readdirSync(path, { withFileTypes: true }).flatMap((e) =>
-            e.isDirectory()
-                ? sources(join(path, e.name))
-                : e.name.endsWith(".ts")
-                  ? [join(path, e.name)]
-                  : [],
+            e.isDirectory() ? sources(join(path, e.name)) : e.name.endsWith(".ts") ? [join(path, e.name)] : [],
         );
     const program = ts.createProgram(
         [...sources(join(packages, "runner-sdk/src")), ...sources(join(packages, "contracts/src"))],
@@ -49,11 +45,7 @@ export function actualDistribution(root: string): EngineDistribution {
     function collect(name: string, from: string) {
         if (collected.has(name)) return;
         const local =
-            name === "@veriq/runner-sdk"
-                ? "runner-sdk"
-                : name === "@veriq/contracts"
-                  ? "contracts"
-                  : undefined;
+            name === "@veriq/runner-sdk" ? "runner-sdk" : name === "@veriq/contracts" ? "contracts" : undefined;
         let dir: string;
         if (local) {
             dir = join(built, local);
@@ -85,13 +77,9 @@ export function actualDistribution(root: string): EngineDistribution {
             dir = dirname(lookup.resolve(name + "/package.json"));
         }
         dir = realpathSync(dir);
-        const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8")) as Record<
-            string,
-            unknown
-        >;
+        const pkg = JSON.parse(readFileSync(join(dir, "package.json"), "utf8")) as Record<string, unknown>;
         collected.set(name, { dir, pkg });
-        for (const dep of Object.keys(pkg.dependencies ?? {}))
-            collect(dep, local ? join(packages, local) : dir);
+        for (const dep of Object.keys(pkg.dependencies ?? {})) collect(dep, local ? join(packages, local) : dir);
     }
     collect("@veriq/runner-sdk", process.cwd());
     // T10 executes the archived compiler in the same approved offline closure.

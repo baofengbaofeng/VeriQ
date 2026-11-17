@@ -105,9 +105,7 @@ export class LocalStore {
                     .all()
                     .some((column) => column.name === "generation")
             )
-                db.exec(
-                    "ALTER TABLE veriq_local_owner ADD COLUMN generation INTEGER NOT NULL DEFAULT 1",
-                );
+                db.exec("ALTER TABLE veriq_local_owner ADD COLUMN generation INTEGER NOT NULL DEFAULT 1");
             db.exec("PRAGMA user_version=2");
             nativeDirectory?.validate();
             return new LocalStore(directory, db, nativeDirectory);
@@ -197,18 +195,11 @@ export class LocalStore {
      * 公开方法 reserve 为离线 Run 预留本机占用：写入初始结果骨架：冲突时拒绝抢占他人代际（
      * reserve/LOCAL_CAPACITY_HELD）。
      */
-    reserve(
-        workspaceId: string,
-        runId: string,
-        attemptId: string,
-        initial?: OfflineResultV1,
-    ): Ownership {
+    reserve(workspaceId: string, runId: string, attemptId: string, initial?: OfflineResultV1): Ownership {
         return this.transaction(() => {
             if (this.active()) throw new Error("LOCAL_CAPACITY_HELD");
             this.db
-                .prepare(
-                    "INSERT INTO veriq_local_runs(id,workspace_id,created_at,state) VALUES(?,?,?,?)",
-                )
+                .prepare("INSERT INTO veriq_local_runs(id,workspace_id,created_at,state) VALUES(?,?,?,?)")
                 .run(runId, workspaceId, new Date().toISOString(), "RUNNING");
             this.db
                 .prepare("INSERT INTO veriq_local_owner VALUES(1,?,?,?,?,1)")
@@ -216,9 +207,7 @@ export class LocalStore {
             const owner = this.active()!;
             const observed = Date.now();
             this.db
-                .prepare(
-                    "INSERT INTO veriq_local_lifecycle(run_id,first_observed,last_access) VALUES(?,?,?)",
-                )
+                .prepare("INSERT INTO veriq_local_lifecycle(run_id,first_observed,last_access) VALUES(?,?,?)")
                 .run(runId, observed, observed);
             if (initial) this.checkpoint(initial, owner);
             return owner;
@@ -231,15 +220,9 @@ export class LocalStore {
     spawning(runId: string, attemptId: string, owner: Ownership): Ownership {
         return this.transaction(() => {
             this.requireOwner(owner);
-            if (
-                owner.runId !== runId ||
-                owner.attemptId !== attemptId ||
-                owner.state !== "ALLOCATED"
-            )
+            if (owner.runId !== runId || owner.attemptId !== attemptId || owner.state !== "ALLOCATED")
                 throw new Error("LOCAL_OWNERSHIP_LOST");
-            this.db
-                .prepare("UPDATE veriq_local_owner SET state='SPAWNING' WHERE singleton=1")
-                .run();
+            this.db.prepare("UPDATE veriq_local_owner SET state='SPAWNING' WHERE singleton=1").run();
             return { ...owner, state: "SPAWNING" };
         });
     }
@@ -251,11 +234,7 @@ export class LocalStore {
     running(runId: string, attemptId: string, owner: Ownership): Ownership {
         return this.transaction(() => {
             this.requireOwner(owner);
-            if (
-                owner.runId !== runId ||
-                owner.attemptId !== attemptId ||
-                owner.state !== "SPAWNING"
-            )
+            if (owner.runId !== runId || owner.attemptId !== attemptId || owner.state !== "SPAWNING")
                 throw new Error("LOCAL_OWNERSHIP_LOST");
             const changed = this.db
                 .prepare(
@@ -273,40 +252,24 @@ export class LocalStore {
      */
     claimRecovery(observed: Ownership): Ownership | undefined {
         return this.transaction(() => {
-            const state = isPreSpawnState(observed.state, "OFFLINE")
-                ? "RECOVERING_UNSPAWNED"
-                : "RECOVERING";
+            const state = isPreSpawnState(observed.state, "OFFLINE") ? "RECOVERING_UNSPAWNED" : "RECOVERING";
             const changed = this.db
                 .prepare(
                     "UPDATE veriq_local_owner SET state=?,generation=generation+1 WHERE run_id=? AND attempt_id=? AN" +
                         "D generation=? AND state=?",
                 )
-                .run(
-                    state,
-                    observed.runId,
-                    observed.attemptId,
-                    observed.generation,
-                    observed.state,
-                );
-            return changed.changes
-                ? { ...observed, state, generation: observed.generation + 1 }
-                : undefined;
+                .run(state, observed.runId, observed.attemptId, observed.generation, observed.state);
+            return changed.changes ? { ...observed, state, generation: observed.generation + 1 } : undefined;
         });
     }
     /**
      * 公开方法 nextAttempt 在同一 Run 下登记新的 Attempt 代际：保留历史结果：
      * 供显式重试使用（nextAttempt/LOCAL_CAPACITY_HELD）。
      */
-    nextAttempt(
-        runId: string,
-        attemptId: string,
-        owner: Ownership,
-        initial: OfflineResultV1,
-    ): Ownership {
+    nextAttempt(runId: string, attemptId: string, owner: Ownership, initial: OfflineResultV1): Ownership {
         return this.transaction(() => {
             this.requireOwner(owner);
-            if (owner.runId !== runId || owner.state !== "STOPPED")
-                throw new Error("LOCAL_CAPACITY_HELD");
+            if (owner.runId !== runId || owner.state !== "STOPPED") throw new Error("LOCAL_CAPACITY_HELD");
             const next = {
                 ...owner,
                 attemptId,
@@ -314,9 +277,7 @@ export class LocalStore {
                 generation: owner.generation + 1,
             };
             this.db
-                .prepare(
-                    "UPDATE veriq_local_owner SET state='ALLOCATED',attempt_id=?,generation=? WHERE singleton=1",
-                )
+                .prepare("UPDATE veriq_local_owner SET state='ALLOCATED',attempt_id=?,generation=? WHERE singleton=1")
                 .run(attemptId, next.generation);
             this.checkpoint(initial, next);
             return next;
@@ -349,8 +310,7 @@ export class LocalStore {
             if (
                 current.runId !== runId ||
                 current.attemptId !== receipt.attemptId ||
-                ((receipt.processStopScope === "NO_PROCESS_SPAWNED" ||
-                    receipt.reason === "NO_PROCESS_SPAWNED") &&
+                ((receipt.processStopScope === "NO_PROCESS_SPAWNED" || receipt.reason === "NO_PROCESS_SPAWNED") &&
                     !isPreSpawnState(current.state, "OFFLINE"))
             )
                 throw new Error("LOCAL_OWNERSHIP_LOST");
@@ -367,20 +327,15 @@ export class LocalStore {
             const row = this.authorize(current.workspaceId, runId);
             if (row.result) {
                 const result = JSON.parse(String(row.result)) as OfflineResultV1;
-                const attempt = result.attempts.find(
-                    (item) => item.attemptId === receipt.attemptId,
-                );
+                const attempt = result.attempts.find((item) => item.attemptId === receipt.attemptId);
                 if (!attempt) throw new Error("LOCAL_OWNERSHIP_LOST");
                 attempt.processStopped = receipt.processStopped;
-                if (receipt.processStopScope !== undefined)
-                    attempt.processStopScope = receipt.processStopScope;
+                if (receipt.processStopScope !== undefined) attempt.processStopScope = receipt.processStopScope;
                 else delete attempt.processStopScope;
                 this.checkpoint(result, current);
             }
             const next = { ...current, state: receipt.processStopped ? "STOPPED" : "QUARANTINED" };
-            this.db
-                .prepare("UPDATE veriq_local_owner SET state=? WHERE singleton=1")
-                .run(next.state);
+            this.db.prepare("UPDATE veriq_local_owner SET state=? WHERE singleton=1").run(next.state);
             return next;
         });
     }
@@ -390,8 +345,7 @@ export class LocalStore {
     append(runId: string, event: ExecutionEventV1, owner: Ownership) {
         this.transaction(() => {
             this.requireOwner(owner);
-            if (owner.runId !== runId || owner.attemptId !== event.attemptId)
-                throw new Error("LOCAL_OWNERSHIP_LOST");
+            if (owner.runId !== runId || owner.attemptId !== event.attemptId) throw new Error("LOCAL_OWNERSHIP_LOST");
             const last = this.db
                 .prepare(
                     "SELECT COALESCE(MAX(sequence),0) AS sequence, COUNT(*) AS count FROM veriq_local_events WHERE a" +
@@ -400,8 +354,7 @@ export class LocalStore {
                 .get(event.attemptId)!;
             if (Number(last.sequence) + 1 !== event.sequence || Number(last.count) >= 10000)
                 throw new Error("INVALID_LOCAL_EVENT_SEQUENCE");
-            if (Buffer.byteLength(JSON.stringify(event)) > 65536)
-                throw new Error("LOCAL_EVENT_LIMIT");
+            if (Buffer.byteLength(JSON.stringify(event)) > 65536) throw new Error("LOCAL_EVENT_LIMIT");
             this.db
                 .prepare("INSERT INTO veriq_local_events VALUES(?,?,?,?)")
                 .run(runId, event.attemptId, event.sequence, JSON.stringify(event));
@@ -421,9 +374,7 @@ export class LocalStore {
                 if (
                     !attempt ||
                     attempt.artifacts.length >= 100 ||
-                    attempt.artifacts.some(
-                        (a) => a.artifactId === descriptor.artifactId || a.path === descriptor.path,
-                    )
+                    attempt.artifacts.some((a) => a.artifactId === descriptor.artifactId || a.path === descriptor.path)
                 )
                     throw new Error("INVALID_LOCAL_ARTIFACT");
                 attempt.artifacts.push(descriptor);
@@ -435,13 +386,7 @@ export class LocalStore {
      * 公开方法 events 按工作区授权分页读取已持久化的执行事件：after/limit
      * 防止一次载入过量（events/INVALID_HISTORY_PAGE）。
      */
-    events(
-        workspaceId: string,
-        runId: string,
-        attemptId: string,
-        after = 0,
-        limit = 100,
-    ): ExecutionEventV1[] {
+    events(workspaceId: string, runId: string, attemptId: string, after = 0, limit = 100): ExecutionEventV1[] {
         this.authorize(workspaceId, runId);
         if (!Number.isSafeInteger(after) || after < 0 || limit < 1 || limit > 10000)
             throw new Error("INVALID_HISTORY_PAGE");
@@ -459,10 +404,7 @@ export class LocalStore {
     checkpoint(result: OfflineResultV1, owner: Ownership) {
         this.authorize(result.workspaceId, result.localRunId);
         this.requireOwner(owner);
-        if (
-            owner.runId !== result.localRunId ||
-            !result.attempts.some((a) => a.attemptId === owner.attemptId)
-        )
+        if (owner.runId !== result.localRunId || !result.attempts.some((a) => a.attemptId === owner.attemptId))
             throw new Error("LOCAL_OWNERSHIP_LOST");
         this.db
             .prepare("UPDATE veriq_local_runs SET result=? WHERE id=?")
@@ -475,10 +417,7 @@ export class LocalStore {
         this.transaction(() => {
             this.authorize(result.workspaceId, result.localRunId);
             this.requireOwner(owner);
-            if (
-                owner.runId !== result.localRunId ||
-                !["STOPPED", "QUARANTINED"].includes(owner.state)
-            )
+            if (owner.runId !== result.localRunId || !["STOPPED", "QUARANTINED"].includes(owner.state))
                 throw new Error("LOCAL_OWNERSHIP_LOST");
             const state = owner.state === "STOPPED" ? "FINISHED" : "QUARANTINED";
             this.touch(result.localRunId);
@@ -486,9 +425,7 @@ export class LocalStore {
                 .prepare("UPDATE veriq_local_runs SET result=?,state=? WHERE id=?")
                 .run(JSON.stringify(result), state, result.localRunId);
             if (state === "FINISHED")
-                this.db
-                    .prepare("DELETE FROM veriq_local_owner WHERE run_id=?")
-                    .run(result.localRunId);
+                this.db.prepare("DELETE FROM veriq_local_owner WHERE run_id=?").run(result.localRunId);
         });
     }
     private authorize(workspaceId: string, runId: string) {
@@ -512,8 +449,7 @@ export class LocalStore {
      * 公开方法 history 列出工作区内最近的本机 Run 摘要：供宿主历史页展示（history/INVALID_HISTORY_PAGE）。
      */
     history(workspaceId: string, limit = 100) {
-        if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1000)
-            throw new Error("INVALID_HISTORY_PAGE");
+        if (!Number.isSafeInteger(limit) || limit < 1 || limit > 1000) throw new Error("INVALID_HISTORY_PAGE");
         return this.db
             .prepare(
                 "SELECT id, created_at AS createdAt, state, upload_state AS uploadState, upload_error AS uploadError" +
@@ -535,8 +471,8 @@ export class LocalStore {
      */
     cancelled(runId: string) {
         return (
-            this.db.prepare("SELECT cancel_requested FROM veriq_local_runs WHERE id=?").get(runId)
-                ?.cancel_requested === 1
+            this.db.prepare("SELECT cancel_requested FROM veriq_local_runs WHERE id=?").get(runId)?.cancel_requested ===
+            1
         );
     }
     /**
@@ -559,9 +495,8 @@ export class LocalStore {
     rawRetired(workspaceId: string, runId: string): boolean {
         this.authorize(workspaceId, runId);
         return (
-            this.db
-                .prepare("SELECT raw_retired FROM veriq_local_lifecycle WHERE run_id=?")
-                .get(runId)?.raw_retired === 1
+            this.db.prepare("SELECT raw_retired FROM veriq_local_lifecycle WHERE run_id=?").get(runId)?.raw_retired ===
+            1
         );
     }
     /**
@@ -605,9 +540,8 @@ export class LocalStore {
         )
             throw new Error("LOCAL_RETENTION_GUARD_REQUIRED");
         const previous = Number(
-            this.db
-                .prepare("SELECT high_water FROM veriq_local_retention_clock WHERE singleton=1")
-                .get()?.high_water ?? now,
+            this.db.prepare("SELECT high_water FROM veriq_local_retention_clock WHERE singleton=1").get()?.high_water ??
+                now,
         );
         if (now < previous) throw new Error("LOCAL_RETENTION_CLOCK_ROLLBACK");
         this.db
@@ -633,9 +567,7 @@ export class LocalStore {
             )
             .all(workspaceId, batch);
         for (const row of rows)
-            this.db
-                .prepare("UPDATE veriq_local_lifecycle SET last_checked=? WHERE run_id=?")
-                .run(now, row.id!);
+            this.db.prepare("UPDATE veriq_local_lifecycle SET last_checked=? WHERE run_id=?").run(now, row.id!);
         return rows;
     }
     /**
@@ -656,9 +588,7 @@ export class LocalStore {
                 stop.attemptId === attemptId &&
                 stop.processStopped === true &&
                 stop.processStopScope ===
-                    (process.platform === "darwin"
-                        ? "CONTROLLED_WORKER_BROWSER"
-                        : "FULL_DESCENDANT_TREE") &&
+                    (process.platform === "darwin" ? "CONTROLLED_WORKER_BROWSER" : "FULL_DESCENDANT_TREE") &&
                 validateSchema("Timestamp", stop.stoppedAt).length === 0
             );
         } catch {
@@ -688,9 +618,7 @@ export class LocalStore {
                     validateSchema("Timestamp", stop.stoppedAt).length ||
                     (stop.processStopScope !== "NO_PROCESS_SPAWNED" &&
                         stop.processStopScope !==
-                            (process.platform === "darwin"
-                                ? "CONTROLLED_WORKER_BROWSER"
-                                : "FULL_DESCENDANT_TREE"))
+                            (process.platform === "darwin" ? "CONTROLLED_WORKER_BROWSER" : "FULL_DESCENDANT_TREE"))
                 )
                     return;
                 receipts.push(stop);
@@ -729,11 +657,9 @@ export class LocalStore {
         attemptId: string,
         file: { path: string; sha256: string; sizeBytes: number },
     ): void {
-        if (!this.db.isTransaction || this.active())
-            throw new Error("LOCAL_RETENTION_GUARD_REQUIRED");
+        if (!this.db.isTransaction || this.active()) throw new Error("LOCAL_RETENTION_GUARD_REQUIRED");
         const row = this.authorize(workspaceId, runId);
-        if (row.state !== "FINISHED" || row.upload_state !== "COMPLETE")
-            throw new Error("LOCAL_RETENTION_ACTIVE");
+        if (row.state !== "FINISHED" || row.upload_state !== "COMPLETE") throw new Error("LOCAL_RETENTION_ACTIVE");
         const previous = this.db
             .prepare(
                 "SELECT sha256,size_bytes FROM veriq_local_artifact_retirements WHERE run_id=? AND attempt_id=? AND " +
@@ -757,17 +683,13 @@ export class LocalStore {
         if (row.state !== "FINISHED" || row.upload_state !== "COMPLETE" || this.active())
             throw new Error("LOCAL_RETENTION_ACTIVE");
         this.db
-            .prepare(
-                "UPDATE veriq_local_lifecycle SET raw_retired=1,metadata_retired=? WHERE run_id=?",
-            )
+            .prepare("UPDATE veriq_local_lifecycle SET raw_retired=1,metadata_retired=? WHERE run_id=?")
             .run(metadata ? 1 : 0, runId);
         this.db.prepare("DELETE FROM veriq_local_artifact_retirements WHERE run_id=?").run(runId);
         if (metadata) {
             this.db.prepare("DELETE FROM veriq_local_events WHERE run_id=?").run(runId);
             this.db
-                .prepare(
-                    "UPDATE veriq_local_runs SET state='RETIRED',result=NULL,upload_error=NULL WHERE id=?",
-                )
+                .prepare("UPDATE veriq_local_runs SET state='RETIRED',result=NULL,upload_error=NULL WHERE id=?")
                 .run(runId);
         }
     }
@@ -810,10 +732,7 @@ export class LocalStore {
             if (!row.result || String(row.result).length > 8388608) return true;
             try {
                 const value = JSON.parse(String(row.result)) as OfflineResultV1;
-                return (
-                    validateSchema("OfflineResultV1", value).length > 0 ||
-                    value.bundleId === bundleId
-                );
+                return validateSchema("OfflineResultV1", value).length > 0 || value.bundleId === bundleId;
             } catch {
                 return true;
             }
@@ -847,9 +766,7 @@ export class LocalStore {
         if (!this.db.isTransaction || Buffer.byteLength(inventory) > 2 * 1024 * 1024)
             throw new Error("LOCAL_RETENTION_GUARD_REQUIRED");
         this.db
-            .prepare(
-                "UPDATE veriq_local_cache_lifecycle SET retirement=? WHERE bundle_id=? AND workspace_id=?",
-            )
+            .prepare("UPDATE veriq_local_cache_lifecycle SET retirement=? WHERE bundle_id=? AND workspace_id=?")
             .run(inventory, bundleId, workspaceId);
     }
     /**

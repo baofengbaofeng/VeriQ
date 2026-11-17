@@ -5,9 +5,7 @@
 import { fileURLToPath } from "node:url";
 import { test, expect } from "@playwright/test";
 
-test("actual Provider preserves scopes and releases the latest committed scope", async ({
-    page,
-}) => {
+test("actual Provider preserves scopes and releases the latest committed scope", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator("header")).toBeVisible();
     await page.goto("/@fs" + fileURLToPath(new URL("../package.json", import.meta.url)));
@@ -26,12 +24,9 @@ test("actual Provider preserves scopes and releases the latest committed scope",
         const reactPath = source.match(/from "([^"\n]+\/react\.js[^"\n]*)"/)?.[1];
         if (!reactPath) throw new Error("Missing browser React module");
         const load = (path: string) => import(/* @vite-ignore */ path);
-        const { WorkspaceProvider, useWorkspace } = await load(
-            "/src/features/workspaces/WorkspaceContext.tsx",
-        );
+        const { WorkspaceProvider, useWorkspace } = await load("/src/features/workspaces/WorkspaceContext.tsx");
         const React = (await load(reactPath)).default;
-        const { createRoot } = (await load(reactPath.replace("/react.js", "/react-dom_client.js")))
-            .default;
+        const { createRoot } = (await load(reactPath.replace("/react.js", "/react-dom_client.js"))).default;
         const { flushSync } = (await load(reactPath.replace("/react.js", "/react-dom.js"))).default;
         const queryPath = source.match(/from "([^"\n]+\/@tanstack_react-query\.js[^"\n]*)"/)?.[1];
         if (!queryPath) throw new Error("Missing browser Query module");
@@ -39,9 +34,8 @@ test("actual Provider preserves scopes and releases the latest committed scope",
         let scope: ReturnType<typeof useWorkspace>;
         let client: ReturnType<typeof useQueryClient>;
         const events: string[] = [];
-        // biome-ignore lint/correctness/noComponentHookFactories: 此组件必须在序列化到浏览器的隔离回调中定义，该回调每
-        // 项测试只执行一次，重复渲染始终复用同一函数身份，不能捕
-        // 获 Node 测试进程的模块或状态。
+        // 组件须在浏览器序列化回调内定义，每项测试只执行一次并复用同一函数身份，不能捕获 Node 测试进程的模块或状态。
+        // biome-ignore lint/correctness/noComponentHookFactories: 测试回调组件须在隔离回调内定义
         function Probe() {
             scope = useWorkspace();
             client = useQueryClient();
@@ -51,11 +45,7 @@ test("actual Provider preserves scopes and releases the latest committed scope",
         document.body.append(host);
         const root = createRoot(host);
         const render = () =>
-            flushSync(() =>
-                root.render(
-                    React.createElement(WorkspaceProvider, null, React.createElement(Probe)),
-                ),
-            );
+            flushSync(() => root.render(React.createElement(WorkspaceProvider, null, React.createElement(Probe))));
         render();
         flushSync(() => scope.select("Alpha"));
         const alpha = scope.signal;
@@ -164,9 +154,7 @@ test("actual Provider preserves scopes and releases the latest committed scope",
  * 页面入口均使用真实登录、空间创建和服务查询，先收到后端完成的旧列表再通过可见选择器切换，最后释放原响应并验证当前空间
  * 的表单没有被默认首项或引用变化重置。
  */
-test("four GUI entry selectors retain manual selection across real list refetch", async ({
-    page,
-}) => {
+test("four GUI entry selectors retain manual selection across real list refetch", async ({ page }) => {
     const setup = (await (await page.request.get("/api/v1/setup")).json()).data;
     if (!setup.initialized) {
         expect(
@@ -244,8 +232,7 @@ test("four GUI entry selectors retain manual selection across real list refetch"
                 aborted.push(request.failure()?.errorText ?? "Unknown request failure");
         };
         const barrier = async (route: import("@playwright/test").Route) => {
-            if (held || route.request().method() !== "GET" || route.request().url() !== path)
-                return route.continue();
+            if (held || route.request().method() !== "GET" || route.request().url() !== path) return route.continue();
             held = true;
             let response: import("@playwright/test").APIResponse | undefined;
             try {
@@ -273,10 +260,7 @@ test("four GUI entry selectors retain manual selection across real list refetch"
             await selector.selectOption(beta);
             const input = page.locator(entry.input);
             if (entry.link === "Bundles") await input.selectOption("SUITE");
-            else
-                await input.fill(
-                    entry.link === "Runtimes" ? "ABCDEFGH2345" : "Beta unsaved " + entry.link,
-                );
+            else await input.fill(entry.link === "Runtimes" ? "ABCDEFGH2345" : "Beta unsaved " + entry.link);
             release();
             await finished;
             expect(aborted).toEqual([]);
@@ -291,8 +275,7 @@ test("four GUI entry selectors retain manual selection across real list refetch"
             if (entry.link === "Workspaces")
                 await expect(page.getByTestId("workspace-detail")).toContainText("W2B Beta");
             await selector.selectOption(alpha);
-            if (entry.link === "Runtimes" || entry.link === "执行计划 / Plans")
-                await expect(input).toHaveValue("");
+            if (entry.link === "Runtimes" || entry.link === "执行计划 / Plans") await expect(input).toHaveValue("");
             if (entry.link === "Bundles") await expect(input).toHaveValue("CASE");
         } finally {
             release();

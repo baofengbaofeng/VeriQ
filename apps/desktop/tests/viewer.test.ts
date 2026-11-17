@@ -8,9 +8,7 @@ import { ownedTraceOrigin, allowedTraceRequest } from "../src/main/viewer-policy
  */
 test("native trace accepts only the owned loopback viewer endpoint", () => {
     assert.equal(
-        ownedTraceOrigin(
-            "http://127.0.0.1:43127/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/trace/index.html?trace=private.zip",
-        ),
+        ownedTraceOrigin("http://127.0.0.1:43127/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/trace/index.html?trace=private.zip"),
         "http://127.0.0.1:43127",
     );
     for (const value of [
@@ -33,13 +31,7 @@ test("trace snapshot exception does not permit main frames or external traffic",
     const origin = "http://127.0.0.1:43127";
     assert.equal(allowedTraceRequest("data:text/html;base64,PGJvZHk+", "subFrame", origin), true);
     assert.equal(allowedTraceRequest("data:text/html;base64,PGJvZHk+", "mainFrame", origin), false);
-    assert.equal(
-        allowedTraceRequest("http://127.0.0.1:43128/trace/index.html", "mainFrame", origin),
-        false,
-    );
+    assert.equal(allowedTraceRequest("http://127.0.0.1:43128/trace/index.html", "mainFrame", origin), false);
     assert.equal(allowedTraceRequest("https://example.com/", "xhr", origin), false);
-    assert.equal(
-        allowedTraceRequest(origin + "/private/trace/file?path=trace.zip", "xhr", origin),
-        true,
-    );
+    assert.equal(allowedTraceRequest(origin + "/private/trace/file?path=trace.zip", "xhr", origin), true);
 });

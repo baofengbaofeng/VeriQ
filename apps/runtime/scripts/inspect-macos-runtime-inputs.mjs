@@ -31,8 +31,7 @@ function flags(args) {
 const controller = new AbortController();
 let signalExit = 0,
     timer;
-const diagnostic = (code, cleanup) =>
-    process.stderr.write(`${code} phase=INPUTS cleanup=${cleanup}\n`);
+const diagnostic = (code, cleanup) => process.stderr.write(`${code} phase=INPUTS cleanup=${cleanup}\n`);
 const interrupt = (signal) => {
     const exit = signal === "SIGINT" ? 130 : 143;
     if (signalExit) {
@@ -73,8 +72,7 @@ try {
     if (controller.signal.aborted) throw new RuntimePayloadError("PAYLOAD_CANCELLED");
     process.stdout.write(`${JSON.stringify(report)}\n`);
 } catch (error) {
-    const known =
-        error instanceof RuntimePayloadError ? error : new RuntimePayloadError("PAYLOAD_IO");
+    const known = error instanceof RuntimePayloadError ? error : new RuntimePayloadError("PAYLOAD_IO");
     diagnostic(known.code, known.cleanup);
     process.exitCode = signalExit || 1;
 } finally {

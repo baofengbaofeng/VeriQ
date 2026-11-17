@@ -39,9 +39,7 @@ export async function windowsVaultDistribution(helper?: Uint8Array) {
     if (helper) names.push("native/vault/veriq_agent.exe");
     try {
         await mkdir(root);
-        const addon = await readFile(
-            new URL("../../build/Release/veriq_native.node", import.meta.url),
-        );
+        const addon = await readFile(new URL("../../build/Release/veriq_native.node", import.meta.url));
         const files = [];
         for (const path of names) {
             const bytes =
@@ -73,8 +71,7 @@ export async function windowsVaultDistribution(helper?: Uint8Array) {
         return {
             root: container,
             distribution: await loadRuntimeDistribution(root),
-            cleanup: () =>
-                rm(container, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }),
+            cleanup: () => rm(container, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }),
         };
     } catch (error) {
         await rm(container, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });

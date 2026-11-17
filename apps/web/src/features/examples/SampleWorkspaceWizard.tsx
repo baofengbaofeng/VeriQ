@@ -1,4 +1,4 @@
-import { useContext, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ApiError, request } from "../../api";
@@ -13,14 +13,7 @@ import {
 } from "./importer";
 import { exampleTranslationOptions } from "./i18n";
 import { readProgress, writeProgress } from "./progress";
-import type {
-    ImportEvent,
-    ImportOptions,
-    ImportProgress,
-    ImportSecrets,
-    SamplePackage,
-    Schemas,
-} from "./types";
+import type { ImportEvent, ImportOptions, ImportProgress, ImportSecrets, SamplePackage, Schemas } from "./types";
 
 /**
  * 宿主传入当前员工已选择的Workspace，成功后仅收到真实空间和计划标识；新空间可先单独创建供用户授权Runtime，组件不替宿主
@@ -82,9 +75,7 @@ function SampleWorkspaceWizardSession({
     const [adapters, setAdapters] = useState<Schemas["AuthAdapterDTO"][]>([]);
     const [runtimes, setRuntimes] = useState<Schemas["RuntimeDTO"][]>([]);
     const [events, setEvents] = useState<ImportEvent[]>([]);
-    const [error, setError] = useState<{ key: string; code?: string; requestId?: string } | null>(
-        null,
-    );
+    const [error, setError] = useState<{ key: string; code?: string; requestId?: string } | null>(null);
     const [running, setRunning] = useState(false);
     const [stopped, setStopped] = useState(false);
     const [complete, setComplete] = useState(false);
@@ -93,15 +84,14 @@ function SampleWorkspaceWizardSession({
     const [reload, setReload] = useState(0);
     const active = useRef<AbortController | null>(null);
     const memory = useRef<ImportProgress | null>(null);
-    const storageKey =
-        user && currentWorkspace ? `veriq:sample-import:${user.id}:${currentWorkspace}` : "";
+    const storageKey = user && currentWorkspace ? `veriq:sample-import:${user.id}:${currentWorkspace}` : "";
 
-    const reportError = (failure: unknown) => {
+    const reportError = useCallback((failure: unknown) => {
         if (failure instanceof SampleImportError) setError({ key: failure.message });
         else if (failure instanceof ApiError)
             setError({ key: "UNKNOWN", code: failure.code, requestId: failure.requestId });
         else setError({ key: "UNKNOWN" });
-    };
+    }, []);
     useEffect(() => {
         active.current?.abort();
         setCurrentWorkspace(workspaceId ?? "");
@@ -113,7 +103,7 @@ function SampleWorkspaceWizardSession({
         return () => {
             active.current?.abort();
         };
-    }, [workspaceId, user?.id]);
+    }, [workspaceId]);
     useEffect(() => {
         if (!user) return;
         const controller = new AbortController();
@@ -125,7 +115,7 @@ function SampleWorkspaceWizardSession({
                 if (!controller.signal.aborted) reportError(failure);
             });
         return () => controller.abort();
-    }, [user?.id, reload]);
+    }, [user, reportError]);
     useEffect(() => {
         if (!user || !currentWorkspace) return;
         const controller = new AbortController();
@@ -147,8 +137,9 @@ function SampleWorkspaceWizardSession({
             .catch((failure: unknown) => {
                 if (!controller.signal.aborted) reportError(failure);
             });
-        return () => controller.abort();
-    }, [currentWorkspace, user?.id, reload]);
+        // reload 是手动刷新元数据的触发计数，清理时写入中止原因以区分按钮重取与空间切换的中止代次。
+        return () => controller.abort(new Error(`metadata reload ${reload}`));
+    }, [currentWorkspace, user, reportError, reload]);
 
     async function createWorkspace() {
         if (running) return;
@@ -157,9 +148,9 @@ function SampleWorkspaceWizardSession({
         setRunning(true);
         setError(null);
         try {
-            const existing = (
-                await allItems<Schemas["WorkspaceDTO"]>("/workspaces", controller.signal)
-            ).find((item) => item.key === workspaceKey);
+            const existing = (await allItems<Schemas["WorkspaceDTO"]>("/workspaces", controller.signal)).find(
+                (item) => item.key === workspaceKey,
+            );
             const workspace =
                 existing ??
                 (await request<Schemas["WorkspaceDTO"]>(
@@ -259,9 +250,7 @@ function SampleWorkspaceWizardSession({
                 (event) => {
                     controller.signal.throwIfAborted();
                     setEvents((previous) => [
-                        ...previous.filter(
-                            (item) => item.asset !== event.asset || item.phase !== event.phase,
-                        ),
+                        ...previous.filter((item) => item.asset !== event.asset || item.phase !== event.phase),
                         event,
                     ]);
                 },
@@ -302,19 +291,14 @@ function SampleWorkspaceWizardSession({
                 <select
                     value={secrets[version]}
                     onChange={(event) => {
-                        const selected = credentials.find(
-                            (item) => item.versionId === event.target.value,
-                        );
+                        const selected = credentials.find((item) => item.versionId === event.target.value);
                         setSecrets((value) => ({ ...value, [version]: event.target.value }));
-                        if (selected)
-                            setForm((value) => ({ ...value, [reference]: selected.secretRef }));
+                        if (selected) setForm((value) => ({ ...value, [reference]: selected.secretRef }));
                     }}
                 >
                     <option value="">{t("newCredential")}</option>
                     {credentials
-                        .filter(
-                            (item) => !item.revoked && item.allowedIdentityIds.includes(identity),
-                        )
+                        .filter((item) => !item.revoked && item.allowedIdentityIds.includes(identity))
                         .map((item, index) => (
                             <option key={item.versionId} value={item.versionId}>
                                 {item.secretRef} ({index + 1})
@@ -366,17 +350,11 @@ function SampleWorkspaceWizardSession({
                     <>
                         <label>
                             {t("workspaceKey")}
-                            <input
-                                value={workspaceKey}
-                                onChange={(event) => setWorkspaceKey(event.target.value)}
-                            />
+                            <input value={workspaceKey} onChange={(event) => setWorkspaceKey(event.target.value)} />
                         </label>
                         <label>
                             {t("workspaceName")}
-                            <input
-                                value={workspaceName}
-                                onChange={(event) => setWorkspaceName(event.target.value)}
-                            />
+                            <input value={workspaceName} onChange={(event) => setWorkspaceName(event.target.value)} />
                         </label>
                         <button type="button" onClick={() => void createWorkspace()}>
                             {t("createWorkspace")}
@@ -419,10 +397,7 @@ function SampleWorkspaceWizardSession({
                         >
                             <option value="">{t("newAdapter")}</option>
                             {adapters
-                                .filter(
-                                    (item) =>
-                                        !item.revoked && item.configuration.kind === "HTTP_BEARER",
-                                )
+                                .filter((item) => !item.revoked && item.configuration.kind === "HTTP_BEARER")
                                 .map((item, index) => (
                                     <option key={item.versionId} value={item.versionId}>
                                         HTTP_BEARER ({index + 1})
@@ -467,9 +442,7 @@ function SampleWorkspaceWizardSession({
                         <select
                             required
                             value={form.runtimeId}
-                            onChange={(event) =>
-                                setForm((value) => ({ ...value, runtimeId: event.target.value }))
-                            }
+                            onChange={(event) => setForm((value) => ({ ...value, runtimeId: event.target.value }))}
                         >
                             <option value="">{t("selectRuntime")}</option>
                             {runtimes.map((item) => (
@@ -513,11 +486,7 @@ function SampleWorkspaceWizardSession({
                 </button>
             </form>
             {running && (
-                <button
-                    type="button"
-                    data-testid="sample-import-stop"
-                    onClick={() => active.current?.abort()}
-                >
+                <button type="button" data-testid="sample-import-stop" onClick={() => active.current?.abort()}>
                     {t("stop")}
                 </button>
             )}
@@ -525,8 +494,8 @@ function SampleWorkspaceWizardSession({
             <ol aria-label={t("progress")} aria-live="polite">
                 {events.map((event) => (
                     <li key={`${event.phase}:${event.asset ?? ""}`}>
-                        {t(event.phase === "plan" ? "planPhase" : event.phase)} {event.asset ?? ""}{" "}
-                        {event.state ?? ""} {event.waitReason ?? ""}{" "}
+                        {`${t(event.phase === "plan" ? "planPhase" : event.phase)} ${event.asset ?? ""}` +
+                            ` ${event.state ?? ""} ${event.waitReason ?? ""}`}{" "}
                         {event.jobId && <code>{event.jobId}</code>}
                     </li>
                 ))}
@@ -584,7 +553,5 @@ function SampleWorkspaceWizardSession({
 export function SampleWorkspaceWizard(props: SampleWorkspaceWizardProps) {
     const { user } = useContext(Auth);
     if (!user) return null;
-    return (
-        <SampleWorkspaceWizardSession key={`${user.id}:${props.workspaceId ?? ""}`} {...props} />
-    );
+    return <SampleWorkspaceWizardSession key={`${user.id}:${props.workspaceId ?? ""}`} {...props} />;
 }

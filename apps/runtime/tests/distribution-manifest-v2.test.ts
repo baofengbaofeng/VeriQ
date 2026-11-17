@@ -76,11 +76,7 @@ function model(arch: MacRuntimeArch = "x64", frameworkCount = 0) {
             manifest,
             data,
             path,
-            path.startsWith("roles/") ||
-                path === executablePath ||
-                path === "native/vault/veriq_agent"
-                ? 0o755
-                : 0o644,
+            path.startsWith("roles/") || path === executablePath || path === "native/vault/veriq_agent" ? 0o755 : 0o644,
         );
     for (const root of roots) addDirectory(manifest, root);
     return { manifest, data, expected: { arch, layout } };
@@ -122,9 +118,7 @@ function addFile(
  * 装依赖、不运行浏览器、不留下大量持久缓存。
  */
 async function tree(
-    run: (
-        value: ReturnType<typeof model> & { root: string; save: () => Promise<void> },
-    ) => Promise<unknown>,
+    run: (value: ReturnType<typeof model> & { root: string; save: () => Promise<void> }) => Promise<unknown>,
     source = model(),
 ) {
     const root = await mkdtemp(join(tmpdir(), "veriq inventory 中文 "));
@@ -235,11 +229,7 @@ const invalid: [string, (m: any) => void, string?][] = [
     ["hash", (m) => (m.files[0].sha256 = "A".repeat(64))],
     ["size negative", (m) => (m.files[0].sizeBytes = -1)],
     ["size fractional", (m) => (m.files[0].sizeBytes = 1.2)],
-    [
-        "size unsafe",
-        (m) => (m.files[0].sizeBytes = Number.MAX_SAFE_INTEGER + 1),
-        "MAC_MANIFEST_LIMIT",
-    ],
+    ["size unsafe", (m) => (m.files[0].sizeBytes = Number.MAX_SAFE_INTEGER + 1), "MAC_MANIFEST_LIMIT"],
     ["special mode", (m) => (m.files[0].mode = 0o4755)],
     ["writable mode", (m) => (m.files[0].mode = 0o777)],
     ["string mode", (m) => (m.files[0].mode = "755")],
@@ -248,11 +238,7 @@ const invalid: [string, (m: any) => void, string?][] = [
     ["missing direct parent", (m) => m.directories.splice(m.directories.indexOf("entry"), 1)],
     ["duplicate path", (m) => m.files.push(m.files[0]), "MAC_MANIFEST_COLLISION"],
     ["cross set", (m) => m.directories.push(m.files[0].path), "MAC_MANIFEST_COLLISION"],
-    [
-        "manifest collision",
-        (m) => m.directories.push("RUNTIME-MANIFEST.JSON"),
-        "MAC_MANIFEST_COLLISION",
-    ],
+    ["manifest collision", (m) => m.directories.push("RUNTIME-MANIFEST.JSON"), "MAC_MANIFEST_COLLISION"],
     ["implicit parent case", (m) => m.directories.push("A", "a/y"), "MAC_MANIFEST_COLLISION"],
 ];
 for (const [name, mutate, error = "MAC_MANIFEST_INVALID"] of invalid)
@@ -319,12 +305,7 @@ test("fixed limits are immutable and exact", () => {
 });
 test("parser checks strict UTF8 and sanitized JSON errors", () => {
     const m = model();
-    for (const input of [
-        Buffer.from([0xff]),
-        Buffer.from('{"secret":"never-echo-this",'),
-        bytes([]),
-        bytes(null),
-    ])
+    for (const input of [Buffer.from([0xff]), Buffer.from('{"secret":"never-echo-this",'), bytes([]), bytes(null)])
         assert.throws(
             () => parse(input, m.expected),
             (error: any) =>
@@ -338,14 +319,10 @@ test("manifest byte limit includes whitespace and accepts exact boundary", () =>
     const m = model();
     const raw = bytes(m.manifest);
     assert.equal(
-        parse(Buffer.concat([raw, Buffer.alloc(limits.manifestBytes - raw.length, 32)]), m.expected)
-            .arch,
+        parse(Buffer.concat([raw, Buffer.alloc(limits.manifestBytes - raw.length, 32)]), m.expected).arch,
         "x64",
     );
-    assert.throws(
-        () => parse(Buffer.alloc(limits.manifestBytes + 1, 32), m.expected),
-        code("MAC_MANIFEST_LIMIT"),
-    );
+    assert.throws(() => parse(Buffer.alloc(limits.manifestBytes + 1, 32), m.expected), code("MAC_MANIFEST_LIMIT"));
 });
 test("file and total declared byte budgets", () => {
     const m = model();
@@ -353,8 +330,7 @@ test("file and total declared byte budgets", () => {
     parsed(m);
     m.manifest.files[0] = { ...m.manifest.files[0]!, sizeBytes: limits.fileBytes + 1 };
     assert.throws(() => parsed(m), code("MAC_MANIFEST_LIMIT"));
-    for (let i = 0; i < 8; i++)
-        m.manifest.files[i] = { ...m.manifest.files[i]!, sizeBytes: limits.fileBytes };
+    for (let i = 0; i < 8; i++) m.manifest.files[i] = { ...m.manifest.files[i]!, sizeBytes: limits.fileBytes };
     assert.throws(() => parsed(m), code("MAC_MANIFEST_LIMIT"));
 });
 test("entry count accepts exact boundary and refuses next member", () => {
@@ -377,10 +353,7 @@ test("component, full path and depth limits", () => {
     }
     const m = model();
     addDirectory(m.manifest, Array(64).fill("x").join("/"));
-    addDirectory(
-        m.manifest,
-        ["a".repeat(255), "b".repeat(255), "c".repeat(255), "d".repeat(254), "e"].join("/"),
-    );
+    addDirectory(m.manifest, ["a".repeat(255), "b".repeat(255), "c".repeat(255), "d".repeat(254), "e"].join("/"));
     parsed(m);
 });
 
@@ -485,18 +458,10 @@ const physical: [string, (root: string) => Promise<unknown>, string][] = [
         },
         "MAC_INVENTORY_UNLISTED",
     ],
-    [
-        "fifo",
-        (r) => Promise.resolve(execFileSync("mkfifo", [join(r, "pipe")])),
-        "MAC_INVENTORY_TYPE",
-    ],
+    ["fifo", (r) => Promise.resolve(execFileSync("mkfifo", [join(r, "pipe")])), "MAC_INVENTORY_TYPE"],
     ["root mode", (r) => chmod(r, 0o777), "MAC_INVENTORY_MODE"],
     ["manifest mode", (r) => chmod(join(r, "runtime-manifest.json"), 0o666), "MAC_INVENTORY_MODE"],
-    [
-        "manifest hardlink",
-        (r) => link(join(r, "runtime-manifest.json"), join(r, "other")),
-        "MAC_INVENTORY_HARDLINK",
-    ],
+    ["manifest hardlink", (r) => link(join(r, "runtime-manifest.json"), join(r, "other")), "MAC_INVENTORY_HARDLINK"],
     [
         "manifest link",
         async (r) => {
@@ -509,8 +474,7 @@ const physical: [string, (root: string) => Promise<unknown>, string][] = [
     ],
     [
         "manifest oversized",
-        (r) =>
-            writeFile(join(r, "runtime-manifest.json"), Buffer.alloc(limits.manifestBytes + 1, 32)),
+        (r) => writeFile(join(r, "runtime-manifest.json"), Buffer.alloc(limits.manifestBytes + 1, 32)),
         "MAC_MANIFEST_LIMIT",
     ],
 ];
@@ -525,20 +489,14 @@ test("root and ancestor symlinks and ASAR roots are refused", async () =>
         const parent = await mkdtemp(join(tmpdir(), "veriq-root-"));
         try {
             await symlink(root, join(parent, "alias"));
-            await assert.rejects(
-                verify(join(parent, "alias"), expected),
-                code("MAC_INVENTORY_ROOT"),
-            );
+            await assert.rejects(verify(join(parent, "alias"), expected), code("MAC_INVENTORY_ROOT"));
             await symlink(dirname(root), join(parent, "ancestor"));
             await assert.rejects(
                 verify(join(parent, "ancestor", root.split("/").at(-1)!), expected),
                 code("MAC_INVENTORY_ROOT"),
             );
             await mkdir(join(parent, "Runtime.AsAr"));
-            await assert.rejects(
-                verify(join(parent, "Runtime.AsAr"), expected),
-                code("MAC_INVENTORY_ROOT"),
-            );
+            await assert.rejects(verify(join(parent, "Runtime.AsAr"), expected), code("MAC_INVENTORY_ROOT"));
             await assert.rejects(verify("relative", expected), code("MAC_INVENTORY_ROOT"));
         } finally {
             await rm(parent, { recursive: true, force: true });
@@ -584,10 +542,7 @@ function withLinks(m: ReturnType<typeof model>, links: RuntimeLinkV2[]) {
 test("framework directory Current, Resources and file alias succeed", async () => {
     const m = framework();
     parsed(m);
-    await tree(
-        async ({ root, expected }) => assert.equal((await verify(root, expected)).linkCount, 3),
-        m,
-    );
+    await tree(async ({ root, expected }) => assert.equal((await verify(root, expected)).linkCount, 3), m);
 });
 test("allowedLinks is exact, order independent, and not read from manifest", () => {
     const m = framework();
@@ -596,18 +551,7 @@ test("allowedLinks is exact, order independent, and not read from manifest", () 
     (m.expected.layout.allowedLinks as RuntimeLinkV2[]).pop();
     assert.throws(() => parsed(m), code("MAC_MANIFEST_LAYOUT"));
 });
-for (const target of [
-    "/outside",
-    "a\\b",
-    "a:b",
-    "a//b",
-    "a/",
-    "",
-    "中文",
-    "x.AsAr",
-    "CON",
-    "x\u0001",
-])
+for (const target of ["/outside", "a\\b", "a:b", "a//b", "a/", "", "中文", "x.AsAr", "CON", "x\u0001"])
     test(`link target rejects ${JSON.stringify(target)}`, () => {
         const m = framework();
         withLinks(m, [{ path: `${m.f}/alias`, target }]);
@@ -649,10 +593,7 @@ for (const [name, targets, error] of [
             m,
             targets.map((target, i) => ({ path: `${m.f}/${String.fromCharCode(97 + i)}`, target })),
         );
-        await tree(
-            async ({ root, expected }) => assert.rejects(verify(root, expected), code(error)),
-            m,
-        );
+        await tree(async ({ root, expected }) => assert.rejects(verify(root, expected), code(error)), m);
     });
 test("directory aliases cannot create a mutual virtual tree cycle", async () => {
     const m = framework();
@@ -662,11 +603,7 @@ test("directory aliases cannot create a mutual virtual tree cycle", async () => 
         { path: `${m.f}/X/toY`, target: "../Y" },
         { path: `${m.f}/Y/toX`, target: "../X" },
     ]);
-    await tree(
-        async ({ root, expected }) =>
-            assert.rejects(verify(root, expected), code("MAC_LINK_CYCLE")),
-        m,
-    );
+    await tree(async ({ root, expected }) => assert.rejects(verify(root, expected), code("MAC_LINK_CYCLE")), m);
 });
 for (const count of [32, 33])
     test(`link chain ${count} hops`, async () => {
@@ -727,8 +664,7 @@ test("exact total byte boundary does not require large fixture allocation", () =
 });
 test("all permitted file modes preserve exact metadata", async () => {
     const m = model();
-    for (const [i, mode] of [0o444, 0o644, 0o555, 0o755].entries())
-        addFile(m.manifest, m.data, `mode${i}`, mode);
+    for (const [i, mode] of [0o444, 0o644, 0o555, 0o755].entries()) addFile(m.manifest, m.data, `mode${i}`, mode);
     await tree(async ({ root, expected }) => {
         await chmod(root, 0o555);
         await chmod(join(root, "entry"), 0o555);
@@ -865,11 +801,7 @@ for (const targets of [["a/child"], ["b/child", "a/child"]])
             m,
             targets.map((target, i) => ({ path: `${m.f}/${String.fromCharCode(97 + i)}`, target })),
         );
-        await tree(
-            async ({ root, expected }) =>
-                assert.rejects(verify(root, expected), code("MAC_LINK_CYCLE")),
-            m,
-        );
+        await tree(async ({ root, expected }) => assert.rejects(verify(root, expected), code("MAC_LINK_CYCLE")), m);
     });
 test("finite repeated use of directory alias in one target succeeds", async () => {
     const m = framework();
@@ -878,10 +810,7 @@ test("finite repeated use of directory alias in one target succeeds", async () =
         { path: `${m.f}/repeated`, target: "Versions/Current/../Current/Resources/data" },
     ];
     withLinks(m, links);
-    await tree(
-        async ({ root, expected }) => assert.equal((await verify(root, expected)).linkCount, 4),
-        m,
-    );
+    await tree(async ({ root, expected }) => assert.equal((await verify(root, expected)).linkCount, 4), m);
 });
 test("explicit framework count accepts 32 and refuses 33", () => {
     parsed(model("x64", 32));

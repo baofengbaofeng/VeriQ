@@ -3,9 +3,7 @@ import assert from "node:assert/strict";
 import { EventSourceParserStream } from "eventsource-parser/stream";
 import { randomUUID } from "node:crypto";
 test("the actual client parser retains a maximum Run cursor across transport chunks", async () => {
-    const positions = Object.fromEntries(
-        Array.from({ length: 2000 }, () => [randomUUID(), Number.MAX_SAFE_INTEGER]),
-    );
+    const positions = Object.fromEntries(Array.from({ length: 2000 }, () => [randomUUID(), Number.MAX_SAFE_INTEGER]));
     const cursor = Buffer.from(
         JSON.stringify({
             scope: {

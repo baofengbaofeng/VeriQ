@@ -16,18 +16,21 @@ function deferred() {
 }
 
 test(
-    "post-mutation operation and cleanup errors remain " +
-        "unconfirmed while preflight failures remain failed",
+    "post-mutation operation and cleanup errors remain " + "unconfirmed while preflight failures remain failed",
     async () => {
         const signal = new AbortController().signal;
         assert.deepEqual(
             await observeRestrictedOperation("owned-close", signal, async (_signal, mark) => {
                 mark();
+                let closeError: unknown;
+                let result: { status: "ok" };
                 try {
-                    return { status: "ok" };
+                    result = { status: "ok" };
                 } finally {
-                    throw new Error("INJECTED_CLOSE_AFTER_COMMIT");
+                    closeError = new Error("INJECTED_CLOSE_AFTER_COMMIT");
                 }
+                if (closeError !== undefined) throw closeError;
+                return result;
             }),
             { status: "mutation-unconfirmed" },
         );
@@ -51,40 +54,30 @@ test("aborted mutation retains its shared fence until the real cleanup promise s
     const held = deferred(),
         entered = deferred(),
         controller = new AbortController();
-    const operation = observeRestrictedOperation(
-        "owned-pending-write",
-        controller.signal,
-        async (_signal, mark) => {
-            mark();
-            entered.release();
-            await held.promise;
-            return { status: "ok" };
-        },
-    );
+    const operation = observeRestrictedOperation("owned-pending-write", controller.signal, async (_signal, mark) => {
+        mark();
+        entered.release();
+        await held.promise;
+        return { status: "ok" };
+    });
     await entered.promise;
     controller.abort();
     assert.deepEqual(await operation, { status: "mutation-unconfirmed" });
     let reopened = false;
     assert.deepEqual(
-        await observeRestrictedOperation(
-            "owned-pending-write",
-            new AbortController().signal,
-            async () => {
-                reopened = true;
-                return { status: "ready" };
-            },
-        ),
+        await observeRestrictedOperation("owned-pending-write", new AbortController().signal, async () => {
+            reopened = true;
+            return { status: "ready" };
+        }),
         { status: "failed" },
     );
     assert.equal(reopened, false);
     held.release();
     await nextTurn();
     assert.deepEqual(
-        await observeRestrictedOperation(
-            "owned-pending-write",
-            new AbortController().signal,
-            async () => ({ status: "ready" }),
-        ),
+        await observeRestrictedOperation("owned-pending-write", new AbortController().signal, async () => ({
+            status: "ready",
+        })),
         { status: "ready" },
     );
 });
@@ -135,34 +128,24 @@ test("late read material is erased and a cancelled preflight cannot start a new 
  * 独立五秒期限必须在调用者从未取消时仍结束观察，模拟未完成 I/O 的引用保持事件循环存活；观察返回后测试才释放实际工作
  * Promise，因此通过不代表取消了内核请求，也不允许隔离在真实完成之前提前消失。
  */
-test(
-    "restricted operation has its own five-second observation deadline",
-    { timeout: 7000 },
-    async () => {
-        const held = deferred(),
-            keepAlive = setInterval(() => {}, 1000);
-        try {
-            const result = await observeRestrictedOperation(
-                "owned-deadline",
-                new AbortController().signal,
-                async () => {
-                    await held.promise;
-                    return { status: "ready" };
-                },
-            );
-            assert.deepEqual(result, { status: "failed" });
-            assert.deepEqual(
-                await observeRestrictedOperation(
-                    "owned-deadline",
-                    new AbortController().signal,
-                    async () => ({ status: "ready" }),
-                ),
-                { status: "failed" },
-            );
-        } finally {
-            held.release();
-            clearInterval(keepAlive);
-            await nextTurn();
-        }
-    },
-);
+test("restricted operation has its own five-second observation deadline", { timeout: 7000 }, async () => {
+    const held = deferred(),
+        keepAlive = setInterval(() => {}, 1000);
+    try {
+        const result = await observeRestrictedOperation("owned-deadline", new AbortController().signal, async () => {
+            await held.promise;
+            return { status: "ready" };
+        });
+        assert.deepEqual(result, { status: "failed" });
+        assert.deepEqual(
+            await observeRestrictedOperation("owned-deadline", new AbortController().signal, async () => ({
+                status: "ready",
+            })),
+            { status: "failed" },
+        );
+    } finally {
+        held.release();
+        clearInterval(keepAlive);
+        await nextTurn();
+    }
+});

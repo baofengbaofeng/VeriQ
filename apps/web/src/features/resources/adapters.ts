@@ -3,12 +3,7 @@
  * 生成的 TS 源码按 sha256/size 校验；视图只依赖 ResourceAdapter 接口。
  */
 
-import type {
-    FileEntry,
-    PlatformComponents,
-    ResourceDocumentV1,
-    ResourceKind,
-} from "@veriq/contracts";
+import type { FileEntry, PlatformComponents, ResourceDocumentV1, ResourceKind } from "@veriq/contracts";
 import { request, ApiError, binaryRequest } from "../../api";
 type S = PlatformComponents["schemas"];
 /**
@@ -60,12 +55,7 @@ export interface ResourceAdapter {
     versions(resourceId: string, cursor?: string, signal?: AbortSignal): Promise<Page<Version>>;
     dependents(resourceId: string, cursor?: string, signal?: AbortSignal): Promise<Page<Resource>>;
     sourceFiles(resourceId: string, versionId: string, signal?: AbortSignal): Promise<SourceFiles>;
-    source(
-        resourceId: string,
-        versionId: string,
-        file: FileEntry,
-        signal?: AbortSignal,
-    ): Promise<string>;
+    source(resourceId: string, versionId: string, file: FileEntry, signal?: AbortSignal): Promise<string>;
     create(data: S["ResourceCreate"], signal?: AbortSignal): Promise<Resource>;
     save(resourceId: string, data: S["DraftWrite"], signal?: AbortSignal): Promise<Draft>;
     update(resourceId: string, data: S["ResourceUpdate"], signal?: AbortSignal): Promise<Resource>;
@@ -92,22 +82,11 @@ export class CloudResourceAdapter implements ResourceAdapter {
     }
     list = (kind?: ResourceKind, cursor?: string, signal?: AbortSignal) =>
         request<Page<Resource>>(this.base() + query({ kind, cursor }), "GET", undefined, signal);
-    draft = (id: string, signal?: AbortSignal) =>
-        request<Draft>(this.base(id) + "/draft", "GET", undefined, signal);
+    draft = (id: string, signal?: AbortSignal) => request<Draft>(this.base(id) + "/draft", "GET", undefined, signal);
     versions = (id: string, cursor?: string, signal?: AbortSignal) =>
-        request<Page<Version>>(
-            this.base(id) + "/versions" + query({ cursor }),
-            "GET",
-            undefined,
-            signal,
-        );
+        request<Page<Version>>(this.base(id) + "/versions" + query({ cursor }), "GET", undefined, signal);
     dependents = (id: string, cursor?: string, signal?: AbortSignal) =>
-        request<Page<Resource>>(
-            this.base(id) + "/dependents" + query({ cursor }),
-            "GET",
-            undefined,
-            signal,
-        );
+        request<Page<Resource>>(this.base(id) + "/dependents" + query({ cursor }), "GET", undefined, signal);
     sourceFiles = (id: string, versionId: string, signal?: AbortSignal) =>
         request<SourceFiles>(
             this.base(id) + "/versions/" + encodeURIComponent(versionId) + "/compiled-source",
@@ -137,30 +116,19 @@ export class CloudResourceAdapter implements ResourceAdapter {
             throw new Error("INVALID_ARTIFACT: generated source bytes differ from descriptor");
         return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
     };
-    create = (data: S["ResourceCreate"], signal?: AbortSignal) =>
-        request<Resource>(this.base(), "POST", data, signal);
+    create = (data: S["ResourceCreate"], signal?: AbortSignal) => request<Resource>(this.base(), "POST", data, signal);
     save = (id: string, data: S["DraftWrite"], signal?: AbortSignal) =>
         request<Draft>(this.base(id) + "/draft", "PUT", data, signal);
     update = (id: string, data: S["ResourceUpdate"], signal?: AbortSignal) =>
         request<Resource>(this.base(id), "PATCH", data, signal);
     preview = (id: string, signal?: AbortSignal) =>
-        request<S["ValidationPreviewDTO"]>(
-            this.base(id) + "/validation-preview",
-            "GET",
-            undefined,
-            signal,
-        );
+        request<S["ValidationPreviewDTO"]>(this.base(id) + "/validation-preview", "GET", undefined, signal);
     validate = (id: string, data: S["ValidationRequest"], signal?: AbortSignal) =>
         request<Job>(this.base(id) + "/validate", "POST", data, signal);
     job = (id: string, signal?: AbortSignal) =>
         request<Job>(`/workspaces/${this.workspaceId}/jobs/${id}`, "GET", undefined, signal);
     receipt = (id: string, signal?: AbortSignal) =>
-        request<Receipt>(
-            `/workspaces/${this.workspaceId}/jobs/${id}/validation-receipt`,
-            "GET",
-            undefined,
-            signal,
-        );
+        request<Receipt>(`/workspaces/${this.workspaceId}/jobs/${id}/validation-receipt`, "GET", undefined, signal);
     publish = (id: string, data: S["PublishRequest"], signal?: AbortSignal) =>
         request<Version>(this.base(id) + "/publish", "POST", data, signal);
 }
@@ -190,9 +158,7 @@ export class LocalResourceAdapter implements ResourceAdapter {
         if (
             snapshot.resources.some((r) => r.workspaceId !== snapshot.workspaceId) ||
             snapshot.versions.some(
-                (v) =>
-                    v.workspaceId !== snapshot.workspaceId ||
-                    !snapshot.resources.some((r) => r.id === v.resourceId),
+                (v) => v.workspaceId !== snapshot.workspaceId || !snapshot.resources.some((r) => r.id === v.resourceId),
             )
         )
             throw new Error("SNAPSHOT_WORKSPACE_MISMATCH");
@@ -222,9 +188,7 @@ export class LocalResourceAdapter implements ResourceAdapter {
         const frozen = this.snapshot.drafts?.find((d) => d.resourceId === id);
         if (frozen) return structuredClone(frozen);
         const resource = this.snapshot.resources.find((r) => r.id === id);
-        const v = this.snapshot.versions.find(
-            (v) => v.id === resource?.latestVersionId && v.resourceId === id,
-        );
+        const v = this.snapshot.versions.find((v) => v.id === resource?.latestVersionId && v.resourceId === id);
         if (!v) throw new Error("SNAPSHOT_VERSION_NOT_FOUND");
         return {
             resourceId: id,
@@ -243,9 +207,7 @@ export class LocalResourceAdapter implements ResourceAdapter {
     };
     dependents = async (id: string, _cursor?: string, signal?: AbortSignal) => {
         this.check(signal);
-        const ids = new Set(
-            this.snapshot.versions.filter((v) => v.resourceId === id).map((v) => v.id),
-        );
+        const ids = new Set(this.snapshot.versions.filter((v) => v.resourceId === id).map((v) => v.id));
         const referenced = (content: ResourceDocumentV1): boolean => {
             const doc = content.document;
             const refs: string[] = [];
@@ -256,16 +218,12 @@ export class LocalResourceAdapter implements ResourceAdapter {
                     content.document.datasetVersionId ?? "",
                 );
             if (content.kind === "SUITE")
-                for (const c of content.document.cases)
-                    refs.push(c.versionId, c.datasetVersionId ?? "");
+                for (const c of content.document.cases) refs.push(c.versionId, c.datasetVersionId ?? "");
             const assertions = "assertions" in doc ? [...doc.assertions] : [];
             if ("steps" in doc)
                 for (const step of doc.steps) {
                     if (step.action === "callFlow") refs.push(step.versionId);
-                    assertions.push(
-                        ...(step.beforeAssertions ?? []),
-                        ...(step.afterAssertions ?? []),
-                    );
+                    assertions.push(...(step.beforeAssertions ?? []), ...(step.afterAssertions ?? []));
                 }
             for (const a of assertions) if (a.type === "template") refs.push(a.versionId);
             return refs.some((ref) => ids.has(ref));
@@ -292,8 +250,7 @@ export class LocalResourceAdapter implements ResourceAdapter {
         this.check(signal);
         this.requireVersion(id, version);
         const member = this.snapshot.sourceFiles[version]?.files.find(
-            (f) =>
-                f.path === file.path && f.sha256 === file.sha256 && f.sizeBytes === file.sizeBytes,
+            (f) => f.path === file.path && f.sha256 === file.sha256 && f.sizeBytes === file.sizeBytes,
         );
         if (!member) throw new Error("SOURCE_NOT_AVAILABLE");
         return this.snapshot.readSource(version, structuredClone(member), signal);

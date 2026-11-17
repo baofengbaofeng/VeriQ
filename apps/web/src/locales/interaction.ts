@@ -9,11 +9,10 @@ export const interactionMessages: Record<string, readonly [string, string]> = {
     "状态 / Status": ["状态", "Status"],
     Saved: ["已保存", "Saved"],
     "Compilation validated": ["编译校验通过", "Compilation validated"],
-    "Use Ctrl+M (Control+Shift+M on macOS) to switch between editing with Tab and moving keyboard focus.":
-        [
-            "使用 Ctrl+M（macOS 上为 Control+Shift+M）切换 Tab 的缩进和焦点导航功能。",
-            "Use Ctrl+M (Control+Shift+M on macOS) to switch between editing with Tab and moving keyboard focus.",
-        ],
+    "Use Ctrl+M (Control+Shift+M on macOS) to switch between editing with Tab and moving keyboard focus.": [
+        "使用 Ctrl+M（macOS 上为 Control+Shift+M）切换 Tab 的缩进和焦点导航功能。",
+        "Use Ctrl+M (Control+Shift+M on macOS) to switch between editing with Tab and moving keyboard focus.",
+    ],
     "Toggle Tab key navigation": ["切换 Tab 键焦点导航", "Toggle Tab key navigation"],
     "Use Move up and Move down to reorder rows with the keyboard.": [
         "可使用上移和下移按钮通过键盘调整行顺序。",
@@ -37,18 +36,12 @@ export const interactionMessages: Record<string, readonly [string, string]> = {
         "当前角色或已归档工作区仅允许只读访问执行计划。",
         "Your role or the archived Workspace allows read-only plan access.",
     ],
-    "No published versions available.": [
-        "尚无可用的已发布版本。",
-        "No published versions available.",
-    ],
+    "No published versions available.": ["尚无可用的已发布版本。", "No published versions available."],
     "No resources available.": ["尚无可用资源。", "No resources available."],
     "Loading resources…": ["正在加载资源…", "Loading resources…"],
     "Loading versions…": ["正在加载版本…", "Loading versions…"],
     "Loading tokens…": ["正在加载令牌…", "Loading tokens…"],
-    "No tokens issued for this account.": [
-        "此账号尚未签发令牌。",
-        "No tokens issued for this account.",
-    ],
+    "No tokens issued for this account.": ["此账号尚未签发令牌。", "No tokens issued for this account."],
     "No service accounts yet.": ["尚无服务账号。", "No service accounts yet."],
     none: ["无", "none"],
     allowed: ["已允许", "allowed"],

@@ -120,6 +120,7 @@ test("dynamic fixture inputs preserve local refs and defer only value-dependent 
         required: ["name", "constant"],
         additionalProperties: false,
         if: { properties: { name: { const: "Ada" } } },
+        // biome-ignore lint/suspicious/noThenProperty: 此处 then 为 JSON Schema 条件关键字，非 Promise thenable
         then: { properties: { constant: { const: 1 } } },
         else: { properties: { constant: { const: 2 } } },
     });

@@ -8,9 +8,7 @@ import { authorizeSender } from "../src/main/scope.ts";
  */
 test("the owned main frame can invoke its bundled local entry", () => {
     const frame = {};
-    assert.doesNotThrow(() =>
-        authorizeSender({ id: 1, frame, url: "veriq://app/index.html" }, { id: 1, frame }),
-    );
+    assert.doesNotThrow(() => authorizeSender({ id: 1, frame, url: "veriq://app/index.html" }, { id: 1, frame }));
 });
 
 test("foreign frame, window and navigation cannot acquire the bridge", () => {

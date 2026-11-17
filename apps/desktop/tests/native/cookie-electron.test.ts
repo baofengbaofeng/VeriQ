@@ -23,15 +23,11 @@ const value = "VeriQ-public-synthetic-cookie-native-check-2026";
  * 真实退出零且记录非秘密结果，失败不会重试或把没有窗口解释为 Cookie 已受保护。
  */
 async function launch(profile: string, phase: string) {
-    await promisify(execFile)(
-        executable!,
-        [resolve("tests/native/cookie-app.cjs"), profile, phase],
-        {
-            timeout: 15000,
-            maxBuffer: 65536,
-            windowsHide: true,
-        },
-    );
+    await promisify(execFile)(executable!, [resolve("tests/native/cookie-app.cjs"), profile, phase], {
+        timeout: 15000,
+        maxBuffer: 65536,
+        windowsHide: true,
+    });
     return JSON.parse(await readFile(join(profile, `${phase}.json`), "utf8"));
 }
 

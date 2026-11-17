@@ -34,10 +34,11 @@ export function ExecutionPlansPage() {
     });
     const [parameters] = useSearchParams();
     const workspaceParameter = parameters.get("workspaceId") ?? "";
-    const requestedWorkspace =
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(workspaceParameter)
-            ? workspaceParameter
-            : "";
+    const requestedWorkspace = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        workspaceParameter,
+    )
+        ? workspaceParameter
+        : "";
     const requestedPlan = parameters.get("planId") ?? "";
     const target = useQuery({
         queryKey: ["plan-workspace-target", user?.id, requestedWorkspace],
@@ -45,10 +46,7 @@ export function ExecutionPlansPage() {
         enabled: !!user && !!requestedWorkspace,
     });
     const listed = spaces.data?.pages.flatMap((p) => p.items) ?? [];
-    const items =
-        target.data && !listed.some((item) => item.id === target.data.id)
-            ? [...listed, target.data]
-            : listed;
+    const items = target.data && !listed.some((item) => item.id === target.data.id) ? [...listed, target.data] : listed;
     const availableRequestedId = target.data?.id;
     useEffect(() => {
         if (availableRequestedId) select(availableRequestedId);
@@ -67,11 +65,7 @@ export function ExecutionPlansPage() {
         <Panel title={tx("执行计划 / Execution plans")}>
             <label>
                 {tx("空间 / Workspace")}
-                <select
-                    aria-label={tx("Plan Workspace")}
-                    value={selected}
-                    onChange={(e) => select(e.target.value)}
-                >
+                <select aria-label={tx("Plan Workspace")} value={selected} onChange={(e) => select(e.target.value)}>
                     {items.map((w) => (
                         <option key={w.id} value={w.id}>
                             {w.name}
@@ -79,9 +73,7 @@ export function ExecutionPlansPage() {
                     ))}
                 </select>
             </label>
-            {(spaces.isPending || target.isFetching) && (
-                <p role="status">{tx("Loading Workspaces…")}</p>
-            )}
+            {(spaces.isPending || target.isFetching) && <p role="status">{tx("Loading Workspaces…")}</p>}
             {spaces.isSuccess && !items.length && <p>{tx("No Workspaces yet.")}</p>}
             {target.error && <p role="alert">{target.error.message}</p>}
             {spaces.error && (
@@ -130,15 +122,13 @@ function VersionSelector({
     const [resource, setResource] = useState("");
     const resources = useInfiniteQuery({
         queryKey: ["workspace", workspace, "plan-resources", kind],
-        queryFn: ({ pageParam, signal: q }) =>
-            adapter.list(kind, pageParam, AbortSignal.any([signal, q])),
+        queryFn: ({ pageParam, signal: q }) => adapter.list(kind, pageParam, AbortSignal.any([signal, q])),
         initialPageParam: undefined as string | undefined,
         getNextPageParam: (p) => p.nextCursor ?? undefined,
     });
     const versions = useInfiniteQuery({
         queryKey: ["workspace", workspace, "plan-versions", resource],
-        queryFn: ({ pageParam, signal: q }) =>
-            adapter.versions(resource, pageParam, AbortSignal.any([signal, q])),
+        queryFn: ({ pageParam, signal: q }) => adapter.versions(resource, pageParam, AbortSignal.any([signal, q])),
         initialPageParam: undefined as string | undefined,
         getNextPageParam: (p) => p.nextCursor ?? undefined,
         enabled: !!resource,
@@ -152,9 +142,7 @@ function VersionSelector({
                 <p>{tx("No resources available.")}</p>
             )}
             {resource && versions.isPending && <p role="status">{tx("Loading versions…")}</p>}
-            {resource && versions.isSuccess && !listed.length && (
-                <p>{tx("No published versions available.")}</p>
-            )}
+            {resource && versions.isSuccess && !listed.length && <p>{tx("No published versions available.")}</p>}
             <label>
                 {tx("资源 / Resource")}
                 <select
@@ -190,9 +178,7 @@ function VersionSelector({
                     onChange={(e) => onChange(e.target.value)}
                 >
                     <option value="">{tx("选择已发布版本 / Select published version")}</option>
-                    {value && !listed.some((v) => v.id === value) && (
-                        <option value={value}>{value}</option>
-                    )}
+                    {value && !listed.some((v) => v.id === value) && <option value={value}>{value}</option>}
                     {listed.map((v) => (
                         <option key={v.id} value={v.id}>
                             {v.versionNo} — {v.id}
@@ -216,13 +202,7 @@ function VersionSelector({
  * 计划管理表单只发送明确选择，运行触发保留一次操作的幂等键供网络重试；服务端冲突会原样显示并保留用户输入，查询和轮询在
  * 页面卸载时取消，旧空间结果不会更新新空间的状态。
  */
-function PlanWorkspace({
-    workspace,
-    requestedPlanId,
-}: {
-    workspace: Workspace;
-    requestedPlanId: string;
-}) {
+function PlanWorkspace({ workspace, requestedPlanId }: { workspace: Workspace; requestedPlanId: string }) {
     useAppLocale();
     const base = `/workspaces/${workspace.id}`,
         cache = useQueryClient();
@@ -249,9 +229,7 @@ function PlanWorkspace({
         queryKey: ["workspace", workspace.id, "plans"],
         queryFn: ({ pageParam, signal: q }) =>
             request<Page<Plan>>(
-                base +
-                    "/execution-plans" +
-                    (pageParam ? "?cursor=" + encodeURIComponent(pageParam) : ""),
+                base + "/execution-plans" + (pageParam ? "?cursor=" + encodeURIComponent(pageParam) : ""),
                 "GET",
                 undefined,
                 AbortSignal.any([signal, q]),
@@ -261,20 +239,14 @@ function PlanWorkspace({
     });
     const runtimes = useInfiniteQuery({
         queryKey: ["workspace", workspace.id, "plan-runtimes"],
-        queryFn: ({ pageParam, signal: q }) =>
-            runtimeApi.list(workspace.id, pageParam, AbortSignal.any([signal, q])),
+        queryFn: ({ pageParam, signal: q }) => runtimeApi.list(workspace.id, pageParam, AbortSignal.any([signal, q])),
         initialPageParam: undefined as string | undefined,
         getNextPageParam: (p) => p.nextCursor ?? undefined,
     });
     const status = useQuery({
         queryKey: ["workspace", workspace.id, "plan-status", receipt?.runId],
         queryFn: ({ signal: q }) =>
-            request<S["RunDTO"]>(
-                base + "/runs/" + receipt!.runId,
-                "GET",
-                undefined,
-                AbortSignal.any([signal, q]),
-            ),
+            request<S["RunDTO"]>(base + "/runs/" + receipt!.runId, "GET", undefined, AbortSignal.any([signal, q])),
         enabled: !!receipt,
         refetchInterval: (query) => (query.state.data?.state === "FINISHED" ? false : 2000),
     });
@@ -305,8 +277,7 @@ function PlanWorkspace({
             if (!signal.aborted) setBusy(false);
         }
     };
-    const refresh = () =>
-        cache.invalidateQueries({ queryKey: ["workspace", workspace.id, "plans"] });
+    const refresh = () => cache.invalidateQueries({ queryKey: ["workspace", workspace.id, "plans"] });
     const edit = (p: Plan | null) => {
         setEditing(p);
         setName(p?.name ?? "");
@@ -322,28 +293,15 @@ function PlanWorkspace({
     return (
         <>
             <p>{tx("计划只保存执行选择；定时由外部调度器调用 HTTP。 / Scheduling is external.")}</p>
-            <Link to="/runtimes">
-                {tx("设备登记、共享与凭证投递 / Runtime enrollment and permissions")}
-            </Link>
+            <Link to="/runtimes">{tx("设备登记、共享与凭证投递 / Runtime enrollment and permissions")}</Link>
             {(error || plans.error || runtimes.error || status.error) && (
-                <p role="alert">
-                    {error ||
-                        plans.error?.message ||
-                        runtimes.error?.message ||
-                        status.error?.message}
-                </p>
+                <p role="alert">{error || plans.error?.message || runtimes.error?.message || status.error?.message}</p>
             )}
             {plans.isPending && <p role="status">{tx("加载计划 / Loading plans…")}</p>}
-            {requestedPlanId && requested.isPending && (
-                <p role="status">{tx("加载计划 / Loading plans…")}</p>
-            )}
+            {requestedPlanId && requested.isPending && <p role="status">{tx("加载计划 / Loading plans…")}</p>}
             {requested.error && <p role="alert">{requested.error.message}</p>}
-            {plans.isSuccess && !rows.length && !requested.isFetching && (
-                <p>{tx("No execution plans yet.")}</p>
-            )}
-            {!canEdit && (
-                <p>{tx("Your role or the archived Workspace allows read-only plan access.")}</p>
-            )}
+            {plans.isSuccess && !rows.length && !requested.isFetching && <p>{tx("No execution plans yet.")}</p>}
+            {!canEdit && <p>{tx("Your role or the archived Workspace allows read-only plan access.")}</p>}
             {rows.map((p) => (
                 <section key={p.id} aria-label={p.name}>
                     <h2>{p.name}</h2>
@@ -413,8 +371,7 @@ function PlanWorkspace({
             {receipt && (
                 <section aria-label={tx("Trigger status")}>
                     <p>
-                        {receipt.decision} · {status.data?.state} · {status.data?.outcome} ·{" "}
-                        {status.data?.reasonCode}
+                        {receipt.decision} · {status.data?.state} · {status.data?.outcome} · {status.data?.reasonCode}
                     </p>
                     <Link to={`/reports?runId=${receipt.runId}&workspaceId=${workspace.id}`}>
                         {tx("运行报告 / Run report")}
@@ -523,9 +480,7 @@ function PlanWorkspace({
                                     checked={browsers.includes(b)}
                                     onChange={(e) =>
                                         setBrowsers(
-                                            e.target.checked
-                                                ? [...browsers, b]
-                                                : browsers.filter((v) => v !== b),
+                                            e.target.checked ? [...browsers, b] : browsers.filter((v) => v !== b),
                                         )
                                     }
                                 />
@@ -554,20 +509,13 @@ function PlanWorkspace({
                                 </label>
                             ))}
                         {runtimeIds
-                            .filter(
-                                (id) =>
-                                    !runtimes.data?.pages.some((p) =>
-                                        p.items.some((r) => r.id === id),
-                                    ),
-                            )
+                            .filter((id) => !runtimes.data?.pages.some((p) => p.items.some((r) => r.id === id)))
                             .map((id) => (
                                 <label key={id}>
                                     <input
                                         type="checkbox"
                                         checked
-                                        onChange={() =>
-                                            setRuntimeIds(runtimeIds.filter((v) => v !== id))
-                                        }
+                                        onChange={() => setRuntimeIds(runtimeIds.filter((v) => v !== id))}
                                     />
                                     {id}
                                 </label>
@@ -592,19 +540,14 @@ function PlanWorkspace({
                     </label>
                     <label>
                         {tx("整用例重试 / Case retries")}
-                        <select
-                            value={retries}
-                            onChange={(e) => setRetries(Number(e.target.value))}
-                        >
+                        <select value={retries} onChange={(e) => setRetries(Number(e.target.value))}>
                             <option value={0}>0</option>
                             <option value={1}>1</option>
                         </select>
                     </label>
                     <button
                         type="submit"
-                        disabled={
-                            busy || !suite || !environment || !runtimeIds.length || !browsers.length
-                        }
+                        disabled={busy || !suite || !environment || !runtimeIds.length || !browsers.length}
                     >
                         {tx("保存计划 / Save plan")}
                     </button>
@@ -616,11 +559,7 @@ function PlanWorkspace({
                 </form>
             )}
             {["OWNER", "ADMIN"].includes(workspace.role) && !workspace.archived && (
-                <ServiceAccounts
-                    workspace={workspace.id}
-                    plans={rows.filter((p) => !p.archived)}
-                    signal={signal}
-                />
+                <ServiceAccounts workspace={workspace.id} plans={rows.filter((p) => !p.archived)} signal={signal} />
             )}
         </>
     );
@@ -630,15 +569,7 @@ function PlanWorkspace({
  * 服务身份管理仅把一次性签发值留在本组件内存，关闭显示、切换账号或卸载即清除，分页缓存只保存账号和令牌元数据；签发用途
  * 分别限定维护操作、执行计划或短期设备登记，避免用途混用。
  */
-function ServiceAccounts({
-    workspace,
-    plans,
-    signal,
-}: {
-    workspace: string;
-    plans: Plan[];
-    signal: AbortSignal;
-}) {
+function ServiceAccounts({ workspace, plans, signal }: { workspace: string; plans: Plan[]; signal: AbortSignal }) {
     useAppLocale();
     const base = `/workspaces/${workspace}/service-accounts`,
         cache = useQueryClient();
@@ -666,11 +597,7 @@ function ServiceAccounts({
         queryKey: ["workspace", workspace, "service-tokens", account],
         queryFn: ({ pageParam, signal: q }) =>
             request<S["ServiceTokenPage"]>(
-                base +
-                    "/" +
-                    account +
-                    "/tokens" +
-                    (pageParam ? "?cursor=" + encodeURIComponent(pageParam) : ""),
+                base + "/" + account + "/tokens" + (pageParam ? "?cursor=" + encodeURIComponent(pageParam) : ""),
                 "GET",
                 undefined,
                 AbortSignal.any([signal, q]),
@@ -709,11 +636,9 @@ function ServiceAccounts({
                 <p>{tx("No service accounts yet.")}</p>
             )}
             {account && tokens.isPending && <p role="status">{tx("Loading tokens…")}</p>}
-            {account &&
-                tokens.isSuccess &&
-                !tokens.data.pages.some((page) => page.items.length) && (
-                    <p>{tx("No tokens issued for this account.")}</p>
-                )}
+            {account && tokens.isSuccess && !tokens.data.pages.some((page) => page.items.length) && (
+                <p>{tx("No tokens issued for this account.")}</p>
+            )}
             {(error || accounts.error || tokens.error) && (
                 <p role="alert">{error || accounts.error?.message || tokens.error?.message}</p>
             )}
@@ -721,12 +646,7 @@ function ServiceAccounts({
                 onSubmit={(e) => {
                     e.preventDefault();
                     void act(async () => {
-                        const created = await request<S["ServiceAccountDTO"]>(
-                            base,
-                            "POST",
-                            { name },
-                            signal,
-                        );
+                        const created = await request<S["ServiceAccountDTO"]>(base, "POST", { name }, signal);
                         if (!signal.aborted) {
                             setAccount(created.id);
                             setName("");
@@ -782,12 +702,7 @@ function ServiceAccounts({
                         disabled={busy}
                         onClick={() =>
                             void act(async () => {
-                                await request(
-                                    base + "/" + account + "/disable",
-                                    "POST",
-                                    {},
-                                    signal,
-                                );
+                                await request(base + "/" + account + "/disable", "POST", {}, signal);
                                 if (!signal.aborted) setAccount("");
                                 await accounts.refetch();
                             })
@@ -804,9 +719,7 @@ function ServiceAccounts({
                                     "POST",
                                     {
                                         purpose,
-                                        ...(purpose !== "RUNTIME_ENROLLMENT"
-                                            ? { operations: scopes }
-                                            : {}),
+                                        ...(purpose !== "RUNTIME_ENROLLMENT" ? { operations: scopes } : {}),
                                         ...(purpose === "EXECUTION" ? { planIds } : {}),
                                     },
                                     signal,
@@ -879,10 +792,8 @@ function ServiceAccounts({
                                 ))}
                                 <p>
                                     {tx(
-                                        (
-                                            "服务仅能使用自己拥有或所有者共享到空间的设备。 / Service-owned or " +
-                                            "explicitly Workspace-shared Runt"
-                                        ) +
+                                        "服务仅能使用自己拥有或所有者共享到空间的设备。 / Service-owned or " +
+                                            "explicitly Workspace-shared Runt" +
                                             "imes only.",
                                     )}
                                 </p>
@@ -901,11 +812,7 @@ function ServiceAccounts({
                     </form>
                     {secret && (
                         <section aria-label={tx("One-time token")}>
-                            <p>
-                                {tx(
-                                    "仅显示一次，请保存到 CI 秘密变量。 / Shown once; save in CI secrets.",
-                                )}
-                            </p>
+                            <p>{tx("仅显示一次，请保存到 CI 秘密变量。 / Shown once; save in CI secrets.")}</p>
                             <output>{secret}</output>
                             <button type="button" onClick={() => setSecret("")}>
                                 {tx("关闭令牌 / Dismiss token")}
@@ -917,8 +824,8 @@ function ServiceAccounts({
                         .map((t) => (
                             <article key={t.id}>
                                 <p>
-                                    {t.id} · {t.purpose} · {t.expiresAt} · {t.operations.join(", ")}{" "}
-                                    · {t.planIds.join(", ")}
+                                    {t.id} · {t.purpose} · {t.expiresAt} · {t.operations.join(", ")} ·{" "}
+                                    {t.planIds.join(", ")}
                                     {t.revoked && tx(" · revoked")}
                                     {t.consumed && tx(" · consumed")}
                                 </p>
@@ -929,12 +836,7 @@ function ServiceAccounts({
                                         onClick={() =>
                                             void act(async () => {
                                                 await request(
-                                                    base +
-                                                        "/" +
-                                                        account +
-                                                        "/tokens/" +
-                                                        t.id +
-                                                        "/revoke",
+                                                    base + "/" + account + "/tokens/" + t.id + "/revoke",
                                                     "POST",
                                                     {},
                                                     signal,

@@ -47,9 +47,7 @@ test("reports show real Workspace history and clear scope on switch", async ({ p
     await expect(page.getByText("No runs in this Workspace.", { exact: true })).toBeVisible();
     await page.getByTestId("report-workspace").selectOption((await b.json()).data.id);
     await expect(page.getByText("No runs in this Workspace.", { exact: true })).toBeVisible();
-    await expect(
-        page.getByText("Select a run to inspect its report.", { exact: true }),
-    ).toBeVisible();
+    await expect(page.getByText("Select a run to inspect its report.", { exact: true })).toBeVisible();
 });
 
 /**
@@ -79,9 +77,7 @@ async function reportSession(page: Page) {
     return { Origin: "http://127.0.0.1:5173", "X-CSRF-Token": session.csrfToken };
 }
 
-test("reports discover URL workspace on a later genuine page and retain manual choice", async ({
-    page,
-}) => {
+test("reports discover URL workspace on a later genuine page and retain manual choice", async ({ page }) => {
     test.setTimeout(90_000);
     const headers = await reportSession(page);
     for (let index = 0; index < 26; index += 1) {
@@ -95,8 +91,7 @@ test("reports discover URL workspace on a later genuine page and retain manual c
     const firstResponse = await page.request.get("/api/v1/workspaces");
     expect(firstResponse.status()).toBe(200);
     const first: WorkspacePage = (await firstResponse.json()).data;
-    if (!first.nextCursor || !first.items.length)
-        throw new Error("Expected genuine workspace pagination");
+    if (!first.nextCursor || !first.items.length) throw new Error("Expected genuine workspace pagination");
     const secondResponse = await page.request.get("/api/v1/workspaces", {
         params: { cursor: first.nextCursor },
     });

@@ -69,8 +69,7 @@ test("real private Secret Service lifecycle, prompt refusal and owned helper ter
     const records: Owned[] = [];
     const observations: VaultHelperObservation[] = [];
     const facts: Record<string, unknown> = {
-        acceptance:
-            "Owned private Secret Service; not desktop login or unattended production policy",
+        acceptance: "Owned private Secret Service; not desktop login or unattended production policy",
         root,
         observations,
     };
@@ -87,12 +86,7 @@ test("real private Secret Service lifecycle, prompt refusal and owned helper ter
         XDG_CONFIG_HOME: join(root, "config"),
         XDG_RUNTIME_DIR: join(root, "runtime"),
     };
-    for (const path of [
-        env.XDG_DATA_HOME!,
-        env.XDG_CONFIG_HOME!,
-        env.XDG_RUNTIME_DIR!,
-        join(root, "control"),
-    ])
+    for (const path of [env.XDG_DATA_HOME!, env.XDG_CONFIG_HOME!, env.XDG_RUNTIME_DIR!, join(root, "control")])
         await mkdir(path, { mode: 0o700 });
     const previous = new Map(
         Object.keys(env)
@@ -106,9 +100,7 @@ test("real private Secret Service lifecycle, prompt refusal and owned helper ter
             JSON.stringify(
                 {
                     roots: [root, fixture.root],
-                    processes: records
-                        .map((value) => value.identity)
-                        .filter((value) => value !== null),
+                    processes: records.map((value) => value.identity).filter((value) => value !== null),
                     identityIncomplete: records.some((value) => !value.identity && !value.exited),
                     incompletePids: records
                         .filter((value) => !value.identity && !value.exited)
@@ -191,8 +183,7 @@ test("real private Secret Service lifecycle, prompt refusal and owned helper ter
                 }
             }
             await ownership();
-            if (!owned.exited)
-                throw new AggregateError([error], "VAULT_FIXTURE_ACQUISITION_EXIT_UNCONFIRMED");
+            if (!owned.exited) throw new AggregateError([error], "VAULT_FIXTURE_ACQUISITION_EXIT_UNCONFIRMED");
             throw error;
         }
     };
@@ -230,8 +221,7 @@ test("real private Secret Service lifecycle, prompt refusal and owned helper ter
         observe: (value) => observations.push(value),
     });
     const signal = () => new AbortController().signal;
-    const ready = async () =>
-        until(async () => (await backend.probe(signal())).status === "ready", 10000);
+    const ready = async () => until(async () => (await backend.probe(signal())).status === "ready", 10000);
     const startDaemon = async (unlock: boolean) => {
         const owned = await start("/usr/bin/gnome-keyring-daemon", [
             "--foreground",
@@ -253,16 +243,11 @@ test("real private Secret Service lifecycle, prompt refusal and owned helper ter
                 `"/><allow eavesdrop="true"/></policy></busconfig>`,
             { mode: 0o600 },
         );
-        bus = await start("/usr/bin/dbus-daemon", [
-            "--nofork",
-            "--print-address=1",
-            `--config-file=${configuration}`,
-        ]);
+        bus = await start("/usr/bin/dbus-daemon", ["--nofork", "--print-address=1", `--config-file=${configuration}`]);
         await until(async () => bus!.output.includes("\n"));
         env.DBUS_SESSION_BUS_ADDRESS = bus.output.trim();
         assert.match(env.DBUS_SESSION_BUS_ADDRESS, /^unix:/);
-        for (const [name, value] of Object.entries(env))
-            if (name !== "HOME") process.env[name] = value;
+        for (const [name, value] of Object.entries(env)) if (name !== "HOME") process.env[name] = value;
         assert.equal(process.env.HOME, env.HOME);
         facts.environment = {
             realHomePreserved: true,
@@ -270,27 +255,13 @@ test("real private Secret Service lifecycle, prompt refusal and owned helper ter
             isolatedConfig: env.XDG_CONFIG_HOME,
             isolatedRuntime: env.XDG_RUNTIME_DIR,
         };
-        await t.test(
-            "production binary refuses test commands and malformed empty frames",
-            async () => {
-                for (const frame of [
-                    "V1 prompt\n",
-                    "V1 lock\n",
-                    `V1 shape ${scope.profileId} ${scope.keyVersion}\n`,
-                    "\n",
-                ])
-                    assert.equal(
-                        await direct(join(fixture.root, "native/vault/veriq_agent"), frame, 2),
-                        "",
-                    );
-            },
-        );
-        await t.test(
-            "service absence is unavailable on own bus without activation directories",
-            async () => {
-                assert.equal((await backend.probe(signal())).status, "unavailable");
-            },
-        );
+        await t.test("production binary refuses test commands and malformed empty frames", async () => {
+            for (const frame of ["V1 prompt\n", "V1 lock\n", `V1 shape ${scope.profileId} ${scope.keyVersion}\n`, "\n"])
+                assert.equal(await direct(join(fixture.root, "native/vault/veriq_agent"), frame, 2), "");
+        });
+        await t.test("service absence is unavailable on own bus without activation directories", async () => {
+            assert.equal((await backend.probe(signal())).status, "unavailable");
+        });
         daemon = await startDaemon(true);
         await ready();
         await t.test(
@@ -298,18 +269,12 @@ test("real private Secret Service lifecycle, prompt refusal and owned helper ter
             async () => {
                 assert.equal((await backend.get(scope, signal())).status, "missing");
                 assert.equal((await backend.set(scope, key, signal())).status, "ok");
-                const shape = await direct(
-                    driver,
-                    `V1 shape ${scope.profileId} ${scope.keyVersion}\n`,
-                );
+                const shape = await direct(driver, `V1 shape ${scope.profileId} ${scope.keyVersion}\n`);
                 facts.keyShape = { response: shape.trim(), separateTestBinary: true };
                 process.stdout.write("VAULT_KEY_SHAPE " + shape);
                 assert.match(shape, /^V1 key-shape 32 (octet-stream|text-plain)\n$/);
                 assert.equal((await backend.set(scope, Buffer.from(key), signal())).status, "ok");
-                assert.equal(
-                    (await backend.set(scope, randomBytes(32), signal())).status,
-                    "failed",
-                );
+                assert.equal((await backend.set(scope, randomBytes(32), signal())).status, "failed");
                 const result = await backend.get(scope, signal());
                 assert.equal(result.status, "ok");
                 if (result.status === "ok") assert(result.key.equals(key), "VAULT_KEY_MISMATCH");
@@ -324,8 +289,7 @@ test("real private Secret Service lifecycle, prompt refusal and owned helper ter
                 assert.equal((await backend.set(upper, key, signal())).status, "ok");
                 const upperResult = await backend.get(upper, signal());
                 assert.equal(upperResult.status, "ok");
-                if (upperResult.status === "ok")
-                    assert(upperResult.key.equals(key), "VAULT_KEY_MISMATCH");
+                if (upperResult.status === "ok") assert(upperResult.key.equals(key), "VAULT_KEY_MISMATCH");
                 assert.equal(
                     (
                         await backend.get(
@@ -360,63 +324,43 @@ test("real private Secret Service lifecycle, prompt refusal and owned helper ter
         const { SecretStore } = await import("../../src/credentials/store.ts");
         const { DeviceStore } = await import("../../src/enrollment.ts");
         const productionOptions = installedCredentials(fixture.distribution);
-        await t.test(
-            "production consumers migrate and persist through the verified formal OS helper",
-            async () => {
-                await new SecretStore(productionProfile).set(productionReference, {
-                    password: "synthetic-production-password",
-                });
-                await new DeviceStore(productionProfile).save(productionDevice);
-                await assert.rejects(
-                    new DeviceStore(productionProfile, productionOptions).load(),
-                    /VAULT_MIGRATION_REQUIRED/,
-                );
-                await new CredentialProfile(productionProfile, productionOptions).migrate();
-                assert.deepEqual(
-                    await new DeviceStore(productionProfile, productionOptions).load(),
-                    productionDevice,
-                );
-                assert.deepEqual(
-                    await new SecretStore(productionProfile, productionOptions).resolve(
-                        productionReference,
-                    ),
-                    { password: "synthetic-production-password" },
-                );
-                const members = await readdir(join(productionProfile, "vault"));
-                for (const name of members) {
-                    const wire = await readFile(join(productionProfile, "vault", name), "utf8");
-                    assert.equal(wire.includes("synthetic-production-password"), false);
-                    assert.equal(wire.includes(productionDevice.deviceToken), false);
-                }
-                facts.productionConsumers = {
-                    formalHelper: true,
-                    migrationReadback: true,
-                    ciphertextOnly: true,
-                };
-            },
-        );
-        await t.test(
-            "formal Secret Service explicitly recovers an empty missing-key initialization",
-            async () => {
-                const { verifyEmptyInitialization } = await import(
-                    "../fixtures/vault-initialization.ts"
-                );
-                facts.initializationRecovery = await verifyEmptyInitialization(
-                    join(root, "pending-profile"),
-                    productionOptions,
-                );
-            },
-        );
-        await t.test(
-            "formal Secret Service retires all credential purposes with exact missing readback",
-            async () => {
-                const { verifyCredentialDeletion } = await import("../fixtures/vault-deletion.ts");
-                facts.credentialDeletion = await verifyCredentialDeletion(
-                    join(root, "retired-profile"),
-                    productionOptions,
-                );
-            },
-        );
+        await t.test("production consumers migrate and persist through the verified formal OS helper", async () => {
+            await new SecretStore(productionProfile).set(productionReference, {
+                password: "synthetic-production-password",
+            });
+            await new DeviceStore(productionProfile).save(productionDevice);
+            await assert.rejects(
+                new DeviceStore(productionProfile, productionOptions).load(),
+                /VAULT_MIGRATION_REQUIRED/,
+            );
+            await new CredentialProfile(productionProfile, productionOptions).migrate();
+            assert.deepEqual(await new DeviceStore(productionProfile, productionOptions).load(), productionDevice);
+            assert.deepEqual(await new SecretStore(productionProfile, productionOptions).resolve(productionReference), {
+                password: "synthetic-production-password",
+            });
+            const members = await readdir(join(productionProfile, "vault"));
+            for (const name of members) {
+                const wire = await readFile(join(productionProfile, "vault", name), "utf8");
+                assert.equal(wire.includes("synthetic-production-password"), false);
+                assert.equal(wire.includes(productionDevice.deviceToken), false);
+            }
+            facts.productionConsumers = {
+                formalHelper: true,
+                migrationReadback: true,
+                ciphertextOnly: true,
+            };
+        });
+        await t.test("formal Secret Service explicitly recovers an empty missing-key initialization", async () => {
+            const { verifyEmptyInitialization } = await import("../fixtures/vault-initialization.ts");
+            facts.initializationRecovery = await verifyEmptyInitialization(
+                join(root, "pending-profile"),
+                productionOptions,
+            );
+        });
+        await t.test("formal Secret Service retires all credential purposes with exact missing readback", async () => {
+            const { verifyCredentialDeletion } = await import("../fixtures/vault-deletion.ts");
+            facts.credentialDeletion = await verifyCredentialDeletion(join(root, "retired-profile"), productionOptions);
+        });
         await t.test("real locked collection and prompt-producing unlock are refused", async () => {
             assert.equal(await direct(driver, "V1 lock\n"), "V1 ok\n");
             assert.equal((await backend.probe(signal())).status, "locked");
@@ -430,131 +374,105 @@ test("real private Secret Service lifecycle, prompt refusal and owned helper ter
                 separateTestBinary: true,
             };
         });
-        await t.test(
-            "nonempty password unlock and daemon restart preserve actual key material",
-            async () => {
-                await stop(daemon!);
-                daemon = await startDaemon(true);
-                await ready();
-                const result = await backend.get(scope, signal());
-                assert.equal(result.status, "ok");
-                if (result.status === "ok") assert(result.key.equals(key), "VAULT_KEY_MISMATCH");
-                facts.restart = {
-                    oldDaemonExited: true,
-                    newDaemon: daemon.identity,
-                    nonemptyPassword: true,
-                    sameKey: true,
-                };
-            },
-        );
-        await t.test(
-            "production profile reopens after the real password-protected daemon restart",
-            async () => {
-                const reopened = installedCredentials(fixture.distribution);
-                assert.deepEqual(
-                    await new SecretStore(productionProfile, reopened).resolve(productionReference),
-                    { password: "synthetic-production-password" },
-                );
-                assert.deepEqual(
-                    await new DeviceStore(productionProfile, reopened).load(),
-                    productionDevice,
-                );
-                await new DeviceStore(productionProfile, reopened).remove();
-                assert.deepEqual(
-                    await new SecretStore(productionProfile, reopened).resolve(productionReference),
-                    { password: "synthetic-production-password" },
-                );
-                await new SecretStore(productionProfile, reopened).clear();
-                facts.productionRestart = {
-                    sameValues: true,
-                    purposeIsolation: true,
-                    cleared: true,
-                };
-            },
-        );
-        await t.test(
-            "duplicate exact matches are refused without selecting or deleting either item",
-            async () => {
-                const duplicate = { profileId: randomUUID(), keyVersion: randomUUID() };
-                const frame =
-                    `V1 duplicate ${duplicate.profileId} ${duplicate.keyVersion} ` +
-                    `${randomBytes(32).toString("base64url")}\n`;
-                assert.equal(await direct(driver, frame), "V1 ok\n");
-                assert.equal(await direct(driver, frame), "V1 ok\n");
-                assert.equal((await backend.get(duplicate, signal())).status, "failed");
-                assert.equal((await backend.delete(duplicate, signal())).status, "failed");
-                assert.equal((await backend.get(scope, signal())).status, "ok");
-            },
-        );
-        await t.test(
-            "paused own daemon makes deadlines/cancellation bounded with real helper exits",
-            async () => {
-                assert.deepEqual(await identity(daemon!.identity.pid), daemon!.identity);
-                daemon!.child.kill("SIGSTOP");
-                try {
-                    const timed = new LinuxVaultBackend(fixture.distribution, {
-                        timeoutMs: 800,
-                        observe: (value) => observations.push(value),
-                    });
-                    const pending = timed.get(scope, signal());
-                    const known = new Set(records.map((value) => value.child.pid));
-                    let helperPid: number | undefined;
-                    await until(async () => {
-                        const children = (
-                            await readFile(
-                                `/proc/${process.pid}/task/${process.pid}/children`,
-                                "utf8",
-                            )
-                        )
-                            .trim()
-                            .split(/\s+/)
-                            .map(Number);
-                        for (const pid of children)
-                            if (pid && !known.has(pid)) {
-                                try {
-                                    if (
-                                        (await readlink(`/proc/${pid}/exe`)) ===
-                                        join(fixture.root, "native/vault/veriq_agent")
-                                    ) {
-                                        helperPid = pid;
-                                        return true;
-                                    }
-                                } catch (error) {
-                                    if (
-                                        !["ENOENT", "ESRCH"].includes(
-                                            (error as NodeJS.ErrnoException).code ?? "",
-                                        )
-                                    )
-                                        throw error;
+        await t.test("nonempty password unlock and daemon restart preserve actual key material", async () => {
+            await stop(daemon!);
+            daemon = await startDaemon(true);
+            await ready();
+            const result = await backend.get(scope, signal());
+            assert.equal(result.status, "ok");
+            if (result.status === "ok") assert(result.key.equals(key), "VAULT_KEY_MISMATCH");
+            facts.restart = {
+                oldDaemonExited: true,
+                newDaemon: daemon.identity,
+                nonemptyPassword: true,
+                sameKey: true,
+            };
+        });
+        await t.test("production profile reopens after the real password-protected daemon restart", async () => {
+            const reopened = installedCredentials(fixture.distribution);
+            assert.deepEqual(await new SecretStore(productionProfile, reopened).resolve(productionReference), {
+                password: "synthetic-production-password",
+            });
+            assert.deepEqual(await new DeviceStore(productionProfile, reopened).load(), productionDevice);
+            await new DeviceStore(productionProfile, reopened).remove();
+            assert.deepEqual(await new SecretStore(productionProfile, reopened).resolve(productionReference), {
+                password: "synthetic-production-password",
+            });
+            await new SecretStore(productionProfile, reopened).clear();
+            facts.productionRestart = {
+                sameValues: true,
+                purposeIsolation: true,
+                cleared: true,
+            };
+        });
+        await t.test("duplicate exact matches are refused without selecting or deleting either item", async () => {
+            const duplicate = { profileId: randomUUID(), keyVersion: randomUUID() };
+            const frame =
+                `V1 duplicate ${duplicate.profileId} ${duplicate.keyVersion} ` +
+                `${randomBytes(32).toString("base64url")}\n`;
+            assert.equal(await direct(driver, frame), "V1 ok\n");
+            assert.equal(await direct(driver, frame), "V1 ok\n");
+            assert.equal((await backend.get(duplicate, signal())).status, "failed");
+            assert.equal((await backend.delete(duplicate, signal())).status, "failed");
+            assert.equal((await backend.get(scope, signal())).status, "ok");
+        });
+        await t.test("paused own daemon makes deadlines/cancellation bounded with real helper exits", async () => {
+            assert.deepEqual(await identity(daemon!.identity.pid), daemon!.identity);
+            daemon!.child.kill("SIGSTOP");
+            try {
+                const timed = new LinuxVaultBackend(fixture.distribution, {
+                    timeoutMs: 800,
+                    observe: (value) => observations.push(value),
+                });
+                const pending = timed.get(scope, signal());
+                const known = new Set(records.map((value) => value.child.pid));
+                let helperPid: number | undefined;
+                await until(async () => {
+                    const children = (await readFile(`/proc/${process.pid}/task/${process.pid}/children`, "utf8"))
+                        .trim()
+                        .split(/\s+/)
+                        .map(Number);
+                    for (const pid of children)
+                        if (pid && !known.has(pid)) {
+                            try {
+                                if (
+                                    (await readlink(`/proc/${pid}/exe`)) ===
+                                    join(fixture.root, "native/vault/veriq_agent")
+                                ) {
+                                    helperPid = pid;
+                                    return true;
                                 }
+                            } catch (error) {
+                                if (!["ENOENT", "ESRCH"].includes((error as NodeJS.ErrnoException).code ?? ""))
+                                    throw error;
                             }
-                        return false;
-                    }, 500);
-                    facts.loadedHelper = {
-                        identity: await identity(helperPid!),
-                        comm: (await readFile(`/proc/${helperPid}/comm`, "utf8")).trim(),
-                        maps: await readFile(`/proc/${helperPid}/maps`, "utf8"),
-                    };
-                    assert.equal((await pending).status, "failed");
-                    const mutationScope = { ...scope, keyVersion: randomUUID() };
-                    assert.equal(
-                        (await timed.set(mutationScope, randomBytes(32), signal())).status,
-                        "mutation-unconfirmed",
-                    );
-                    const abort = new AbortController();
-                    const cancelled = backend.get(scope, abort.signal);
-                    setTimeout(() => abort.abort(), 100);
-                    assert.equal((await cancelled).status, "failed");
-                    assert.deepEqual(await identity(daemon!.identity.pid), daemon!.identity);
-                    daemon!.child.kill("SIGCONT");
-                    await ready();
-                    assert.equal((await backend.get(mutationScope, signal())).status, "missing");
-                    facts.uncertainReadback = "missing-after-resume; no automatic mutation retry";
-                } finally {
-                    if (!daemon!.exited) daemon!.child.kill("SIGCONT");
-                }
-            },
-        );
+                        }
+                    return false;
+                }, 500);
+                facts.loadedHelper = {
+                    identity: await identity(helperPid!),
+                    comm: (await readFile(`/proc/${helperPid}/comm`, "utf8")).trim(),
+                    maps: await readFile(`/proc/${helperPid}/maps`, "utf8"),
+                };
+                assert.equal((await pending).status, "failed");
+                const mutationScope = { ...scope, keyVersion: randomUUID() };
+                assert.equal(
+                    (await timed.set(mutationScope, randomBytes(32), signal())).status,
+                    "mutation-unconfirmed",
+                );
+                const abort = new AbortController();
+                const cancelled = backend.get(scope, abort.signal);
+                setTimeout(() => abort.abort(), 100);
+                assert.equal((await cancelled).status, "failed");
+                assert.deepEqual(await identity(daemon!.identity.pid), daemon!.identity);
+                daemon!.child.kill("SIGCONT");
+                await ready();
+                assert.equal((await backend.get(mutationScope, signal())).status, "missing");
+                facts.uncertainReadback = "missing-after-resume; no automatic mutation retry";
+            } finally {
+                if (!daemon!.exited) daemon!.child.kill("SIGCONT");
+            }
+        });
         await t.test("parent death terminates a real blocked native helper", async () => {
             daemon!.child.kill("SIGSTOP");
             const program = join(root, "parent.mjs");
@@ -580,12 +498,7 @@ test("real private Secret Service lifecycle, prompt refusal and owned helper ter
                         await readFile(`/proc/${pid}/stat`);
                         return false;
                     } catch (error) {
-                        if (
-                            ["ENOENT", "ESRCH"].includes(
-                                (error as NodeJS.ErrnoException).code ?? "",
-                            )
-                        )
-                            return true;
+                        if (["ENOENT", "ESRCH"].includes((error as NodeJS.ErrnoException).code ?? "")) return true;
                         throw error;
                     }
                 }, 3000);
@@ -603,20 +516,17 @@ test("real private Secret Service lifecycle, prompt refusal and owned helper ter
             }
             await ready();
         });
-        await t.test(
-            "delete is exact and service disappearance never becomes missing",
-            async () => {
-                assert.equal((await backend.delete(scope, signal())).status, "ok");
-                assert.equal((await backend.get(scope, signal())).status, "missing");
-                assert.equal((await backend.delete(scope, signal())).status, "missing");
-                for (const other of [otherProfile, otherVersion]) {
-                    assert.equal((await backend.get(other, signal())).status, "ok");
-                    assert.equal((await backend.delete(other, signal())).status, "ok");
-                }
-                await stop(daemon!);
-                assert.equal((await backend.get(scope, signal())).status, "unavailable");
-            },
-        );
+        await t.test("delete is exact and service disappearance never becomes missing", async () => {
+            assert.equal((await backend.delete(scope, signal())).status, "ok");
+            assert.equal((await backend.get(scope, signal())).status, "missing");
+            assert.equal((await backend.delete(scope, signal())).status, "missing");
+            for (const other of [otherProfile, otherVersion]) {
+                assert.equal((await backend.get(other, signal())).status, "ok");
+                assert.equal((await backend.delete(other, signal())).status, "ok");
+            }
+            await stop(daemon!);
+            assert.equal((await backend.get(scope, signal())).status, "unavailable");
+        });
         assert(observations.every((value) => value.exitConfirmed));
     } finally {
         for (const owned of [...records].reverse()) {
@@ -631,17 +541,7 @@ test("real private Secret Service lifecycle, prompt refusal and owned helper ter
             else process.env[name] = value;
         }
         facts.processes = records.map(
-            ({
-                child,
-                identity,
-                acquisitionFailed,
-                spawnFailed,
-                exited,
-                code,
-                signal,
-                outputBytes,
-                errorBytes,
-            }) => ({
+            ({ child, identity, acquisitionFailed, spawnFailed, exited, code, signal, outputBytes, errorBytes }) => ({
                 pid: child.pid,
                 identity,
                 acquisitionFailed,
@@ -657,15 +557,13 @@ test("real private Secret Service lifecycle, prompt refusal and owned helper ter
             allOwnedExited: records.every((value) => value.exited),
             error: cleanupError instanceof Error ? cleanupError.message : null,
         };
-        await writeFile(
-            join(evidence, "real-vault-observations.json"),
-            JSON.stringify(facts, null, 2) + "\n",
-            { mode: 0o600 },
-        );
+        await writeFile(join(evidence, "real-vault-observations.json"), JSON.stringify(facts, null, 2) + "\n", {
+            mode: 0o600,
+        });
         if (!cleanupError) {
             await fixture.cleanup();
             await rm(root, { recursive: true, force: true });
         }
-        if (cleanupError) throw cleanupError;
     }
+    if (cleanupError) throw cleanupError;
 });

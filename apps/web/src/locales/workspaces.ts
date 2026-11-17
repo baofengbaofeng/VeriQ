@@ -27,10 +27,7 @@ export const workspacesMessages: Record<string, readonly [string, string]> = {
     "Refresh Workspace": ["刷新工作区", "Refresh Workspace"],
     "Rename Workspace": ["重命名工作区", "Rename Workspace"],
     "Archive Workspace": ["归档工作区", "Archive Workspace"],
-    "Archived Workspaces are read-only.": [
-        "已归档的工作区为只读状态。",
-        "Archived Workspaces are read-only.",
-    ],
+    "Archived Workspaces are read-only.": ["已归档的工作区为只读状态。", "Archived Workspaces are read-only."],
     "Your role cannot manage this Workspace or its members.": [
         "您的角色不能管理此工作区或其成员。",
         "Your role cannot manage this Workspace or its members.",
@@ -39,11 +36,10 @@ export const workspacesMessages: Record<string, readonly [string, string]> = {
     "Retry members": ["重试成员列表", "Retry members"],
     "No members found.": ["没有找到成员。", "No members found."],
     "Invite a member": ["邀请成员", "Invite a member"],
-    "Links expire after seven days and can be used once. Existing accounts sign in with their own credentials.":
-        [
-            "链接七天后过期且仅可使用一次。已有账号请使用自己的凭证登录。",
-            "Links expire after seven days and can be used once. Existing accounts sign in with their own credentials.",
-        ],
+    "Links expire after seven days and can be used once. Existing accounts sign in with their own credentials.": [
+        "链接七天后过期且仅可使用一次。已有账号请使用自己的凭证登录。",
+        "Links expire after seven days and can be used once. Existing accounts sign in with their own credentials.",
+    ],
     Role: ["角色", "Role"],
     "Send by configured SMTP": ["通过已配置的 SMTP 发送", "Send by configured SMTP"],
     "Create invitation": ["创建邀请", "Create invitation"],
@@ -68,12 +64,11 @@ export const workspacesMessages: Record<string, readonly [string, string]> = {
         "请使用您的账号登录后打开工作区。",
         "Sign in with your account to open the Workspace.",
     ],
-    "Existing accounts must sign in as the invited identity. Invitations never change an existing account password.":
-        [
-            "已有账号必须以受邀请的身份登录。邀请不会修改已有账号的密码。",
-            "Existing accounts must sign in as the invited identity. Invitations never change an existing account pa" +
-                "ssword.",
-        ],
+    "Existing accounts must sign in as the invited identity. Invitations never change an existing account password.": [
+        "已有账号必须以受邀请的身份登录。邀请不会修改已有账号的密码。",
+        "Existing accounts must sign in as the invited identity. Invitations never change an existing account pa" +
+            "ssword.",
+    ],
     "Create a new account": ["创建新账号", "Create a new account"],
     "Accept as": ["接受身份", "Accept as"],
     ". Sign out first to use another account.": [

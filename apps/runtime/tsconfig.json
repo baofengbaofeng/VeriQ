@@ -1,7 +1,7 @@
 {
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "allowImportingTsExtensions": true
-  },
-  "include": ["src/**/*.ts", "tests/**/*.ts"]
+    "extends": "../../tsconfig.base.json",
+    "compilerOptions": {
+        "allowImportingTsExtensions": true
+    },
+    "include": ["src/**/*.ts", "tests/**/*.ts"]
 }

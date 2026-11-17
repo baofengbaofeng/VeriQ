@@ -60,10 +60,7 @@ export async function executeStep(plan: ResolvedStep, outer: StepContext): Promi
     const deferred: CompiledAssertion[] = [];
     let blocker: string | undefined;
     await ctx.onEvent?.({ type: "STEP_STARTED", stepId: s.id });
-    async function assertions(
-        items: CompiledAssertion[],
-        counts?: Map<string, number>,
-    ): Promise<void> {
+    async function assertions(items: CompiledAssertion[], counts?: Map<string, number>): Promise<void> {
         for (const item of items) {
             if (item.assertion.type === "requestCount" && !counts) {
                 deferred.push(item);
@@ -122,12 +119,8 @@ export async function executeStep(plan: ResolvedStep, outer: StepContext): Promi
             const spec = {
                 ...network,
                 path: stringBinding(network.path, ctx),
-                ...(network.queryMatch
-                    ? { queryMatch: binding(network.queryMatch, ctx) as JsonObject }
-                    : {}),
-                ...(network.bodyMatch
-                    ? { bodyMatch: binding(network.bodyMatch, ctx) as JsonObject }
-                    : {}),
+                ...(network.queryMatch ? { queryMatch: binding(network.queryMatch, ctx) as JsonObject } : {}),
+                ...(network.bodyMatch ? { bodyMatch: binding(network.bodyMatch, ctx) as JsonObject } : {}),
             };
             authorizedURL(spec.path, ctx.environment.apiBaseURL, ctx.environment.allowedOrigins);
             const h = armObserver(spec, {
@@ -161,14 +154,10 @@ export async function executeStep(plan: ResolvedStep, outer: StepContext): Promi
                 await interruptible(ctx, () => target!.click({ timeout }));
                 break;
             case "fill":
-                await interruptible(ctx, () =>
-                    target!.fill(stringBinding(s.value, ctx), { timeout }),
-                );
+                await interruptible(ctx, () => target!.fill(stringBinding(s.value, ctx), { timeout }));
                 break;
             case "press":
-                await interruptible(ctx, () =>
-                    target!.press(stringBinding(s.value, ctx), { timeout }),
-                );
+                await interruptible(ctx, () => target!.press(stringBinding(s.value, ctx), { timeout }));
                 break;
             case "check":
                 await interruptible(ctx, () => target!.check({ timeout }));
@@ -178,21 +167,14 @@ export async function executeStep(plan: ResolvedStep, outer: StepContext): Promi
                 break;
             case "selectOption": {
                 const value = binding(s.value, ctx);
-                if (
-                    typeof value !== "string" &&
-                    (!Array.isArray(value) || value.some((x) => typeof x !== "string"))
-                )
+                if (typeof value !== "string" && (!Array.isArray(value) || value.some((x) => typeof x !== "string")))
                     throw new Error("BINDING_TYPE_MISMATCH");
-                await interruptible(ctx, () =>
-                    target!.selectOption(value as string | string[], { timeout }),
-                );
+                await interruptible(ctx, () => target!.selectOption(value as string | string[], { timeout }));
                 break;
             }
             case "upload":
                 if (!ctx.files) throw new Error("FILE_PROVIDER_REQUIRED");
-                await interruptible(ctx, async () =>
-                    target!.setInputFiles(await ctx.files!(s.value), { timeout }),
-                );
+                await interruptible(ctx, async () => target!.setInputFiles(await ctx.files!(s.value), { timeout }));
                 break;
             case "apiRequest": {
                 const headers = Object.fromEntries(
@@ -231,9 +213,7 @@ export async function executeStep(plan: ResolvedStep, outer: StepContext): Promi
                     if (r.status !== "PASSED") {
                         result.status = r.status;
                         if (child.step.failurePolicy !== "CONTINUE") {
-                            for (const remaining of plan.children.slice(
-                                plan.children.indexOf(child) + 1,
-                            ))
+                            for (const remaining of plan.children.slice(plan.children.indexOf(child) + 1))
                                 await skipStep(remaining, ctx, child.step.id);
                             throw new Error("CHILD_STEP_FAILED");
                         }
@@ -260,8 +240,7 @@ export async function executeStep(plan: ResolvedStep, outer: StepContext): Promi
             });
         }
         await assertions(plan.responseAssertions);
-        if (result.assertions.some((a) => a.status === "FAILED"))
-            throw new Error("RESPONSE_ASSERTION_FAILED");
+        if (result.assertions.some((a) => a.status === "FAILED")) throw new Error("RESPONSE_ASSERTION_FAILED");
         const extracted: JsonObject = {};
         for (const extraction of s.extract ?? []) {
             const x = await interruptible(ctx, () => exchange(extraction.source, ctx));
@@ -275,8 +254,7 @@ export async function executeStep(plan: ResolvedStep, outer: StepContext): Promi
                 delete ctx.vars[extraction.to];
                 continue;
             }
-            if (!accepts(extraction.valueType, valueType(found.value)))
-                throw new Error("EXTRACTION_TYPE_MISMATCH");
+            if (!accepts(extraction.valueType, valueType(found.value))) throw new Error("EXTRACTION_TYPE_MISMATCH");
             extracted[extraction.to] = found.value;
         }
         Object.assign(ctx.vars, extracted);
@@ -286,10 +264,7 @@ export async function executeStep(plan: ResolvedStep, outer: StepContext): Promi
             result.observers.push(observed);
             await ctx.onEvent?.({ type: "OBSERVER_RESULT", stepId: s.id, result: observed });
         }
-        await assertions(
-            deferred,
-            new Map(result.observers.map((o) => [o.observerId, o.matchedCount])),
-        );
+        await assertions(deferred, new Map(result.observers.map((o) => [o.observerId, o.matchedCount])));
         for (const handle of eventHandles) await interruptible(ctx, () => handle.finalize());
         if (unexpected) throw new Error("UNEXPECTED_DIALOG");
     } catch (e) {
@@ -381,6 +356,5 @@ export async function skipStep(
             ...(blockedByAssertionId ? { blockedByAssertionId } : {}),
         },
     });
-    for (const child of plan.children ?? [])
-        await skipStep(child, ctx, blockedByStepId, blockedByAssertionId);
+    for (const child of plan.children ?? []) await skipStep(child, ctx, blockedByStepId, blockedByAssertionId);
 }

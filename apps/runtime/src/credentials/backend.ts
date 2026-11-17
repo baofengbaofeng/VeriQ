@@ -19,20 +19,14 @@ export type VaultBackendFailure = { status: "missing" | "locked" | "unavailable"
  * 系统修改操作若在服务接受后失去完成证据必须报告不确定，调用方不能假称回滚或盲目重试；后续恢复流程需要按同一档案和密钥
  * 版本核验实际状态，再决定继续提交或保留日志。
  */
-export type VaultMutationResult =
-    | { status: "ok" }
-    | VaultBackendFailure
-    | { status: "mutation-unconfirmed" };
+export type VaultMutationResult = { status: "ok" } | VaultBackendFailure | { status: "mutation-unconfirmed" };
 
 /**
  * 有限异步后端仅保存三十二字节随机密钥，读取交付独立拥有的字节副本且写入不得修改调用方缓冲区；每次调用接受取消信号并由
  * 适配器执行有界等待，不隐式解锁或打开交互提示。
  */
 export interface VaultKeyBackend {
-    get(
-        scope: VaultKeyScope,
-        signal: AbortSignal,
-    ): Promise<{ status: "ok"; key: Buffer } | VaultBackendFailure>;
+    get(scope: VaultKeyScope, signal: AbortSignal): Promise<{ status: "ok"; key: Buffer } | VaultBackendFailure>;
     set(scope: VaultKeyScope, key: Buffer, signal: AbortSignal): Promise<VaultMutationResult>;
     delete(scope: VaultKeyScope, signal: AbortSignal): Promise<VaultMutationResult>;
     probe(signal: AbortSignal): Promise<{ status: "ready" } | VaultBackendFailure>;

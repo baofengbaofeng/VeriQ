@@ -12,8 +12,7 @@ it("reports live starts and actual assertion/observer facts before the step fini
             ...f.options,
             onEvent: async (event: { type: string; stepId: string }) => {
                 facts.push(event);
-                if (event.type === "STEP_STARTED")
-                    expect(f.requests.filter((r) => r.path === "/save")).toHaveLength(0);
+                if (event.type === "STEP_STARTED") expect(f.requests.filter((r) => r.path === "/save")).toHaveLength(0);
             },
         });
         const plan = step({ id: "write", action: "apiRequest", method: "POST", path: "/save" }, [

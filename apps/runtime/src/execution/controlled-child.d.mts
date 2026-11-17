@@ -60,7 +60,10 @@ export type ControlledChildResult =
  * authorizeCancellation 只在本次观察尚未终结且对象仍存活时接受相同绑定。无效结构、代际不符或关闭窗口均抛出
  * CONTROLLED_CHILD_CANCELLATION_REJECTED。
  */
-export function trackObservedCli(child: ChildProcess, options: ObservedCliOptions): {
+export function trackObservedCli(
+    child: ChildProcess,
+    options: ObservedCliOptions,
+): {
     /**
      * 退出观察区分真实 exit 与超时或 error 等失败，借入描述符仍由调用方在实际退出后关闭；消费者不得把 promise
      * 已完成直接解释为可释放进程容量的证明。

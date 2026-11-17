@@ -13,9 +13,7 @@ describe("RFC8785 cross-language known vectors", () => {
 });
 
 it("source identity is stable across validation and publication adoption", () => {
-    expect(createHash("sha256").update(assetSourceBytes(source.snapshot)).digest("hex")).toBe(
-        source.sha256,
-    );
+    expect(createHash("sha256").update(assetSourceBytes(source.snapshot)).digest("hex")).toBe(source.sha256);
     const { validationTarget: _, ...published } = source.snapshot;
     expect(assetSourceBytes(published)).toEqual(assetSourceBytes(source.snapshot));
     expect(assetSourceBytes({ ...source.snapshot, sourceHash: "f".repeat(64) })).toEqual(

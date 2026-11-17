@@ -51,11 +51,8 @@ export async function readDesktopRelease(resources: string): Promise<DesktopRele
     if ((await realpath(root)) !== root) throw new Error("DESKTOP_RELEASE_PATH_INVALID");
     const file = join(root, "desktop-release.json");
     const info = await lstat(file);
-    if (!info.isFile() || info.isSymbolicLink() || info.size > 1024 * 1024)
-        throw new Error("DESKTOP_RELEASE_INVALID");
-    return parseDesktopRelease(
-        JSON.parse((await readBoundedRegularFile(file, 1024 * 1024)).toString("utf8")),
-    );
+    if (!info.isFile() || info.isSymbolicLink() || info.size > 1024 * 1024) throw new Error("DESKTOP_RELEASE_INVALID");
+    return parseDesktopRelease(JSON.parse((await readBoundedRegularFile(file, 1024 * 1024)).toString("utf8")));
 }
 
 /**
@@ -65,8 +62,7 @@ export async function readDesktopRelease(resources: string): Promise<DesktopRele
  * loadDesktopRuntime 在装载时检查。
  */
 export function parseDesktopRelease(input: unknown): DesktopRelease {
-    if (!input || typeof input !== "object" || Array.isArray(input))
-        throw new Error("DESKTOP_RELEASE_INVALID");
+    if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("DESKTOP_RELEASE_INVALID");
     const release = input as DesktopRelease;
     const version = /^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$/;
     const hash = /^[0-9a-f]{64}$/;
@@ -121,10 +117,7 @@ export async function loadDesktopRuntime(runtimeRoot: string): Promise<RuntimeDi
         return loadMacRuntimeDistribution(runtimeRoot, { ...trusted, layout: trusted.layout });
     }
     const { createHash } = await import("node:crypto");
-    const bytes = await readBoundedRegularFile(
-        join(runtimeRoot, "runtime-manifest.json"),
-        1024 * 1024,
-    );
+    const bytes = await readBoundedRegularFile(join(runtimeRoot, "runtime-manifest.json"), 1024 * 1024);
     if (
         bytes.length > 1024 * 1024 ||
         createHash("sha256").update(bytes).digest("hex") !== release.trustedRuntime.manifestSha256

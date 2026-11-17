@@ -113,14 +113,9 @@ test("Unavailable storage stops before encryption", async () => {
 test("Native errors at every OS stage are sanitized including policy-like text", async () => {
     for (const platform of ["darwin", "win32", "linux"] as const) {
         const stages =
-            platform === "linux"
-                ? ["available", "backend", "encrypt", "decrypt"]
-                : ["available", "encrypt", "decrypt"];
+            platform === "linux" ? ["available", "backend", "encrypt", "decrypt"] : ["available", "encrypt", "decrypt"];
         for (const stage of stages) {
-            for (const message of [
-                "PRIVATE_NATIVE_ACCOUNT_PATH",
-                "COOKIE_OS_PROTECTION_REQUIRED",
-            ]) {
+            for (const message of ["PRIVATE_NATIVE_ACCOUNT_PATH", "COOKIE_OS_PROTECTION_REQUIRED"]) {
                 const { safe } = storage(platform === "linux" ? "v11" : "v10");
                 safe.getSelectedStorageBackend = () => "gnome_libsecret";
                 const fail = () => {
@@ -143,8 +138,7 @@ test("Darwin rejects mismatched plaintext or any re-encryption request", async (
         { result: publicProbe, shouldReEncrypt: undefined },
     ]) {
         const { safe } = storage();
-        safe.decryptStringAsync = async () =>
-            decoded as { result: string; shouldReEncrypt: boolean };
+        safe.decryptStringAsync = async () => decoded as { result: string; shouldReEncrypt: boolean };
         await assert.rejects(probeCookieProvider(safe, "darwin"), required);
     }
 });

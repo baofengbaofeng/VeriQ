@@ -1,21 +1,11 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import {
-    chmod,
-    link,
-    lstat,
-    mkdir,
-    mkdtemp,
-    readFile,
-    readdir,
-    rm,
-    symlink,
-    writeFile,
-} from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { chmod, link, lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import {
     admitEntryRun,
     selectGitInventory,
@@ -92,13 +82,11 @@ test("native admission accepts only the full reviewed manual dual Mac input", ()
         assert.throws(() => admitEntryRun({ ...admitted, ...patch }), /ENTRY_ADMISSION/);
 });
 
-test("Git selection includes every regular source and only the three named executable exclusions", () => {
+test("Git selection preserves regular sources and the original three executable exclusions", () => {
     const raw = Buffer.from(
         gitRecord("100644", "package.json") +
             gitRecord("100644", "apps/a.ts") +
-            ["build.sh", "deploy/install.sh", "deploy/start.sh"]
-                .map((p) => gitRecord("100755", p))
-                .join(""),
+            ["build.sh", "deploy/install.sh", "deploy/start.sh"].map((p) => gitRecord("100755", p)).join(""),
     );
     const result = selectGitInventory(raw);
     assert.deepEqual(
@@ -116,6 +104,65 @@ test("Git selection includes every regular source and only the three named execu
         gitRecord("100644", "x") + gitRecord("100644", "x"),
     ])
         assert.throws(() => selectGitInventory(Buffer.from(bad)), /ENTRY_GIT/);
+});
+
+// 六个固定脚本只保留提交元数据而不进入来源正文，尤其新增安装钩子不得扩大到邻近路径；独立列出期望路径，避免测试跟随实现
+// 的允许集合一起漂移，也不执行任何脚本正文或改写提交模式。
+test("Git selection excludes exactly the six approved scripts while retaining their identities", () => {
+    const paths = [
+        "build.sh",
+        "deploy/desktop/linux/before-install.sh",
+        "deploy/desktop/linux/before-remove.sh",
+        "deploy/desktop/macos/scripts/preinstall",
+        "deploy/install.sh",
+        "deploy/start.sh",
+    ];
+    const raw = Buffer.from(gitRecord("100644", "apps/a.ts") + paths.map((path) => gitRecord("100755", path)).join(""));
+    const result = selectGitInventory(raw);
+    assert.deepEqual(result.selected, [{ path: "apps/a.ts", mode: "100644", gitBlob: "b".repeat(40) }]);
+    assert.deepEqual(
+        result.excluded,
+        paths.map((path) => ({ path, mode: "100755", gitBlob: "b".repeat(40), reason: "TRACKED_EXECUTABLE" })),
+    );
+    for (const row of [
+        gitRecord("100755", "deploy/desktop/linux/after-install.sh"),
+        gitRecord("100755", "deploy/desktop/macos/scripts/postinstall"),
+        gitRecord("120000", "deploy/desktop/macos/scripts/preinstall"),
+        gitRecord("160000", "deploy/desktop/linux/hooks"),
+        gitRecord("100755", "deploy/desktop/linux/before-install.sh"),
+        gitRecord("100644", "deploy/Desktop/other.ts"),
+    ])
+        assert.throws(() => selectGitInventory(Buffer.concat([raw, Buffer.from(row)])), /ENTRY_GIT/);
+});
+
+// 真实 HEAD 提交树覆盖安装钩子集成后的阻塞，只读取有界 Git 元数据；不接受脏工作区正文、不触发入口构建，也不能
+// 用可通过的微型清单替代当前来源树仍会被拒绝的事实。
+test("actual HEAD Git inventory admits all six approved executable exclusions", () => {
+    const raw = execFileSync("/usr/bin/git", ["ls-tree", "-r", "-z", "HEAD"], {
+        cwd: fileURLToPath(new URL("../../../", import.meta.url)),
+        timeout: 5000,
+        maxBuffer: 4 * 1024 ** 2,
+    });
+    const result = selectGitInventory(raw);
+    assert.deepEqual(
+        result.excluded.map((row) => row.path),
+        [
+            "build.sh",
+            "deploy/desktop/linux/before-install.sh",
+            "deploy/desktop/linux/before-remove.sh",
+            "deploy/desktop/macos/scripts/preinstall",
+            "deploy/install.sh",
+            "deploy/start.sh",
+        ],
+    );
+    assert.ok(result.selected.length > 0);
+    assert.equal(result.selected.length + result.excluded.length, raw.toString().split("\0").length - 1);
+    for (const row of result.excluded) {
+        assert.equal(row.mode, "100755");
+        assert.equal(row.reason, "TRACKED_EXECUTABLE");
+        assert.match(row.gitBlob, /^[a-f0-9]{40}$/);
+        assert.ok(raw.includes(Buffer.from(`${row.mode} blob ${row.gitBlob}\t${row.path}\0`)));
+    }
 });
 
 test("physical source admission rejects private modes links and altered bytes without rewriting", async () =>
@@ -184,10 +231,7 @@ test("metadata rejects mismatched held bytes duplicate Refs and oversized JSON b
     fixture(async (root) => {
         const bytes = Buffer.from("{}"),
             ref = reference("input-evidence/source.json", bytes);
-        await assert.rejects(
-            sealMetadata(join(root, "bad"), [{ ref, bytes: Buffer.from("[]") }]),
-            /ENTRY_METADATA/,
-        );
+        await assert.rejects(sealMetadata(join(root, "bad"), [{ ref, bytes: Buffer.from("[]") }]), /ENTRY_METADATA/);
         await assert.rejects(
             sealMetadata(join(root, "duplicate"), [
                 { ref, bytes },
@@ -332,9 +376,7 @@ test("successful real direct child settles before final verification and owned c
 // 算法或生产器夹具，也不把这些 Linux 控制器断言作为 Mac 构建证据。
 test("real TypeScript config tooling rejects unbound or external extends", async () =>
     fixture(async (root) => {
-        const { qualifyTypeScriptConfigs } = await import(
-            "../../../.github/scripts/runtime-entries.mjs"
-        );
+        const { qualifyTypeScriptConfigs } = await import("../../../.github/scripts/runtime-entries.mjs");
         const ts = (await import("../node_modules/typescript/lib/typescript.js")).default;
         const base = Buffer.from('{"compilerOptions":{"strict":true}}'),
             config = Buffer.from('{"extends":"./base.json","files":[]}');
@@ -346,10 +388,7 @@ test("real TypeScript config tooling rejects unbound or external extends", async
         assert.throws(() => qualifyTypeScriptConfigs(root, refs.slice(1), ts), /ENTRY_CONFIG/);
         const external = Buffer.from('{"extends":"/etc/hosts","files":[]}');
         await writeFile(join(root, "tsconfig.json"), external);
-        assert.throws(
-            () => qualifyTypeScriptConfigs(root, [reference("tsconfig.json", external)], ts),
-            /ENTRY_CONFIG/,
-        );
+        assert.throws(() => qualifyTypeScriptConfigs(root, [reference("tsconfig.json", external)], ts), /ENTRY_CONFIG/);
     }));
 
 test("clean launch rejects ambient injection and pins production mode before loader registration", async () => {
@@ -444,17 +483,14 @@ test("initial environment diagnostic separates unknown names and both fixed flag
             return error;
         }
     };
-    assert.deepEqual(
-        reject({ ...valid, VITE_SECRET: "SYNTHETIC_VALUE_MUST_NOT_APPEAR" }).diagnostic,
-        {
-            phase: "INITIAL",
-            unexpectedNamePresent: true,
-            productionModeMatch: true,
-            compileCacheDisabled: true,
-            unexpectedNameCount: 1,
-            unexpectedNames: ["VITE_SECRET"],
-        },
-    );
+    assert.deepEqual(reject({ ...valid, VITE_SECRET: "SYNTHETIC_VALUE_MUST_NOT_APPEAR" }).diagnostic, {
+        phase: "INITIAL",
+        unexpectedNamePresent: true,
+        productionModeMatch: true,
+        compileCacheDisabled: true,
+        unexpectedNameCount: 1,
+        unexpectedNames: ["VITE_SECRET"],
+    });
     for (const [key, value, productionModeMatch, compileCacheDisabled] of [
         ["NODE_ENV", "development", false, true],
         ["NODE_ENV", undefined, false, true],
@@ -503,9 +539,7 @@ test("environment diagnostic sanitizes empty malicious and overlong key names wi
             const serialized = JSON.stringify(value);
             assert.ok(Buffer.byteLength(serialized) <= 4096);
             assert.ok(!serialized.includes(sentinel));
-            assert.ok(
-                value.unexpectedNames.every((name) => /^[A-Za-z_][A-Za-z0-9_]{0,95}$/.test(name)),
-            );
+            assert.ok(value.unexpectedNames.every((name) => /^[A-Za-z_][A-Za-z0-9_]{0,95}$/.test(name)));
             return true;
         },
     );
@@ -536,9 +570,7 @@ test("environment diagnostic limits output to sixteen sorted names and four KiB"
                     .map((key) => key.slice(0, 96)),
             );
             assert.ok(Buffer.byteLength(JSON.stringify(error.diagnostic)) <= 4096);
-            assert.ok(
-                !JSON.stringify(error.diagnostic).includes("SYNTHETIC_VALUE_MUST_NOT_APPEAR"),
-            );
+            assert.ok(!JSON.stringify(error.diagnostic).includes("SYNTHETIC_VALUE_MUST_NOT_APPEAR"));
             return true;
         },
     );
@@ -604,9 +636,7 @@ test("actual CLI environment diagnostic preserves exit one and never prints the 
         assert.ok(Buffer.byteLength(output) <= 4096);
         assert.ok(!output.includes(sentinel));
         assert.match(output, /Entry CI failed: ENTRY_ENVIRONMENT/);
-        const line = output
-            .split("\n")
-            .find((value) => value.startsWith("Entry environment rejection: "));
+        const line = output.split("\n").find((value) => value.startsWith("Entry environment rejection: "));
         assert.ok(line);
         const diagnostic = JSON.parse(line.slice("Entry environment rejection: ".length));
         assert.equal(diagnostic.phase, "INITIAL");

@@ -21,21 +21,13 @@ import { Auth } from "../../auth-context";
 import { api } from "../../api";
 import { Panel } from "../../ui";
 import { useWorkspace } from "../workspaces/WorkspaceContext";
-import {
-    CloudReportAdapter,
-    type ReportAdapter,
-    type RunReport,
-    type ReportEvent,
-} from "./adapters";
+import { CloudReportAdapter, type ReportAdapter, type RunReport, type ReportEvent } from "./adapters";
 import { reportI18n } from "./i18n";
 import "./reports.css";
 const useLabels = () => useTranslation("reports", { i18n: reportI18n }).t;
-const shown = (value: unknown) =>
-    typeof value === "string" ? value : JSON.stringify(value ?? null, null, 2);
+const shown = (value: unknown) => (typeof value === "string" ? value : JSON.stringify(value ?? null, null, 2));
 const object = (value: unknown): Record<string, unknown> =>
-    value !== null && typeof value === "object" && !Array.isArray(value)
-        ? (value as Record<string, unknown>)
-        : {};
+    value !== null && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 /**
  * 工作区选择与默认首项逻辑；把 adapter 交给 ReportWorkspaceView。未登录直接 Navigate 登录页。不缓存所选 runId 跨空间，
  * 防止串读其他空间报告。
@@ -139,8 +131,7 @@ export function ReportWorkspaceView({
         [selected, setSelected] = useState(initialRunId);
     const runs = useInfiniteQuery({
         queryKey: ["workspace", "reports", adapter],
-        queryFn: ({ pageParam, signal: s }) =>
-            adapter.list(pageParam, signal ? AbortSignal.any([s, signal]) : s),
+        queryFn: ({ pageParam, signal: s }) => adapter.list(pageParam, signal ? AbortSignal.any([s, signal]) : s),
         initialPageParam: undefined as string | undefined,
         getNextPageParam: (p) => p.nextCursor ?? undefined,
     });
@@ -166,18 +157,14 @@ export function ReportWorkspaceView({
                 {items.map((run) => (
                     <li key={run.id}>
                         <button type="button" onClick={() => setSelected(run.id)}>
-                            {new Date(run.createdAt).toLocaleString()} · {run.source} · {run.state}{" "}
-                            · {run.outcome ?? tx("Pending")}
+                            {new Date(run.createdAt).toLocaleString()} · {run.source} · {run.state} ·{" "}
+                            {run.outcome ?? tx("Pending")}
                         </button>
                     </li>
                 ))}
             </ul>
             {runs.hasNextPage && (
-                <button
-                    type="button"
-                    disabled={runs.isFetchingNextPage}
-                    onClick={() => void runs.fetchNextPage()}
-                >
+                <button type="button" disabled={runs.isFetchingNextPage} onClick={() => void runs.fetchNextPage()}>
                     {t("moreRuns")}
                 </button>
             )}
@@ -198,8 +185,7 @@ export function ReportWorkspaceView({
                 <ul>
                     {audit.data?.items.map((item) => (
                         <li key={item.id}>
-                            {item.createdAt} · {item.action} · {item.actorId ?? tx("Service")} ·{" "}
-                            {item.targetId}
+                            {item.createdAt} · {item.action} · {item.actorId ?? tx("Service")} · {item.targetId}
                         </li>
                     ))}
                 </ul>
@@ -271,25 +257,18 @@ export function ReportView({
                     {report.run.outcome ?? report.run.state} · {report.run.source}
                 </h2>
                 <p data-testid="report-gates">
-                    {t("gateAt")}:{" "}
-                    <strong>{report.gateAtExecution.passed ? "PASS" : "BLOCKED"}</strong> ·{" "}
+                    {t("gateAt")}: <strong>{report.gateAtExecution.passed ? "PASS" : "BLOCKED"}</strong> ·{" "}
                     {t("gateNow")}: <strong>{report.gateNow.passed ? "PASS" : "BLOCKED"}</strong>
                 </p>
                 {!report.gateNow.passed && <p>{report.gateNow.reasons.join(", ")}</p>}
                 <p>
-                    {t("cases")}: {report.statistics.caseCount} · {t("firstPass")}:{" "}
-                    {report.statistics.firstPassCount} · {t("retryPass")}:{" "}
-                    {report.statistics.retryPassCount} · {t("infra")}:{" "}
-                    {report.statistics.infrastructureErrorCount}
+                    {`${t("cases")}: ${report.statistics.caseCount} · ` +
+                        `${t("firstPass")}: ${report.statistics.firstPassCount} · ` +
+                        `${t("retryPass")}: ${report.statistics.retryPassCount} · ${t("infra")}: ` +
+                        `${report.statistics.infrastructureErrorCount}`}
                 </p>
                 {report.cases.slice(0, caseLimit).map((c) => (
-                    <CaseCard
-                        key={c.id}
-                        value={c}
-                        runId={runId}
-                        adapter={adapter}
-                        choose={setAttempt}
-                    />
+                    <CaseCard key={c.id} value={c} runId={runId} adapter={adapter} choose={setAttempt} />
                 ))}
                 {report.cases.length > caseLimit && (
                     <button type="button" onClick={() => setCaseLimit((n) => n + 25)}>
@@ -402,8 +381,7 @@ function CaseCard({
             {metadata.data && (
                 <p>
                     {t("environment")}: {metadata.data.environment.browser ?? "—"} ·{" "}
-                    {metadata.data.environment.baseURL ?? "—"} ·{" "}
-                    {metadata.data.environment.locale ?? "—"} /{" "}
+                    {metadata.data.environment.baseURL ?? "—"} · {metadata.data.environment.locale ?? "—"} /{" "}
                     {metadata.data.environment.timezone ?? "—"}
                 </p>
             )}
@@ -415,19 +393,14 @@ function CaseCard({
                     </button>
                     <p>
                         {t("business")}: {shown(a.facts.business ?? "UNKNOWN")} · {t("cleanup")}:{" "}
-                        {shown(a.facts.cleanup ?? "UNKNOWN")} · {t("evidence")}:{" "}
-                        {shown(a.facts.evidence ?? "UNKNOWN")}
+                        {shown(a.facts.cleanup ?? "UNKNOWN")} · {t("evidence")}: {shown(a.facts.evidence ?? "UNKNOWN")}
                     </p>
                     {a.activatedAt && a.finishedAt && (
                         <p>
-                            {t("duration")}:{" "}
-                            {new Date(a.finishedAt).getTime() - new Date(a.activatedAt).getTime()}{" "}
-                            ms
+                            {t("duration")}: {new Date(a.finishedAt).getTime() - new Date(a.activatedAt).getTime()} ms
                         </p>
                     )}
-                    {typeof a.facts.errorCode === "string" && (
-                        <p role="status">{a.facts.errorCode}</p>
-                    )}
+                    {typeof a.facts.errorCode === "string" && <p role="status">{a.facts.errorCode}</p>}
                     {a.compensations.length > 0 && (
                         <p>
                             {t("compensation")}:{" "}
@@ -497,8 +470,7 @@ function AttemptDetails({
     });
     const metadata = useQuery({
         queryKey: ["workspace", "report-display", adapter, runId, attemptId],
-        queryFn: ({ signal }) =>
-            adapter.display(runId, attemptId, AbortSignal.any([signal, active])),
+        queryFn: ({ signal }) => adapter.display(runId, attemptId, AbortSignal.any([signal, active])),
     });
     const cursor = useRef(0);
     // 游标只供下一次显式加载读取，推进它不触发额外请求；并发响应仍按 sequence 合并且游标单调前进，既不自动排空分页，也
@@ -533,17 +505,14 @@ function AttemptDetails({
             )}
             <ol className="report-steps">
                 {display?.steps.map((step) => {
-                    const finish = events.find(
-                            (e) => e.type === "STEP_FINISHED" && e.stepId === step.id,
-                        ),
+                    const finish = events.find((e) => e.type === "STEP_FINISHED" && e.stepId === step.id),
                         payload = object(finish?.payload);
                     const parent = display.steps.find((s) => s.id === step.parentId);
                     return (
                         <li key={step.id}>
                             <h4>
                                 {parent ? parent.sourceId + " / " : ""}
-                                {step.sourceId} · {step.action} ·{" "}
-                                {shown(payload.status ?? t("noResult"))}
+                                {step.sourceId} · {step.action} · {shown(payload.status ?? t("noResult"))}
                             </h4>
                             {typeof payload.durationMs === "number" && (
                                 <p>
@@ -562,14 +531,13 @@ function AttemptDetails({
                                 return (
                                     <div className="report-assertion" key={assertion.id}>
                                         <h5>
-                                            {assertion.sourceId} · {assertion.type}{" "}
-                                            {assertion.operator ?? ""} ·{" "}
+                                            {assertion.sourceId} · {assertion.type} {assertion.operator ?? ""} ·{" "}
                                             {shown(p.status ?? t("noResult"))}
                                         </h5>
                                         <p>
                                             {t("severity")}: {assertion.severity} · {t("basis")}:{" "}
-                                            {assertion.expectedSource} · {t("duration")}:{" "}
-                                            {shown(p.durationMs ?? "—")} ms
+                                            {`${assertion.expectedSource} · ${t("duration")}: ` +
+                                                `${shown(p.durationMs ?? "—")} ms`}
                                         </p>
                                         {event && !event.valuesAvailable ? (
                                             <p>{t("unavailable")}</p>
@@ -584,11 +552,7 @@ function AttemptDetails({
                                                 <tbody>
                                                     <tr>
                                                         <td>
-                                                            <pre>
-                                                                {event
-                                                                    ? shown(p.expected)
-                                                                    : t("noResult")}
-                                                            </pre>
+                                                            <pre>{event ? shown(p.expected) : t("noResult")}</pre>
                                                         </td>
                                                         <td>
                                                             <pre>
@@ -598,9 +562,9 @@ function AttemptDetails({
                                                                         : shown(actual.value)
                                                                     : t("noResult")}
                                                             </pre>
-                                                            {shown(actual.value).includes(
-                                                                tx("[REDACTED]"),
-                                                            ) && <small>{t("withheld")}</small>}
+                                                            {shown(actual.value).includes(tx("[REDACTED]")) && (
+                                                                <small>{t("withheld")}</small>
+                                                            )}
                                                         </td>
                                                     </tr>
                                                 </tbody>
@@ -623,8 +587,7 @@ function AttemptDetails({
                                         return (
                                             <div key={observer.id}>
                                                 <strong>
-                                                    {observer.id} ·{" "}
-                                                    {observer.method ?? observer.kind}{" "}
+                                                    {observer.id} · {observer.method ?? observer.kind}{" "}
                                                     {observer.path ?? ""}
                                                 </strong>
                                                 <dl>
@@ -675,11 +638,7 @@ function AttemptDetails({
                                         if (adapter.nativeArtifact) {
                                             void adapter
                                                 .nativeArtifact(attemptId, a.id, "save", active)
-                                                .catch((e) =>
-                                                    setError(
-                                                        e instanceof Error ? e.message : String(e),
-                                                    ),
-                                                );
+                                                .catch((e) => setError(e instanceof Error ? e.message : String(e)));
                                             return;
                                         }
                                         void adapter
@@ -703,9 +662,7 @@ function AttemptDetails({
                                             })
                                             .catch((e) => {
                                                 if (!active.aborted)
-                                                    setError(
-                                                        e instanceof Error ? e.message : String(e),
-                                                    );
+                                                    setError(e instanceof Error ? e.message : String(e));
                                             });
                                     }}
                                 >
@@ -717,11 +674,7 @@ function AttemptDetails({
                                         onClick={() =>
                                             void adapter
                                                 .nativeArtifact?.(attemptId, a.id, "trace", active)
-                                                .catch((e) =>
-                                                    setError(
-                                                        e instanceof Error ? e.message : String(e),
-                                                    ),
-                                                )
+                                                .catch((e) => setError(e instanceof Error ? e.message : String(e)))
                                         }
                                     >
                                         {tx("打开 Trace / Open Trace")}
@@ -733,19 +686,8 @@ function AttemptDetails({
                                         onClick={() => {
                                             if (adapter.nativeArtifact) {
                                                 void adapter
-                                                    .nativeArtifact(
-                                                        attemptId,
-                                                        a.id,
-                                                        "preview",
-                                                        active,
-                                                    )
-                                                    .catch((e) =>
-                                                        setError(
-                                                            e instanceof Error
-                                                                ? e.message
-                                                                : String(e),
-                                                        ),
-                                                    );
+                                                    .nativeArtifact(attemptId, a.id, "preview", active)
+                                                    .catch((e) => setError(e instanceof Error ? e.message : String(e)));
                                                 return;
                                             }
                                             void adapter
@@ -762,11 +704,7 @@ function AttemptDetails({
                                                 })
                                                 .catch((e) => {
                                                     if (!active.aborted)
-                                                        setError(
-                                                            e instanceof Error
-                                                                ? e.message
-                                                                : String(e),
-                                                        );
+                                                        setError(e instanceof Error ? e.message : String(e));
                                                 });
                                         }}
                                     >
@@ -778,13 +716,7 @@ function AttemptDetails({
                     </li>
                 ))}
             </ul>
-            {preview && (
-                <img
-                    className="report-screenshot"
-                    src={preview}
-                    alt="受限截图 / Restricted screenshot"
-                />
-            )}
+            {preview && <img className="report-screenshot" src={preview} alt="受限截图 / Restricted screenshot" />}
         </section>
     );
 }

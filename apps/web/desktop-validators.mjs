@@ -17,9 +17,7 @@ export function desktopValidators() {
         name: "veriq-static-desktop-validators",
         enforce: "pre",
         async buildStart() {
-            const schema = JSON.parse(
-                await readFile(resolve(contracts, "schemas/platform-v1.schema.json"), "utf8"),
-            );
+            const schema = JSON.parse(await readFile(resolve(contracts, "schemas/platform-v1.schema.json"), "utf8"));
             const ajv = new Ajv2020({
                 allErrors: true,
                 strict: true,
@@ -38,14 +36,10 @@ export function desktopValidators() {
                 (_match, id) => `require(${JSON.stringify(require.resolve(id))})`,
             );
             await mkdir(resolve("dist-desktop"), { recursive: true });
-            await writeFile(
-                output,
-                generated + "\nexports.schemaValidator = name => exports[name];\n",
-            );
+            await writeFile(output, generated + "\nexports.schemaValidator = name => exports[name];\n");
         },
         resolveId(source, importer) {
-            if (source === "./validators.js" && importer === resolve(contracts, "src/index.ts"))
-                return output;
+            if (source === "./validators.js" && importer === resolve(contracts, "src/index.ts")) return output;
         },
     };
 }

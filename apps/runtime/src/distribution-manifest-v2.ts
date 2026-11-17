@@ -175,9 +175,7 @@ function component(value: string, code: MacRuntimeManifestErrorCode) {
         value === "." ||
         value === ".." ||
         /\.asar$/i.test(value) ||
-        /^(?:con|prn|aux|nul|conin\$|conout\$|com[1-9]|lpt[1-9])$/i.test(
-            value.split(".")[0]!.trimEnd(),
-        )
+        /^(?:con|prn|aux|nul|conin\$|conout\$|com[1-9]|lpt[1-9])$/i.test(value.split(".")[0]!.trimEnd())
     )
         fail(code);
 }
@@ -193,8 +191,7 @@ function pathValue(value: unknown, target = false): string {
     if (Buffer.byteLength(value) > L.pathBytes) fail("MAC_MANIFEST_LIMIT");
     const parts = value.split("/");
     if (parts.length > L.depth) fail("MAC_MANIFEST_LIMIT");
-    for (const part of parts)
-        if (!(target && (part === "." || part === ".."))) component(part, error);
+    for (const part of parts) if (!(target && (part === "." || part === ".."))) component(part, error);
     return value;
 }
 
@@ -233,10 +230,8 @@ function policySnapshot(expected: Expected): Policy {
     );
     const bundlePath = `browser/chrome-mac-${input.arch}/Google Chrome for Testing.app`;
     const executablePath = `${bundlePath}/Contents/MacOS/Google Chrome for Testing`;
-    if (source.bundlePath !== bundlePath || source.executablePath !== executablePath)
-        fail("MAC_MANIFEST_LAYOUT");
-    if (!Array.isArray(source.frameworkRoots) || !Array.isArray(source.allowedLinks))
-        fail("MAC_MANIFEST_LAYOUT");
+    if (source.bundlePath !== bundlePath || source.executablePath !== executablePath) fail("MAC_MANIFEST_LAYOUT");
+    if (!Array.isArray(source.frameworkRoots) || !Array.isArray(source.allowedLinks)) fail("MAC_MANIFEST_LAYOUT");
     if (source.frameworkRoots.length > L.frameworkRoots || source.allowedLinks.length > L.links)
         fail("MAC_MANIFEST_LIMIT");
     const roots: string[] = [];
@@ -291,11 +286,7 @@ function linkRecord(value: unknown): RuntimeLinkV2 {
  * 谓词，不能用 Electron 内嵌版本或主版本号替代。
  */
 function version(value: unknown): string {
-    if (
-        typeof value !== "string" ||
-        value.length > 128 ||
-        !/^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?(?![\s\S])/.test(value)
-    )
+    if (typeof value !== "string" || value.length > 128 || !/^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?(?![\s\S])/.test(value))
         fail("MAC_MANIFEST_INVALID");
     return value;
 }
@@ -309,9 +300,7 @@ function parseWithPolicy(bytes: Uint8Array, policy: Policy): Readonly<MacRuntime
     if (bytes.byteLength > L.manifestBytes) fail("MAC_MANIFEST_LIMIT");
     let decoded: unknown;
     try {
-        decoded = JSON.parse(
-            new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes),
-        );
+        decoded = JSON.parse(new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes));
     } catch {
         fail("MAC_MANIFEST_INVALID");
     }
@@ -337,23 +326,12 @@ function parseWithPolicy(bytes: Uint8Array, policy: Policy): Readonly<MacRuntime
     const productVersion = version(item.productVersion);
     const engineVersion = version(item.engineVersion);
     const browser = object(item.browser, ["version", "revision", "bundlePath", "executablePath"]);
-    if (browser.version !== "158.0.8127.18" || browser.revision !== "1254")
-        fail("MAC_MANIFEST_INVALID");
-    if (
-        browser.bundlePath !== policy.layout.bundlePath ||
-        browser.executablePath !== policy.layout.executablePath
-    )
+    if (browser.version !== "158.0.8127.18" || browser.revision !== "1254") fail("MAC_MANIFEST_INVALID");
+    if (browser.bundlePath !== policy.layout.bundlePath || browser.executablePath !== policy.layout.executablePath)
         fail("MAC_MANIFEST_LAYOUT");
-    if (
-        !Array.isArray(item.files) ||
-        !Array.isArray(item.directories) ||
-        !Array.isArray(item.links)
-    )
+    if (!Array.isArray(item.files) || !Array.isArray(item.directories) || !Array.isArray(item.links))
         fail("MAC_MANIFEST_INVALID");
-    if (
-        item.files.length + item.directories.length + item.links.length > L.totalEntries ||
-        item.links.length > L.links
-    )
+    if (item.files.length + item.directories.length + item.links.length > L.totalEntries || item.links.length > L.links)
         fail("MAC_MANIFEST_LIMIT");
     const register = collisionRegistry();
     register(manifestName);
@@ -367,14 +345,9 @@ function parseWithPolicy(bytes: Uint8Array, policy: Policy): Readonly<MacRuntime
         const file = object(value, ["path", "sizeBytes", "sha256", "mode"]);
         const path = pathValue(file.path);
         register(path);
-        if (
-            typeof file.sizeBytes !== "number" ||
-            file.sizeBytes < 0 ||
-            !Number.isInteger(file.sizeBytes)
-        )
+        if (typeof file.sizeBytes !== "number" || file.sizeBytes < 0 || !Number.isInteger(file.sizeBytes))
             fail("MAC_MANIFEST_INVALID");
-        if (!Number.isSafeInteger(file.sizeBytes) || file.sizeBytes > L.fileBytes)
-            fail("MAC_MANIFEST_LIMIT");
+        if (!Number.isSafeInteger(file.sizeBytes) || file.sizeBytes > L.fileBytes) fail("MAC_MANIFEST_LIMIT");
         total += file.sizeBytes;
         if (total > L.totalFileBytes) fail("MAC_MANIFEST_LIMIT");
         if (
@@ -401,12 +374,10 @@ function parseWithPolicy(bytes: Uint8Array, policy: Policy): Readonly<MacRuntime
         const parent = dirname(path);
         if (parent !== "." && !directorySet.has(parent)) fail("MAC_MANIFEST_INVALID");
     }
-    for (const root of policy.layout.frameworkRoots)
-        if (!directorySet.has(root)) fail("MAC_MANIFEST_LAYOUT");
+    for (const root of policy.layout.frameworkRoots) if (!directorySet.has(root)) fail("MAC_MANIFEST_LAYOUT");
     const allowed = new Map(policy.layout.allowedLinks.map((link) => [link.path, link.target]));
     for (const link of links) {
-        if (!policy.layout.frameworkRoots.some((root) => link.path.startsWith(root + "/")))
-            fail("MAC_LINK_FORBIDDEN");
+        if (!policy.layout.frameworkRoots.some((root) => link.path.startsWith(root + "/"))) fail("MAC_LINK_FORBIDDEN");
         if (allowed.get(link.path) !== link.target) fail("MAC_MANIFEST_LAYOUT");
     }
     if (links.length !== allowed.size) fail("MAC_MANIFEST_LAYOUT");
@@ -437,8 +408,7 @@ function parseWithPolicy(bytes: Uint8Array, policy: Policy): Readonly<MacRuntime
         ].map((name) => `execution/${name}.mjs`),
     ];
     for (const path of required) if (!byPath.has(path)) fail("MAC_MANIFEST_INVALID");
-    for (const path of executable)
-        if (!executableModes.has(byPath.get(path)?.mode ?? 0)) fail("MAC_MANIFEST_INVALID");
+    for (const path of executable) if (!executableModes.has(byPath.get(path)?.mode ?? 0)) fail("MAC_MANIFEST_INVALID");
     return Object.freeze({
         schemaVersion: 2,
         platform: "darwin",
@@ -462,10 +432,7 @@ function parseWithPolicy(bytes: Uint8Array, policy: Policy): Readonly<MacRuntime
  * 公开纯解析接口不会访问操作系统，调用者必须显式提供架构和可信布局而不能从清单中推导政策；字节合同与真实树合同共享相同
  * 的有限验证逻辑，返回值不含执行路径能力或签名认证结论。
  */
-export function parseMacRuntimeManifestV2(
-    bytes: Uint8Array,
-    expected: Expected,
-): Readonly<MacRuntimeManifestV2> {
+export function parseMacRuntimeManifestV2(bytes: Uint8Array, expected: Expected): Readonly<MacRuntimeManifestV2> {
     return parseWithPolicy(bytes, policySnapshot(expected));
 }
 
@@ -473,17 +440,13 @@ export function parseMacRuntimeManifestV2(
  * 只保留受控 errno 分类作为诊断 cause，避免系统异常文本包含路径或业务内容；预期缺失与读取后变化由调用位置区分，
  * 未知系统错误也不能直接透传为不稳定或泄密的公开异常。
  */
-function ioError(
-    error: unknown,
-    missing: MacRuntimeManifestErrorCode = "MAC_INVENTORY_MISSING",
-): never {
+function ioError(error: unknown, missing: MacRuntimeManifestErrorCode = "MAC_INVENTORY_MISSING"): never {
     if (error instanceof MacRuntimeManifestError) throw error;
     const raw = error && typeof error === "object" && "code" in error ? error.code : undefined;
     const errno = typeof raw === "string" && /^(?:E[A-Z0-9]+)$/.test(raw) ? raw : "UNKNOWN";
-    throw new MacRuntimeManifestError(
-        errno === "ENOENT" || errno === "ENOTDIR" ? missing : "MAC_INVENTORY_IO",
-        { cause: Object.freeze({ code: errno }) },
-    );
+    throw new MacRuntimeManifestError(errno === "ENOENT" || errno === "ENOTDIR" ? missing : "MAC_INVENTORY_IO", {
+        cause: Object.freeze({ code: errno }),
+    });
 }
 
 /**
@@ -510,8 +473,7 @@ function regular(info: BigIntStats, mode?: number) {
     if (!info.isFile()) fail("MAC_INVENTORY_TYPE");
     if (info.nlink !== 1n || info.ino === 0n) fail("MAC_INVENTORY_HARDLINK");
     const actual = Number(info.mode & 0o7777n);
-    if (mode === undefined ? actual !== 0o444 && actual !== 0o644 : actual !== mode)
-        fail("MAC_INVENTORY_MODE");
+    if (mode === undefined ? actual !== 0o444 && actual !== 0o644 : actual !== mode) fail("MAC_INVENTORY_MODE");
 }
 
 /**
@@ -523,9 +485,7 @@ async function checkRoot(input: string): Promise<{ root: string; info: BigIntSta
         typeof input !== "string" ||
         !isAbsolute(input) ||
         input.includes("\0") ||
-        input
-            .split(/[\\/]/)
-            .some((part) => part === "." || part === ".." || /\.asar$/i.test(part)) ||
+        input.split(/[\\/]/).some((part) => part === "." || part === ".." || /\.asar$/i.test(part)) ||
         !constants.O_NOFOLLOW ||
         !constants.O_NONBLOCK
     )
@@ -564,14 +524,8 @@ async function readRegular(
     const limit = options.manifest ? L.manifestBytes : L.fileBytes;
     if (before.size > BigInt(limit) || before.size < 0n) fail("MAC_MANIFEST_LIMIT");
     if (options.file && before.size !== BigInt(options.file.sizeBytes)) fail("MAC_INVENTORY_HASH");
-    const handle = await open(
-        path,
-        constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
-    ).catch((error) => {
-        if (
-            error &&
-            (error.code === "ELOOP" || error.code === "ENOENT" || error.code === "ENOTDIR")
-        )
+    const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK).catch((error) => {
+        if (error && (error.code === "ELOOP" || error.code === "ENOENT" || error.code === "ENOTDIR"))
             fail("MAC_INVENTORY_CHANGED");
         ioError(error);
     });
@@ -595,9 +549,7 @@ async function readRegular(
             !same(before, await handle.stat({ bigint: true })) ||
             !same(
                 before,
-                await lstat(path, { bigint: true }).catch((error) =>
-                    ioError(error, "MAC_INVENTORY_CHANGED"),
-                ),
+                await lstat(path, { bigint: true }).catch((error) => ioError(error, "MAC_INVENTORY_CHANGED")),
             ) ||
             BigInt(count) !== before.size
         )
@@ -616,8 +568,7 @@ async function readRegular(
  */
 async function observedReadlink(path: string): Promise<string> {
     return readlink(path).catch((error) => {
-        if (["ENOENT", "ENOTDIR", "ELOOP", "EINVAL"].includes(error?.code))
-            fail("MAC_INVENTORY_CHANGED");
+        if (["ENOENT", "ENOTDIR", "ELOOP", "EINVAL"].includes(error?.code)) fail("MAC_INVENTORY_CHANGED");
         ioError(error);
     });
 }
@@ -639,10 +590,7 @@ function resolveLinks(manifest: Readonly<MacRuntimeManifestV2>, policy: Policy) 
         const root = policy.layout.frameworkRoots.find((root) => link.path.startsWith(root + "/"))!;
         const rootDepth = root.split("/").length;
         let current = dirname(link.path).split("/");
-        let pending: (string | { leave: string })[] = [
-            ...link.target.split("/"),
-            { leave: link.path },
-        ];
+        let pending: (string | { leave: string })[] = [...link.target.split("/"), { leave: link.path }];
         let hops = 1;
         const active = new Set([link.path]);
         while (pending.length) {
@@ -683,8 +631,7 @@ function resolveLinks(manifest: Readonly<MacRuntimeManifestV2>, policy: Policy) 
      * 拓扑消除不用递归，图大小受总条目与链接预算约束。
      */
     const indegree = new Map([...graph.keys()].map((path) => [path, 0]));
-    for (const edges of graph.values())
-        for (const path of edges) indegree.set(path, indegree.get(path)! + 1);
+    for (const edges of graph.values()) for (const path of edges) indegree.set(path, indegree.get(path)! + 1);
     const queue = [...indegree].filter(([, degree]) => degree === 0).map(([path]) => path);
     let visited = 0;
     for (let i = 0; i < queue.length; i++) {
@@ -747,8 +694,7 @@ export async function verifyMacRuntimeManifestV2(
                         if (files.has(path) || links.has(path)) fail("MAC_INVENTORY_TYPE");
                         fail("MAC_INVENTORY_UNLISTED");
                     }
-                    if (![0o555, 0o755].includes(Number(info.mode & 0o7777n)))
-                        fail("MAC_INVENTORY_MODE");
+                    if (![0o555, 0o755].includes(Number(info.mode & 0o7777n))) fail("MAC_INVENTORY_MODE");
                     observed.set(path, { info });
                     stack.push(path);
                 } else if (info.isSymbolicLink()) {

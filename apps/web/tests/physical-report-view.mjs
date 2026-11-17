@@ -42,9 +42,7 @@ try {
     await page.getByRole("button", { name: /MANAGED_CLOUD|CONNECTED_LOCAL/ }).click();
     await expect(page.getByTestId("report-gates")).toBeVisible();
     await page.getByRole("button", { name: "Attempt 1 · PASSED", exact: true }).click();
-    await expect(page.getByRole("region", { name: "Attempt details" })).toContainText(
-        "open · goto · PASSED",
-    );
+    await expect(page.getByRole("region", { name: "Attempt details" })).toContainText("open · goto · PASSED");
     await expect(
         page.getByRole("heading", {
             name: "Visible (visible) · PASSED",
@@ -68,17 +66,12 @@ try {
     if (await download.failure()) throw new Error("Actual authorized UI download failed");
     await page.screenshot({
         path: fileURLToPath(
-            new URL(
-                "../../../.superpowers/sdd/veriq-1/evidence/t12/populated-report-1280.png",
-                import.meta.url,
-            ),
+            new URL("../../../.superpowers/sdd/veriq-1/evidence/t12/populated-report-1280.png", import.meta.url),
         ),
         fullPage: true,
     });
     if (failures.length) throw new Error(failures.join("\n"));
-    console.log(
-        "PASS actual report UI, live stream, redacted assertion, privileged Trace download, 1280px screenshot",
-    );
+    console.log("PASS actual report UI, live stream, redacted assertion, privileged Trace download, 1280px screenshot");
 } finally {
     await browser.close();
     await server.close();

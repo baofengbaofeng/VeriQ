@@ -38,8 +38,7 @@ export type Presence =
  * 只读自有属性查找：非法指针抛错：缺失返回 present:false。
  */
 export function resolvePointer(value: JsonValue, pointer: string): Presence {
-    if (pointer !== "" && (!pointer.startsWith("/") || /~(?![01])/u.test(pointer)))
-        throw new Error("INVALID_POINTER");
+    if (pointer !== "" && (!pointer.startsWith("/") || /~(?![01])/u.test(pointer))) throw new Error("INVALID_POINTER");
     let current: JsonValue = value;
     for (const token of pointer === "" ? [] : pointer.slice(1).split("/")) {
         const key = token.replaceAll("~1", "/").replaceAll("~0", "~");
@@ -65,8 +64,7 @@ export function resolveBinding(
     },
 ): JsonValue {
     if (typeof value === "string") {
-        const pattern =
-            /\{\{(data|vars)\.([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\}\}/gu;
+        const pattern = /\{\{(data|vars)\.([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\}\}/gu;
         const matches = [...value.matchAll(pattern)];
         if (value.replace(pattern, "").includes("{{") || value.replace(pattern, "").includes("}}"))
             throw new Error("UNSAFE_EXPRESSION");
@@ -87,9 +85,7 @@ export function resolveBinding(
     }
     if (Array.isArray(value)) return value.map((v) => resolveBinding(v, context));
     if (value !== null && typeof value === "object")
-        return Object.fromEntries(
-            Object.entries(value).map(([k, v]) => [k, resolveBinding(v, context)]),
-        );
+        return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, resolveBinding(v, context)]));
     return value;
 }
 
@@ -98,10 +94,7 @@ export function resolveBinding(
  * 预准备绑定作用域：缺键或类型不符即失败（resolveInitialVariables
  * /INITIAL_VARIABLES_INVALID）。
  */
-export function resolveInitialVariables(
-    declarations: ParameterTypes | undefined,
-    values: JsonObject,
-): JsonObject {
+export function resolveInitialVariables(declarations: ParameterTypes | undefined, values: JsonObject): JsonObject {
     const entries = Object.entries(declarations ?? {});
     for (const [key, type] of entries)
         if (!Object.hasOwn(values, key) || !accepts(type, valueType(values[key])))

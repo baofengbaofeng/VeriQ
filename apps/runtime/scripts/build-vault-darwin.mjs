@@ -12,10 +12,7 @@ import { join, resolve } from "node:path";
 if (process.platform !== "darwin" || !["x64", "arm64"].includes(process.arch))
     throw new Error("DARWIN_VAULT_BUILD_TARGET_REQUIRED");
 const flags = process.argv.slice(2);
-if (
-    flags.some((value) => !["--tests", "--red-candidate"].includes(value)) ||
-    new Set(flags).size !== flags.length
-)
+if (flags.some((value) => !["--tests", "--red-candidate"].includes(value)) || new Set(flags).size !== flags.length)
     throw new Error("DARWIN_VAULT_BUILD_ARGUMENT_INVALID");
 const red = flags.includes("--red-candidate");
 const tests = flags.includes("--tests") || red;
@@ -124,11 +121,8 @@ for (const job of jobs) {
     )
         throw new Error("DARWIN_VAULT_BUILD_IDENTITY_INVALID");
     const dependencyText = (await readFile(dependencies, "utf8")).replace(/\\\n/g, " ");
-    const tokens =
-        dependencyText.slice(dependencyText.indexOf(":") + 1).match(/(?:\\.|[^\s])+/g) ?? [];
-    const inputs = [
-        ...new Set(tokens.map((value) => resolve(root, value.replace(/\\(.)/g, "$1")))),
-    ];
+    const tokens = dependencyText.slice(dependencyText.indexOf(":") + 1).match(/(?:\\.|[^\s])+/g) ?? [];
+    const inputs = [...new Set(tokens.map((value) => resolve(root, value.replace(/\\(.)/g, "$1"))))];
     if (inputs.length > 4096) throw new Error("DARWIN_VAULT_BUILD_INPUT_LIMIT");
     if (
         ["test", "test-red-stub", "controller"].includes(job.name) &&

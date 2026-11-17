@@ -18,15 +18,7 @@ import {
     type ParameterTypes,
     type JsonValue,
 } from "@veriq/contracts";
-import {
-    accepts,
-    pointerKey,
-    sha256,
-    valueType,
-    wireId,
-    resolvePointer,
-    type ValidationIssue,
-} from "./dependency.js";
+import { accepts, pointerKey, sha256, valueType, wireId, resolvePointer, type ValidationIssue } from "./dependency.js";
 /**
  * 公开常量 MAX_EXPANDED_ASSERTIONS 限制模板断言展开后的上限：防止恶意或误配快照耗尽编译内存（MAX_EXPANDED_ASSERTIONS）
  * 。
@@ -76,8 +68,7 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
     };
     if (issues.length) return { issues, cases };
     try {
-        if (sha256(assetSourceBytes(snapshot)) !== snapshot.sourceHash)
-            fail("SOURCE_HASH_MISMATCH", "/sourceHash");
+        if (sha256(assetSourceBytes(snapshot)) !== snapshot.sourceHash) fail("SOURCE_HASH_MISMATCH", "/sourceHash");
     } catch {
         fail("INVALID_JSON", "");
         return { issues, cases };
@@ -94,12 +85,7 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
         if (sha256(canonicalBytes({ kind: a.kind, document: a.document })) !== a.sha256)
             fail("DOCUMENT_HASH_MISMATCH", p + "/sha256");
     }
-    function ref(
-        owner: string,
-        id: string,
-        kind: AssetVersionV1["kind"],
-        p: string,
-    ): AssetVersionV1 | undefined {
+    function ref(owner: string, id: string, kind: AssetVersionV1["kind"], p: string): AssetVersionV1 | undefined {
         edges.get(owner)?.add(id);
         const found = assets.get(id);
         if (!found) fail("MISSING_REFERENCE", p, id);
@@ -123,14 +109,10 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
             !a ||
             a.resourceId !== t.resourceId ||
             (a.kind === "CASE" &&
-                (snapshot.entryCaseVersionIds.length !== 1 ||
-                    snapshot.entryCaseVersionIds[0] !== a.versionId)) ||
+                (snapshot.entryCaseVersionIds.length !== 1 || snapshot.entryCaseVersionIds[0] !== a.versionId)) ||
             (a.kind === "SUITE" &&
-                (new Set(a.document.cases.map((c) => c.versionId)).size !==
-                    snapshot.entryCaseVersionIds.length ||
-                    a.document.cases.some(
-                        (c) => !snapshot.entryCaseVersionIds.includes(c.versionId),
-                    ))) ||
+                (new Set(a.document.cases.map((c) => c.versionId)).size !== snapshot.entryCaseVersionIds.length ||
+                    a.document.cases.some((c) => !snapshot.entryCaseVersionIds.includes(c.versionId)))) ||
             (a.kind !== "CASE" && a.kind !== "SUITE" && snapshot.entryCaseVersionIds.length !== 0)
         )
             fail("INVALID_VALIDATION_TARGET", "/validationTarget");
@@ -145,8 +127,7 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
         const roots = snapshot.assets.filter(
             (a): a is Extract<AssetVersionV1, { kind: "SUITE" }> =>
                 a.kind === "SUITE" &&
-                new Set(a.document.cases.map((c) => c.versionId)).size ===
-                    snapshot.entryCaseVersionIds.length &&
+                new Set(a.document.cases.map((c) => c.versionId)).size === snapshot.entryCaseVersionIds.length &&
                 a.document.cases.every((c) => snapshot.entryCaseVersionIds.includes(c.versionId)),
         );
         if (roots.length > 1) fail("AMBIGUOUS_SUITE_ROOT", "/assets");
@@ -159,10 +140,7 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
             if (step.action === "callFlow" && !seen.has(step.versionId)) {
                 const flow = assets.get(step.versionId);
                 if (flow?.kind === "FLOW")
-                    for (const name of localDefinitions(
-                        flow.document.steps,
-                        new Set([...seen, step.versionId]),
-                    ))
+                    for (const name of localDefinitions(flow.document.steps, new Set([...seen, step.versionId])))
                         names.add(name);
             }
         return names;
@@ -170,26 +148,16 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
     function sym(type: ValueType): SymbolType {
         return { type };
     }
-    function schemaSymbol(
-        schema: unknown,
-        root: unknown = schema,
-        seen = new Set<string>(),
-    ): SymbolType | undefined {
+    function schemaSymbol(schema: unknown, root: unknown = schema, seen = new Set<string>()): SymbolType | undefined {
         if (!schema || typeof schema !== "object" || Array.isArray(schema)) return;
         const s = schema as Record<string, unknown>;
         if (typeof s.$ref === "string" && s.$ref.startsWith("#/") && !seen.has(s.$ref)) {
             const resolved = resolvePointer(root as JsonValue, s.$ref.slice(1));
-            if (resolved.present)
-                return schemaSymbol(resolved.value, root, new Set([...seen, s.$ref]));
+            if (resolved.present) return schemaSymbol(resolved.value, root, new Set([...seen, s.$ref]));
         }
         const types = ["string", "number", "integer", "boolean", "object", "array", "null"];
-        const declared = Array.isArray(s.type)
-            ? s.type
-            : typeof s.type === "string"
-              ? [s.type]
-              : types;
-        if (!declared.length || declared.some((t) => typeof t !== "string" || !types.includes(t)))
-            return;
+        const declared = Array.isArray(s.type) ? s.type : typeof s.type === "string" ? [s.type] : types;
+        if (!declared.length || declared.some((t) => typeof t !== "string" || !types.includes(t))) return;
         const out: SymbolType = {
             type: declared[0] as ValueType,
             ...(declared.length > 1 ? { alternatives: declared as ValueType[] } : {}),
@@ -224,17 +192,10 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
         }
         return result;
     }
-    function binding(
-        v: unknown,
-        scope: Scope,
-        p: string,
-        expected?: ValueType,
-    ): SymbolType | undefined {
+    function binding(v: unknown, scope: Scope, p: string, expected?: ValueType): SymbolType | undefined {
         if (typeof v === "string") {
             const matches = [
-                ...v.matchAll(
-                    /\{\{(data|vars)\.([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\}\}/gu,
-                ),
+                ...v.matchAll(/\{\{(data|vars)\.([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\}\}/gu),
             ];
             let full: SymbolType | undefined;
             for (const m of matches) {
@@ -246,37 +207,24 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
                     optional ||= found?.optional ?? false;
                 }
                 if (!found) {
-                    if (
-                        !scope.library ||
-                        (m[1] === "vars" && scope.localDefinitions?.has(m[2]!.split(".")[0]!))
-                    )
-                        fail(
-                            m[1] === "vars"
-                                ? "VARIABLE_USED_BEFORE_DEFINED"
-                                : "UNKNOWN_DATA_BINDING",
-                            p,
-                            m[0],
-                        );
+                    if (!scope.library || (m[1] === "vars" && scope.localDefinitions?.has(m[2]!.split(".")[0]!)))
+                        fail(m[1] === "vars" ? "VARIABLE_USED_BEFORE_DEFINED" : "UNKNOWN_DATA_BINDING", p, m[0]);
                     continue;
                 }
                 if (optional) fail("POSSIBLY_MISSING_VARIABLE", p, m[0]);
                 if (m[0] === v) full = found;
-                else if (
-                    (found.alternatives ?? [found.type]).some((t) =>
-                        ["object", "array", "null"].includes(t),
-                    )
-                )
+                else if ((found.alternatives ?? [found.type]).some((t) => ["object", "array", "null"].includes(t)))
                     fail("BINDING_TYPE_MISMATCH", p);
             }
             const result = full ?? sym("string");
-            if (
-                expected &&
-                !(result.alternatives ?? [result.type]).every((t) => accepts(expected, t))
-            )
+            if (expected && !(result.alternatives ?? [result.type]).every((t) => accepts(expected, t)))
                 fail("BINDING_TYPE_MISMATCH", p, `Expected ${expected}, got ${result.type}`);
             return result;
         }
-        if (Array.isArray(v)) v.forEach((x, i) => binding(x, scope, `${p}/${i}`));
+        if (Array.isArray(v))
+            v.forEach((x, i) => {
+                binding(x, scope, `${p}/${i}`);
+            });
         const result = sym(valueType(v));
         if (v && typeof v === "object" && !Array.isArray(v)) {
             result.properties = new Map();
@@ -316,11 +264,7 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
             seen = new Set<string>(),
         ): void => {
             if (!dynamic(value)) {
-                if (
-                    !schemas.compile({ $ref: rootId + "#" + pointer })(
-                        resolveBinding(value, { data, vars: {} }),
-                    )
-                )
+                if (!schemas.compile({ $ref: rootId + "#" + pointer })(resolveBinding(value, { data, vars: {} })))
                     fail("FIXTURE_INPUT_INVALID", p);
                 return;
             }
@@ -342,51 +286,36 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
             const ref = definition.$ref;
             if (typeof ref === "string" && ref.startsWith("#/") && !seen.has(ref)) {
                 const target = resolvePointer(schema, ref.slice(1));
-                if (target.present)
-                    visit(value, target.value, ref.slice(1), p, new Set([...seen, ref]));
+                if (target.present) visit(value, target.value, ref.slice(1), p, new Set([...seen, ref]));
             }
             if (Array.isArray(definition.allOf))
-                definition.allOf.forEach((child, i) =>
-                    visit(value, child, `${pointer}/allOf/${i}`, p, seen),
-                );
+                definition.allOf.forEach((child, i) => {
+                    visit(value, child, `${pointer}/allOf/${i}`, p, seen);
+                });
             if (value !== null && typeof value === "object" && !Array.isArray(value)) {
                 const properties = definition.properties;
                 const declared =
-                    properties && typeof properties === "object" && !Array.isArray(properties)
-                        ? properties
-                        : {};
+                    properties && typeof properties === "object" && !Array.isArray(properties) ? properties : {};
                 // These constraints depend on the literal keys, never unknown values.
                 const shape = Object.fromEntries(
-                    [
-                        "required",
-                        "minProperties",
-                        "maxProperties",
-                        "propertyNames",
-                        "dependentRequired",
-                    ]
+                    ["required", "minProperties", "maxProperties", "propertyNames", "dependentRequired"]
                         .filter((k) => Object.hasOwn(definition, k))
                         .map((k) => [
                             k,
-                            k === "propertyNames"
-                                ? { $ref: rootId + "#" + pointer + "/propertyNames" }
-                                : definition[k],
+                            k === "propertyNames" ? { $ref: rootId + "#" + pointer + "/propertyNames" } : definition[k],
                         ]),
                 );
                 // Pattern properties may admit additional keys; Ajv handles matching.
                 const patterns = definition.patternProperties;
                 const patternKeys =
-                    patterns && typeof patterns === "object" && !Array.isArray(patterns)
-                        ? Object.keys(patterns)
-                        : [];
+                    patterns && typeof patterns === "object" && !Array.isArray(patterns) ? Object.keys(patterns) : [];
                 if (
                     !schemas.compile({
                         ...shape,
                         type: "object",
                         properties: Object.fromEntries(Object.keys(declared).map((k) => [k, true])),
                         patternProperties: Object.fromEntries(patternKeys.map((k) => [k, true])),
-                        ...(definition.additionalProperties === false
-                            ? { additionalProperties: false }
-                            : {}),
+                        ...(definition.additionalProperties === false ? { additionalProperties: false } : {}),
                     })(value)
                 )
                     fail("FIXTURE_INPUT_INVALID", p);
@@ -420,12 +349,9 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
                 }
             } else if (Array.isArray(value)) {
                 const shape = Object.fromEntries(
-                    ["minItems", "maxItems"]
-                        .filter((k) => Object.hasOwn(definition, k))
-                        .map((k) => [k, definition[k]]),
+                    ["minItems", "maxItems"].filter((k) => Object.hasOwn(definition, k)).map((k) => [k, definition[k]]),
                 );
-                if (!schemas.compile({ type: "array", ...shape })(value))
-                    fail("FIXTURE_INPUT_INVALID", p);
+                if (!schemas.compile({ type: "array", ...shape })(value)) fail("FIXTURE_INPUT_INVALID", p);
                 value.forEach((child, i) => {
                     const prefix = definition.prefixItems;
                     if (Array.isArray(prefix) && i < prefix.length)
@@ -529,8 +455,7 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
                     );
                 continue;
             }
-            if ("source" in a && !scope.externalObservers)
-                source(a.source, observers, path + "/source");
+            if ("source" in a && !scope.externalObservers) source(a.source, observers, path + "/source");
             if ("pageKey" in a && a.pageKey && !scope.pages?.has(a.pageKey) && !scope.library)
                 fail("UNKNOWN_PAGE_KEY", path + "/pageKey");
             if ("target" in a) target(a.target, scope, path + "/target");
@@ -540,8 +465,7 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
                     a.expected,
                     scope,
                     path + "/expected",
-                    (a.type === "ui" &&
-                        ["textEquals", "textContains", "valueEquals"].includes(a.operator)) ||
+                    (a.type === "ui" && ["textEquals", "textContains", "valueEquals"].includes(a.operator)) ||
                         a.type === "url"
                         ? "string"
                         : undefined,
@@ -589,19 +513,12 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
             }
             const obs = new Set((s.observers ?? []).filter((o) => "method" in o).map((o) => o.id));
             unique([...(s.observers ?? []).map((o) => o.id)], path + "/observers");
-            const before = assertions(
-                s.beforeAssertions ?? [],
-                owner,
-                scope,
-                new Set(),
-                path + "/beforeAssertions",
-            );
+            const before = assertions(s.beforeAssertions ?? [], owner, scope, new Set(), path + "/beforeAssertions");
             if (s.pageKey && !scope.pages?.has(s.pageKey) && !scope.library)
                 fail("UNKNOWN_PAGE_KEY", path + "/pageKey");
             for (const o of s.observers ?? [])
                 if ("kind" in o && o.kind === "newPage" && typeof o.pageKey === "string") {
-                    if (scope.pages!.has(o.pageKey))
-                        fail("DUPLICATE_PAGE_KEY", path + "/observers");
+                    if (scope.pages!.has(o.pageKey)) fail("DUPLICATE_PAGE_KEY", path + "/observers");
                     scope.pages!.add(o.pageKey);
                 }
             if ("target" in s) target(s.target, scope, path + "/target");
@@ -622,15 +539,11 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
                 for (const [name, value] of Object.entries(s.headers ?? {}))
                     binding(value, scope, path + "/headers/" + pointerKey(name), "string");
             if (s.action === "selectOption" && Array.isArray(s.value))
-                s.value.forEach((v, i) => binding(v, scope, path + "/value/" + i, "string"));
+                s.value.forEach((v, i) => {
+                    binding(v, scope, path + "/value/" + i, "string");
+                });
             for (const o of s.observers ?? [])
-                for (const k of [
-                    "path",
-                    "bodyMatch",
-                    "queryMatch",
-                    "message",
-                    "promptText",
-                ] as const)
+                for (const k of ["path", "bodyMatch", "queryMatch", "message", "promptText"] as const)
                     if (k in o)
                         binding(
                             (o as unknown as Record<string, unknown>)[k],
@@ -659,13 +572,7 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
                 if (scope.vars.has(e.to)) fail("DUPLICATE_VARIABLE", path + "/extract/" + j, e.to);
                 scope.vars.set(e.to, { type: e.valueType, optional: !e.required });
             }
-            const after = assertions(
-                s.afterAssertions ?? [],
-                owner,
-                scope,
-                obs,
-                path + "/afterAssertions",
-            );
+            const after = assertions(s.afterAssertions ?? [], owner, scope, obs, path + "/afterAssertions");
             if (
                 write &&
                 s.critical &&
@@ -680,22 +587,17 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
             const extracts = new Set((s.extract ?? []).map((e) => e.to));
             const usesExtract = (value: unknown): boolean =>
                 typeof value === "string"
-                    ? [...value.matchAll(/\{\{vars\.([A-Za-z_][A-Za-z0-9_]*)/gu)].some((m) =>
-                          extracts.has(m[1]!),
-                      )
+                    ? [...value.matchAll(/\{\{vars\.([A-Za-z_][A-Za-z0-9_]*)/gu)].some((m) => extracts.has(m[1]!))
                     : Array.isArray(value)
                       ? value.some(usesExtract)
-                      : !!value &&
-                        typeof value === "object" &&
-                        Object.values(value).some(usesExtract);
+                      : !!value && typeof value === "object" && Object.values(value).some(usesExtract);
             const dependent = (a: CompiledAssertion): boolean =>
                 usesExtract(a.parameters) ||
                 (a.assertion.type !== "responseSchema" &&
                     "expected" in a.assertion &&
                     usesExtract(a.assertion.expected)) ||
                 (a.assertion.type === "eventually" && usesExtract(a.assertion.query)) ||
-                ("target" in a.assertion &&
-                    usesExtract(scope.locatorBindings?.get(a.assertion.target) ?? []));
+                ("target" in a.assertion && usesExtract(scope.locatorBindings?.get(a.assertion.target) ?? []));
             const { beforeAssertions: _before, afterAssertions: _after, ...action } = s;
             out.push({
                 step: { ...action, id: wireId(path) },
@@ -713,14 +615,8 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
         const p = paths.get(a.versionId)! + "/document";
         if (a.kind === "CASE") {
             const d = a.document;
-            const c = ref(
-                a.versionId,
-                d.catalogVersionId,
-                "ELEMENT_CATALOG",
-                p + "/catalogVersionId",
-            );
-            if (d.datasetVersionId)
-                ref(a.versionId, d.datasetVersionId, "DATASET", p + "/datasetVersionId");
+            const c = ref(a.versionId, d.catalogVersionId, "ELEMENT_CATALOG", p + "/catalogVersionId");
+            if (d.datasetVersionId) ref(a.versionId, d.datasetVersionId, "DATASET", p + "/datasetVersionId");
             const variants = suiteRoot?.document.cases.filter((c) => c.versionId === a.versionId);
             const datasets = variants?.length
                 ? [...new Set(variants.map((c) => c.datasetVersionId ?? d.datasetVersionId))]
@@ -729,12 +625,7 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
             for (const datasetVersionId of datasets) {
                 const scope: Scope = {
                     data: new Map(),
-                    vars: new Map(
-                        Object.entries(d.initialVariables ?? {}).map(([key, type]) => [
-                            key,
-                            { type },
-                        ]),
-                    ),
+                    vars: new Map(Object.entries(d.initialVariables ?? {}).map(([key, type]) => [key, { type }])),
                     ...(c?.kind === "ELEMENT_CATALOG"
                         ? { catalog: new Set(c.document.elements.map((e) => e.key)) }
                         : {}),
@@ -770,20 +661,12 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
                             });
                 }
                 if (d.fixtureVersionId) {
-                    const f = ref(
-                        a.versionId,
-                        d.fixtureVersionId,
-                        "FIXTURE",
-                        p + "/fixtureVersionId",
-                    );
+                    const f = ref(a.versionId, d.fixtureVersionId, "FIXTURE", p + "/fixtureVersionId");
                     if (f?.kind === "FIXTURE") {
                         binding(d.fixtureInput ?? {}, scope, p + "/fixtureInput");
                         try {
                             const ds = datasetVersionId ? assets.get(datasetVersionId) : undefined;
-                            const rows =
-                                ds?.kind === "DATASET"
-                                    ? ds.document.rows.map((r) => r.values)
-                                    : [{}];
+                            const rows = ds?.kind === "DATASET" ? ds.document.rows.map((r) => r.values) : [{}];
                             for (const data of rows)
                                 fixtureInput(
                                     d.fixtureInput ?? {},
@@ -810,20 +693,11 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
                             }
                     }
                 }
-                const expanded = steps(
-                    d.steps,
-                    a.versionId,
-                    scope,
-                    p + "/steps",
-                    [],
-                    { count: 0 },
-                    d.kind === "WRITE",
-                );
+                const expanded = steps(d.steps, a.versionId, scope, p + "/steps", [], { count: 0 }, d.kind === "WRITE");
                 if (d.kind === "WRITE") {
                     const index = d.steps.findIndex((s) => s.id === d.persistenceCheckpointStepId);
                     const checkpoint = expanded[index];
-                    const critical = (s: CompiledStep): boolean =>
-                        !!s.step.critical || !!s.children?.some(critical);
+                    const critical = (s: CompiledStep): boolean => !!s.step.critical || !!s.children?.some(critical);
                     const lastWrite = expanded.reduce((last, s, i) => (critical(s) ? i : last), -1);
                     const observed =
                         checkpoint &&
@@ -844,18 +718,14 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
                             !(
                                 checkpoint &&
                                 [...checkpoint.responseAssertions, ...checkpoint.after].some(
-                                    (x) =>
-                                        x.assertion.type === "eventually" &&
-                                        x.assertion.severity !== "WARN",
+                                    (x) => x.assertion.type === "eventually" && x.assertion.severity !== "WARN",
                                 )
                             )) ||
                         !observed
                     )
                         fail("MISSING_PERSISTENCE_CHECKPOINT", p + "/persistenceCheckpointStepId");
                 }
-                const checkpoint = expanded.find(
-                    (_, i) => d.steps[i]!.id === d.persistenceCheckpointStepId,
-                );
+                const checkpoint = expanded.find((_, i) => d.steps[i]!.id === d.persistenceCheckpointStepId);
                 compiled ??= {
                     caseVersionId: a.versionId,
                     document: d,
@@ -898,30 +768,18 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
             }
         } else if (a.kind === "FLOW") {
             const scope: Scope = {
-                data: new Map(
-                    Object.entries(a.document.parameters ?? {}).map(([k, v]) => [k, sym(v)]),
-                ),
+                data: new Map(Object.entries(a.document.parameters ?? {}).map(([k, v]) => [k, sym(v)])),
                 vars: new Map(),
                 library: true,
                 localDefinitions: localDefinitions(a.document.steps, new Set([a.versionId])),
             };
-            steps(
-                a.document.steps,
-                a.versionId,
-                scope,
-                p + "/steps",
-                [a.versionId],
-                { count: 0 },
-                false,
-            );
+            steps(a.document.steps, a.versionId, scope, p + "/steps", [a.versionId], { count: 0 }, false);
         } else if (a.kind === "ASSERTION_TEMPLATE") {
             assertions(
                 a.document.assertions,
                 a.versionId,
                 {
-                    data: new Map(
-                        Object.entries(a.document.parameters ?? {}).map(([k, v]) => [k, sym(v)]),
-                    ),
+                    data: new Map(Object.entries(a.document.parameters ?? {}).map(([k, v]) => [k, sym(v)])),
                     vars: new Map(),
                     library: true,
                     externalObservers: true,
@@ -937,8 +795,7 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
         } else if (a.kind === "SUITE") {
             for (const c of a.document.cases) {
                 ref(a.versionId, c.versionId, "CASE", p + "/cases");
-                if (c.datasetVersionId)
-                    ref(a.versionId, c.datasetVersionId, "DATASET", p + "/cases");
+                if (c.datasetVersionId) ref(a.versionId, c.datasetVersionId, "DATASET", p + "/cases");
             }
         } else if (a.kind === "ENVIRONMENT") {
             unique(
@@ -947,13 +804,10 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
             );
             const allowed = new Set(a.document.allowedOrigins);
             for (const origin of allowed)
-                if (new URL(origin).origin !== origin)
-                    fail("INVALID_ALLOWED_ORIGIN", p + "/allowedOrigins");
-            for (const base of [
-                a.document.baseURL,
-                a.document.apiBaseURL,
-                a.document.fixtureBaseURL,
-            ].filter((v): v is string => !!v))
+                if (new URL(origin).origin !== origin) fail("INVALID_ALLOWED_ORIGIN", p + "/allowedOrigins");
+            for (const base of [a.document.baseURL, a.document.apiBaseURL, a.document.fixtureBaseURL].filter(
+                (v): v is string => !!v,
+            ))
                 if (!allowed.has(new URL(base).origin)) fail("UNAUTHORIZED_ORIGIN", p);
             try {
                 new Intl.DateTimeFormat(a.document.locale, {
@@ -975,10 +829,9 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
     const expectedAdapters = new Set(
         snapshot.assets.flatMap((a) =>
             a.kind === "ENVIRONMENT"
-                ? [
-                      ...a.document.roles,
-                      ...(a.document.fixtureIdentity ? [a.document.fixtureIdentity] : []),
-                  ].map((r) => r.authAdapterVersionId)
+                ? [...a.document.roles, ...(a.document.fixtureIdentity ? [a.document.fixtureIdentity] : [])].map(
+                      (r) => r.authAdapterVersionId,
+                  )
                 : [],
         ),
     );
@@ -988,25 +841,20 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
         "/authAdapters",
     );
     for (const adapter of adapters) {
-        if (!expectedAdapters.has(adapter.versionId))
-            fail("UNRELATED_AUTH_ADAPTER", "/authAdapters");
-        if (adapter.workspaceId !== snapshot.workspaceId)
-            fail("AUTH_ADAPTER_WORKSPACE_MISMATCH", "/authAdapters");
+        if (!expectedAdapters.has(adapter.versionId)) fail("UNRELATED_AUTH_ADAPTER", "/authAdapters");
+        if (adapter.workspaceId !== snapshot.workspaceId) fail("AUTH_ADAPTER_WORKSPACE_MISMATCH", "/authAdapters");
         if (sha256(canonicalBytes(adapter.configuration)) !== adapter.contentHash)
             fail("AUTH_ADAPTER_HASH_MISMATCH", "/authAdapters");
     }
     for (const id of expectedAdapters)
-        if (!adapters.some((a) => a.versionId === id))
-            fail("AUTH_ADAPTER_REQUIRED", "/authAdapters");
+        if (!adapters.some((a) => a.versionId === id)) fail("AUTH_ADAPTER_REQUIRED", "/authAdapters");
     const reachable = new Set<string>();
     const visit = (id: string) => {
         if (reachable.has(id)) return;
         reachable.add(id);
         for (const dep of edges.get(id) ?? []) visit(dep);
     };
-    for (const id of snapshot.validationTarget
-        ? [snapshot.validationTarget.versionId]
-        : snapshot.entryCaseVersionIds)
+    for (const id of snapshot.validationTarget ? [snapshot.validationTarget.versionId] : snapshot.entryCaseVersionIds)
         visit(id);
     if (!snapshot.validationTarget && suiteRoot) visit(suiteRoot.versionId);
     for (const a of snapshot.assets)

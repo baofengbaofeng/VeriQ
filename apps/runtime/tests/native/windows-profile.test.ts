@@ -4,16 +4,7 @@
  */
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
-import {
-    mkdtemp,
-    mkdir,
-    writeFile,
-    readFile,
-    readdir,
-    rm,
-    copyFile,
-    realpath,
-} from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readFile, readdir, rm, copyFile, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { createHash } from "node:crypto";
@@ -33,9 +24,7 @@ assert.equal(process.platform, "win32");
 const native = windowsNative();
 const powershell = join(process.env.SystemRoot!, "System32/WindowsPowerShell/v1.0/powershell.exe");
 const powershellEnvironment = {
-    ...Object.fromEntries(
-        Object.entries(process.env).filter(([name]) => name.toLowerCase() !== "psmodulepath"),
-    ),
+    ...Object.fromEntries(Object.entries(process.env).filter(([name]) => name.toLowerCase() !== "psmodulepath")),
     PSModulePath: join(dirname(powershell), "Modules"),
 };
 const encoded = (script: string) => [
@@ -144,8 +133,7 @@ ConvertTo-Json -InputObject @{ inputCount=@($paths).Count; pipelineInputs=$pipel
         assert.equal(record.inputType, "System.String");
         assert.equal(record.owner, native.sid);
         assert(record.rules.length > 0);
-        for (const rule of record.rules)
-            assert.deepEqual(rule, { sid: native.sid, inherited: true, allow: true });
+        for (const rule of record.rules) assert.deepEqual(rule, { sid: native.sid, inherited: true, allow: true });
     }
     return observed;
 }
@@ -174,9 +162,7 @@ test("Windows private profile inherits ACLs into Node SQLite and lockfile childr
                     join(profile, "local/veriq.sqlite-wal"),
                     join(profile, "local/veriq.sqlite-shm"),
                 ];
-                context.diagnostic(
-                    `Inherited child ACLs: ${JSON.stringify(await inheritedAcl(children))}`,
-                );
+                context.diagnostic(`Inherited child ACLs: ${JSON.stringify(await inheritedAcl(children))}`);
                 assert.deepEqual(await readPrivate(profile, "node.json"), { owned: true });
                 for (const path of children) native.privatePath(path, false);
             } finally {
@@ -199,10 +185,7 @@ test("Windows DeviceStore creates private credentials and refuses a second enrol
         native.privatePath(store.directory, false);
         native.privatePath(join(store.directory, "device.json"), false);
         assert.deepEqual(await store.load(), device);
-        await assert.rejects(
-            store.save({ ...device, deviceToken: "synthetic-second" }),
-            /ALREADY_ENROLLED/,
-        );
+        await assert.rejects(store.save({ ...device, deviceToken: "synthetic-second" }), /ALREADY_ENROLLED/);
         assert.deepEqual(await store.load(), device);
         await store.remove();
         await assert.rejects(store.load(), { code: "ENOENT" });
@@ -232,11 +215,7 @@ test("Windows DeviceStore rejects existing public credentials without changing b
             assert.rejects(store.load(), /NATIVE_ACL_NOT_PRIVATE|Unsafe device/),
             assert.rejects(store.remove(), /NATIVE_ACL_NOT_PRIVATE/),
         ]);
-        results.push(
-            ...(await Promise.allSettled([
-                readFile(path).then((bytes) => assert.deepEqual(bytes, before)),
-            ])),
-        );
+        results.push(...(await Promise.allSettled([readFile(path).then((bytes) => assert.deepEqual(bytes, before))])));
         assert.deepEqual(
             results.filter((result) => result.status === "rejected"),
             [],
@@ -324,15 +303,12 @@ finally { $file.Dispose() }
             try {
                 const [code, signal] = await bounded(exited, "OWNED_HOLDER_EXIT_TIMEOUT");
                 if (code !== 0 || signal !== null || errors)
-                    failures.push(
-                        new Error(`OWNED_HOLDER_EXIT_FAILED ${code}/${signal}/${errors}`),
-                    );
+                    failures.push(new Error(`OWNED_HOLDER_EXIT_FAILED ${code}/${signal}/${errors}`));
             } catch (error) {
                 failures.push(error);
             }
         }
-        if (failures.length)
-            throw new AggregateError(failures, "SHARING_DENIED_COMMIT_CHECK_FAILED");
+        if (failures.length) throw new AggregateError(failures, "SHARING_DENIED_COMMIT_CHECK_FAILED");
         await updatePrivate(profile, name, (old) => {
             assert.deepEqual(old, { generation: 1 });
             return { generation: 2 };
@@ -377,10 +353,7 @@ async function distribution(root: string, includeNative: boolean) {
         await mkdir(dirname(target), { recursive: true });
         if (path === "roles/agent/veriq_agent.exe") await copyFile(process.execPath, target);
         else if (path === "native/veriq_native.node")
-            await copyFile(
-                fileURLToPath(new URL("../../build/Release/veriq_native.node", import.meta.url)),
-                target,
-            );
+            await copyFile(fileURLToPath(new URL("../../build/Release/veriq_native.node", import.meta.url)), target);
         else await writeFile(target, path);
         const hash = createHash("sha256");
         let sizeBytes = 0;
@@ -428,11 +401,11 @@ test("Windows verified distribution binds its actual addon before private profil
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { loadRuntimeDistribution, assertRuntimeRole } from ${JSON.stringify(
-    new URL("../../src/distribution.ts", import.meta.url).href,
-)};
+            new URL("../../src/distribution.ts", import.meta.url).href,
+        )};
 import { updatePrivate, readPrivate } from ${JSON.stringify(
-    new URL("../../src/offline/config.ts", import.meta.url).href,
-)};
+            new URL("../../src/offline/config.ts", import.meta.url).href,
+        )};
 const installed = await loadRuntimeDistribution(process.argv[1]);
 assertRuntimeRole(installed, 'agent');
 await updatePrivate(process.argv[2], 'descriptor.json', () => ({bound:true}));

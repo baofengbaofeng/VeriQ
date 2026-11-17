@@ -42,9 +42,8 @@ test("assigned absolute same-control-origin downloads work while foreign URLs re
         const origin = `http://127.0.0.1:${address.port}`;
         const client = new AgentClient({
             client: new RuntimeClient(origin),
-            withCredential: async (
-                operation: (config: { deviceToken: string }) => Promise<unknown>,
-            ) => operation({ deviceToken: "parent-token" }),
+            withCredential: async (operation: (config: { deviceToken: string }) => Promise<unknown>) =>
+                operation({ deviceToken: "parent-token" }),
         } as unknown as ConstructorParameters<typeof AgentClient>[0]);
         const proof = { leaseToken: "lease", fencingToken: 1 };
         assert.deepEqual(
@@ -57,12 +56,7 @@ test("assigned absolute same-control-origin downloads work while foreign URLs re
             payload,
         );
         await assert.rejects(
-            client.download(
-                "http://localhost:1/content",
-                "a".repeat(64),
-                proof,
-                new AbortController().signal,
-            ),
+            client.download("http://localhost:1/content", "a".repeat(64), proof, new AbortController().signal),
             /CONTROL_ORIGIN_MISMATCH/,
         );
         assert.equal(requests, 1);

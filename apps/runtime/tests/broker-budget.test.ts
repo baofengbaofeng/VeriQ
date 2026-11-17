@@ -35,9 +35,7 @@ async function observe(timeout: number | undefined, delayed: boolean) {
         const result = new Promise<string>((resolve) => {
             const socket = connect(broker.path);
             let data = "";
-            socket.on("connect", () =>
-                socket.write(JSON.stringify({ nonce: broker.nonce }) + "\n"),
-            );
+            socket.on("connect", () => socket.write(JSON.stringify({ nonce: broker.nonce }) + "\n"));
             socket.on("data", (chunk) => {
                 data += chunk;
             });

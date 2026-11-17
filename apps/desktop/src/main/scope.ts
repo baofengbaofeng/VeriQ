@@ -15,10 +15,6 @@ export function authorizeSender(
     actual: { id: number; frame: unknown; url: string },
     expected: { id: number; frame: unknown },
 ): void {
-    if (
-        actual.id !== expected.id ||
-        actual.frame !== expected.frame ||
-        actual.url !== "veriq://app/index.html"
-    )
+    if (actual.id !== expected.id || actual.frame !== expected.frame || actual.url !== "veriq://app/index.html")
         throw new Error("IPC_SENDER_DENIED");
 }

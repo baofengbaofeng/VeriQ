@@ -60,31 +60,28 @@ it.each([
         expect(r.assertions[0]?.expectedSource).toBe("REQ-1");
     },
 );
-it.each(["/text", "/empty"])(
-    "accepts status assertions but rejects JSON extraction for %s",
-    async (path) => {
-        const r = await executeStep(
-            step({ id: "request", action: "apiRequest", method: "GET", path }, [
-                a({
-                    type: "httpStatus",
-                    source: "response:action",
-                    operator: "equals",
-                    expected: path === "/empty" ? 204 : 200,
-                }),
-                a({
-                    type: "responseField",
-                    source: "response:action",
-                    pointer: "",
-                    operator: "equals",
-                    expected: null,
-                }),
-            ]),
-            createStepContext(f.options),
-        );
-        expect(r.assertions.map((x) => x.status)).toEqual(["PASSED", "FAILED"]);
-        expect(r.assertions[1]?.actual).toEqual({ present: false });
-    },
-);
+it.each(["/text", "/empty"])("accepts status assertions but rejects JSON extraction for %s", async (path) => {
+    const r = await executeStep(
+        step({ id: "request", action: "apiRequest", method: "GET", path }, [
+            a({
+                type: "httpStatus",
+                source: "response:action",
+                operator: "equals",
+                expected: path === "/empty" ? 204 : 200,
+            }),
+            a({
+                type: "responseField",
+                source: "response:action",
+                pointer: "",
+                operator: "equals",
+                expected: null,
+            }),
+        ]),
+        createStepContext(f.options),
+    );
+    expect(r.assertions.map((x) => x.status)).toEqual(["PASSED", "FAILED"]);
+    expect(r.assertions[1]?.actual).toEqual({ present: false });
+});
 it("WARN does not block extraction; CONTINUE_FAIL still fails the step", async () => {
     const ctx = createStepContext(f.options);
     const r = await executeStep(
@@ -143,8 +140,7 @@ it.each([
     if (action === "fill") expect(await f.page.getByTestId("name").inputValue()).toBe("A");
     if (action === "check" || action === "uncheck")
         expect(await f.page.getByTestId("check").isChecked()).toBe(action === "check");
-    if (action === "selectOption")
-        expect(await f.page.getByTestId("select").inputValue()).toBe("b");
+    if (action === "selectOption") expect(await f.page.getByTestId("select").inputValue()).toBe("b");
 });
 it.each([
     ["visible", "text", true],
@@ -178,10 +174,7 @@ it("nested template scopes preserve caller data and inert bound text", async () 
                 expected: "{{data.inner}}",
             }),
         ]);
-    p.responseAssertions[0]!.parameters = [
-        { middle: "{{data.outer}}" },
-        { inner: "{{data.middle}}" },
-    ];
+    p.responseAssertions[0]!.parameters = [{ middle: "{{data.outer}}" }, { inner: "{{data.middle}}" }];
     expect((await executeStep(p, ctx)).status).toBe("PASSED");
     expect(ctx.data.inner).toBe("wrong");
 });
@@ -243,9 +236,7 @@ it("requires an upload provider and uses actual file bytes from it", async () =>
         target: "upload",
         value: ["fixture.txt"],
     });
-    expect((await executeStep(p, createStepContext(f.options))).errorCode).toBe(
-        "FILE_PROVIDER_REQUIRED",
-    );
+    expect((await executeStep(p, createStepContext(f.options))).errorCode).toBe("FILE_PROVIDER_REQUIRED");
     expect(
         (
             await executeStep(
@@ -263,9 +254,9 @@ it("requires an upload provider and uses actual file bytes from it", async () =>
             )
         ).status,
     ).toBe("PASSED");
-    expect(
-        await f.page.getByTestId("upload").evaluate((el: HTMLInputElement) => el.files?.[0]?.name),
-    ).toBe("fixture.txt");
+    expect(await f.page.getByTestId("upload").evaluate((el: HTMLInputElement) => el.files?.[0]?.name)).toBe(
+        "fixture.txt",
+    );
 });
 it("blocks forbidden substituted paths and redirects before the destination request", async () => {
     for (const path of ["//evil.test/", "/\\evil.test/", "/redirect"]) {
@@ -367,7 +358,5 @@ it("allows same-origin reads to redirect but never replays a redirected write", 
         createStepContext(f.options),
     );
     expect(write.errorCode).toBe("WRITE_REDIRECT_FORBIDDEN");
-    expect(f.requests.filter((r) => r.path === "/save" && r.method === "POST")).toHaveLength(
-        writes,
-    );
+    expect(f.requests.filter((r) => r.path === "/save" && r.method === "POST")).toHaveLength(writes);
 });

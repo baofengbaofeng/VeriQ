@@ -19,11 +19,10 @@ Object.defineProperty(process.versions, "node", { value: ${JSON.stringify(node)}
 ${electron ? `Object.defineProperty(process.versions, "electron", { value: ${JSON.stringify(electron)} });` : ""}
 await import(${JSON.stringify(new URL("../src/agent/index.ts", import.meta.url).href)});
 `;
-        const result = spawnSync(
-            process.execPath,
-            ["--import", "tsx", "--input-type=module", "-e", script],
-            { encoding: "utf8", timeout: 10000 },
-        );
+        const result = spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "-e", script], {
+            encoding: "utf8",
+            timeout: 10000,
+        });
         assert.equal(result.status, 1, result.stderr);
         assert.match(result.stderr, new RegExp(expected));
     }

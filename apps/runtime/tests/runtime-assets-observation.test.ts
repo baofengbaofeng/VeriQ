@@ -39,9 +39,7 @@ for (const arch of ["x64", "arm64"] as const)
                 assert.equal(result.chromeLayout.allowedLinksCandidate.length, 1);
                 assert.equal(result.chromeLayout.outsideFrameworkLinks.length, 1);
                 assert.equal(result.chromeLayout.status, "REQUIRES_LAYOUT_REVIEW");
-                const modes = JSON.parse(
-                    await readFile(join(tx.scratch, "evidence/zip-modes.json"), "utf8"),
-                );
+                const modes = JSON.parse(await readFile(join(tx.scratch, "evidence/zip-modes.json"), "utf8"));
                 assert.equal(modes.entries.length, 5);
                 assert.equal(
                     modes.entries.every((e: { state: string }) => e.state === "EXPLICIT_UNIX"),
@@ -104,10 +102,7 @@ test("private metadata binds independent Ref then snapshots and detects replacem
             await tx.finishSources();
             await tx.audit();
             await writeFile(join(f.root, "evidence/replacement"), bytes, { mode: 0o600 });
-            await rename(
-                join(f.root, "evidence/replacement"),
-                join(f.root, "evidence/source.json"),
-            );
+            await rename(join(f.root, "evidence/replacement"), join(f.root, "evidence/source.json"));
             await assert.rejects(reader.finish(), { code: "PAYLOAD_SOURCE_CHANGED" });
             await assert.rejects(tx.finishSources(), { code: "PAYLOAD_SOURCE_CHANGED" });
         } finally {
@@ -164,8 +159,7 @@ for (const scenario of ["dos", "missing", "crc", "path", "outside"] as const)
                     chrome[body] = 0x58;
                 }
                 if (scenario === "path") node = tarBytes([{ path: "../escape", body: "tiny" }]);
-                if (scenario === "outside")
-                    chrome = zipBytes([{ path: "chrome-mac-x64/LICENSE", body: "tiny" }]);
+                if (scenario === "outside") chrome = zipBytes([{ path: "chrome-mac-x64/LICENSE", body: "tiny" }]);
                 const refs = [
                     await tx.write("snapshots/node.tar.gz", once(node)),
                     await tx.write("snapshots/chrome.zip", once(chrome)),
@@ -178,13 +172,8 @@ for (const scenario of ["dos", "missing", "crc", "path", "outside"] as const)
                     const result = await scanObservedSnapshots(tx, "x64", refs);
                     assert.equal(result.chromeLayout.bundleDirectoryObserved, false);
                     assert.equal(result.chromeLayout.executableFileObserved, false);
-                    assert.equal(
-                        result.chromeLayout.missingOrDosModeEntries,
-                        scenario === "outside" ? 0 : 1,
-                    );
-                    const raw = JSON.parse(
-                        await readFile(join(tx.scratch, "evidence/zip-modes.json"), "utf8"),
-                    );
+                    assert.equal(result.chromeLayout.missingOrDosModeEntries, scenario === "outside" ? 0 : 1);
+                    const raw = JSON.parse(await readFile(join(tx.scratch, "evidence/zip-modes.json"), "utf8"));
                     if (scenario !== "outside") {
                         assert.equal(raw.entries[0].rawMode, 0);
                         assert.equal(raw.entries[0].state, "MISSING_OR_DOS");
@@ -298,9 +287,7 @@ for (const scenario of [
     "existing-upload",
 ] as const)
     test(`production inline evidence collector ${scenario}`, async () => {
-        const { mkdtemp, mkdir, writeFile, open, lstat, statfs, rm, symlink } = await import(
-            "node:fs/promises"
-        );
+        const { mkdtemp, mkdir, writeFile, open, lstat, statfs, rm, symlink } = await import("node:fs/promises");
         const { tmpdir } = await import("node:os"),
             { createHash } = await import("node:crypto"),
             { assetWorkflowSteps } = await import("./fixtures/runtime-assets.ts");
@@ -339,11 +326,9 @@ for (const scenario of [
             await writeFile(join(meta, "steps.json"), existingSteps, { mode: 0o600 });
             if (scenario === "normal" || scenario === "normal-truncated-log") {
                 await mkdir(join(meta, "nested/deep"), { recursive: true, mode: 0o700 });
-                await writeFile(
-                    join(meta, "nested/deep/source.json"),
-                    "small committed source evidence",
-                    { mode: 0o600 },
-                );
+                await writeFile(join(meta, "nested/deep/source.json"), "small committed source evidence", {
+                    mode: 0o600,
+                });
             }
             const sparse = async (name: string, bytes: number) => {
                 const file = join(meta, name),
@@ -381,35 +366,33 @@ for (const scenario of [
                 await symlink(join(base, "outside-unread"), join(meta, "foreign.json"));
             const steps = assetWorkflowSteps(join(base, "uv-cache"));
             const collector = steps.find(
-                (step) =>
-                    step.id === "collect" ||
-                    step.name === "Bound dependency logs and preserve setup failures",
+                (step) => step.id === "collect" || step.name === "Bound dependency logs and preserve setup failures",
             );
             assert.equal(typeof collector?.run, "string");
-            const code = (collector!.run as string).match(
-                /node --input-type=module <<'JS'\n([\s\S]*?)\nJS/,
-            )?.[1];
+            const code = (collector!.run as string).match(/node --input-type=module <<'JS'\n([\s\S]*?)\nJS/)?.[1];
             assert.ok(code);
-            const prefix = `import fixIO from "node:fs"; import { syncBuiltinESMExports as fixSync } from "node:module";
+            const prefix =
+                `import fixIO from "node:fs"; import { syncBuiltinESMExports as fixSync } from "node:module";
 const fixOpen = fixIO.promises.open; let fixUsed = false; const fixSourceOpens = []; const fixSourceReads = {};
 process.on("exit",()=>process.stdout.write(JSON.stringify({sourceOpens:fixSourceOpens,sourceReads:fixSourceReads})+` +
-`"\\n"));
+                `"\\n"));
 fixIO.promises.open = async (path, ...args) => {
     const name = String(path); if (name.startsWith(process.env.ASSET_ROOT+"/metadata/")) fixSourceOpens.push(name);
     if (${JSON.stringify(scenario)} === "fallback-failure" && name.includes(".upload-build-")) throw Object.assign(E` +
-    `rror("CONTROLLED_IO"), {code:"EIO"});
+                `rror("CONTROLLED_IO"), {code:"EIO"});
     if (${JSON.stringify(scenario)} === "manifest-write-failure" && name.endsWith("/manifest.json") && !fixUsed) { f` +
-    `ixUsed=true; throw Object.assign(Error("CONTROLLED_IO"), {code:"EIO"}); }
+                `ixUsed=true; throw Object.assign(Error("CONTROLLED_IO"), {code:"EIO"}); }
     const handle = await fixOpen(path,...args);
     if (name.startsWith(process.env.ASSET_ROOT+"/metadata/")) { const read = handle.read.bind(handle); handle.read=a` +
-    `sync(...values)=>{fixSourceReads[name]=(fixSourceReads[name]??0)+values[2];return read(...values);}; }
+                `sync(...values)=>{fixSourceReads[name]=(fixSourceReads[name]??0)+values[2];return read(...values);}; }
     if (${JSON.stringify(scenario)} === "read-failure" && name.endsWith("/metadata/status.json")) handle.read=async(` +
-    `)=>{throw Object.assign(Error("CONTROLLED_READ"),{code:"EIO"});};
+                `)=>{throw Object.assign(Error("CONTROLLED_READ"),{code:"EIO"});};
     if (${JSON.stringify(scenario)} === "prefix-write-failure" && name.includes(".upload-build-") && name.endsWith("` +
-    `/pnpm-install.log")) handle.write=async()=>{throw Object.assign(Error("CONTROLLED_PREFIX_WRITE"),{code:"EIO"});};
-    if (${JSON.stringify(scenario)} === "close-failure" && name.endsWith("/metadata/status.json")) { const close = h` +
-    `andle.close.bind(handle); handle.close=async()=>{await close();throw Object.assign(Error("CONTROLLED_CLOSE"),{co` +
-        `de:"EIO"});}; }
+                `/pnpm-install.log")) handle.write=async()=>{throw Object.assign(Error("CONTROLLED_PREFIX_WRITE"),` +
+                `{code:"EIO"});};
+    if (${JSON.stringify(scenario)} === "close-failure" && name.endsWith("/metadata/status.json")) { const close = ` +
+                `handle.close.bind(handle); handle.close=async()=>{await close();` +
+                `throw Object.assign(Error("CONTROLLED_CLOSE"),{code:"EIO"});}; }
     return handle;
 }; fixSync();\n`;
             const result = spawnSync(process.execPath, ["--input-type=module"], {
@@ -442,8 +425,7 @@ fixIO.promises.open = async (path, ...args) => {
                 sourceOpens: string[];
                 sourceReads: Record<string, number>;
             };
-            if (scenario === "metadata-limit" || scenario === "logs-limit")
-                assert.deepEqual(trace.sourceOpens, []);
+            if (scenario === "metadata-limit" || scenario === "logs-limit") assert.deepEqual(trace.sourceOpens, []);
             assert.match(markers, /^ready=true$/m, result.stderr);
             assert.match(markers, new RegExp(`^upload_root=${root}/upload$`, "m"));
             const uploaded = join(root, "upload"),
@@ -481,10 +463,7 @@ fixIO.promises.open = async (path, ...args) => {
                 "always() && steps.collect.outputs.ready == 'true' && steps.collect.outputs.upload_root == format('{" +
                     "0}/upload', env.ASSET_ROOT)",
             );
-            assert.equal(
-                (upload?.with as Record<string, unknown>)?.path,
-                "${{ env.ASSET_ROOT }}/upload/",
-            );
+            assert.equal((upload?.with as Record<string, unknown>)?.path, "${{ env.ASSET_ROOT }}/upload/");
             assert.equal((upload?.with as Record<string, unknown>)?.["if-no-files-found"], "error");
             assert.match(
                 markers,
@@ -524,10 +503,7 @@ fixIO.promises.open = async (path, ...args) => {
                 assert.deepEqual(names.sort(), ["failure.json", "manifest.json"]);
                 const failure = JSON.parse(await readFile(join(uploaded, "failure.json"), "utf8"));
                 assert.equal(failure.status, "FAIL");
-                assert.equal(
-                    failure.cleanup,
-                    scenario === "close-failure" ? "INCOMPLETE" : "CONFIRMED",
-                );
+                assert.equal(failure.cleanup, scenario === "close-failure" ? "INCOMPLETE" : "CONFIRMED");
                 assert.equal(
                     failure.code,
                     scenario.endsWith("limit")
@@ -563,9 +539,7 @@ for (const scenario of [
     "setup-added-quota",
 ] as const)
     test(`production setup evidence collector ${scenario}`, async () => {
-        const { mkdtemp, mkdir, writeFile, lstat, statfs, open, rm } = await import(
-            "node:fs/promises"
-        );
+        const { mkdtemp, mkdir, writeFile, lstat, statfs, open, rm } = await import("node:fs/promises");
         const { tmpdir } = await import("node:os"),
             { createHash } = await import("node:crypto"),
             { assetWorkflowSteps } = await import("./fixtures/runtime-assets.ts");
@@ -589,8 +563,7 @@ for (const scenario of [
                 });
                 await writeFile(join(meta, "os.log"), "ProductVersion: 15.7", { mode: 0o600 });
             }
-            if (scenario === "invalid-existing")
-                await writeFile(join(meta, "steps.json"), "[]", { mode: 0o600 });
+            if (scenario === "invalid-existing") await writeFile(join(meta, "steps.json"), "[]", { mode: 0o600 });
             if (scenario === "existing-valid")
                 await writeFile(join(meta, "steps.json"), originalSteps, { mode: 0o600 });
             if (scenario === "setup-added-quota") {
@@ -637,15 +610,13 @@ for (const scenario of [
                     DEPENDENCIES_OUTCOME: "success",
                     ORCHESTRATION_OUTCOME: "cancelled",
                 });
-            if (scenario === "missing-skipped-no-failure")
-                Object.assign(outcomes, { DEPENDENCIES_OUTCOME: "success" });
+            if (scenario === "missing-skipped-no-failure") Object.assign(outcomes, { DEPENDENCIES_OUTCOME: "success" });
             const steps = assetWorkflowSteps(join(base, "uv-cache")),
                 collector = steps.find((step) => step.id === "collect");
-            const code = (collector!.run as string).match(
-                /node --input-type=module <<'JS'\n([\s\S]*?)\nJS/,
-            )?.[1];
+            const code = (collector!.run as string).match(/node --input-type=module <<'JS'\n([\s\S]*?)\nJS/)?.[1];
             assert.ok(code);
-            const trace = `import setupIO from "node:fs"; import {syncBuiltinESMExports as setupSync} from "node:mo` +
+            const trace =
+                `import setupIO from "node:fs"; import {syncBuiltinESMExports as setupSync} from "node:mo` +
                 `dule"; const setupOpen=setupIO.promises.open;let setupSourceOpens=0;setupIO.promises.open=async(pa` +
                 `th,...args)=>{if(String(path).startsWith(process.env.ASSET_ROOT+"/metadata/"))setupSourceOpens++;r` +
                 `eturn setupOpen(path,...args);};setupSync();process.on("exit",()=>process.stdout.write(JSON.string` +
@@ -685,10 +656,7 @@ for (const scenario of [
             assert.ok(logBytes <= 8 * 1024 ** 2);
             assert.match(
                 markers,
-                new RegExp(
-                    `^manifest_sha256=${createHash("sha256").update(manifestBytes).digest("hex")}$`,
-                    "m",
-                ),
+                new RegExp(`^manifest_sha256=${createHash("sha256").update(manifestBytes).digest("hex")}$`, "m"),
             );
             if (
                 scenario.startsWith("missing-") ||
@@ -697,17 +665,10 @@ for (const scenario of [
             ) {
                 assert.notEqual(result.status, 0);
                 assert.match(markers, /^collection=FAILURE$/m);
-                assert.deepEqual((await readdir(uploaded)).sort(), [
-                    "failure.json",
-                    "manifest.json",
-                ]);
+                assert.deepEqual((await readdir(uploaded)).sort(), ["failure.json", "manifest.json"]);
                 const failure = JSON.parse(await readFile(join(uploaded, "failure.json"), "utf8"));
                 assert.equal(failure.status, "FAIL");
-                assert.ok(
-                    failure.steps.every(
-                        (s: { step: string }) => s.step !== "ACQUIRE" && s.step !== "OBSERVE",
-                    ),
-                );
+                assert.ok(failure.steps.every((s: { step: string }) => s.step !== "ACQUIRE" && s.step !== "OBSERVE"));
                 if (scenario === "setup-added-quota") {
                     assert.equal(failure.code, "ARTIFACT_LIMIT");
                     assert.equal(JSON.parse(result.stdout).sourceOpens, 0);
@@ -716,11 +677,7 @@ for (const scenario of [
                 assert.equal(result.status, 0, result.stderr);
                 assert.match(markers, /^collection=FULL$/m);
                 const bytes = await readFile(join(uploaded, "steps.json"));
-                assert.ok(
-                    manifest.files.some(
-                        (file) => file.path === "steps.json" && file.sizeBytes === bytes.length,
-                    ),
-                );
+                assert.ok(manifest.files.some((file) => file.path === "steps.json" && file.sizeBytes === bytes.length));
                 if (scenario === "existing-valid") {
                     assert.deepEqual(bytes, originalSteps);
                     assert.deepEqual(await readFile(join(meta, "steps.json")), originalSteps);
@@ -755,10 +712,7 @@ for (const scenario of [
                 "always() && steps.collect.outputs.ready == 'true' && steps.collect.outputs.upload_root == format('{" +
                     "0}/upload', env.ASSET_ROOT)",
             );
-            assert.equal(
-                (upload!.with as Record<string, unknown>).path,
-                "${{ env.ASSET_ROOT }}/upload/",
-            );
+            assert.equal((upload!.with as Record<string, unknown>).path, "${{ env.ASSET_ROOT }}/upload/");
         } finally {
             await rm(base, { recursive: true, force: true });
         }
@@ -772,9 +726,7 @@ test("archive rejection normalization follows real cleanup without public API ch
     const { mkdtemp, mkdir, rm, statfs } = await import("node:fs/promises"),
         { tmpdir } = await import("node:os"),
         { RuntimePayloadError } = await import("../scripts/runtime-payload-inputs.ts"),
-        { assetFailure, observeMacRuntimeAssets } = await import(
-            "../scripts/runtime-assets-observation.ts"
-        ),
+        { assetFailure, observeMacRuntimeAssets } = await import("../scripts/runtime-assets-observation.ts"),
         { archiveRejectionLine } = await import("../scripts/runtime-payload-archive.ts"),
         { tarBytes } = await import("./fixtures/runtime-payload-archives.ts");
     const base = await mkdtemp(join(tmpdir(), "veriq-normalized-rejection-"));
@@ -831,22 +783,21 @@ test("archive rejection normalization follows real cleanup without public API ch
  */
 for (const failure of ["none", "sync", "async"] as const) {
     test(`archive rejection CLI emitter preserves primary outcome on ${failure} output`, () => {
-        const source = `
+        const source =
+            `
 import { RuntimePayloadError } from "./scripts/runtime-payload-inputs.ts";
 import { attachArchiveRejection, emitArchiveFailure } from "./scripts/runtime-payload-archive.ts";
 const error = new RuntimePayloadError("PAYLOAD_ARCHIVE_UNSUPPORTED", null, "CONFIRMED", { phase: "INTAKE", candidate` +
-`Directory: null });
+            `Directory: null });
 attachArchiveRejection(error, { archive: "node", stage: "TAR_FRAME", reason: "TAR_ENTRY_TYPE" });
 if (${JSON.stringify(failure)} === "sync") process.stderr.write = () => { throw Error("CLOSED_PIPE"); };
 if (${JSON.stringify(failure)} === "async") process.stderr.write = () => { queueMicrotask(() => process.stderr.emit(` +
-`"error", Error("CLOSED_PIPE"))); return false; };
+            `"error", Error("CLOSED_PIPE"))); return false; };
 emitArchiveFailure(error, 17);
 `;
-        const child = spawnSync(
-            process.execPath,
-            ["--import", "tsx", "--input-type=module", "-e", source],
-            { encoding: "utf8" },
-        );
+        const child = spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "-e", source], {
+            encoding: "utf8",
+        });
         assert.equal(child.status, 17);
         assert.equal(child.stdout, "");
         if (failure === "none") {
@@ -870,8 +821,7 @@ test("production snapshot helper observes stored options without rewriting flags
         const free = await statfs(f.output);
         assert.ok(free.bavail * free.bsize > 40 * 1024 ** 2);
         const body = "s".repeat(2018),
-            memberPath =
-                "chrome-mac-x64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
+            memberPath = "chrome-mac-x64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
             node = tarBytes([{ path: "node-v24.22.1-darwin-x64/bin/node", body: "tiny Node" }]),
             chrome = zipBytes([{ path: memberPath, body }], 0),
             central = chrome.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));
@@ -896,9 +846,7 @@ test("production snapshot helper observes stored options without rewriting flags
             assert.equal(result.archives[1].zipLocalDataRanges, "CHECKED");
             assert.equal(result.chromeLayout.status, "REQUIRES_LAYOUT_REVIEW");
             assert.equal(result.chromeLayout.executableFileObserved, true);
-            const members = JSON.parse(
-                await readFile(join(tx.scratch, "members/chrome.json"), "utf8"),
-            );
+            const members = JSON.parse(await readFile(join(tx.scratch, "members/chrome.json"), "utf8"));
             assert.deepEqual(members.members, [
                 {
                     path: memberPath,
@@ -908,9 +856,7 @@ test("production snapshot helper observes stored options without rewriting flags
                     sha256: fact("body", Buffer.from(body)).sha256,
                 },
             ]);
-            const modes = JSON.parse(
-                await readFile(join(tx.scratch, "evidence/zip-modes.json"), "utf8"),
-            );
+            const modes = JSON.parse(await readFile(join(tx.scratch, "evidence/zip-modes.json"), "utf8"));
             assert.equal(modes.entries.length, 1);
             assert.equal(modes.entries[0].state, "EXPLICIT_UNIX");
             assert.equal(modes.entries[0].host, 3);
@@ -926,8 +872,7 @@ test("production snapshot helper observes stored options without rewriting flags
                 const info = await lstat(path);
                 let total = info.blocks * 512;
                 if (info.isDirectory())
-                    for (const name of await readdir(path))
-                        total += await allocated(join(path, name));
+                    for (const name of await readdir(path)) total += await allocated(join(path, name));
                 return total;
             };
             assert.ok((await allocated(f.root)) + (await allocated(f.output)) <= 2 * 1024 ** 2);
@@ -973,16 +918,16 @@ const space = await statfs(root, { bigint: true });
 assert.ok(space.bavail * space.bsize > 40n * 1024n ** 2n);
 const emit = (event, facts = {}) => console.log(JSON.stringify({ event, scenario, ...facts }));
 process.on("unhandledRejection", error => { emit("UNHANDLED_REJECTION", { message: String(error) }); process.exitCod` +
-`e = 91; });
+                        `e = 91; });
 let target, expected, captured, calls = 0, opens = 0, injected = false, primary, tx;
 const controller = new AbortController();
 const originalOpen = fs.open, originalClose = fs.close, originalRead = fs.read;
 const identity = info => ({ dev: String(info.dev), ino: String(info.ino), size: String(info.size), nlink: String(inf` +
-`o.nlink) });
+                        `o.nlink) });
 const matches = info => info.isFile() && info.dev === expected.dev && info.ino === expected.ino && info.size === exp` +
-`ected.size && info.nlink === 1n;
+                        `ected.size && info.nlink === 1n;
 const restore = () => { fs.open = originalOpen; fs.close = originalClose; fs.read = originalRead; syncBuiltinESMExpo` +
-`rts(); };
+                        `rts(); };
 const install = (select, occurrence) => {
     fs.open = function(path, ...args) {
         if (!select(String(path)) || ++opens !== occurrence) return originalOpen.call(this, path, ...args);
@@ -1012,11 +957,11 @@ const install = (select, occurrence) => {
     };
     fs.read = function(fd, ...args) {
         if (fd === captured && args[2] === 2018 && !injected && (scenario === "read-eio" || scenario === "cancel-eio` +
-        `")) {
+                        `")) {
             injected = true;
             if (scenario === "cancel-eio") controller.abort();
             else { queueMicrotask(() => args.at(-1)(Object.assign(Error("OWNED_READ_FAULT"), { code: "EIO" }))); ret` +
-            `urn; }
+                        `urn; }
         }
         return originalRead.call(this, fd, ...args);
     };
@@ -1038,7 +983,7 @@ await tx.initialize();
 const [node, chrome] = tinyAssets();
 const refs = [];
 for (const [path, bytes] of [["snapshots/node.tar.gz", node], ["snapshots/chrome.zip", chrome]]) refs.push(await tx.` +
-`write(path, (async function*() { yield bytes; })()));
+                        `write(path, (async function*() { yield bytes; })()));
 snapshotHash = refs[1].sha256;
 const destination = join(tx.scratch, refs[1].path);
 install(path => path === destination, 2);
@@ -1058,7 +1003,7 @@ try {
     await retain();
     assert.ok(!(await readdir(tx.scratch, { recursive: true })).includes("evidence/zip-modes.json"));
     emit("SETTLED", { outcome: "rejected", code: error.code, causeCode: error.causeCode, phase: error.phase, cleanup` +
-    `: "INCOMPLETE" });
+                        `: "INCOMPLETE" });
 } finally { restore(); }
 assert.equal(opens, 2);
 assert.equal(calls, 1);

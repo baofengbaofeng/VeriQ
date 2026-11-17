@@ -19,9 +19,7 @@ const headers = new WeakMap<BrowserContext, { origin: string; token: string }>()
  */
 export function businessHeaders(context: BrowserContext, url: string): Record<string, string> {
     const value = headers.get(context);
-    return value && new URL(url).origin === value.origin
-        ? { authorization: `Bearer ${value.token}` }
-        : {};
+    return value && new URL(url).origin === value.origin ? { authorization: `Bearer ${value.token}` } : {};
 }
 /**
  * 公开函数 authenticatedRequest 在已鉴权上下文中发起业务请求：失败时保留状态码而不泄露令牌（
@@ -39,15 +37,9 @@ export async function authenticatedRequest(
 }> {
     const { execution, signal } = context;
     if (signal.aborted) throw new Error("CANCELLED");
-    const adapter = execution.authAdapters?.find(
-        (a) => a.versionId === identity.authAdapterVersionId,
-    );
-    if (!adapter || adapter.workspaceId !== execution.workspaceId)
-        throw new Error("AUTH_ADAPTER_REQUIRED");
-    if (
-        createHash("sha256").update(canonicalBytes(adapter.configuration)).digest("hex") !==
-        adapter.contentHash
-    )
+    const adapter = execution.authAdapters?.find((a) => a.versionId === identity.authAdapterVersionId);
+    if (!adapter || adapter.workspaceId !== execution.workspaceId) throw new Error("AUTH_ADAPTER_REQUIRED");
+    if (createHash("sha256").update(canonicalBytes(adapter.configuration)).digest("hex") !== adapter.contentHash)
         throw new Error("AUTH_ADAPTER_HASH_MISMATCH");
     if (
         !execution.secretVersions.some(
@@ -57,11 +49,7 @@ export async function authenticatedRequest(
         throw new Error("SECRET_VERSION_MISMATCH");
     if (!context.credentials) throw new Error("CREDENTIAL_PROVIDER_REQUIRED");
     const config = adapter.configuration;
-    const identityURL = authorizedURL(
-        config.identityPath,
-        base,
-        execution.environment.allowedOrigins,
-    ).href;
+    const identityURL = authorizedURL(config.identityPath, base, execution.environment.allowedOrigins).href;
     const loginURL =
         config.kind === "HTTP_SESSION"
             ? authorizedURL(config.loginPath, base, execution.environment.allowedOrigins).href
@@ -122,10 +110,7 @@ export async function authenticatedRequest(
         let identityId: string;
         try {
             if (!response.ok()) throw new Error("AUTHENTICATION_FAILED");
-            const found = resolvePointer(
-                (await response.json()) as JsonValue,
-                config.identityPointer,
-            );
+            const found = resolvePointer((await response.json()) as JsonValue, config.identityPointer);
             if (
                 !found.present ||
                 typeof found.value !== "string" ||
@@ -150,9 +135,7 @@ export async function authenticatedRequest(
 export async function authenticateBusiness(
     context: LifecycleContext,
 ): Promise<{ identityId: string; dispose: () => Promise<void> }> {
-    const role = context.execution.environment.roles.find(
-        (r) => r.roleKey === context.execution.roleKey,
-    );
+    const role = context.execution.environment.roles.find((r) => r.roleKey === context.execution.roleKey);
     if (!role) throw new Error("ROLE_NOT_FOUND");
     const base = context.execution.environment.apiBaseURL;
     const authenticated = await authenticatedRequest(context, role, base);
@@ -167,9 +150,7 @@ export async function authenticateBusiness(
             route = async (r) => {
                 try {
                     const url = r.request().url();
-                    if (
-                        !context.execution.environment.allowedOrigins.includes(new URL(url).origin)
-                    ) {
+                    if (!context.execution.environment.allowedOrigins.includes(new URL(url).origin)) {
                         await r.abort();
                         return;
                     }
@@ -196,8 +177,7 @@ export async function authenticateBusiness(
                         try {
                             await r.abort("failed");
                         } catch {
-                            if (!context.page.isClosed())
-                                throw new Error("AUTHENTICATED_REQUEST_ABORT_FAILED");
+                            if (!context.page.isClosed()) throw new Error("AUTHENTICATED_REQUEST_ABORT_FAILED");
                         }
                     }
                 }

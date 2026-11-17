@@ -3,16 +3,12 @@ import * as compiler from "../src/index.js";
 import { snapshot } from "./helpers.js";
 
 it("retains actual analyzer code and source pointer without echoing source values", () => {
-    const source = snapshot([
-        { id: "click", action: "click", target: "synthetic-private-credential" },
-    ]);
+    const source = snapshot([{ id: "click", action: "click", target: "synthetic-private-credential" }]);
     const issues = compiler.analyze(source).issues;
     const actual = issues.find((issue) => issue.code === "UNKNOWN_ELEMENT")!;
     expect(actual).toBeDefined();
     const project = compiler.safeDiagnostics;
-    expect(project, "compiler needs a structured safe diagnostic projection").toBeTypeOf(
-        "function",
-    );
+    expect(project, "compiler needs a structured safe diagnostic projection").toBeTypeOf("function");
     const projected = project!(issues);
     expect(projected).toContainEqual({
         code: actual.code,

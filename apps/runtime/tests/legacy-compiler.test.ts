@@ -3,17 +3,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-    mkdtemp,
-    mkdir,
-    readFile,
-    writeFile,
-    readdir,
-    symlink,
-    realpath,
-    copyFile,
-    rm,
-} from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, writeFile, readdir, symlink, realpath, copyFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -37,14 +27,7 @@ test(
             await mkdir(old);
             const archive = execFileSync(
                 "git",
-                [
-                    "archive",
-                    base,
-                    "packages/compiler",
-                    "packages/contracts",
-                    "packages/runner-sdk",
-                    "pnpm-lock.yaml",
-                ],
+                ["archive", base, "packages/compiler", "packages/contracts", "packages/runner-sdk", "pnpm-lock.yaml"],
                 { cwd: repository, maxBuffer: 16 * 1024 * 1024 },
             );
             execFileSync("tar", ["-x", "-C", old], { input: archive });
@@ -53,9 +36,7 @@ test(
             for (const pkg of ["compiler", "contracts", "runner-sdk"]) {
                 const modules = join(old, "packages", pkg, "node_modules");
                 await mkdir(join(modules, "@veriq"), { recursive: true });
-                for (const name of await readdir(
-                    join(repository, "packages", pkg, "node_modules"),
-                )) {
+                for (const name of await readdir(join(repository, "packages", pkg, "node_modules"))) {
                     if (name === "@veriq") continue;
                     await symlink(
                         await realpath(join(repository, "packages", pkg, "node_modules", name)),
@@ -69,11 +50,11 @@ test(
             const sourcePath = join(root, "source.json");
             await writeFile(sourcePath, canonicalBytes(source));
             const tsx = fileURLToPath(import.meta.resolve("tsx"));
-            execFileSync(
-                process.execPath,
-                ["--import", tsx, "tests/queue-fixture.ts", sourcePath, build],
-                { cwd: join(old, "packages/runner-sdk"), timeout: 120000, stdio: "pipe" },
-            );
+            execFileSync(process.execPath, ["--import", tsx, "tests/queue-fixture.ts", sourcePath, build], {
+                cwd: join(old, "packages/runner-sdk"),
+                timeout: 120000,
+                stdio: "pipe",
+            });
             const index = JSON.parse(await readFile(join(build, "index.json"), "utf8"));
             for (const file of index.inventory.engines[0].files) {
                 await mkdir(dirname(join(release, file.path)), { recursive: true });
@@ -86,23 +67,10 @@ test(
                 await writeFile(join(work, path), bytes);
             }
             await mkdir(join(work, "engine/compiler"), { recursive: true });
-            execFileSync("tar", [
-                "-xzf",
-                join(work, "engine/compiler.tgz"),
-                "-C",
-                join(work, "engine/compiler"),
-            ]);
+            execFileSync("tar", ["-xzf", join(work, "engine/compiler.tgz"), "-C", join(work, "engine/compiler")]);
             execFileSync(
                 "npm",
-                [
-                    "ci",
-                    "--offline",
-                    "--ignore-scripts",
-                    "--no-audit",
-                    "--no-fund",
-                    "--cache",
-                    join(root, "npm-cache"),
-                ],
+                ["ci", "--offline", "--ignore-scripts", "--no-audit", "--no-fund", "--cache", join(root, "npm-cache")],
                 { cwd: work, timeout: 60000, stdio: "pipe" },
             );
             const capability = execFileSync(

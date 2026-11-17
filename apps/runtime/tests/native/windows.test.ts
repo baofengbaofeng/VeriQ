@@ -78,9 +78,7 @@ test("Windows guardian contains renamed role Node and drains its detached descen
         assert.deepEqual(observed.args, arguments_);
         assert.equal(observed.secret, null);
         assert.equal(observed.sid, windowsNative().sid);
-        const journal = JSON.parse(
-            await readFile(join(root, "processes/windows-tree.process.json"), "utf8"),
-        );
+        const journal = JSON.parse(await readFile(join(root, "processes/windows-tree.process.json"), "utf8"));
         assert.equal(typeof journal.startTime, "string");
         assert.match(journal.startTime, /^[0-9]+$/);
         assert.equal(typeof journal.guardianStartTime, "string");
@@ -156,11 +154,7 @@ test("Windows denied stop preserves worker progress until authentic ownership is
             try {
                 progress = JSON.parse(await readFile(progressPath, "utf8"));
             } catch (error) {
-                if (
-                    !(error instanceof SyntaxError) &&
-                    (error as NodeJS.ErrnoException).code !== "ENOENT"
-                )
-                    throw error;
+                if (!(error instanceof SyntaxError) && (error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
             }
             if (progress?.challenge === challenge) {
                 firstSequence ??= progress.sequence;
@@ -169,9 +163,7 @@ test("Windows denied stop preserves worker progress until authentic ownership is
             }
             await delay(10);
         }
-        context.diagnostic(
-            `Denied-stop worker progress: ${JSON.stringify({ firstSequence, lastSequence })}`,
-        );
+        context.diagnostic(`Denied-stop worker progress: ${JSON.stringify({ firstSequence, lastSequence })}`);
         assert(
             firstSequence !== undefined && lastSequence - firstSequence >= 25,
             "denied ownership must preserve sustained fresh worker progress after the stop attempt",
@@ -182,9 +174,7 @@ test("Windows denied stop preserves worker progress until authentic ownership is
         assert.equal(stopped.processStopped, true);
         assert.equal(stopped.processStopScope, "FULL_DESCENDANT_TREE");
         assert.equal(await processes.isRunning(owned.pid), false);
-        const proof = JSON.parse(
-            await readFile(join(root, "processes/ownership.drained.json"), "utf8"),
-        );
+        const proof = JSON.parse(await readFile(join(root, "processes/ownership.drained.json"), "utf8"));
         assert.equal(proof.state, "DRAINED");
         assert.equal(proof.nonce, journal.nonce);
         assert.equal(proof.workerStartTime, journal.startTime);
@@ -269,10 +259,7 @@ test("Windows private broker serves a bounded Unicode request through a named pi
         assert.deepEqual(response, { ok: true, value: { text: "中文😀" } });
         assert.deepEqual(
             JSON.parse(
-                await windowsNative().request(
-                    broker.path,
-                    JSON.stringify({ nonce: "wrong", text: "rejected" }) + "\n",
-                ),
+                await windowsNative().request(broker.path, JSON.stringify({ nonce: "wrong", text: "rejected" }) + "\n"),
             ),
             { ok: false, error: "ATTEMPT_IPC_FAILED" },
         );
@@ -301,9 +288,7 @@ test("Windows private broker serves a bounded Unicode request through a named pi
         }
         try {
             context.diagnostic(`Raw pipe client events: ${JSON.stringify(clientEvents)}`);
-            context.diagnostic(
-                `Native pipe diagnostics: ${JSON.stringify(windowsNative().takePipeDiagnostics())}`,
-            );
+            context.diagnostic(`Native pipe diagnostics: ${JSON.stringify(windowsNative().takePipeDiagnostics())}`);
         } catch (error) {
             failures.push(error);
         }
@@ -374,9 +359,7 @@ test("Windows private pipe close releases the endpoint while old callbacks remai
                 failures.push(error);
             }
         }
-        context.diagnostic(
-            `Pipe rebind native events: ${JSON.stringify(windowsNative().takePipeDiagnostics())}`,
-        );
+        context.diagnostic(`Pipe rebind native events: ${JSON.stringify(windowsNative().takePipeDiagnostics())}`);
     }
     if (failures.length) {
         throw new AggregateError(failures, "Windows pipe rebind assertion or cleanup failed", {
@@ -399,18 +382,10 @@ test("Windows nonrunning journal guardian cannot close the actual live guardian"
         await probe;
         assert(exitedPid);
         const observed = windowsNative().identity(exitedPid);
-        context.diagnostic(
-            `Exited guardian probe identity: ${JSON.stringify({ pid: exitedPid, observed })}`,
-        );
-        assert(
-            observed === null || observed.running === false,
-            "The replacement guardian must actually be nonrunning",
-        );
+        context.diagnostic(`Exited guardian probe identity: ${JSON.stringify({ pid: exitedPid, observed })}`);
+        assert(observed === null || observed.running === false, "The replacement guardian must actually be nonrunning");
         await scenario.replaceJournal("exited-guardian", { guardianPid: exitedPid });
-        const denied = await scenario.processes.terminateAttempt(
-            "exited-guardian",
-            "NONRUNNING_GUARDIAN_TEST",
-        );
+        const denied = await scenario.processes.terminateAttempt("exited-guardian", "NONRUNNING_GUARDIAN_TEST");
         assert.equal(denied.processStopped, false);
         assert.equal(denied.processStopScope, undefined);
         assert.equal(denied.reason, "CONTAINMENT_LOST");
@@ -429,10 +404,7 @@ test("Windows changed worker creation time cannot authorize stopping its live jo
         await scenario.replaceJournal("worker-time", {
             startTime: (BigInt(original.startTime as string) + 1n).toString(),
         });
-        const denied = await scenario.processes.terminateAttempt(
-            "worker-time",
-            "CHANGED_WORKER_TIME_TEST",
-        );
+        const denied = await scenario.processes.terminateAttempt("worker-time", "CHANGED_WORKER_TIME_TEST");
         assert.equal(denied.processStopped, false);
         assert.equal(denied.processStopScope, undefined);
         await scenario.requireProgress(["worker-time"]);
@@ -449,10 +421,7 @@ test("Windows guardian identity and another attempt nonce cannot stop either job
         const second = scenario.journals.get("nonce-b")!;
         assert.notEqual(first.nonce, second.nonce);
         await scenario.replaceJournal("nonce-a", { nonce: second.nonce });
-        const denied = await scenario.processes.terminateAttempt(
-            "nonce-a",
-            "CROSS_ATTEMPT_NONCE_TEST",
-        );
+        const denied = await scenario.processes.terminateAttempt("nonce-a", "CROSS_ATTEMPT_NONCE_TEST");
         assert.equal(denied.processStopped, false);
         assert.equal(denied.processStopScope, undefined);
         await scenario.requireProgress(["nonce-a", "nonce-b"]);

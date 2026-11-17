@@ -75,12 +75,8 @@ export class HostSession {
             signal: AbortSignal.any([this.lifetime.signal, AbortSignal.timeout(60000)]),
             headers: {
                 "Content-Type": "application/json",
-                ...(operation.method === "GET"
-                    ? {}
-                    : { Origin: this.origin, "X-CSRF-Token": this.csrf }),
-                ...(operation.idempotencyKey
-                    ? { "Idempotency-Key": operation.idempotencyKey }
-                    : {}),
+                ...(operation.method === "GET" ? {} : { Origin: this.origin, "X-CSRF-Token": this.csrf }),
+                ...(operation.idempotencyKey ? { "Idempotency-Key": operation.idempotencyKey } : {}),
             },
             ...(operation.data === undefined ? {} : { body: JSON.stringify(operation.data) }),
         });
@@ -114,8 +110,7 @@ export class HostSession {
             }
         const envelope = object(JSON.parse(Buffer.concat(parts).toString("utf8")));
         if (!response.ok) {
-            if (response.status === 401 && envelope.code !== "ENROLLMENT_INVALID")
-                this.invalidate();
+            if (response.status === 401 && envelope.code !== "ENROLLMENT_INVALID") this.invalidate();
             throw new Error(
                 typeof envelope.code === "string" && /^[A-Z_]{1,80}$/.test(envelope.code)
                     ? envelope.code
@@ -124,12 +119,7 @@ export class HostSession {
         }
         if (!Object.hasOwn(envelope, "data")) throw new Error("INVALID_HOST_RESPONSE");
         const data = envelope.data;
-        if (
-            data &&
-            typeof data === "object" &&
-            "csrfToken" in data &&
-            typeof data.csrfToken === "string"
-        )
+        if (data && typeof data === "object" && "csrfToken" in data && typeof data.csrfToken === "string")
             this.csrf = data.csrfToken;
         return data;
     }
@@ -156,10 +146,7 @@ export class HostSession {
      * session 端点决定该会话是否仍有效。返回形状与交互登录保持一致。
      */
     async restore(): Promise<PublicSession> {
-        const value = parseSchema(
-            "SessionDTO",
-            await this.json(resolveOperation({ operation: "session" }, undefined)),
-        );
+        const value = parseSchema("SessionDTO", await this.json(resolveOperation({ operation: "session" }, undefined)));
         this.user = { user: value.user, expiresAt: value.expiresAt };
         return this.user;
     }
@@ -174,8 +161,7 @@ export class HostSession {
         if (["login", "session", "logout", "getSetup"].includes(operation.operation))
             throw new Error("IPC_OPERATION_DENIED");
         const resolved = resolveOperation(operation, this.workspace?.id);
-        if (resolved.kind !== "json" && resolved.kind !== "source")
-            throw new Error("IPC_OPERATION_DENIED");
+        if (resolved.kind !== "json" && resolved.kind !== "source") throw new Error("IPC_OPERATION_DENIED");
         if (resolved.kind === "source" && "query" in operation && operation.query?.path) {
             const response = await this.response(resolved);
             if (!response.ok) throw new Error("SOURCE_DOWNLOAD_FAILED");
@@ -193,12 +179,7 @@ export class HostSession {
     async select(workspaceId: string): Promise<S["WorkspaceDTO"]> {
         const value = parseSchema(
             "WorkspaceDTO",
-            await this.json(
-                resolveOperation(
-                    { operation: "getWorkspace", params: { workspaceId } },
-                    workspaceId,
-                ),
-            ),
+            await this.json(resolveOperation({ operation: "getWorkspace", params: { workspaceId } }, workspaceId)),
         );
         this.invalidate(false);
         this.workspace = value;
@@ -212,9 +193,7 @@ export class HostSession {
      */
     async logout(): Promise<void> {
         try {
-            await this.json(
-                resolveOperation({ operation: "logout", data: {} }, this.workspace?.id),
-            );
+            await this.json(resolveOperation({ operation: "logout", data: {} }, this.workspace?.id));
         } finally {
             this.invalidate();
             await this.session.clearStorageData({ storages: ["cookies"] });
@@ -266,9 +245,7 @@ export class HostSession {
                 params: { workspaceId, attemptId },
             }),
         );
-        const artifact = metadata.items.find(
-            (item) => item.id === artifactId && item.state === "AVAILABLE",
-        );
+        const artifact = metadata.items.find((item) => item.id === artifactId && item.state === "AVAILABLE");
         if (!artifact) throw new Error("ARTIFACT_UNAVAILABLE");
         const response = await this.response(
             resolveOperation(
@@ -281,10 +258,7 @@ export class HostSession {
         );
         if (!response.ok) throw new Error("ARTIFACT_DOWNLOAD_DENIED");
         const bytes = await this.bytes(response, 32 * 1024 * 1024);
-        if (
-            bytes.length !== artifact.sizeBytes ||
-            createHash("sha256").update(bytes).digest("hex") !== artifact.sha256
-        )
+        if (bytes.length !== artifact.sizeBytes || createHash("sha256").update(bytes).digest("hex") !== artifact.sha256)
             throw new Error("ARTIFACT_CHANGED");
         return { bytes, artifact };
     }

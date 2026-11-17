@@ -60,12 +60,7 @@ export async function claimLoop(options: {
             });
         }
         const requestStarted = performance.now();
-        const claim = await client.request<Claim | undefined>(
-            "/internal/v1/jobs/claim",
-            "POST",
-            request,
-            signal,
-        );
+        const claim = await client.request<Claim | undefined>("/internal/v1/jobs/claim", "POST", request, signal);
         const responseReceived = performance.now();
         if (claim) {
             const result = await supervisor.runAttempt(

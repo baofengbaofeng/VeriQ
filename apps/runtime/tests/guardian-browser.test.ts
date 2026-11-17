@@ -31,9 +31,7 @@ test("guardian proves a real Chromium tree drained after its Node launcher is ki
         const receipt = await supervisor.terminateAttempt(id, "TEST_WORKER_CRASH");
         if (!receipt.processStopped) {
             try {
-                process.stderr.write(
-                    "guardian: " + (await readFile(join(root, id + ".drained.json.error"), "utf8")),
-                );
+                process.stderr.write("guardian: " + (await readFile(join(root, id + ".drained.json.error"), "utf8")));
             } catch {}
         }
         assert.equal(receipt.processStopped, true, JSON.stringify(receipt));

@@ -46,10 +46,7 @@ test("desktop errors provide actionable languages without exposing raw host mess
     }
     assert.match(desktopErrorMessage("AGENT_REQUEST_TIMEOUT", "en"), /rollback is not guaranteed/);
     assert.match(
-        desktopErrorMessage(
-            "Error invoking remote method 'veriq:desktop': Error: UNKNOWN_NATIVE_ERROR",
-            "en",
-        ),
+        desktopErrorMessage("Error invoking remote method 'veriq:desktop': Error: UNKNOWN_NATIVE_ERROR", "en"),
         /UNKNOWN_NATIVE_ERROR/,
     );
 });

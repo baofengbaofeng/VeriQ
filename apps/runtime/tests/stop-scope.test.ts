@@ -71,12 +71,7 @@ for (const spawning of [false, true]) {
             result = initial();
         try {
             const store = await LocalStore.open(root);
-            let owner = store.reserve(
-                result.workspaceId,
-                result.localRunId,
-                result.attempts[0]!.attemptId,
-                result,
-            );
+            let owner = store.reserve(result.workspaceId, result.localRunId, result.attempts[0]!.attemptId, result);
             if (spawning) owner = store.spawning(owner.runId, owner.attemptId, owner);
             store.close();
             const receipt = await recoverOffline(root);
@@ -87,14 +82,8 @@ for (const spawning of [false, true]) {
             assert.equal(recovered.attempts[0]!.processStopScope, receipt?.processStopScope);
             assert.equal(reopened.active()?.state, spawning ? "QUARANTINED" : undefined);
             reopened.close();
-            const report = await new LocalReports(root, () => false).snapshot(
-                result.workspaceId,
-                result.localRunId,
-            );
-            const facts = report.reports[0]!.cases[0]!.attempts[0]!.facts as Record<
-                string,
-                unknown
-            >;
+            const report = await new LocalReports(root, () => false).snapshot(result.workspaceId, result.localRunId);
+            const facts = report.reports[0]!.cases[0]!.attempts[0]!.facts as Record<string, unknown>;
             assert.equal(facts.processStopScope, receipt?.processStopScope);
             assert.equal(facts.processStopped, !spawning);
             assert.equal(report.reports[0]!.gateNow.passed, false);
@@ -109,18 +98,10 @@ test("scope cannot bypass durable owner state or generation by changing the rece
         result = initial();
     const store = await LocalStore.open(root);
     try {
-        const allocated = store.reserve(
-            result.workspaceId,
-            result.localRunId,
-            result.attempts[0]!.attemptId,
-            result,
-        );
+        const allocated = store.reserve(result.workspaceId, result.localRunId, result.attempts[0]!.attemptId, result);
         const spawning = store.spawning(allocated.runId, allocated.attemptId, allocated);
         assert.equal(store.unspawnedStop(spawning), undefined);
-        assert.throws(
-            () => store.unspawnedStop({ ...spawning, state: "ALLOCATED" }),
-            /LOCAL_OWNERSHIP_LOST/,
-        );
+        assert.throws(() => store.unspawnedStop({ ...spawning, state: "ALLOCATED" }), /LOCAL_OWNERSHIP_LOST/);
         const receipt = {
             attemptId: spawning.attemptId,
             processStopped: true,
@@ -128,23 +109,14 @@ test("scope cannot bypass durable owner state or generation by changing the rece
             reason: "RENAMED_FAILURE",
             stoppedAt: new Date().toISOString(),
         };
-        assert.throws(
-            () => store.stopped(spawning.runId, receipt, spawning),
-            /LOCAL_OWNERSHIP_LOST/,
-        );
+        assert.throws(() => store.stopped(spawning.runId, receipt, spawning), /LOCAL_OWNERSHIP_LOST/);
         assert.throws(
             () => store.stopped(spawning.runId, receipt, { ...spawning, state: "ALLOCATED" }),
             /LOCAL_OWNERSHIP_LOST/,
         );
         const recovering = store.claimRecovery(spawning)!;
-        assert.throws(
-            () => store.stopped(spawning.runId, receipt, spawning),
-            /LOCAL_OWNERSHIP_LOST/,
-        );
-        assert.throws(
-            () => store.stopped(recovering.runId, receipt, recovering),
-            /LOCAL_OWNERSHIP_LOST/,
-        );
+        assert.throws(() => store.stopped(spawning.runId, receipt, spawning), /LOCAL_OWNERSHIP_LOST/);
+        assert.throws(() => store.stopped(recovering.runId, receipt, recovering), /LOCAL_OWNERSHIP_LOST/);
         assert.equal(store.active()?.state, "RECOVERING");
     } finally {
         store.close();
@@ -157,12 +129,7 @@ test("offline stop atomically checkpoints scope before the host can finalize the
         result = initial();
     try {
         const store = await LocalStore.open(root);
-        const allocated = store.reserve(
-            result.workspaceId,
-            result.localRunId,
-            result.attempts[0]!.attemptId,
-            result,
-        );
+        const allocated = store.reserve(result.workspaceId, result.localRunId, result.attempts[0]!.attemptId, result);
         const receipt = store.unspawnedStop(allocated)!;
         store.stopped(allocated.runId, receipt, allocated);
         store.close();
@@ -183,12 +150,7 @@ test("a declared scope on an unconfirmed stop preserves quarantine and denies re
         result = initial();
     const store = await LocalStore.open(root);
     try {
-        let owner = store.reserve(
-            result.workspaceId,
-            result.localRunId,
-            result.attempts[0]!.attemptId,
-            result,
-        );
+        let owner = store.reserve(result.workspaceId, result.localRunId, result.attempts[0]!.attemptId, result);
         owner = store.spawning(owner.runId, owner.attemptId, owner);
         owner = store.stopped(
             owner.runId,
@@ -202,17 +164,11 @@ test("a declared scope on an unconfirmed stop preserves quarantine and denies re
             owner,
         );
         assert.equal(owner.state, "QUARANTINED");
-        assert.throws(
-            () => store.nextAttempt(owner.runId, randomUUID(), owner, result),
-            /LOCAL_CAPACITY_HELD/,
-        );
+        assert.throws(() => store.nextAttempt(owner.runId, randomUUID(), owner, result), /LOCAL_CAPACITY_HELD/);
         const saved = store.result(result.workspaceId, result.localRunId);
         assert.equal(saved.attempts[0]!.processStopScope, "CONTROLLED_WORKER_BROWSER");
         assert.equal(saved.attempts[0]!.processStopped, false);
-        const report = await new LocalReports(root, () => false).snapshot(
-            result.workspaceId,
-            result.localRunId,
-        );
+        const report = await new LocalReports(root, () => false).snapshot(result.workspaceId, result.localRunId);
         const facts = report.reports[0]!.cases[0]!.attempts[0]!.facts as Record<string, unknown>;
         assert.equal(facts.processStopped, false);
         assert.equal(facts.processStopScope, "CONTROLLED_WORKER_BROWSER");
@@ -228,12 +184,7 @@ test("legacy offline JSON remains undeclared when read and projected", async () 
         result = initial();
     const store = await LocalStore.open(root);
     try {
-        let owner = store.reserve(
-            result.workspaceId,
-            result.localRunId,
-            result.attempts[0]!.attemptId,
-            result,
-        );
+        let owner = store.reserve(result.workspaceId, result.localRunId, result.attempts[0]!.attemptId, result);
         owner = store.stopped(
             owner.runId,
             {
@@ -246,29 +197,15 @@ test("legacy offline JSON remains undeclared when read and projected", async () 
         );
         store.finish(result, owner);
         assert.deepEqual(store.result(result.workspaceId, result.localRunId), result);
-        const report = await new LocalReports(root, () => false).snapshot(
-            result.workspaceId,
-            result.localRunId,
-        );
-        assert.equal(
-            Object.hasOwn(report.reports[0]!.cases[0]!.attempts[0]!.facts!, "processStopScope"),
-            false,
-        );
+        const report = await new LocalReports(root, () => false).snapshot(result.workspaceId, result.localRunId);
+        assert.equal(Object.hasOwn(report.reports[0]!.cases[0]!.attempts[0]!.facts!, "processStopScope"), false);
     } finally {
         store.close();
         await rm(root, { recursive: true, force: true });
     }
 });
 
-for (const state of [
-    "ALLOCATED",
-    "ACTIVATING",
-    "ACTIVATED",
-    "SPAWNING",
-    "RUNNING",
-    "STOPPED",
-    "UNKNOWN",
-]) {
+for (const state of ["ALLOCATED", "ACTIVATING", "ACTIVATED", "SPAWNING", "RUNNING", "STOPPED", "UNKNOWN"]) {
     test(`online recovery derives scope from explicit committed state: ${state}`, async () => {
         const root = await mkdtemp(join(tmpdir(), "vq-online-scope-"));
         const bodies: Record<string, unknown>[] = [],
@@ -297,9 +234,7 @@ for (const state of [
             assert.equal(receipt?.processStopped, unspawned);
             assert.equal(receipt?.processStopScope, unspawned ? "NO_PROCESS_SPAWNED" : undefined);
             assert.equal(bodies[0]!.processStopScope, receipt?.processStopScope);
-            const journal = JSON.parse(
-                await readFile(join(root, "attempts", `${attemptId}.json`), "utf8"),
-            );
+            const journal = JSON.parse(await readFile(join(root, "attempts", `${attemptId}.json`), "utf8"));
             assert.deepEqual(journal.stop, receipt);
         } finally {
             await rm(root, { recursive: true, force: true });
@@ -322,9 +257,7 @@ test("online journal requires the renamed parent directory to be durably flushed
         return original.call(this);
     });
     try {
-        const supervisor = new ExecutionSupervisor({ root } as ConstructorParameters<
-            typeof ExecutionSupervisor
-        >[0]);
+        const supervisor = new ExecutionSupervisor({ root } as ConstructorParameters<typeof ExecutionSupervisor>[0]);
         const journal = Reflect.get(supervisor, "journal").bind(supervisor);
         await assert.rejects(
             journal({ claim: { attemptId: randomUUID() } as Claim, state: "SPAWNING", work: root }),
@@ -394,9 +327,7 @@ test("online recovery rejects linked pre-spawn journal bytes before reconciling 
             },
         } as unknown as AgentClient;
         await assert.rejects(
-            new ExecutionSupervisor({ root, client } as ConstructorParameters<
-                typeof ExecutionSupervisor
-            >[0]).recover(),
+            new ExecutionSupervisor({ root, client } as ConstructorParameters<typeof ExecutionSupervisor>[0]).recover(),
         );
         assert.equal(reconciled, false);
     } finally {
@@ -456,10 +387,7 @@ async function online(root: string) {
         maintenanceId: randomUUID(),
         cleanupRef: "probe",
     });
-    assert.deepEqual(
-        validateSchema("JobManifestV1", JSON.parse(Buffer.from(manifest).toString())),
-        [],
-    );
+    assert.deepEqual(validateSchema("JobManifestV1", JSON.parse(Buffer.from(manifest).toString())), []);
     const claim: Claim = {
         jobId: JSON.parse(Buffer.from(manifest).toString()).jobId,
         jobKind: "CLEANUP",
@@ -486,8 +414,7 @@ async function online(root: string) {
         download: async (path: string) => (path === "/manifest" ? manifest : source),
         request: async (path: string, _method: string, body: Record<string, unknown>) => {
             bodies.push({ path, body });
-            if (path.endsWith("/artifact-uploads"))
-                return { artifactId: randomUUID(), uploadUrl: "/uploads" };
+            if (path.endsWith("/artifact-uploads")) return { artifactId: randomUUID(), uploadUrl: "/uploads" };
             if (path.endsWith("/events"))
                 return {
                     acceptedThrough: (body.events as { sequence: number }[]).at(-1)!.sequence,
@@ -516,16 +443,10 @@ test("online completion copies the actual kernel scope and persists its stop rec
         const fixture = await online(root),
             result = await fixture.run();
         assert.equal(result.stop.processStopped, true);
-        assert.equal(
-            result.stop.processStopScope,
-            "FULL_DESCENDANT_TREE",
-            JSON.stringify(result.stop),
-        );
+        assert.equal(result.stop.processStopScope, "FULL_DESCENDANT_TREE", JSON.stringify(result.stop));
         assert(result.completion, JSON.stringify(result.stop));
         assert.equal(result.completion.processStopScope, result.stop.processStopScope);
-        const journal = JSON.parse(
-            await readFile(join(root, "attempts", `${fixture.claim.attemptId}.json`), "utf8"),
-        );
+        const journal = JSON.parse(await readFile(join(root, "attempts", `${fixture.claim.attemptId}.json`), "utf8"));
         assert.deepEqual(journal.stop, result.stop);
     } finally {
         await rm(root, { recursive: true, force: true });
@@ -541,25 +462,18 @@ for (const phase of ["ACTIVATING", "ACTIVATED", "SPAWNING"]) {
             original = prototype.sync;
         await handle.close();
         let injected = false;
-        context.mock.method(
-            prototype,
-            "sync",
-            async function (this: Awaited<ReturnType<typeof open>>) {
-                if (!injected && (await this.stat()).isDirectory()) {
-                    const journal = JSON.parse(
-                        await readFile(
-                            join(root, "attempts", `${fixture.claim.attemptId}.json`),
-                            "utf8",
-                        ),
-                    );
-                    if (journal.state === phase) {
-                        injected = true;
-                        throw new Error("DIRECTORY_SYNC_FAILED");
-                    }
+        context.mock.method(prototype, "sync", async function (this: Awaited<ReturnType<typeof open>>) {
+            if (!injected && (await this.stat()).isDirectory()) {
+                const journal = JSON.parse(
+                    await readFile(join(root, "attempts", `${fixture.claim.attemptId}.json`), "utf8"),
+                );
+                if (journal.state === phase) {
+                    injected = true;
+                    throw new Error("DIRECTORY_SYNC_FAILED");
                 }
-                return original.call(this);
-            },
-        );
+            }
+            return original.call(this);
+        });
         try {
             const result = await fixture.run();
             assert.equal(injected, true);
@@ -568,10 +482,9 @@ for (const phase of ["ACTIVATING", "ACTIVATED", "SPAWNING"]) {
             const reconcile = fixture.bodies.find((item) => item.path.endsWith("/reconcile"))!.body;
             assert.equal(reconcile.processStopped, false);
             assert.equal(Object.hasOwn(reconcile, "processStopScope"), false);
-            await assert.rejects(
-                readFile(join(root, "processes", `${fixture.claim.attemptId}.process.json`)),
-                { code: "ENOENT" },
-            );
+            await assert.rejects(readFile(join(root, "processes", `${fixture.claim.attemptId}.process.json`)), {
+                code: "ENOENT",
+            });
         } finally {
             context.mock.restoreAll();
             await rm(root, { recursive: true, force: true });

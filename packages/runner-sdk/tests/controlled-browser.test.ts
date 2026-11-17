@@ -6,17 +6,7 @@ import { test, expect } from "vitest";
 import { createServer } from "node:http";
 import { spawn } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
-import {
-    mkdtemp,
-    mkdir,
-    writeFile,
-    readFile,
-    readdir,
-    lstat,
-    rm,
-    statfs,
-    realpath,
-} from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readFile, readdir, lstat, rm, statfs, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createRequire } from "node:module";
@@ -72,7 +62,8 @@ async function command(executable: string, args: string[], cwd: string, input?: 
  * 若私有配置被复制进 trace source，该归档成员仍会扫描，不能为通过测试而排
  * 除。
  */
-const scanProgram = String.raw`
+const scanProgram =
+    String.raw`
 import base64,io,json,pathlib,re,sys,urllib.parse,zipfile
 v=json.load(sys.stdin)
 root=pathlib.Path(v['root'])
@@ -80,10 +71,10 @@ forms=set()
 for value in [v['endpoint'],v['token']]:
     for text in [value,urllib.parse.quote(value,safe=''),urllib.parse.quote(value,safe=':/'),json.dumps(value)[1:-1]` +
     `,base64.b64encode(value.encode()).decode(),base64.urlsafe_b64encode(value.encode()).decode(),base64.urlsafe_b64e` +
-        `ncode(value.encode()).decode().rstrip('=')]:
+    `ncode(value.encode()).decode().rstrip('=')]:
         forms.add(text.encode())
 r={'hits':0,'containers':{},'files':0,'traceFiles':0,'traceEntries':0,'sourceEntries':0,'htmlZipEntries':0,'referenc` +
-`edFiles':0,'mainReport':False,'fixedFailure':False}
+    `edFiles':0,'mainReport':False,'fixedFailure':False}
 def check(body,kind):
     hits=sum(marker in body for marker in forms)
     r['hits']+=hits
@@ -117,13 +108,74 @@ for folder in ['reports','results']:
         check(body,kind)
         if kind=='trace.zip':r['traceFiles']+=1;archive(body,'trace.zip:decoded')
         if kind=='report.html':
-            found=re.search(rb'data:application/zip;base64,([A-Za-z0-9+/=\r\n]+)',body)
+            found=re.search(rb'data:application/zip;base64,([A-Za-z0-9+/=\\r\\n]+)',body)
             if not found:raise ValueError('REPORT_ZIP_REQUIRED')
             r['mainReport']=True;archive(base64.b64decode(found.group(1)),'report.html:decoded')
         if rel.startswith('reports/html/data/') or rel.startswith('reports/html/trace/'):r['referencedFiles']+=1
 for field in ['stdout','stderr']:check(base64.b64decode(v[field]),field)
 print(json.dumps(r))
 `;
+
+/**
+ * 用标准库生成真实压缩归档并将标记放在末尾成员，直接执行共享扫描程序，防止换行截断或只检查 HTML 原文造成假绿。
+ * 两种编码都必须读取完整归档，命中计数仅来自解压后的正文，不能靠外层 base64 或文件名满足断言。
+ */
+test.each(["one-line", "CRLF"] as const)(
+    "embedded report scanner reads all members with %s base64",
+    async (wrapping) => {
+        const root = await mkdtemp(join(tmpdir(), "veriq-report-scan-"));
+        const python = process.platform === "darwin" ? "python3" : "python";
+        const endpoint = "ws://synthetic.invalid/scanner-endpoint";
+        const token = "synthetic-scanner-token";
+        try {
+            const fixture = await command(
+                python,
+                [
+                    "-c",
+                    String.raw`
+import base64,io,json,pathlib,sys,zipfile
+v=json.load(sys.stdin)
+archive=io.BytesIO()
+with zipfile.ZipFile(archive,'w',compression=zipfile.ZIP_DEFLATED) as z:
+    z.writestr('report.json','{}')
+    z.writestr('resources/src@scanner.txt',v['endpoint']+'\n'+v['token']+'\nVERIQ_BROWSER_CONNECTION_FAILED')
+encoded=base64.b64encode(archive.getvalue()).decode()
+if v['wrapping']=='CRLF':encoded='\r\n'.join(encoded[i:i+40] for i in range(0,len(encoded),40))
+report=pathlib.Path(v['root'])/'reports'/'html'/'index.html'
+report.parent.mkdir(parents=True)
+report.write_bytes(('<script>data:application/zip;base64,'+encoded+'</script>').encode())
+`,
+                ],
+                root,
+                JSON.stringify({ root, wrapping, endpoint, token }),
+            );
+            expect(fixture.code).toBe(0);
+            const scan = await command(
+                python,
+                ["-c", scanProgram],
+                root,
+                JSON.stringify({ root, endpoint, token, stdout: "", stderr: "" }),
+            );
+            expect(scan.code).toBe(0);
+            const facts = JSON.parse(scan.stdout.toString());
+            expect(facts).toEqual({
+                hits: 2,
+                containers: { "report.html:decoded": 2 },
+                files: 1,
+                traceFiles: 0,
+                traceEntries: 0,
+                sourceEntries: 1,
+                htmlZipEntries: 2,
+                referencedFiles: 0,
+                mainReport: true,
+                fixedFailure: true,
+            });
+            process.stdout.write(JSON.stringify({ embeddedReportScanner: { wrapping, ...facts } }) + "\n");
+        } finally {
+            await rm(root, { recursive: true, force: true });
+        }
+    },
+);
 
 test.skipIf(process.platform === "win32")(
     "real public Playwright connection failure keeps private endpoint out of every delivered report",
@@ -171,9 +223,7 @@ test.skipIf(process.platform === "win32")(
                 { mode: 0o600, flag: "wx" },
             );
             await mkdir(join(root, "reports"), { mode: 0o700 });
-            const finalReporter = fileURLToPath(
-                new URL("../src/endpoint-json-reporter.ts", import.meta.url),
-            );
+            const finalReporter = fileURLToPath(new URL("../src/endpoint-json-reporter.ts", import.meta.url));
             const configuration = {
                 testDir: root,
                 testMatch: "connection.spec.ts",
@@ -198,19 +248,13 @@ test.skipIf(process.platform === "win32")(
                     },
                 },
             };
-            await writeFile(
-                join(root, "playwright.config.mjs"),
-                `export default ${JSON.stringify(configuration)};`,
-                { mode: 0o600, flag: "wx" },
-            );
+            await writeFile(join(root, "playwright.config.mjs"), `export default ${JSON.stringify(configuration)};`, {
+                mode: 0o600,
+                flag: "wx",
+            });
             const actual = await command(
                 process.execPath,
-                [
-                    require.resolve("@playwright/test/cli"),
-                    "test",
-                    "--config",
-                    join(root, "playwright.config.mjs"),
-                ],
+                [require.resolve("@playwright/test/cli"), "test", "--config", join(root, "playwright.config.mjs")],
                 root,
             );
             let treeBytes = 0;
@@ -291,11 +335,10 @@ test.skipIf(process.platform === "win32")(
                     [finalReporter, { outputFile: statusJson }],
                 ],
             };
-            await writeFile(
-                statusConfig,
-                `export default ${JSON.stringify(statusConfiguration)};`,
-                { mode: 0o600, flag: "wx" },
-            );
+            await writeFile(statusConfig, `export default ${JSON.stringify(statusConfiguration)};`, {
+                mode: 0o600,
+                flag: "wx",
+            });
             const passed = await command(
                 process.execPath,
                 [require.resolve("@playwright/test/cli"), "test", "--config", statusConfig],
@@ -322,16 +365,14 @@ test.skipIf(process.platform === "win32")(
                 Buffer.from(JSON.stringify(statusReport ?? {})),
             ]).toString();
             statusFacts.moduleMissing = /ERR_MODULE_NOT_FOUND|Cannot find module/.test(diagnostic);
-            statusFacts.namedExport = /does not provide an export|Named export .* not found/.test(
+            statusFacts.namedExport = /does not provide an export|Named export .* not found/.test(diagnostic);
+            statusFacts.unexpectedTestCall = /did not expect test\(|test\(\) to be called|No tests found/.test(
                 diagnostic,
             );
-            statusFacts.unexpectedTestCall =
-                /did not expect test\(|test\(\) to be called|No tests found/.test(diagnostic);
             statusFacts.syntax = /SyntaxError|Cannot use import statement/.test(diagnostic);
             statusFacts.endpointResidual = diagnostic.includes(endpoint);
             process.stdout.write(
-                JSON.stringify({ publicReporterProbe: { cliCode: passed.code, ...statusFacts } }) +
-                    "\n",
+                JSON.stringify({ publicReporterProbe: { cliCode: passed.code, ...statusFacts } }) + "\n",
             );
             expect(passed.code).toBe(0);
             await verifyEndpointJsonFile(statusJson, [endpoint]);
@@ -341,9 +382,10 @@ test.skipIf(process.platform === "win32")(
             await writeFile(
                 statusConfig,
                 `export default ` +
-                    `${
-                        JSON.stringify({ ...statusConfiguration, reporter: [...statusConfiguration.reporter, [
-                            "dot"]] })};`,
+                    `${JSON.stringify({
+                        ...statusConfiguration,
+                        reporter: [...statusConfiguration.reporter, ["dot"]],
+                    })};`,
             );
             const refused = await command(
                 process.execPath,
@@ -354,9 +396,7 @@ test.skipIf(process.platform === "win32")(
             const refusedJson = JSON.parse(await readFile(statusJson, "utf8"));
             expect(refusedJson.stats.expected).toBe(1);
             expect(refusedJson.stats.unexpected).toBe(0);
-            await expect(verifyEndpointJsonFile(statusJson, [endpoint])).rejects.toThrow(
-                "REPORT_PRIVACY_UNCONFIRMED",
-            );
+            await expect(verifyEndpointJsonFile(statusJson, [endpoint])).rejects.toThrow("REPORT_PRIVACY_UNCONFIRMED");
             treeBytes = 0;
             await count(root);
             const afterStatus = await statfs(parent);
@@ -394,15 +434,16 @@ test.skipIf(process.platform === "win32")(
  * ，借此区分及时拒绝和先物化全部子节点后才拒绝，避免故意触发宿主内存耗尽。
  */
 async function traversalProbe(kind: "array" | "object", members: number) {
-    const program = String.raw`
+    const program =
+        String.raw`
 import { verifyEndpointJson } from ${JSON.stringify(new URL("../src/endpoint-json-reporter.ts", import.meta.url).href)};
 const kind = process.argv[1], members = Number(process.argv[2]);
 if (!["array", "object"].includes(kind) || !Number.isInteger(members) || members < 1 || members > 200001) process.ex` +
-`it(2);
+        `it(2);
 const wide = kind === "array" ? "[" + "0,".repeat(members - 1) + "0]" : "{" + Array.from({ length: members }, (_, in` +
-`dex) => '"m' + index + '":0').join(",") + "}";
+        `dex) => '"m' + index + '":0').join(",") + "}";
 const bytes = Buffer.from('{"config":{"projects":[],"filteredProjects":[{"use":{"connectOptions":{"wsEndpoint":"VERI` +
-`Q_PRIVATE_ENDPOINT"}}}]},"suites":[],"stats":{},"wide":' + wide + '}');
+        `Q_PRIVATE_ENDPOINT"}}}]},"suites":[],"stats":{},"wide":' + wide + '}');
 if (bytes.length > 3 * 1024 * 1024) process.exit(3);
 const original = JSON.parse;
 let reads = 0, status = "ACCEPTED";
@@ -416,7 +457,7 @@ JSON.parse = (...args) => {
 };
 try { verifyEndpointJson(bytes, ["ws://127.0.0.1:12345/0123456789abcdef0123456789abcdef"]); }
 catch (error) { status = error instanceof Error && error.message === "REPORT_PRIVACY_UNCONFIRMED" ? error.message : ` +
-`"UNEXPECTED_FAILURE"; }
+        `"UNEXPECTED_FAILURE"; }
 finally { JSON.parse = original; }
 process.stdout.write(JSON.stringify({ status, reads, bytes: bytes.length }));
 `;
@@ -433,9 +474,7 @@ process.stdout.write(JSON.stringify({ status, reads, bytes: bytes.length }));
         bytes: number;
     };
     expect(counts.bytes).toBeLessThanOrEqual(3 * 1024 * 1024);
-    process.stdout.write(
-        "JSON_TRAVERSAL_PROBE " + JSON.stringify({ kind, members, ...counts }) + "\n",
-    );
+    process.stdout.write("JSON_TRAVERSAL_PROBE " + JSON.stringify({ kind, members, ...counts }) + "\n");
     return counts;
 }
 
@@ -447,14 +486,11 @@ test("endpoint JSON traversal probe accepts small real parsed containers", async
     }
 });
 
-test.each(["array", "object"] as const)(
-    "endpoint JSON traversal bounds wide %s child admission",
-    async (kind) => {
-        const counts = await traversalProbe(kind, 200001);
-        expect(counts.status).toBe("REPORT_PRIVACY_UNCONFIRMED");
-        expect(counts.reads).toBeLessThan(200000);
-    },
-);
+test.each(["array", "object"] as const)("endpoint JSON traversal bounds wide %s child admission", async (kind) => {
+    const counts = await traversalProbe(kind, 200001);
+    expect(counts.status).toBe("REPORT_PRIVACY_UNCONFIRMED");
+    expect(counts.reads).toBeLessThan(200000);
+});
 
 test("endpoint JSON traversal preserves exact node and depth limits", async () => {
     const { verifyEndpointJson } = await import("../src/endpoint-json-reporter.js");
@@ -462,9 +498,7 @@ test("endpoint JSON traversal preserves exact node and depth limits", async () =
     const report = () => ({
         config: {
             projects: [],
-            filteredProjects: [
-                { use: { connectOptions: { wsEndpoint: "VERIQ_PRIVATE_ENDPOINT" } } },
-            ],
+            filteredProjects: [{ use: { connectOptions: { wsEndpoint: "VERIQ_PRIVATE_ENDPOINT" } } }],
         },
         suites: [],
         stats: {},
@@ -489,50 +523,39 @@ test.skipIf(process.platform === "win32")(
     "endpoint JSON gate refuses missing malformed residual symlink oversized and nonprivate files",
     async () => {
         const fs = await import("node:fs/promises");
-        const { verifyEndpointJson, verifyEndpointJsonFile } = await import(
-            "../src/endpoint-json-reporter.js"
-        );
+        const { verifyEndpointJson, verifyEndpointJsonFile } = await import("../src/endpoint-json-reporter.js");
         const root = await mkdtemp(join(await realpath(tmpdir()), "veriq-json-gate-"));
         const endpoint = "ws://127.0.0.1:12345/" + randomBytes(32).toString("hex"),
             path = join(root, "playwright.json");
         const report = () => ({
             config: {
                 projects: [],
-                filteredProjects: [
-                    { use: { connectOptions: { wsEndpoint: "VERIQ_PRIVATE_ENDPOINT" } } },
-                ],
+                filteredProjects: [{ use: { connectOptions: { wsEndpoint: "VERIQ_PRIVATE_ENDPOINT" } } }],
             },
             suites: [],
             stats: {},
         });
         const rejected = async () => {
-            await expect(verifyEndpointJsonFile(path, [endpoint])).rejects.toThrow(
-                "REPORT_PRIVACY_UNCONFIRMED",
-            );
+            await expect(verifyEndpointJsonFile(path, [endpoint])).rejects.toThrow("REPORT_PRIVACY_UNCONFIRMED");
         };
         try {
             await rejected();
             await writeFile(path, JSON.stringify(report()), { mode: 0o600, flag: "wx" });
             await verifyEndpointJsonFile(path, [endpoint]);
             const residual = { ...report(), errors: [{ message: endpoint }] };
+            expect(() => verifyEndpointJson(Buffer.from(JSON.stringify(residual)), [endpoint])).toThrow(
+                "REPORT_PRIVACY_UNCONFIRMED",
+            );
             expect(() =>
-                verifyEndpointJson(Buffer.from(JSON.stringify(residual)), [endpoint]),
-            ).toThrow("REPORT_PRIVACY_UNCONFIRMED");
-            expect(() =>
-                verifyEndpointJson(
-                    Buffer.from(
-                        JSON.stringify({ ...report(), secret: encodeURIComponent(endpoint) }),
-                    ),
-                    [endpoint],
-                ),
-            ).toThrow("REPORT_PRIVACY_UNCONFIRMED");
-            let nested: unknown = 0;
-            for (let depth = 0; depth < 66; depth++) nested = { nested };
-            expect(() =>
-                verifyEndpointJson(Buffer.from(JSON.stringify({ ...report(), nested })), [
+                verifyEndpointJson(Buffer.from(JSON.stringify({ ...report(), secret: encodeURIComponent(endpoint) })), [
                     endpoint,
                 ]),
             ).toThrow("REPORT_PRIVACY_UNCONFIRMED");
+            let nested: unknown = 0;
+            for (let depth = 0; depth < 66; depth++) nested = { nested };
+            expect(() => verifyEndpointJson(Buffer.from(JSON.stringify({ ...report(), nested })), [endpoint])).toThrow(
+                "REPORT_PRIVACY_UNCONFIRMED",
+            );
             expect(() =>
                 verifyEndpointJson(
                     Buffer.from(
@@ -583,9 +606,7 @@ test.skipIf(process.platform === "win32")(
     "final JSON reporter preserves builtin results and fails closed on finalization uncertainty",
     async () => {
         const fs = await import("node:fs/promises");
-        const { default: EndpointReporter, verifyEndpointJsonFile } = await import(
-            "../src/endpoint-json-reporter.js"
-        );
+        const { default: EndpointReporter, verifyEndpointJsonFile } = await import("../src/endpoint-json-reporter.js");
         const { syncBuiltinESMExports } = await import("node:module");
         const mutableFs = fs.default;
         const root = await mkdtemp(join(await realpath(tmpdir()), "veriq-json-final-")),
@@ -608,9 +629,7 @@ test.skipIf(process.platform === "win32")(
         };
         const run = async (configuration = config) => {
             const reporter = new EndpointReporter({ outputFile: path });
-            reporter.onBegin(
-                configuration as unknown as import("@playwright/test/reporter").FullConfig,
-            );
+            reporter.onBegin(configuration as unknown as import("@playwright/test/reporter").FullConfig);
             return reporter.onEnd({
                 status: "failed",
             } as import("@playwright/test/reporter").FullResult);
@@ -618,9 +637,7 @@ test.skipIf(process.platform === "win32")(
         try {
             expect((await run())?.status).toBe("failed");
             await writeFile(path, JSON.stringify(report()), { mode: 0o600 });
-            expect(
-                (await run({ ...config, reporter: [...config.reporter].reverse() }))?.status,
-            ).toBe("failed");
+            expect((await run({ ...config, reporter: [...config.reporter].reverse() }))?.status).toBe("failed");
             const original = await readFile(path);
             const originalRename = mutableFs.rename;
             let renames = 0;
@@ -638,9 +655,7 @@ test.skipIf(process.platform === "win32")(
             }
             expect((await readFile(path)).equals(original)).toBe(true);
             expect((await readdir(root)).length).toBe(1);
-            await expect(verifyEndpointJsonFile(path, [endpoint])).rejects.toThrow(
-                "REPORT_PRIVACY_UNCONFIRMED",
-            );
+            await expect(verifyEndpointJsonFile(path, [endpoint])).rejects.toThrow("REPORT_PRIVACY_UNCONFIRMED");
             mutableFs.rename = async (...args) => {
                 await originalRename(...args);
                 await writeFile(path, "{");
@@ -654,9 +669,7 @@ test.skipIf(process.platform === "win32")(
                 syncBuiltinESMExports();
             }
             expect((await readFile(path)).equals(Buffer.from("{"))).toBe(true);
-            await expect(verifyEndpointJsonFile(path, [endpoint])).rejects.toThrow(
-                "REPORT_PRIVACY_UNCONFIRMED",
-            );
+            await expect(verifyEndpointJsonFile(path, [endpoint])).rejects.toThrow("REPORT_PRIVACY_UNCONFIRMED");
             await writeFile(path, original);
             const originalOpen = mutableFs.open;
             let writes = 0;
@@ -691,9 +704,7 @@ test.skipIf(process.platform === "win32")(
             });
             syncBuiltinESMExports();
             try {
-                await expect(verifyEndpointJsonFile(path, [endpoint])).rejects.toThrow(
-                    "REPORT_PRIVACY_UNCONFIRMED",
-                );
+                await expect(verifyEndpointJsonFile(path, [endpoint])).rejects.toThrow("REPORT_PRIVACY_UNCONFIRMED");
                 expect(reads).toBe(1);
             } finally {
                 mutableFs.open = originalOpen;
@@ -711,9 +722,7 @@ test.skipIf(process.platform === "win32")(
             });
             syncBuiltinESMExports();
             try {
-                await expect(verifyEndpointJsonFile(path, [endpoint])).rejects.toThrow(
-                    "REPORT_PRIVACY_UNCONFIRMED",
-                );
+                await expect(verifyEndpointJsonFile(path, [endpoint])).rejects.toThrow("REPORT_PRIVACY_UNCONFIRMED");
                 expect(identities).toBe(1);
             } finally {
                 mutableFs.lstat = originalStat;
@@ -725,9 +734,7 @@ test.skipIf(process.platform === "win32")(
             expect((await lstat(path)).mode & 0o777).toBe(0o600);
             await writeFile(path, JSON.stringify({ ...report(), errors: [{ message: endpoint }] }));
             expect((await run())?.status).toBe("failed");
-            await expect(verifyEndpointJsonFile(path, [endpoint])).rejects.toThrow(
-                "REPORT_PRIVACY_UNCONFIRMED",
-            );
+            await expect(verifyEndpointJsonFile(path, [endpoint])).rejects.toThrow("REPORT_PRIVACY_UNCONFIRMED");
         } finally {
             await rm(root, { recursive: true, force: true });
         }
@@ -772,8 +779,7 @@ test("public connection overloads preserve actual handshake options and restore 
     });
     server.on("upgrade", (request, socket) => {
         upgrades++;
-        optionsPreserved &&=
-            request.url === "/" + token && request.headers["x-veriq-overload"] === "required";
+        optionsPreserved &&= request.url === "/" + token && request.headers["x-veriq-overload"] === "required";
         socket.end("HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
     });
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -804,9 +810,7 @@ test("public connection overloads preserve actual handshake options and restore 
         restore();
         restore();
         expect(chromium.connect === original).toBe(true);
-        expect(
-            Object.getOwnPropertyDescriptor(chromium, "connect")?.value === descriptor?.value,
-        ).toBe(true);
+        expect(Object.getOwnPropertyDescriptor(chromium, "connect")?.value === descriptor?.value).toBe(true);
         expect(Object.hasOwn(chromium, "connect")).toBe(descriptor !== undefined);
     } finally {
         restore();

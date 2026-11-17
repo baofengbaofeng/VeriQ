@@ -15,13 +15,7 @@ import { Panel } from "../../ui";
 import { useWorkspace } from "../workspaces/WorkspaceContext";
 import { ResourceEditorView } from "../resources/ResourcePage";
 import { CloudResourceAdapter, type ResourceAdapter } from "../resources/adapters";
-import {
-    CloudAiAdapter,
-    type AiAdapter,
-    type Generation,
-    type GenerationRequest,
-    type Provider,
-} from "./adapters";
+import { CloudAiAdapter, type AiAdapter, type Generation, type GenerationRequest, type Provider } from "./adapters";
 import { aiI18n } from "./i18n";
 import "./ai.css";
 type S = PlatformComponents["schemas"];
@@ -68,11 +62,7 @@ export function AiPage() {
         <Panel title={t("title")}>
             <label>
                 {tx("Workspace")}
-                <select
-                    data-testid="ai-workspace"
-                    value={selected}
-                    onChange={(e) => select(e.target.value)}
-                >
+                <select data-testid="ai-workspace" value={selected} onChange={(e) => select(e.target.value)}>
                     {items.map((w) => (
                         <option key={w.id} value={w.id}>
                             {w.name}
@@ -172,21 +162,18 @@ export function AiWorkspaceView({
      * 所有请求字段写入共用稳定回调，并在函数式更新内比较原始值；同值编辑保持原审核对象，实际编辑即使随后恢复原值也须重
      * 新预览，状态更新器不触发其他状态或清理副作用。
      */
-    const changeInput = useCallback(
-        <K extends keyof RequestInputs>(field: K, value: RequestInputs[K]) => {
-            setRequestState((current) =>
-                Object.is(current.inputs[field], value)
-                    ? current
-                    : {
-                          ...current,
-                          inputs: { ...current.inputs, [field]: value },
-                          preview: undefined,
-                          reviewedRequest: undefined,
-                      },
-            );
-        },
-        [],
-    );
+    const changeInput = useCallback(<K extends keyof RequestInputs>(field: K, value: RequestInputs[K]) => {
+        setRequestState((current) =>
+            Object.is(current.inputs[field], value)
+                ? current
+                : {
+                      ...current,
+                      inputs: { ...current.inputs, [field]: value },
+                      preview: undefined,
+                      reviewedRequest: undefined,
+                  },
+        );
+    }, []);
     const [generation, setGeneration] = useState<Generation>(),
         [key, setResourceKey] = useState(""),
         [name, setName] = useState(""),
@@ -277,10 +264,7 @@ export function AiWorkspaceView({
             {!edit && <p>{t("readonly")}</p>}
             {(error || providers.error || history.error || sources.error) && (
                 <p role="alert">
-                    {error ||
-                        providers.error?.message ||
-                        history.error?.message ||
-                        sources.error?.message}
+                    {error || providers.error?.message || history.error?.message || sources.error?.message}
                 </p>
             )}
             {(busy || providers.isPending) && <p role="status">{t("loading")}</p>}
@@ -307,9 +291,9 @@ export function AiWorkspaceView({
             )}
             {provider && (
                 <div data-testid="ai-budget">
-                    <strong>{t("budget")} USD</strong> {t("used")}:{" "}
-                    {provider.budget.estimatedUsedUsd} · {t("held")}: {provider.budget.heldUsd} ·{" "}
-                    {t("available")}: {provider.budget.availableUsd}
+                    <strong>{t("budget")} USD</strong>{" "}
+                    {`${t("used")}: ${provider.budget.estimatedUsedUsd} · ${t("held")}: ${provider.budget.heldUsd} · ` +
+                        `${t("available")}: ${provider.budget.availableUsd}`}
                 </div>
             )}
             {manage && (
@@ -326,11 +310,7 @@ export function AiWorkspaceView({
                         {t("newProvider")}
                     </button>
                     {provider && (
-                        <button
-                            type="button"
-                            data-testid="ai-edit-provider"
-                            onClick={() => selectProvider(provider)}
-                        >
+                        <button type="button" data-testid="ai-edit-provider" onClick={() => selectProvider(provider)}>
                             {t("provider")} {provider.name}
                         </button>
                     )}
@@ -381,17 +361,7 @@ export function AiWorkspaceView({
                         ] as const
                     ).map((k, i) => (
                         <label key={k}>
-                            {t(
-                                (
-                                    [
-                                        "monthly",
-                                        "inputRate",
-                                        "outputRate",
-                                        "outputLimit",
-                                        "requestLimit",
-                                    ] as const
-                                )[i]!,
-                            )}
+                            {t((["monthly", "inputRate", "outputRate", "outputLimit", "requestLimit"] as const)[i]!)}
                             <input
                                 type="number"
                                 min="0"
@@ -439,11 +409,7 @@ export function AiWorkspaceView({
                                 disabled={!provider.enabled}
                                 onClick={() =>
                                     void action(async () => {
-                                        const g = await adapter.test(
-                                            provider.id,
-                                            crypto.randomUUID(),
-                                            signal,
-                                        );
+                                        const g = await adapter.test(provider.id, crypto.randomUUID(), signal);
                                         if (signal.aborted) return;
                                         setGeneration(g);
                                         await refresh();
@@ -480,9 +446,7 @@ export function AiWorkspaceView({
                     <select
                         data-testid="ai-purpose"
                         value={purpose}
-                        onChange={(e) =>
-                            changeInput("purpose", e.target.value as GenerationRequest["purpose"])
-                        }
+                        onChange={(e) => changeInput("purpose", e.target.value as GenerationRequest["purpose"])}
                     >
                         <option>CASE_DRAFT</option>
                         <option>BOUNDARY_SUGGESTION</option>
@@ -551,10 +515,7 @@ export function AiWorkspaceView({
                                     </button>
                                 )}
                                 {r.kind === "CASE" && (
-                                    <button
-                                        type="button"
-                                        onClick={() => changeInput("resourceId", r.id)}
-                                    >
+                                    <button type="button" onClick={() => changeInput("resourceId", r.id)}>
                                         {t("target")}
                                     </button>
                                 )}
@@ -648,8 +609,8 @@ export function AiWorkspaceView({
                             >
                                 {g.purpose} · {g.status} · {g.createdAt}
                             </button>{" "}
-                            {g.costState === "UNKNOWN" ? t("unknown") : "USD " + g.costUsd} (
-                            {g.inputTokens ?? "?"} / {g.outputTokens ?? "?"} {tx(" tokens)")}{" "}
+                            {`${g.costState === "UNKNOWN" ? t("unknown") : "USD " + g.costUsd}` +
+                                ` (${g.inputTokens ?? "?"} / ${g.outputTokens ?? "?"} ${tx(" tokens)")}`}{" "}
                             {g.status === "RUNNING" && edit && (
                                 <button
                                     type="button"
@@ -724,9 +685,7 @@ export function AiWorkspaceView({
                                     disabled={
                                         generation.resourceId
                                             ? !generation.revision
-                                            : !name.trim() ||
-                                              name.length > 160 ||
-                                              validateSchema("Key", key).length > 0
+                                            : !name.trim() || name.length > 160 || validateSchema("Key", key).length > 0
                                     }
                                     onClick={() =>
                                         void action(async () => {
@@ -754,11 +713,7 @@ export function AiWorkspaceView({
                                 data-testid="ai-reject"
                                 onClick={() =>
                                     void action(async () => {
-                                        const g = await adapter.review(
-                                            generation.id,
-                                            { decision: "REJECT" },
-                                            signal,
-                                        );
+                                        const g = await adapter.review(generation.id, { decision: "REJECT" }, signal);
                                         if (signal.aborted) return;
                                         setGeneration(g);
                                         await refresh();

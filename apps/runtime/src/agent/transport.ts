@@ -45,12 +45,7 @@ export class AgentClient {
      * 公开方法 binary 以租约与围栏头读写有界二进制内容，禁止重定向与 Cookie，
      * 超额则取消流式读取（binary/CHUNK_TOO_LARGE）。
      */
-    async binary(
-        path: string,
-        proof: Proof,
-        signal: AbortSignal,
-        bytes?: Uint8Array,
-    ): Promise<Uint8Array> {
+    async binary(path: string, proof: Proof, signal: AbortSignal, bytes?: Uint8Array): Promise<Uint8Array> {
         const url = this.path(path);
         if (bytes && bytes.length > 1024 * 1024) throw new Error("CHUNK_TOO_LARGE");
         return this.session.withCredential(async (config) => {
@@ -89,15 +84,9 @@ export class AgentClient {
      * 公开方法 download 拉取内容后强制比对 sha256，哈希不符立即失败，防止损坏或被调包的作业成员进入执行（
      * download/CONTENT_HASH_MISMATCH）。
      */
-    async download(
-        path: string,
-        hash: string,
-        proof: Proof,
-        signal: AbortSignal,
-    ): Promise<Uint8Array> {
+    async download(path: string, hash: string, proof: Proof, signal: AbortSignal): Promise<Uint8Array> {
         const bytes = await this.binary(path, proof, signal);
-        if (createHash("sha256").update(bytes).digest("hex") !== hash)
-            throw new Error("CONTENT_HASH_MISMATCH");
+        if (createHash("sha256").update(bytes).digest("hex") !== hash) throw new Error("CONTENT_HASH_MISMATCH");
         return bytes;
     }
 }

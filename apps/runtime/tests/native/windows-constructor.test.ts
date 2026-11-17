@@ -13,9 +13,7 @@ import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
 assert.equal(process.platform, "win32", "Native constructor fault tests require Windows");
-const fault = fileURLToPath(
-    new URL("../../build/native-tests/veriq_constructor_fault.node", import.meta.url),
-);
+const fault = fileURLToPath(new URL("../../build/native-tests/veriq_constructor_fault.node", import.meta.url));
 const product = fileURLToPath(new URL("../../build/Release/veriq_native.node", import.meta.url));
 
 /**
@@ -38,16 +36,20 @@ for (const scenario of [
         let closed = false;
         try {
             await copyFile(process.execPath, role);
-            const script = `const assert=require('node:assert/strict');const fault=require(${JSON.stringify(fault)}` +
+            const script =
+                `const assert=require('node:assert/strict');const fault=require(${JSON.stringify(fault)}` +
                 `);try{new fault.PrivatePipeServer(${JSON.stringify(path)}` +
                 `,()=>{});throw new Error('FAULT_NOT_REACHED');}catch(error){assert.match(error.message,/^NATIVE_TE` +
                 `ST_THREAD_CREATION_FAILURE/);console.log('THREAD_CONSTRUCTION_FAULT_OBSERVED');}` +
                 `${
-                    scenario.rebind ? `const product=require(${JSON.stringify(product)}` +
-                        `);const server=new product.PrivatePipeServer(` +
-                        `${JSON.stringify(path)}` +
-                        `,()=>{});server.close();console.log('ENDPOINT_REBOUND` +
-                        `_AND_CLOSED');` : ""}console.log('SCRIPT_COMPLETED');`;
+                    scenario.rebind
+                        ? `const product=require(${JSON.stringify(product)}` +
+                          `);const server=new product.PrivatePipeServer(` +
+                          `${JSON.stringify(path)}` +
+                          `,()=>{});server.close();console.log('ENDPOINT_REBOUND` +
+                          `_AND_CLOSED');`
+                        : ""
+                }console.log('SCRIPT_COMPLETED');`;
             const operation = promisify(execFile)(role, ["-e", script], {
                 cwd: root,
                 env: { SystemRoot: process.env.SystemRoot! },
@@ -65,11 +67,7 @@ for (const scenario of [
             assert.deepEqual(
                 stdout.trim().split(/\r?\n/),
                 scenario.rebind
-                    ? [
-                          "THREAD_CONSTRUCTION_FAULT_OBSERVED",
-                          "ENDPOINT_REBOUND_AND_CLOSED",
-                          "SCRIPT_COMPLETED",
-                      ]
+                    ? ["THREAD_CONSTRUCTION_FAULT_OBSERVED", "ENDPOINT_REBOUND_AND_CLOSED", "SCRIPT_COMPLETED"]
                     : ["THREAD_CONSTRUCTION_FAULT_OBSERVED", "SCRIPT_COMPLETED"],
             );
             assert.equal(child.exitCode, 0);
@@ -84,9 +82,13 @@ for (const scenario of [
             };
             context.diagnostic(
                 `Constructor fault result: ` +
-                    `${
-                        JSON.stringify({ code: observed.code, signal: observed.signal, killed: observed.killed,
-                            stdout: observed.stdout, stderr: observed.stderr })}`,
+                    `${JSON.stringify({
+                        code: observed.code,
+                        signal: observed.signal,
+                        killed: observed.killed,
+                        stdout: observed.stdout,
+                        stderr: observed.stderr,
+                    })}`,
             );
             failures.push(error);
         } finally {

@@ -5,9 +5,7 @@
 import { test, expect } from "@playwright/test";
 import { editorScope, managedCompiler } from "./editor-fixture";
 
-test("plans create, revision conflict, trigger and scoped token lifecycle through actual GUI", async ({
-    page,
-}) => {
+test("plans create, revision conflict, trigger and scoped token lifecycle through actual GUI", async ({ page }) => {
     test.setTimeout(240000);
     const setup = (await (await page.request.get("/api/v1/setup")).json()).data;
     if (!setup.initialized) {
@@ -42,9 +40,7 @@ test("plans create, revision conflict, trigger and scoped token lifecycle throug
         await compiler.compile();
         const receipt = (
             await (
-                await page.request.get(
-                    base + "/jobs/" + (await queued.json()).data.id + "/validation-receipt",
-                )
+                await page.request.get(base + "/jobs/" + (await queued.json()).data.id + "/validation-receipt")
             ).json()
         ).data;
         const published = await page.request.post(path + "/publish", {
@@ -120,12 +116,8 @@ test("plans create, revision conflict, trigger and scoped token lifecycle throug
         await page.getByLabel("Plan name", { exact: true }).fill("Scheduled GUI smoke");
         await page.getByLabel("SUITE resource", { exact: true }).selectOption(suite.resource.id);
         await page.getByLabel("SUITE version", { exact: true }).selectOption(suite.version.id);
-        await page
-            .getByLabel("ENVIRONMENT resource", { exact: true })
-            .selectOption(environment.resource.id);
-        await page
-            .getByLabel("ENVIRONMENT version", { exact: true })
-            .selectOption(environment.version.id);
+        await page.getByLabel("ENVIRONMENT resource", { exact: true }).selectOption(environment.resource.id);
+        await page.getByLabel("ENVIRONMENT version", { exact: true }).selectOption(environment.version.id);
         await page.getByRole("group", { name: "Runtimes" }).getByRole("checkbox").check();
         const saved = page.waitForResponse(
             (r) => r.url().endsWith("/execution-plans") && r.request().method() === "POST",
@@ -145,18 +137,14 @@ test("plans create, revision conflict, trigger and scoped token lifecycle throug
         await page.getByLabel("Plan name", { exact: true }).fill("Unsaved local update");
         await page.getByRole("button", { name: "Save plan", exact: true }).click();
         await expect(page.getByRole("alert")).toContainText("revision");
-        await expect(page.getByLabel("Plan name", { exact: true })).toHaveValue(
-            "Unsaved local update",
-        );
+        await expect(page.getByLabel("Plan name", { exact: true })).toHaveValue("Unsaved local update");
         await page.reload();
         await page.getByLabel("Plan Workspace", { exact: true }).selectOption(scope.workspaceId);
         await page
             .getByRole("region", { name: "Concurrent update", exact: true })
             .getByRole("button", { name: "Trigger", exact: true })
             .click();
-        await expect(page.getByRole("region", { name: "Trigger status" })).toContainText(
-            "ENQUEUED",
-        );
+        await expect(page.getByRole("region", { name: "Trigger status" })).toContainText("ENQUEUED");
         await page.getByLabel("Service account name", { exact: true }).fill("GUI scheduler");
         await page.getByRole("button", { name: "Create account", exact: true }).click();
         await page
@@ -170,9 +158,7 @@ test("plans create, revision conflict, trigger and scoped token lifecycle throug
         expect(issuedSecret.length).toBeGreaterThan(40);
         await oneTime.getByRole("button", { name: "Dismiss token", exact: true }).click();
         await expect(page.getByText(issuedSecret, { exact: true })).toHaveCount(0);
-        const tokens = page
-            .getByRole("region", { name: "Service accounts", exact: true })
-            .locator("article");
+        const tokens = page.getByRole("region", { name: "Service accounts", exact: true }).locator("article");
         await expect(tokens).toContainText("EXECUTION");
         await tokens.getByRole("button", { name: "Revoke", exact: true }).click();
         await expect(tokens).toContainText("revoked");
@@ -186,12 +172,8 @@ test("plans create, revision conflict, trigger and scoped token lifecycle throug
         });
         expect(other.status()).toBe(201);
         await page.reload();
-        await page
-            .getByLabel("Plan Workspace", { exact: true })
-            .selectOption((await other.json()).data.id);
-        await expect(
-            page.getByRole("region", { name: "Concurrent update", exact: true }),
-        ).toHaveCount(0);
+        await page.getByLabel("Plan Workspace", { exact: true }).selectOption((await other.json()).data.id);
+        await expect(page.getByRole("region", { name: "Concurrent update", exact: true })).toHaveCount(0);
         await expect(oneTime).toHaveCount(0);
         await expect(page.getByLabel("Plan name", { exact: true })).toHaveValue("");
     } finally {

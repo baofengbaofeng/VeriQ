@@ -50,11 +50,7 @@ export interface ReportAdapter {
     artifacts(attemptId: string, signal?: AbortSignal): Promise<S["ReportArtifactsDTO"]>;
     download(attemptId: string, artifactId: string, signal?: AbortSignal): Promise<Blob>;
     audit(after?: string, signal?: AbortSignal): Promise<S["ReportAuditDTO"]>;
-    subscribe(
-        runId: string,
-        receive: (report: RunReport) => void,
-        signal: AbortSignal,
-    ): Promise<void>;
+    subscribe(runId: string, receive: (report: RunReport) => void, signal: AbortSignal): Promise<void>;
 }
 /**
  * Workspace 作用域 HTTP+SSE：streamRequest 解析 report 事件，authorization 事件则抛错要求重载。download 用
@@ -75,12 +71,7 @@ export class CloudReportAdapter implements ReportAdapter {
     report = (id: string, signal?: AbortSignal) =>
         request<RunReport>(this.base() + `/runs/${id}/report`, "GET", undefined, signal);
     display = (runId: string, attemptId: string, signal?: AbortSignal) =>
-        request<ReportDisplay>(
-            this.base() + `/runs/${runId}/attempts/${attemptId}/display`,
-            "GET",
-            undefined,
-            signal,
-        );
+        request<ReportDisplay>(this.base() + `/runs/${runId}/attempts/${attemptId}/display`, "GET", undefined, signal);
     history = (id: string, after: number, signal?: AbortSignal) =>
         request<S["ReportHistoryDTO"]>(
             this.base() + `/attempts/${id}/history?after=${after}`,
@@ -89,12 +80,7 @@ export class CloudReportAdapter implements ReportAdapter {
             signal,
         );
     artifacts = (id: string, signal?: AbortSignal) =>
-        request<S["ReportArtifactsDTO"]>(
-            this.base() + `/attempts/${id}/artifacts`,
-            "GET",
-            undefined,
-            signal,
-        );
+        request<S["ReportArtifactsDTO"]>(this.base() + `/attempts/${id}/artifacts`, "GET", undefined, signal);
     audit = (after?: string, signal?: AbortSignal) =>
         request<S["ReportAuditDTO"]>(
             this.base() + "/audit" + (after ? "?after=" + encodeURIComponent(after) : ""),
@@ -103,10 +89,7 @@ export class CloudReportAdapter implements ReportAdapter {
             signal,
         );
     async download(attemptId: string, artifactId: string, signal?: AbortSignal) {
-        const response = await binaryRequest(
-            this.base() + `/attempts/${attemptId}/artifacts/${artifactId}`,
-            signal,
-        );
+        const response = await binaryRequest(this.base() + `/attempts/${attemptId}/artifacts/${artifactId}`, signal);
         if (!response.ok) throw new Error((await response.json()).message);
         return response.blob();
     }
@@ -179,23 +162,16 @@ export class LocalReportAdapter implements ReportAdapter {
     private readonly snapshot: LocalReportSnapshot;
     constructor(
         snapshot: LocalReportSnapshot,
-        private readonly readRaw?: (
-            attempt: string,
-            artifact: string,
-            signal?: AbortSignal,
-        ) => Promise<Blob>,
+        private readonly readRaw?: (attempt: string, artifact: string, signal?: AbortSignal) => Promise<Blob>,
     ) {
         this.snapshot = structuredClone(snapshot);
         if (this.snapshot.reports.some((report) => report.run.workspaceId !== snapshot.workspaceId))
             throw new Error("Foreign Workspace report");
         const attempts = new Set(
-            this.snapshot.reports.flatMap((r) =>
-                r.cases.flatMap((c) => c.attempts.map((a) => a.id)),
-            ),
+            this.snapshot.reports.flatMap((r) => r.cases.flatMap((c) => c.attempts.map((a) => a.id))),
         );
         for (const [id, events] of Object.entries(this.snapshot.history)) {
-            if (!attempts.has(id) || events.some((e) => e.attemptId !== id))
-                throw new Error("Foreign Attempt history");
+            if (!attempts.has(id) || events.some((e) => e.attemptId !== id)) throw new Error("Foreign Attempt history");
         }
         for (const [id, artifacts] of Object.entries(this.snapshot.artifacts)) {
             if (!attempts.has(id) || artifacts.some((a) => a.attemptId !== id))
@@ -242,16 +218,10 @@ export class LocalReportAdapter implements ReportAdapter {
     download = async (attempt: string, artifact: string, signal?: AbortSignal) => {
         if (
             !this.readRaw ||
-            !this.snapshot.artifacts[attempt]?.some(
-                (a) => a.id === artifact && a.state === "AVAILABLE",
-            )
+            !this.snapshot.artifacts[attempt]?.some((a) => a.id === artifact && a.state === "AVAILABLE")
         )
             throw new Error("Raw evidence requires host authorization.");
         return this.readRaw(attempt, artifact, signal);
     };
-    subscribe = async (
-        _id: string,
-        _receive: (report: RunReport) => void,
-        _signal: AbortSignal,
-    ) => {};
+    subscribe = async (_id: string, _receive: (report: RunReport) => void, _signal: AbortSignal) => {};
 }

@@ -62,11 +62,9 @@ export async function copyPayloadFile(
         before = await lstat(full, { bigint: true });
     if (!before.isFile() || before.nlink !== 1n || before.size !== BigInt(source.sizeBytes))
         tx.fail("PAYLOAD_SOURCE_CHANGED");
-    const handle = await open(
-        full,
-        constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
-    );
+    const handle = await open(full, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
     let primary: unknown;
+    let closeError: unknown;
     try {
         if (!same(before, await handle.stat({ bigint: true }))) tx.fail("PAYLOAD_SOURCE_CHANGED");
         tx.check();
@@ -84,10 +82,7 @@ export async function copyPayloadFile(
             if (!stream.readableEnded) stream.destroy();
             await closed.catch(() => {});
         }
-        if (
-            !same(before, await handle.stat({ bigint: true })) ||
-            !same(before, await lstat(full, { bigint: true }))
-        )
+        if (!same(before, await handle.stat({ bigint: true })) || !same(before, await lstat(full, { bigint: true })))
             tx.fail("PAYLOAD_SOURCE_CHANGED");
         for (const [path, info] of parents)
             if (!same(info, await lstat(path, { bigint: true }))) tx.fail("PAYLOAD_SOURCE_CHANGED");
@@ -100,9 +95,10 @@ export async function copyPayloadFile(
             await handle.close();
         } catch (error) {
             tx.noteCloseFailure();
-            if (!primary) throw error;
+            if (!primary) closeError = error;
         }
     }
+    if (closeError !== undefined) throw closeError;
 }
 
 /**
@@ -137,8 +133,7 @@ export function npmLinkSource(
     let current = path;
     while (true) {
         const member = map.get(current);
-        if (!member || !current.startsWith(root + "/"))
-            throw new RuntimePayloadError("PAYLOAD_ARCHIVE_LINK");
+        if (!member || !current.startsWith(root + "/")) throw new RuntimePayloadError("PAYLOAD_ARCHIVE_LINK");
         if (member.kind === "file") {
             origins.push({
                 input: "node",
@@ -191,15 +186,11 @@ export async function projectNpm(
     const files: { fact: FileFact; source: Ref; origins: Origin[] }[] = [],
         directories = new Set<string>(["npm"]);
     const addParents = (path: string) => {
-        for (let parent = dirname(path); parent !== "."; parent = dirname(parent))
-            directories.add(parent);
+        for (let parent = dirname(path); parent !== "."; parent = dirname(parent)) directories.add(parent);
     };
     for (const member of members) {
         if (member.path !== node.npmRoot && !member.path.startsWith(node.npmRoot + "/")) continue;
-        const path =
-            member.path === node.npmRoot
-                ? "npm"
-                : `npm/${member.path.slice(node.npmRoot.length + 1)}`;
+        const path = member.path === node.npmRoot ? "npm" : `npm/${member.path.slice(node.npmRoot.length + 1)}`;
         if (member.kind === "directory") {
             directories.add(path);
             addParents(path);
@@ -238,26 +229,16 @@ export async function projectNpm(
     const bytes = files.reduce((n, file) => n + file.fact.sizeBytes, 0);
     const inventoryBytes = canonicalBytes(inventory),
         receiptBytes = canonicalBytes(node);
-    if (inventoryBytes.length > limits.json || receiptBytes.length > limits.json)
-        tx.fail("PAYLOAD_LIMIT");
+    if (inventoryBytes.length > limits.json || receiptBytes.length > limits.json) tx.fail("PAYLOAD_LIMIT");
     await tx.plan(
         bytes + inventoryBytes.length + receiptBytes.length,
         inventory.directories.length + files.length + inventory.links.length + 2,
     );
     for (const directory of inventory.directories) await tx.mkdir(`views/${directory}`);
     for (const file of files)
-        await copyPayloadFile(
-            tx,
-            intake.directory,
-            file.source,
-            `views/${file.fact.path}`,
-            file.fact.mode,
-        );
+        await copyPayloadFile(tx, intake.directory, file.source, `views/${file.fact.path}`, file.fact.mode);
     await tx.createProjectionBinAliases(node, members);
-    const inventoryRef = await tx.write(
-        "projection-evidence/npm-inventory.json",
-        once(inventoryBytes),
-    );
+    const inventoryRef = await tx.write("projection-evidence/npm-inventory.json", once(inventoryBytes));
     const receiptRef = await tx.write("projection-evidence/node-receipt.json", once(receiptBytes));
     const tree: BoundTree = { root: "views", inventory: inventoryRef, buildReceipt: receiptRef };
     const reader = new InputReader(tx.scratch, tx.signal, [tree.root]);
@@ -267,16 +248,14 @@ export async function projectNpm(
     await reader.tree(tree, inventory, "dependencies");
     await verifyPackageContents(node.npmGraph, inventory, tree, reader);
     for (const resolution of node.npmGraph.resolutionProof.resolutions)
-        if (!inventory.files.some((file) => file.path === resolution.consumer))
-            tx.fail("PAYLOAD_GRAPH_MISMATCH");
+        if (!inventory.files.some((file) => file.path === resolution.consumer)) tx.fail("PAYLOAD_GRAPH_MISMATCH");
     await reader.finish();
     const evidence = new InputReader(tx.inputRoot, tx.signal, []);
     await evidence.initialize();
     for (const bin of node.npmGraph.bins)
         if (bin.launcher === "native") {
             const target = inventory.files.find((file) => file.path === bin.targetPath);
-            if (!target || !bin.inspection || ![0o555, 0o755].includes(target.mode))
-                tx.fail("PAYLOAD_BIN_UNSUPPORTED");
+            if (!target || !bin.inspection || ![0o555, 0o755].includes(target.mode)) tx.fail("PAYLOAD_BIN_UNSUPPORTED");
             await nativeBin(evidence, bin.inspection, report.recipe, bin.targetPath, target.sha256);
         }
     await evidence.finish();

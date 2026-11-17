@@ -21,10 +21,7 @@ export interface BundleAdapter {
      * 的显式文件下载流程。
      */
     install?(id: string, signal?: AbortSignal): Promise<void>;
-    list(
-        cursor?: string,
-        signal?: AbortSignal,
-    ): Promise<{ items: Bundle[]; nextCursor: string | null }>;
+    list(cursor?: string, signal?: AbortSignal): Promise<{ items: Bundle[]; nextCursor: string | null }>;
     export(selection: S["BundleCreate"], key: string, signal?: AbortSignal): Promise<Bundle>;
     download(id: string, signal?: AbortSignal): Promise<Blob>;
 }
@@ -49,10 +46,7 @@ export class CloudBundleAdapter implements BundleAdapter {
             "Idempotency-Key": key,
         });
     async download(id: string, signal?: AbortSignal) {
-        const response = await binaryRequest(
-            `${this.base()}/${encodeURIComponent(id)}/download`,
-            signal,
-        );
+        const response = await binaryRequest(`${this.base()}/${encodeURIComponent(id)}/download`, signal);
         if (!response.ok) {
             const body = await response.json();
             if (response.status === 401) window.dispatchEvent(new Event("veriq:session-expired"));

@@ -5,10 +5,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { chmod, link, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import {
-    verifyRuntimePayloadInputs as verify,
-    RuntimePayloadError,
-} from "../scripts/runtime-payload-inputs.ts";
+import { verifyRuntimePayloadInputs as verify, RuntimePayloadError } from "../scripts/runtime-payload-inputs.ts";
 import { fixture } from "./fixtures/runtime-payload.ts";
 import { EvidenceBudget, InputReader, limits } from "../scripts/runtime-payload-tree.ts";
 /**
@@ -55,10 +52,7 @@ test("inventory rejects case collisions missing parents and unsafe member paths"
     for (const path of ["Agent.js", "missing/child.js", "../escape.js", "bad.asar/file"]) {
         await fixture(async (f) => {
             f.inventories.entries.files.push({ ...f.inventories.entries.files[0]!, path });
-            await assert.rejects(
-                verify(await f.save(), f.expected, { inputRoot: f.root }),
-                failure,
-            );
+            await assert.rejects(verify(await f.save(), f.expected, { inputRoot: f.root }), failure);
         });
     }
 });
@@ -71,10 +65,7 @@ test("symlink ancestor and ASAR root are rejected", async () =>
     fixture(async (f) => {
         const alias = join(f.root, "alias");
         await symlink("trees", alias);
-        await assert.rejects(
-            verify(await f.save(), f.expected, { inputRoot: join(alias, "entries") }),
-            failure,
-        );
+        await assert.rejects(verify(await f.save(), f.expected, { inputRoot: join(alias, "entries") }), failure);
         const asar = join(f.root, "payload.asar");
         await mkdir(asar);
         await assert.rejects(verify(await f.save(), f.expected, { inputRoot: asar }), failure);
@@ -95,14 +86,9 @@ test("special Unix socket inode is rejected without opening it", async () =>
         try {
             const template = f.inventories.entries.files[0]!;
             f.inventories.entries.files.push({ ...template, path: "special.sock" });
-            await assert.rejects(
-                verify(await f.save(), f.expected, { inputRoot: f.root }),
-                failure,
-            );
+            await assert.rejects(verify(await f.save(), f.expected, { inputRoot: f.root }), failure);
         } finally {
-            await new Promise<void>((done, reject) =>
-                server.close((error) => (error ? reject(error) : done())),
-            );
+            await new Promise<void>((done, reject) => server.close((error) => (error ? reject(error) : done())));
         }
     }));
 
@@ -118,16 +104,14 @@ test("source mutation after held read rejects instead of retrying", async () =>
         let calls = 0;
         fs.lstat = (async (...args: Parameters<typeof fs.lstat>) => {
             const result = await original(...args);
-            if (String(args[0]) === path && ++calls === 2)
-                await writeFile(path, "changed after read\n");
+            if (String(args[0]) === path && ++calls === 2) await writeFile(path, "changed after read\n");
             return result;
         }) as typeof fs.lstat;
         syncBuiltinESMExports();
         try {
             await assert.rejects(
                 verify(input, f.expected, { inputRoot: f.root }),
-                (e: unknown) =>
-                    e instanceof RuntimePayloadError && e.code === "PAYLOAD_SOURCE_CHANGED",
+                (e: unknown) => e instanceof RuntimePayloadError && e.code === "PAYLOAD_SOURCE_CHANGED",
             );
         } finally {
             fs.lstat = original;
@@ -208,15 +192,11 @@ test("fix1 evidence repeat admissions do not double-charge", () => {
     const budget = new EvidenceBudget(),
         first = { path: "sources/first.bin", sizeBytes: 40 * 1024 ** 2, sha256: "a".repeat(64) },
         rest = { path: "sources/rest.bin", sizeBytes: 24 * 1024 ** 2, sha256: "b".repeat(64) };
-    budget.admit(
-        { path: "archives/large.tar.gz", sizeBytes: 2 * 1024 ** 3, sha256: "c".repeat(64) },
-        false,
-    );
+    budget.admit({ path: "archives/large.tar.gz", sizeBytes: 2 * 1024 ** 3, sha256: "c".repeat(64) }, false);
     for (let i = 0; i < 4; i++) budget.admit(first, true);
     budget.admit(rest, true);
     assert.throws(
-        () =>
-            budget.admit({ path: "evidence/last.bin", sizeBytes: 1, sha256: "d".repeat(64) }, true),
+        () => budget.admit({ path: "evidence/last.bin", sizeBytes: 1, sha256: "d".repeat(64) }, true),
         (e: unknown) => e instanceof RuntimePayloadError && e.code === "PAYLOAD_LIMIT",
     );
 });
@@ -237,8 +217,7 @@ test("fix1 real source evidence reuse preserves exact checked records", async ()
         assert.deepEqual(reader.checked.get(ref.path), ref);
         await assert.rejects(
             reader.ref({ ...ref, sha256: "f".repeat(64) }),
-            (e: unknown) =>
-                e instanceof RuntimePayloadError && e.code === "PAYLOAD_RECEIPT_MISMATCH",
+            (e: unknown) => e instanceof RuntimePayloadError && e.code === "PAYLOAD_RECEIPT_MISMATCH",
         );
         await reader.finish();
     }));

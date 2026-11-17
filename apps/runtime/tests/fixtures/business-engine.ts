@@ -25,12 +25,7 @@ import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 import { createServer } from "node:http";
 import { compileFiles, type EngineDistribution } from "@veriq/compiler";
-import {
-    canonicalBytes,
-    assetSourceBytes,
-    validateSchema,
-    type ExecutionSnapshotV1,
-} from "@veriq/contracts";
+import { canonicalBytes, assetSourceBytes, validateSchema, type ExecutionSnapshotV1 } from "@veriq/contracts";
 import { snapshot, asset, id } from "../../../../packages/compiler/tests/helpers.ts";
 import { TrustStore, type IssuerTrust } from "../../src/offline/trust.ts";
 import { loadRelease } from "../../src/execution/release.ts";
@@ -45,9 +40,7 @@ import type { DarwinSourceCapability } from "../../src/execution/darwin-source.t
  * 失去激活回执的第三次业务探针只采样一次时钟，以同一起点推导恰好六十秒的租约终点，避免毫秒推进扩大授权窗口；此夹具接口
  * 只覆盖认领时间，不改变尝试标识、生产校验或失败关闭断言。
  */
-export function businessLeaseWindow(
-    now: () => number = Date.now,
-): Pick<Claim, "serverTime" | "expiresAt"> {
+export function businessLeaseWindow(now: () => number = Date.now): Pick<Claim, "serverTime" | "expiresAt"> {
     const serverTime = now();
     return {
         serverTime: new Date(serverTime).toISOString(),
@@ -253,13 +246,10 @@ export async function fixture(
                 workspaceId: source.workspaceId,
                 engineVersion: source.engineVersion,
                 sourceHash: "",
-                entryCaseVersionIds:
-                    a.kind === "CASE" ? [a.versionId] : a.kind === "SUITE" ? [id(1), id(10)] : [],
+                entryCaseVersionIds: a.kind === "CASE" ? [a.versionId] : a.kind === "SUITE" ? [id(1), id(10)] : [],
                 assets:
                     a.kind === "CASE"
-                        ? source.assets.filter(
-                              (x) => x.versionId === a.versionId || x.kind === "ELEMENT_CATALOG",
-                          )
+                        ? source.assets.filter((x) => x.versionId === a.versionId || x.kind === "ELEMENT_CATALOG")
                         : a.kind === "SUITE"
                           ? source.assets.filter((x) => x.kind !== "ENVIRONMENT")
                           : [a],
@@ -285,19 +275,17 @@ export async function fixture(
             for (const [path, bytes] of Object.entries(compiled.files))
                 files[`compiled/${a.versionId}/${path}`] = Buffer.from(bytes);
         }
-        const engineFiles = ["package.json", "package-lock.json", "dependencies.json"].map(
-            (path) => {
-                const body = Buffer.from(
-                    path === "package.json"
-                        ? distribution.packageJson
-                        : path === "package-lock.json"
-                          ? distribution.packageLock
-                          : canonicalBytes(distribution.dependencies),
-                );
-                files["engine/" + path] = body;
-                return { path, sha256: sha(body), sizeBytes: body.length };
-            },
-        );
+        const engineFiles = ["package.json", "package-lock.json", "dependencies.json"].map((path) => {
+            const body = Buffer.from(
+                path === "package.json"
+                    ? distribution.packageJson
+                    : path === "package-lock.json"
+                      ? distribution.packageLock
+                      : canonicalBytes(distribution.dependencies),
+            );
+            files["engine/" + path] = body;
+            return { path, sha256: sha(body), sizeBytes: body.length };
+        });
         put("engine/inventory.json", {
             schemaVersion: "1.0",
             engines: [
@@ -347,14 +335,10 @@ export async function fixture(
                 const target = opts.inconsistent === "suiteSwap" ? id(20) : id(1);
                 const path = `provenance/${target}/descriptor.json`;
                 update(path, (v) => {
-                    if (opts.inconsistent === "entrypoints")
-                        v.entrypoints[0].caseVersionId = id(999);
+                    if (opts.inconsistent === "entrypoints") v.entrypoints[0].caseVersionId = id(999);
                     if (opts.inconsistent === "entrypath") v.entrypoints[0].path = "package.json";
                     if (opts.inconsistent === "suiteSwap")
-                        [v.entrypoints[0].path, v.entrypoints[1].path] = [
-                            v.entrypoints[1].path,
-                            v.entrypoints[0].path,
-                        ];
+                        [v.entrypoints[0].path, v.entrypoints[1].path] = [v.entrypoints[1].path, v.entrypoints[0].path];
                     if (opts.inconsistent === "validationOnly") v.validationOnly = true;
                     if (opts.inconsistent === "dependencies") v.dependencies[0].version = "9.9.9";
                 });
@@ -366,13 +350,9 @@ export async function fixture(
         if (opts.dslOnly) {
             const draft = JSON.parse(files[`provenance/${id(1)}/source.json`]!.toString());
             if (opts.dslError) {
-                const changed = draft.assets.find(
-                    (a: { versionId: string }) => a.versionId === id(1),
-                );
+                const changed = draft.assets.find((a: { versionId: string }) => a.versionId === id(1));
                 changed.document.steps = [{ id: "click", action: "click", target: "missing" }];
-                changed.sha256 = sha(
-                    canonicalBytes({ kind: changed.kind, document: changed.document }),
-                );
+                changed.sha256 = sha(canonicalBytes({ kind: changed.kind, document: changed.document }));
                 draft.sourceHash = sha(assetSourceBytes(draft));
                 source.assets[source.assets.findIndex((a) => a.versionId === id(1))] = changed;
                 put(`assets/${id(1)}.json`, changed);
@@ -434,9 +414,7 @@ export async function fixture(
         await writeFile(
             input,
             JSON.stringify({
-                files: Object.fromEntries(
-                    Object.entries(files).map(([k, v]) => [k, v.toString("base64")]),
-                ),
+                files: Object.fromEntries(Object.entries(files).map(([k, v]) => [k, v.toString("base64")])),
                 duplicate: opts.duplicate,
                 link: opts.link,
             }),
@@ -478,13 +456,7 @@ export async function buildBusinessEngine(root: string) {
     await writeFile(source, canonicalBytes(snapshot()));
     execFileSync(
         process.execPath,
-        [
-            "--import",
-            fileURLToPath(import.meta.resolve("tsx")),
-            "tests/queue-fixture.ts",
-            source,
-            build,
-        ],
+        ["--import", fileURLToPath(import.meta.resolve("tsx")), "tests/queue-fixture.ts", source, build],
         {
             cwd: fileURLToPath(new URL("../../../../packages/runner-sdk", import.meta.url)),
             timeout: 120000,
@@ -504,9 +476,7 @@ export async function buildBusinessEngine(root: string) {
         dependencies: approved.entry.dependencies,
         packageJson: approved.files["package.json"]!,
         packageLock: approved.files["package-lock.json"]!,
-        files: Object.fromEntries(
-            Object.entries(approved.files).filter(([path]) => path.startsWith("vendor/")),
-        ),
+        files: Object.fromEntries(Object.entries(approved.files).filter(([path]) => path.startsWith("vendor/"))),
     };
     if (process.platform === "darwin")
         console.log(
@@ -688,10 +658,7 @@ export async function onlineBusiness(
         if (path === "/identity") {
             res.end(
                 JSON.stringify({
-                    id:
-                        req.headers.authorization === "Bearer fixture-token"
-                            ? "fixture-service"
-                            : "reader",
+                    id: req.headers.authorization === "Bearer fixture-token" ? "fixture-service" : "reader",
                 }),
             );
             return;
@@ -800,14 +767,8 @@ export async function onlineBusiness(
         const client = new AgentClient(session),
             request = client.request.bind(client),
             binary = client.binary.bind(client);
-        client.request = <T>(
-            path: string,
-            method?: string,
-            body?: unknown,
-            signal?: AbortSignal,
-        ): Promise<T> => {
-            if (path.endsWith("/artifact-uploads") || path.endsWith("/finish"))
-                options.beforeDelivery?.();
+        client.request = <T>(path: string, method?: string, body?: unknown, signal?: AbortSignal): Promise<T> => {
+            if (path.endsWith("/artifact-uploads") || path.endsWith("/finish")) options.beforeDelivery?.();
             return request<T>(path, method, body, signal);
         };
         client.binary = (path, proof, signal, bytes) => {
@@ -935,43 +896,27 @@ export async function onlineBusiness(
             if (options.darwinSource && !result.stop.processStopped) retainRoot = true;
             results.push(result);
             if (options.darwinSource)
-                await emitBusinessDiagnostic(
-                    "ONLINE",
-                    join(root, "agent/work", claim.attemptId),
-                    result,
-                );
+                await emitBusinessDiagnostic("ONLINE", join(root, "agent/work", claim.attemptId), result);
             await options.inspect?.({ result, uploads, events, root, run, supervisor });
             if (!result.completion && !options.darwinSource) {
                 try {
                     process.stderr.write(
                         "guardian: " +
                             (await readFile(
-                                join(
-                                    root,
-                                    "agent/processes",
-                                    claim.attemptId + ".drained.json.error",
-                                ),
+                                join(root, "agent/processes", claim.attemptId + ".drained.json.error"),
                                 "utf8",
                             )),
                     );
                 } catch {}
-                for (const file of [
-                    "worker-failure.json",
-                    "worker-result.json",
-                    "tmp/playwright.json",
-                ])
+                for (const file of ["worker-failure.json", "worker-result.json", "tmp/playwright.json"])
                     try {
-                        const diagnostic = await readFile(
-                            join(root, "agent/work", claim.attemptId, file),
-                            "utf8",
-                        );
+                        const diagnostic = await readFile(join(root, "agent/work", claim.attemptId, file), "utf8");
                         process.stderr.write(file + ": " + diagnostic.slice(0, 16000) + "\n");
                     } catch {}
             }
             if (options.expectIncomplete) {
                 assert.equal(result.completion, undefined);
-                if (options.expectedStop !== undefined)
-                    assert.equal(result.stop.processStopped, options.expectedStop);
+                if (options.expectedStop !== undefined) assert.equal(result.stop.processStopped, options.expectedStop);
                 assert.notEqual(result.stop.processStopScope, "NO_PROCESS_SPAWNED");
                 break;
             }
@@ -1001,10 +946,7 @@ export async function onlineBusiness(
             assert.equal(result.completion.processStopScope, result.stop.processStopScope);
             assert(
                 result.files.some(
-                    (f) =>
-                        f.kind === "TRACE" &&
-                        f.file.sensitivity === "CREDENTIAL_RESTRICTED" &&
-                        f.file.sizeBytes > 0,
+                    (f) => f.kind === "TRACE" && f.file.sensitivity === "CREDENTIAL_RESTRICTED" && f.file.sizeBytes > 0,
                 ),
             );
             assert.deepEqual(supervisor.processes.active(), []);
@@ -1157,11 +1099,7 @@ export async function emitBusinessDiagnostic(
         "REPORT_PRIVACY_UNCONFIRMED",
     ]);
     const fixed = (value: unknown) =>
-        typeof value === "string" && choices.has(value)
-            ? value
-            : value === undefined
-              ? "ABSENT"
-              : "OTHER";
+        typeof value === "string" && choices.has(value) ? value : value === undefined ? "ABSENT" : "OTHER";
     const object = (value: unknown): Record<string, unknown> =>
         value && typeof value === "object" ? (value as Record<string, unknown>) : {};
     const read = async (name: string) => {
@@ -1175,9 +1113,7 @@ export async function emitBusinessDiagnostic(
             return {
                 present,
                 readable: true,
-                data: object(
-                    JSON.parse((await readBoundedFile(path, 65536, true)).toString("utf8")),
-                ),
+                data: object(JSON.parse((await readBoundedFile(path, 65536, true)).toString("utf8"))),
             };
         } catch {
             return { present, readable: false, data: {} as Record<string, unknown> };
@@ -1199,12 +1135,7 @@ export async function emitBusinessDiagnostic(
         exitCodes: (number | null)[];
     } = { readable: false, frames: 0, intents: 0, exits: 0, seals: 0, exitCodes: [] };
     try {
-        const path = join(
-            dirname(dirname(work)),
-            "controlled-journals",
-            basename(work),
-            "command.jsonl",
-        );
+        const path = join(dirname(dirname(work)), "controlled-journals", basename(work), "command.jsonl");
         const bytes = await readBoundedFile(path, 1024 * 1024, true);
         const lines = bytes.toString("utf8").trim().split("\n");
         if (lines.length > 4096) throw new Error("DIAGNOSTIC_FRAME_LIMIT");
@@ -1258,9 +1189,7 @@ export async function emitBusinessDiagnostic(
  * 主报告分类严格来自实际收集器的固定入口或交付别名，所有其他 HTML 和附件仍逐字节接受 DATA 扫描；退出观察器将扫描失败留
  * 在独立粘性门禁，原进程退出事实永远不因归档解析异常变成拒绝，从而允许宿主按原始生命周期完成停止。
  */
-export function businessArtifactRole(
-    path: string,
-): "JSON" | "JUNIT" | "MAIN_HTML" | "TRACE" | "DATA" {
+export function businessArtifactRole(path: string): "JSON" | "JUNIT" | "MAIN_HTML" | "TRACE" | "DATA" {
     if (path === "report.html" || path === "html/index.html") return "MAIN_HTML";
     if (path === "playwright.json") return "JSON";
     if (path.endsWith(".xml")) return "JUNIT";
@@ -1335,20 +1264,11 @@ export async function visitBusinessArtifacts(
         const configPath = await realpath(namedConfig),
             source = await businessInputFile(configPath);
         const pathHash = createHash("sha1").update(configPath).digest("hex").slice(0, 10);
-        const directory = join(
-            `playwright-transform-cache-${process.geteuid?.()}`,
-            pathHash.slice(0, 2),
-        );
+        const directory = join(`playwright-transform-cache-${process.geteuid?.()}`, pathHash.slice(0, 2));
         const names = (await readdir(join(canonicalTmp, directory)))
-            .filter((name) =>
-                new RegExp(`^${pathHash}_[a-f0-9]{7}_playwrightconfig\\.(js|map)$`).test(name),
-            )
+            .filter((name) => new RegExp(`^${pathHash}_[a-f0-9]{7}_playwrightconfig\\.(js|map)$`).test(name))
             .sort();
-        if (
-            names.length !== 2 ||
-            !names[0]!.endsWith(".js") ||
-            names[1] !== names[0]!.slice(0, -3) + ".map"
-        )
+        if (names.length !== 2 || !names[0]!.endsWith(".js") || names[1] !== names[0]!.slice(0, -3) + ".map")
             throw new Error("OPERATIONAL_INPUT_UNCONFIRMED");
         const js = await businessInputFile(join(canonicalTmp, directory, names[0]!)),
             map = await businessInputFile(join(canonicalTmp, directory, names[1]!));
@@ -1395,10 +1315,7 @@ export async function visitBusinessArtifacts(
         sha256: [...inputs.values()].map((file) => file.sha256),
         containsReference: (bytes) => forms.some((form) => bytes.includes(form)),
     });
-    const unchanged = async (
-        path: string,
-        expected: Awaited<ReturnType<typeof businessInputFile>>,
-    ) => {
+    const unchanged = async (path: string, expected: Awaited<ReturnType<typeof businessInputFile>>) => {
         const current = await businessInputFile(path);
         if (current.sha256 !== expected.sha256 || !expected.same(await lstat(path)))
             throw new Error("OPERATIONAL_INPUT_CHANGED");

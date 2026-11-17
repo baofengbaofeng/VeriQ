@@ -16,8 +16,7 @@ const LIMIT = 2 * 1024 * 1024;
  */
 const RAW_KEY = /^raw-key-[0-9a-f-]{36}-[0-9a-f-]{36}\.json$/;
 function member(name: string) {
-    if (!/^[a-z0-9][a-z0-9.-]{0,100}$/.test(name) || name.includes(".."))
-        throw new Error("VAULT_FILE_NAME_INVALID");
+    if (!/^[a-z0-9][a-z0-9.-]{0,100}$/.test(name) || name.includes("..")) throw new Error("VAULT_FILE_NAME_INVALID");
     return name;
 }
 function vaultMember(name: string): boolean {
@@ -73,11 +72,7 @@ export class VaultFiles {
          */
         if (process.platform === "darwin") {
             const { darwinNative } = await import("../native/darwin.ts");
-            return new VaultFiles(
-                directory,
-                undefined,
-                darwinNative().openPrivateDirectory(directory, true),
-            );
+            return new VaultFiles(directory, undefined, darwinNative().openPrivateDirectory(directory, true));
         }
         let parent = await open(parse(directory).root, constants.O_RDONLY | constants.O_DIRECTORY);
         try {
@@ -89,10 +84,7 @@ export class VaultFiles {
                 } catch (error) {
                     if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
                 }
-                const child = await open(
-                    path,
-                    constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
-                );
+                const child = await open(path, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
                 await parent.close();
                 parent = child;
             }
@@ -106,15 +98,10 @@ export class VaultFiles {
         }
     }
     private path(name: string) {
-        return this.handle
-            ? `/proc/self/fd/${this.handle.fd}/${member(name)}`
-            : join(this.directory, member(name));
+        return this.handle ? `/proc/self/fd/${this.handle.fd}/${member(name)}` : join(this.directory, member(name));
     }
     private async checked(name: string) {
-        const fd = await open(
-            this.path(name),
-            constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
-        );
+        const fd = await open(this.path(name), constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
         try {
             const st = await fd.stat();
             if (
@@ -141,9 +128,7 @@ export class VaultFiles {
          * 调用方不能借初始化路径重置含有异常历史的目录。
          */
         if (this.darwin) return !this.darwin.entries(0).overflow;
-        const directory = await opendir(
-            this.handle ? `/proc/self/fd/${this.handle.fd}` : this.directory,
-        );
+        const directory = await opendir(this.handle ? `/proc/self/fd/${this.handle.fd}` : this.directory);
         try {
             return (await directory.read()) === null;
         } finally {
@@ -166,9 +151,7 @@ export class VaultFiles {
             const result = this.darwin.entries(names.length);
             return !result.overflow && result.names.every((name) => names.includes(name));
         }
-        const directory = await opendir(
-            this.handle ? `/proc/self/fd/${this.handle.fd}` : this.directory,
-        );
+        const directory = await opendir(this.handle ? `/proc/self/fd/${this.handle.fd}` : this.directory);
         try {
             for (let index = 0; index <= names.length; index++) {
                 const entry = await directory.read();
@@ -192,9 +175,7 @@ export class VaultFiles {
              */
             if (this.darwin) {
                 member(name);
-                return new TextDecoder("utf-8", { fatal: true }).decode(
-                    this.darwin.read(name, fileLimit(name)),
-                );
+                return new TextDecoder("utf-8", { fatal: true }).decode(this.darwin.read(name, fileLimit(name)));
             }
             if (process.platform === "win32") {
                 const { windowsNative } = await import("../native/windows.ts");

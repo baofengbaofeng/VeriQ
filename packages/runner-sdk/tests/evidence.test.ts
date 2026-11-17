@@ -6,8 +6,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { fixture } from "./helpers.js";
 test(
-    "actual raw Trace/screenshots remain restricted wh" +
-        "ile ordinary events redact credentials and headers",
+    "actual raw Trace/screenshots remain restricted wh" + "ile ordinary events redact credentials and headers",
     async () => {
         const { EvidencePolicy } = await import("../src/evidence.js");
         const f = await fixture(),
@@ -16,9 +15,7 @@ test(
         const policy = new EvidencePolicy();
         policy.protect({ password: secret });
         try {
-            await f.page
-                .context()
-                .tracing.start({ screenshots: true, snapshots: true, sources: true });
+            await f.page.context().tracing.start({ screenshots: true, snapshots: true, sources: true });
             await f.page.context().setExtraHTTPHeaders({
                 authorization: `Bearer ${secret}`,
                 cookie: `demo=${secret}`,
@@ -37,9 +34,7 @@ test(
                 secret,
             ]);
             expect(archive.stdout.trim()).toBe("True"); // proves raw Playwright Trace really contains protected data
-            expect(() => policy.access(trace, { credentialEvidence: false })).toThrow(
-                "CREDENTIAL_EVIDENCE_FORBIDDEN",
-            );
+            expect(() => policy.access(trace, { credentialEvidence: false })).toThrow("CREDENTIAL_EVIDENCE_FORBIDDEN");
             expect(policy.access(trace, { credentialEvidence: true }).path).toBe(trace.path);
             const projected = policy.redact({
                 headers: {
@@ -72,8 +67,7 @@ test(
     },
 );
 test(
-    "real downloaded bytes and hostile suggested names " +
-        "are restricted without altering useful raw evidence",
+    "real downloaded bytes and hostile suggested names " + "are restricted without altering useful raw evidence",
     async () => {
         const { createServer } = await import("node:http");
         const { EvidencePolicy } = await import("../src/evidence.js");
@@ -148,9 +142,7 @@ test(
                 ]);
                 const catalog = source.assets.find((a) => a.kind === "ELEMENT_CATALOG")!;
                 if (catalog.kind !== "ELEMENT_CATALOG") throw Error();
-                catalog.document.elements = [
-                    { key: "download", locator: { by: "testId", value: "download" } },
-                ];
+                catalog.document.elements = [{ key: "download", locator: { by: "testId", value: "download" } }];
                 rehash(source);
                 const captured: unknown[] = [];
                 const report = await executeCase(analyze(source).cases[0]!, source, {

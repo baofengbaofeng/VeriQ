@@ -35,22 +35,14 @@ function imports(bytes: Buffer, path: string): ImportFact[] {
                 allowJs: true,
             },
         });
-        if (result.diagnostics?.some((d) => d.category === ts.DiagnosticCategory.Error))
-            fail("PAYLOAD_GRAPH_MISMATCH");
-        const source = ts.createSourceFile(
-                path,
-                sourceText,
-                ts.ScriptTarget.Latest,
-                true,
-                ts.ScriptKind.JS,
-            ),
+        if (result.diagnostics?.some((d) => d.category === ts.DiagnosticCategory.Error)) fail("PAYLOAD_GRAPH_MISMATCH");
+        const source = ts.createSourceFile(path, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS),
             found: ImportFact[] = [];
         const add = (node: ts.Node | undefined, dynamic: boolean) => {
             if (node && ts.isStringLiteralLike(node)) found.push({ specifier: node.text, dynamic });
         };
         const walk = (node: ts.Node) => {
-            if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node))
-                add(node.moduleSpecifier, false);
+            if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) add(node.moduleSpecifier, false);
             if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword)
                 add(node.arguments[0], true);
             ts.forEachChild(node, walk);
@@ -72,9 +64,7 @@ function owner(graph: DependencyGraph, path: string): PackageInstance | undefine
     const first = candidates[0];
     if (!first) return undefined;
     const suffix = path.slice(first.root.length + 1);
-    return suffix === "node_modules" ||
-        suffix.startsWith("node_modules/") ||
-        suffix.split("/").includes(".bin")
+    return suffix === "node_modules" || suffix.startsWith("node_modules/") || suffix.split("/").includes(".bin")
         ? undefined
         : first;
 }
@@ -105,21 +95,14 @@ function edgeWitness(specifier: string, alias: string): boolean {
     return (
         parts.length > count &&
         parts.slice(0, count).join("/") === alias &&
-        parts
-            .slice(count)
-            .every((part) => !!part && part !== "." && part !== ".." && !/[\\:%?#]/.test(part))
+        parts.slice(count).every((part) => !!part && part !== "." && part !== ".." && !/[\\:%?#]/.test(part))
     );
 }
 /**
  * 图结构闭包在读取包正文前先验证所有端点、absence 语义与工具目标，npm pending 图也必须满足这些有界声明规则；执行 Node
  * resolve 及归档内真实 npm 文件的检查并不发生在此处。
  */
-async function graphReferences(
-    graph: DependencyGraph,
-    recipe: Recipe,
-    reader: InputReader,
-    npm: NodeReceipt | null,
-) {
+async function graphReferences(graph: DependencyGraph, recipe: Recipe, reader: InputReader, npm: NodeReceipt | null) {
     unique(graph.instances, (p) => p.id);
     paths(graph.instances.map((p) => p.root));
     unique(graph.edges, (e) => `${e.from}:${e.kind}:${e.alias}`);
@@ -131,20 +114,14 @@ async function graphReferences(
         if (!npm && !/^(node_modules|entry\/node_modules|execution\/node_modules)\//.test(p.root))
             fail("PAYLOAD_GRAPH_MISMATCH");
         if (npm) {
-            if (p.root !== "npm" && !p.root.startsWith("npm/node_modules/"))
-                fail("PAYLOAD_GRAPH_MISMATCH");
+            if (p.root !== "npm" && !p.root.startsWith("npm/node_modules/")) fail("PAYLOAD_GRAPH_MISMATCH");
             const relative = p.root === "npm" ? "." : p.root.slice(4);
             if (p.lockSnapshot !== `node-archive:${recipe.node.file.sha256}:${relative}`)
                 fail("PAYLOAD_GRAPH_MISMATCH");
         }
     }
     for (const e of graph.edges) {
-        if (
-            !byId.has(e.from) ||
-            e.alias.includes("\\") ||
-            e.alias.startsWith(".") ||
-            e.alias.includes(":")
-        )
+        if (!byId.has(e.from) || e.alias.includes("\\") || e.alias.startsWith(".") || e.alias.includes(":"))
             fail("PAYLOAD_GRAPH_MISMATCH");
         if (e.to !== null) {
             if (!byId.has(e.to) || e.absence !== null) fail("PAYLOAD_GRAPH_MISMATCH");
@@ -178,22 +155,18 @@ async function graphReferences(
     const proof = graph.resolutionProof;
     if (
         proof.nodeVersion !== recipe.target.nodeVersion ||
-        proof.nodeExecutableSha256 !==
-            recipe.tools.find((t) => t.name === "node")?.artifactSha256 ||
+        proof.nodeExecutableSha256 !== recipe.tools.find((t) => t.name === "node")?.artifactSha256 ||
         !equal(proof.target, { platform: "darwin", arch: recipe.target.arch })
     )
         fail("PAYLOAD_GRAPH_MISMATCH");
     await reader.ref(proof.evidence);
     for (const r of proof.resolutions) {
         const target = byId.get(r.to);
-        if (!target || owner(graph, r.resolvedFile)?.id !== target.id)
-            fail("PAYLOAD_GRAPH_MISMATCH");
+        if (!target || owner(graph, r.resolvedFile)?.id !== target.id) fail("PAYLOAD_GRAPH_MISMATCH");
         if (r.from.startsWith("p")) {
             if (
                 owner(graph, r.consumer)?.id !== r.from ||
-                !graph.edges.some(
-                    (e) => e.from === r.from && edgeWitness(r.specifier, e.alias) && e.to === r.to,
-                )
+                !graph.edges.some((e) => e.from === r.from && edgeWitness(r.specifier, e.alias) && e.to === r.to)
             )
                 fail("PAYLOAD_GRAPH_MISMATCH");
         } else if (
@@ -214,17 +187,11 @@ async function graphReferences(
     for (const e of graph.edges)
         if (
             e.to !== null &&
-            !proof.resolutions.some(
-                (r) => r.from === e.from && edgeWitness(r.specifier, e.alias) && r.to === e.to,
-            )
+            !proof.resolutions.some((r) => r.from === e.from && edgeWitness(r.specifier, e.alias) && r.to === e.to)
         )
             fail("PAYLOAD_GRAPH_MISMATCH");
     for (const b of graph.rootBindings)
-        if (
-            !proof.resolutions.some(
-                (r) => r.consumer === b.consumer && r.specifier === b.specifier && r.to === b.to,
-            )
-        )
+        if (!proof.resolutions.some((r) => r.consumer === b.consumer && r.specifier === b.specifier && r.to === b.to))
             fail("PAYLOAD_GRAPH_MISMATCH");
     const publicAlias = (owner: PackageInstance, name: string): string | null => {
         const install = owner.root.lastIndexOf("node_modules/");
@@ -236,17 +203,10 @@ async function graphReferences(
     };
     for (const b of graph.bins) {
         const p = byId.get(b.owner);
-        if (
-            !p ||
-            owner(graph, b.targetPath)?.id !== p.id ||
-            b.name.includes("/") ||
-            b.name.toLowerCase() === "node"
-        )
+        if (!p || owner(graph, b.targetPath)?.id !== p.id || b.name.includes("/") || b.name.toLowerCase() === "node")
             fail("PAYLOAD_BIN_UNSUPPORTED");
         const alias = publicAlias(p, b.name);
-        const privateAlias = alias
-            ? `${posix.dirname(alias)}/.veriq/${sha(Buffer.from(p.id))}/${b.name}`
-            : null;
+        const privateAlias = alias ? `${posix.dirname(alias)}/.veriq/${sha(Buffer.from(p.id))}/${b.name}` : null;
         const siblings = graph.bins.filter((candidate) => {
             const owner = byId.get(candidate.owner);
             return owner && publicAlias(owner, candidate.name) === alias;
@@ -259,8 +219,7 @@ async function graphReferences(
             (b.aliasPath !== alias && (siblings.length < 2 || b.aliasPath !== privateAlias)) ||
             (b.sourceAlias !== null && b.sourceAlias !== b.aliasPath) ||
             siblings.filter((candidate) => candidate.aliasPath === alias).length !== 1 ||
-            (siblings.length > 1 &&
-                siblings.find((candidate) => candidate.aliasPath === alias)?.sourceAlias !== alias)
+            (siblings.length > 1 && siblings.find((candidate) => candidate.aliasPath === alias)?.sourceAlias !== alias)
         )
             fail("PAYLOAD_BIN_UNSUPPORTED");
         if (b.launcher === "node") {
@@ -280,9 +239,7 @@ async function graphReferences(
         )
             fail("PAYLOAD_GRAPH_MISMATCH");
         if (
-            !graph.rootBindings.some(
-                (b) => b.consumer === "npm/bin/npm-cli.js" && b.to === root[0]!.id,
-            ) ||
+            !graph.rootBindings.some((b) => b.consumer === "npm/bin/npm-cli.js" && b.to === root[0]!.id) ||
             graph.rootBindings.some((b) => !owner(graph, b.consumer))
         )
             fail("PAYLOAD_GRAPH_MISMATCH");
@@ -302,8 +259,7 @@ function declarations(pkg: Record<string, unknown>) {
     const read = (key: string) => {
         const value = pkg[key];
         if (value === undefined) return {} as Record<string, string>;
-        if (!value || typeof value !== "object" || Array.isArray(value))
-            fail("PAYLOAD_GRAPH_MISMATCH");
+        if (!value || typeof value !== "object" || Array.isArray(value)) fail("PAYLOAD_GRAPH_MISMATCH");
         const result: Record<string, string> = {};
         for (const [name, requested] of Object.entries(value)) {
             if (typeof requested !== "string" || !requested || Buffer.byteLength(requested) > 2048)
@@ -360,11 +316,7 @@ export async function verifyPackageContents(
     const manifestMap = new Map<string, Record<string, unknown>>();
     for (const p of graph.instances) {
         const fact = inventory.files.find((f) => f.path === `${p.root}/package.json`);
-        if (
-            !fact ||
-            fact.sizeBytes !== p.packageJson.sizeBytes ||
-            fact.sha256 !== p.packageJson.sha256
-        )
+        if (!fact || fact.sizeBytes !== p.packageJson.sizeBytes || fact.sha256 !== p.packageJson.sha256)
             fail("PAYLOAD_GRAPH_MISMATCH");
         const raw = decode(await reader.member(tree, fact, limits.package));
         if (!raw || typeof raw !== "object" || Array.isArray(raw)) fail("PAYLOAD_GRAPH_MISMATCH");
@@ -372,8 +324,7 @@ export async function verifyPackageContents(
         if (pkg.name !== p.name || pkg.version !== p.version) fail("PAYLOAD_GRAPH_MISMATCH");
         manifestMap.set(p.id, pkg);
         const own = (path: string) => owner(graph, path)?.id === p.id;
-        const sort = (a: { path: string }, b: { path: string }) =>
-            a.path < b.path ? -1 : a.path > b.path ? 1 : 0;
+        const sort = (a: { path: string }, b: { path: string }) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
         const files = inventory.files
             .filter((f) => own(f.path))
             .map((f) => ({ ...f, path: f.path.slice(p.root.length + 1) }))
@@ -390,8 +341,7 @@ export async function verifyPackageContents(
             )
             .map((d) => d.slice(p.root.length + 1))
             .sort();
-        if (sha(canonicalBytes({ directories, files })) !== p.ownTreeSha256)
-            fail("PAYLOAD_GRAPH_MISMATCH");
+        if (sha(canonicalBytes({ directories, files })) !== p.ownTreeSha256) fail("PAYLOAD_GRAPH_MISMATCH");
         // 包声明的每个命令都必须保留明确 bin 计划，不能删掉整个列表来跳过入口归属检查；字符串缩写按 npm 的无 scope 包名
         // 展开，对象形式则逐个保留原命令名称与相对目标声明。
         const bins = pkg.bin;
@@ -415,18 +365,13 @@ export async function verifyPackageContents(
         if (
             declared.length !== edges.length ||
             declared.some(
-                (d) =>
-                    !edges.some(
-                        (e) =>
-                            e.alias === d.alias && e.kind === d.kind && e.requested === d.requested,
-                    ),
+                (d) => !edges.some((e) => e.alias === d.alias && e.kind === d.kind && e.requested === d.requested),
             )
         )
             fail("PAYLOAD_GRAPH_MISMATCH");
     }
     for (const f of inventory.files)
-        if (!owner(graph, f.path) && !graph.bins.some((b) => b.sourceAlias === f.path))
-            fail("PAYLOAD_GRAPH_MISMATCH");
+        if (!owner(graph, f.path) && !graph.bins.some((b) => b.sourceAlias === f.path)) fail("PAYLOAD_GRAPH_MISMATCH");
     for (const link of inventory.links)
         if (!graph.bins.some((b) => b.sourceAlias === link.path)) fail("PAYLOAD_BIN_UNSUPPORTED");
     for (const r of graph.resolutionProof.resolutions) {
@@ -439,30 +384,23 @@ export async function verifyPackageContents(
     for (const b of graph.bins) {
         const pkg = manifestMap.get(b.owner)!;
         let declared = pkg.bin;
-        if (typeof declared === "string")
-            declared = { [String(pkg.name).split("/").pop()!]: declared };
-        if (!declared || typeof declared !== "object" || Array.isArray(declared))
-            fail("PAYLOAD_BIN_UNSUPPORTED");
+        if (typeof declared === "string") declared = { [String(pkg.name).split("/").pop()!]: declared };
+        if (!declared || typeof declared !== "object" || Array.isArray(declared)) fail("PAYLOAD_BIN_UNSUPPORTED");
         const target = (declared as Record<string, unknown>)[b.name];
         if (
             typeof target !== "string" ||
             target.startsWith("/") ||
             target.includes("\\") ||
-            posix.normalize(`${graph.instances.find((p) => p.id === b.owner)!.root}/${target}`) !==
-                b.targetPath
+            posix.normalize(`${graph.instances.find((p) => p.id === b.owner)!.root}/${target}`) !== b.targetPath
         )
             fail("PAYLOAD_BIN_UNSUPPORTED");
         const fact = inventory.files.find((f) => f.path === b.targetPath);
         if (!fact || fact.sha256 !== b.targetSha256) fail("PAYLOAD_BIN_UNSUPPORTED");
         const existing =
-            inventory.files.find((f) => f.path === b.aliasPath) ||
-            inventory.links.find((l) => l.path === b.aliasPath);
+            inventory.files.find((f) => f.path === b.aliasPath) || inventory.links.find((l) => l.path === b.aliasPath);
         if (Boolean(existing) !== (b.sourceAlias !== null)) fail("PAYLOAD_BIN_UNSUPPORTED");
         const link = inventory.links.find((l) => l.path === b.sourceAlias);
-        if (
-            link &&
-            posix.normalize(posix.join(posix.dirname(link.path), link.target)) !== b.targetPath
-        )
+        if (link && posix.normalize(posix.join(posix.dirname(link.path), link.target)) !== b.targetPath)
             fail("PAYLOAD_BIN_UNSUPPORTED");
         if (b.launcher === "node") {
             const content = await reader.header(tree, fact);
@@ -472,10 +410,7 @@ export async function verifyPackageContents(
             // 已有 JS 扩展名规则继续成立，无扩展名命令只接受 held 原字节中的两种精确 Node 首行；其他扩展名、带参数的
             // env、shell 和二进制均不能借 launcher 声明取得 Node 执行身份，也不
             // 改变真实包路径。
-            if (
-                !/\.(?:mjs|cjs|js)$/.test(b.targetPath) &&
-                (posix.extname(b.targetPath) !== "" || !nodeHeader)
-            )
+            if (!/\.(?:mjs|cjs|js)$/.test(b.targetPath) && (posix.extname(b.targetPath) !== "" || !nodeHeader))
                 fail("PAYLOAD_BIN_UNSUPPORTED");
             if (content.subarray(0, 2).toString() === "#!") {
                 if (!nodeHeader) fail("PAYLOAD_BIN_UNSUPPORTED");
@@ -488,13 +423,9 @@ export async function verifyPackageContents(
  * 导入分类保持 runtime 相对消费者与树内真实文件的边界，node 内建只允许当前锁定 Node24 的显式 node 前缀白名单；相对目标
  * 必须存在，受控 compiler Attempt 路径只有既有固定例外。
  */
-function edgeFor(
-    fact: ImportFact,
-    consumer: string,
-    files: readonly Ref[],
-    execution = false,
-): ModuleEdge {
+function edgeFor(fact: ImportFact, consumer: string, files: readonly Ref[], execution = false): ModuleEdge {
     const specifier = fact.specifier;
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: 有意拒绝控制字符与 DEL 路径输入的安全校验
     if (!specifier || Buffer.byteLength(specifier) > 2048 || /[\x00-\x1f\x7f]/.test(specifier))
         fail("PAYLOAD_GRAPH_MISMATCH");
     if (specifier.startsWith("node:")) {
@@ -505,11 +436,7 @@ function edgeFor(
         const target = posix.normalize(posix.join(posix.dirname(consumer), specifier));
         if (
             !files.some((f) => f.path === target) &&
-            !(
-                execution &&
-                consumer === "compile-entry.mjs" &&
-                specifier === "./engine/compiler/src/index.ts"
-            )
+            !(execution && consumer === "compile-entry.mjs" && specifier === "./engine/compiler/src/index.ts")
         )
             fail("PAYLOAD_GRAPH_MISMATCH");
         return { ...fact, kind: "relative", target };
@@ -554,18 +481,11 @@ export async function verifyGraph(
     unique(decisions, (d) => `${d.from}:${d.alias}`);
     if (optional.length !== decisions.length) fail("PAYLOAD_GRAPH_MISMATCH");
     for (const e of optional) {
-        const action =
-            e.to !== null
-                ? "include"
-                : e.kind === "optional"
-                  ? "exclude-target"
-                  : "absent-optional-peer";
+        const action = e.to !== null ? "include" : e.kind === "optional" ? "exclude-target" : "absent-optional-peer";
         if (!decisions.some((d) => d.from === e.from && d.alias === e.alias && d.action === action))
             fail("PAYLOAD_GRAPH_MISMATCH");
     }
-    const required: { consumer: string; specifier: string }[] = [
-        { consumer: "package.json", specifier: "tsx" },
-    ];
+    const required: { consumer: string; specifier: string }[] = [{ consumer: "package.json", specifier: "tsx" }];
     const outputs = trees.entries.receipt.outputs;
     unique(outputs, (o) => o.path);
     if (
@@ -594,46 +514,31 @@ export async function verifyGraph(
             edgeFor(f, file.path, trees.entries.inventory.files),
         );
         unique(output.imports, (e) => `${e.dynamic}:${e.specifier}`);
-        if (
-            actual.length !== output.imports.length ||
-            actual.some((a) => !output.imports.some((e) => equal(a, e)))
-        )
+        if (actual.length !== output.imports.length || actual.some((a) => !output.imports.some((e) => equal(a, e))))
             fail("PAYLOAD_GRAPH_MISMATCH");
         for (const edge of actual)
-            if (edge.kind === "external")
-                required.push({ consumer: `entry/${file.path}`, specifier: edge.specifier });
+            if (edge.kind === "external") required.push({ consumer: `entry/${file.path}`, specifier: edge.specifier });
     }
     for (const file of trees.execution.inventory.files) {
-        for (const edge of imports(await reader.script(recipe.execution, file), file.path).map(
-            (f) => edgeFor(f, file.path, trees.execution.inventory.files, true),
+        for (const edge of imports(await reader.script(recipe.execution, file), file.path).map((f) =>
+            edgeFor(f, file.path, trees.execution.inventory.files, true),
         ))
             if (edge.kind === "external")
                 required.push({ consumer: `execution/${file.path}`, specifier: edge.specifier });
     }
-    const uniqueRequired = [
-        ...new Map(required.map((b) => [`${b.consumer}:${b.specifier}`, b])).values(),
-    ];
+    const uniqueRequired = [...new Map(required.map((b) => [`${b.consumer}:${b.specifier}`, b])).values()];
     if (
         uniqueRequired.length !== graph.rootBindings.length ||
         uniqueRequired.some(
-            (b) =>
-                !graph.rootBindings.some(
-                    (r) => r.consumer === b.consumer && r.specifier === b.specifier,
-                ),
+            (b) => !graph.rootBindings.some((r) => r.consumer === b.consumer && r.specifier === b.specifier),
         )
     )
         fail("PAYLOAD_GRAPH_MISMATCH");
-    const tsx = graph.rootBindings.find(
-        (b) => b.consumer === "package.json" && b.specifier === "tsx",
-    );
+    const tsx = graph.rootBindings.find((b) => b.consumer === "package.json" && b.specifier === "tsx");
     if (
         !tsx ||
         !graph.instances.some(
-            (p) =>
-                p.id === tsx.to &&
-                p.name === "tsx" &&
-                p.version === "4.23.15" &&
-                p.root === "node_modules/tsx",
+            (p) => p.id === tsx.to && p.name === "tsx" && p.version === "4.23.15" && p.root === "node_modules/tsx",
         ) ||
         !graph.resolutionProof.resolutions.some(
             (r) =>

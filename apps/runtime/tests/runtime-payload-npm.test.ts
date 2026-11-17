@@ -46,10 +46,7 @@ test("npm physically projects real package bytes before shared package content v
 // 同名路径代替。
 async function projectionCase(
     run: (value: Awaited<ReturnType<typeof stageModel>>) => void,
-    inspect: (
-        projection: Awaited<ReturnType<typeof projectNpm>>,
-        tx: ArchiveTransaction,
-    ) => Promise<void>,
+    inspect: (projection: Awaited<ReturnType<typeof projectNpm>>, tx: ArchiveTransaction) => Promise<void>,
     error?: string,
 ) {
     const value = await stageModel();
@@ -93,14 +90,13 @@ test("npm wrong ownTree rejects actual content", async () =>
 test("npm optional peer declaration requires exact real package edge", async () =>
     projectionCase(
         (value) => {
-            value.nodeEntries.find((entry) => entry.path.endsWith("/npm/package.json"))!.body =
-                JSON.stringify({
-                    name: "npm",
-                    version: "11.0.0",
-                    bin: { npm: "bin/npm-cli.js" },
-                    peerDependencies: { host: "^1" },
-                    peerDependenciesMeta: { host: { optional: true } },
-                });
+            value.nodeEntries.find((entry) => entry.path.endsWith("/npm/package.json"))!.body = JSON.stringify({
+                name: "npm",
+                version: "11.0.0",
+                bin: { npm: "bin/npm-cli.js" },
+                peerDependencies: { host: "^1" },
+                peerDependenciesMeta: { host: { optional: true } },
+            });
             rehashStageNpm(value);
         },
         async () => {},
@@ -119,14 +115,9 @@ test("npm ordinary file-link multi-hop materializes terminal bytes with every ra
         },
         async (projection, tx) => {
             const { readFile, lstat } = await import("node:fs/promises");
-            assert.equal(
-                await readFile(join(tx.scratch, "views/npm/copy-a.js"), "utf8"),
-                "export {};\n",
-            );
+            assert.equal(await readFile(join(tx.scratch, "views/npm/copy-a.js"), "utf8"), "export {};\n");
             assert.ok((await lstat(join(tx.scratch, "views/npm/copy-a.js"))).isFile());
-            const origins = projection.files.find(
-                (file) => file.fact.path === "npm/copy-a.js",
-            )!.origins;
+            const origins = projection.files.find((file) => file.fact.path === "npm/copy-a.js")!.origins;
             assert.equal(origins.length, 3);
             assert.equal(origins[0]!.sha256, hash(Buffer.from("copy-b.js")));
             assert.equal(origins[1]!.sha256, hash(Buffer.from("bin/npm-cli.js")));
@@ -148,10 +139,7 @@ test("npm bin source alias becomes physical normalized audited work-only symlink
         async (projection, tx) => {
             const { lstat, readlink } = await import("node:fs/promises");
             assert.ok((await lstat(join(tx.scratch, "views/npm/.bin/npm"))).isSymbolicLink());
-            assert.equal(
-                await readlink(join(tx.scratch, "views/npm/.bin/npm")),
-                "../bin/npm-cli.js",
-            );
+            assert.equal(await readlink(join(tx.scratch, "views/npm/.bin/npm")), "../bin/npm-cli.js");
             assert.equal(projection.inventory.links.length, 1);
         },
     ));
@@ -174,20 +162,19 @@ test("npm directory alias cannot be expanded as ordinary files", async () =>
         "PAYLOAD_ARCHIVE_LINK",
     ));
 
-for (const nativeMode of [0o755, 0o644])
-    test(`npm native mode ${nativeMode.toString(8)} uses original evidence and requires execution permission`, async (
-        ) => {
+for (const nativeMode of [0o755, 0o644]) {
+    const name = `npm native mode ${nativeMode.toString(8)} uses original evidence and requires execution permission`;
+    test(name, async () => {
         const value = await stageModel();
         const { bytes } = await import("./fixtures/runtime-payload.ts");
         const targetPath = "npm/bin/native",
             body = "synthetic native executable",
             digest = hash(Buffer.from(body));
-        value.nodeEntries.find((entry) => entry.path.endsWith("/npm/package.json"))!.body =
-            JSON.stringify({
-                name: "npm",
-                version: "11.0.0",
-                bin: { npm: "bin/npm-cli.js", native: "bin/native" },
-            });
+        value.nodeEntries.find((entry) => entry.path.endsWith("/npm/package.json"))!.body = JSON.stringify({
+            name: "npm",
+            version: "11.0.0",
+            bin: { npm: "bin/npm-cli.js", native: "bin/native" },
+        });
         value.nodeEntries.push({
             path: `${value.nodeReceipt.npmRoot}/bin/native`,
             body,
@@ -244,8 +231,7 @@ for (const nativeMode of [0o755, 0o644])
                     else {
                         const projection = await projectNpm(report, intake, tx);
                         assert.equal(
-                            projection.inventory.files.find((file) => file.path === targetPath)!
-                                .sha256,
+                            projection.inventory.files.find((file) => file.path === targetPath)!.sha256,
                             digest,
                         );
                     }
@@ -258,6 +244,7 @@ for (const nativeMode of [0o755, 0o644])
             await rm(output, { recursive: true, force: true });
         }
     });
+}
 
 test("npm bin multihop original aliases normalize physically but retain original source facts", async () =>
     projectionCase(
@@ -280,14 +267,8 @@ test("npm bin multihop original aliases normalize physically but retain original
         },
         async (projection, tx) => {
             const { readlink } = await import("node:fs/promises");
-            assert.equal(
-                await readlink(join(tx.scratch, "views/npm/.bin/npm")),
-                "../bin/npm-cli.js",
-            );
-            assert.equal(
-                projection.files.find((file) => file.fact.path === "npm/relay.js")!.origins.length,
-                2,
-            );
+            assert.equal(await readlink(join(tx.scratch, "views/npm/.bin/npm")), "../bin/npm-cli.js");
+            assert.equal(projection.files.find((file) => file.fact.path === "npm/relay.js")!.origins.length, 2);
         },
     ));
 
@@ -296,13 +277,12 @@ test("npm same-name same-version peer instances preserve both physical contexts"
         (value) => {
             const graph = value.nodeReceipt.npmGraph,
                 root = value.nodeReceipt.npmRoot;
-            value.nodeEntries.find((entry) => entry.path.endsWith("/npm/package.json"))!.body =
-                JSON.stringify({
-                    name: "npm",
-                    version: "11.0.0",
-                    bin: { npm: "bin/npm-cli.js" },
-                    dependencies: { left: "npm:peer-lib@1.0.0", right: "npm:peer-lib@1.0.0" },
-                });
+            value.nodeEntries.find((entry) => entry.path.endsWith("/npm/package.json"))!.body = JSON.stringify({
+                name: "npm",
+                version: "11.0.0",
+                bin: { npm: "bin/npm-cli.js" },
+                dependencies: { left: "npm:peer-lib@1.0.0", right: "npm:peer-lib@1.0.0" },
+            });
             for (const [side, instanceId, hostId, hostVersion] of [
                 ["left", "p2", "p4", "1.0.0"],
                 ["right", "p3", "p5", "2.0.0"],
@@ -384,9 +364,7 @@ test("npm same-name same-version peer instances preserve both physical contexts"
             assert.equal(await readFile(right, "utf8"), "module.exports='p3';\n");
             assert.notEqual((await lstat(left)).ino, (await lstat(right)).ino);
             assert.ok(
-                projection.inventory.files.some((file) =>
-                    file.path.endsWith("right/node_modules/host/package.json"),
-                ),
+                projection.inventory.files.some((file) => file.path.endsWith("right/node_modules/host/package.json")),
             );
         },
     ));
@@ -424,9 +402,7 @@ test("npm root resolution requires actual ordinary consumer in physical projecti
 test("npm unknown node shebang rejects after binding the real target hash", async () =>
     projectionCase(
         (value) => {
-            const entry = value.nodeEntries.find((member) =>
-                member.path.endsWith("/npm/bin/npm-cli.js"),
-            )!;
+            const entry = value.nodeEntries.find((member) => member.path.endsWith("/npm/bin/npm-cli.js"))!;
             entry.body = "#!/bin/sh\nexit 0\n";
             value.nodeReceipt.npmGraph.bins[0]!.targetSha256 = hash(Buffer.from(entry.body));
             rehashStageNpm(value);

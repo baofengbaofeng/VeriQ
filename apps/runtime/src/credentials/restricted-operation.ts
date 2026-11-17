@@ -27,8 +27,7 @@ export async function observeRestrictedOperation(
     input: AbortSignal,
     run: (signal: AbortSignal, markMutation: () => void) => Promise<RestrictedFileResult>,
 ): Promise<RestrictedFileResult> {
-    if (!(input instanceof AbortSignal) || input.aborted || pending.has(directory))
-        return { status: "failed" };
+    if (!(input instanceof AbortSignal) || input.aborted || pending.has(directory)) return { status: "failed" };
     const owner = {},
         signal = AbortSignal.any([input, AbortSignal.timeout(5000)]);
     pending.set(directory, owner);

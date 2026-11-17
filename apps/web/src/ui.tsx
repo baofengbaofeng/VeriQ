@@ -6,6 +6,7 @@
 
 import { useState, useCallback, useEffect, useRef, type FormEvent, type ReactNode } from "react";
 import { ApiError } from "./api";
+import { tx } from "./locale";
 /**
  * 按 role=alert/status 分别展示传入的错误和成功消息，使登录、账户与管理员表单拥有一致且可被辅助技术识别的反馈区域，并
  * 保持消息文本由调用页面决定。
@@ -98,10 +99,7 @@ export function useAction() {
         try {
             await fn();
         } catch (e) {
-            if (current())
-                setError(
-                    e instanceof ApiError ? e.message : "Unable to reach VeriQ. Please try again.",
-                );
+            if (current()) setError(e instanceof ApiError ? e.message : "Unable to reach VeriQ. Please try again.");
         } finally {
             if (current()) setBusy(false);
         }

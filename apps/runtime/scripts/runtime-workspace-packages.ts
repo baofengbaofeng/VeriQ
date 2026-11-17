@@ -48,11 +48,7 @@ export type WorkspaceGenerationEvidence = Readonly<{
  * 递归源集合先确认每个真实节点类型和路径预算，再与绑定中对应子树完全比较，遗漏的源码或资产都会失败；链接、测试目录和共
  * 享 node_modules 不会通过扫描进入生产工作区生成包。
  */
-async function sourceMembers(
-    root: string,
-    prefix: string,
-    files: DependencyFiles,
-): Promise<string[]> {
+async function sourceMembers(root: string, prefix: string, files: DependencyFiles): Promise<string[]> {
     const output: string[] = [];
     const walk = async (path: string) => {
         relative(path);
@@ -78,9 +74,7 @@ function emittedExports(value: unknown): unknown {
     if (typeof value === "string") return value.replace(/(?<!\.d)\.ts$/, ".js");
     if (Array.isArray(value)) return value.map(emittedExports);
     if (value && typeof value === "object")
-        return Object.fromEntries(
-            Object.entries(value).map(([key, child]) => [key, emittedExports(child)]),
-        );
+        return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, emittedExports(child)]));
     if (value === null || value === undefined) return value;
     fail("PAYLOAD_RECEIPT_MISMATCH");
 }
@@ -124,8 +118,7 @@ export async function materializeRuntimeWorkspacePackages(
     for (const name of names) {
         const prefix = `packages/${name}`;
         const members = await sourceMembers(sourceRoot, `${prefix}/src`, files);
-        if (name === "contracts")
-            members.push(...(await sourceMembers(sourceRoot, `${prefix}/schemas`, files)));
+        if (name === "contracts") members.push(...(await sourceMembers(sourceRoot, `${prefix}/schemas`, files)));
         members.push(`${prefix}/package.json`, "LICENSE");
         const expected = source.files
             .filter(
@@ -134,21 +127,16 @@ export async function materializeRuntimeWorkspacePackages(
                     (name === "contracts" && ref.path.startsWith(`${prefix}/schemas/`)),
             )
             .map((ref) => ref.path);
-        if (
-            expected.length !== members.length - 2 ||
-            expected.some((path) => !members.includes(path))
-        )
+        if (expected.length !== members.length - 2 || expected.some((path) => !members.includes(path)))
             fail("PAYLOAD_RECEIPT_MISMATCH");
         const bound: Ref[] = [];
         for (const path of members) {
             const ref = refs.get(path);
             if (!ref) fail("PAYLOAD_RECEIPT_MISMATCH");
             const bytes = await files.read(join(sourceRoot, path), limits.javascript);
-            if (bytes.length !== ref.sizeBytes || sha(bytes) !== ref.sha256)
-                fail("PAYLOAD_SOURCE_CHANGED");
+            if (bytes.length !== ref.sizeBytes || sha(bytes) !== ref.sha256) fail("PAYLOAD_SOURCE_CHANGED");
             bound.push(ref);
-            if (path.startsWith(`${prefix}/src/`) && path.endsWith(".ts"))
-                roots.push(join(sourceRoot, path));
+            if (path.startsWith(`${prefix}/src/`) && path.endsWith(".ts")) roots.push(join(sourceRoot, path));
         }
         originals.set(name, bound);
     }
@@ -192,42 +180,31 @@ export async function materializeRuntimeWorkspacePackages(
     host.writeFile = (path, text) => {
         const rel = relativePath(outputRoot, path).replaceAll("\\", "/");
         relative(rel);
-        if (!names.some((name) => rel.startsWith(`${name}/`)) || outputs.has(rel))
-            fail("PAYLOAD_PATH");
+        if (!names.some((name) => rel.startsWith(`${name}/`)) || outputs.has(rel)) fail("PAYLOAD_PATH");
         outputs.set(rel, Buffer.from(text));
     };
     const program = ts.createProgram(roots, compilerOptions, host);
-    if (
-        ts
-            .getPreEmitDiagnostics(program)
-            .some((item) => item.category === ts.DiagnosticCategory.Error)
-    )
+    if (ts.getPreEmitDiagnostics(program).some((item) => item.category === ts.DiagnosticCategory.Error))
         fail("PAYLOAD_RECEIPT_MISMATCH");
     const emission = program.emit();
-    if (
-        emission.emitSkipped ||
-        emission.diagnostics.some((item) => item.category === ts.DiagnosticCategory.Error)
-    )
+    if (emission.emitSkipped || emission.diagnostics.some((item) => item.category === ts.DiagnosticCategory.Error))
         fail("PAYLOAD_RECEIPT_MISMATCH");
     const packages: GeneratedWorkspacePackage[] = [];
     for (const name of names) {
         const prefix = `packages/${name}`,
             original = refs.get(`${prefix}/package.json`)!;
-        const manifest = decode(
-            await files.read(join(sourceRoot, original.path), limits.package),
-        ) as Record<string, unknown>;
+        const manifest = decode(await files.read(join(sourceRoot, original.path), limits.package)) as Record<
+            string,
+            unknown
+        >;
         if (manifest.name !== `@veriq/${name}` || typeof manifest.version !== "string")
             fail("PAYLOAD_RECEIPT_MISMATCH");
         const generated = { ...manifest, exports: emittedExports(manifest.exports) };
         const json = canonicalBytes(generated);
         outputs.set(`${name}/package.json`, json);
         for (const ref of originals.get(name)!) {
-            if (ref.path === "LICENSE")
-                outputs.set(`${name}/LICENSE`, await files.read(join(sourceRoot, ref.path)));
-            else if (
-                (!ref.path.endsWith(".ts") || ref.path.endsWith(".d.ts")) &&
-                ref.path !== original.path
-            )
+            if (ref.path === "LICENSE") outputs.set(`${name}/LICENSE`, await files.read(join(sourceRoot, ref.path)));
+            else if ((!ref.path.endsWith(".ts") || ref.path.endsWith(".d.ts")) && ref.path !== original.path)
                 outputs.set(
                     `${name}/${ref.path.slice(prefix.length + 1)}`,
                     await files.read(join(sourceRoot, ref.path)),
@@ -263,8 +240,7 @@ export async function materializeRuntimeWorkspacePackages(
     // UTF8 原字节一致，带 BOM 或编码变化不能通过 TypeScript 的解码宽容掩盖。
     for (const ref of compilerReads.values()) {
         const bytes = await files.read(ref.absolutePath, limits.javascript);
-        if (bytes.length !== ref.sizeBytes || sha(bytes) !== ref.sha256)
-            fail("PAYLOAD_SOURCE_CHANGED");
+        if (bytes.length !== ref.sizeBytes || sha(bytes) !== ref.sha256) fail("PAYLOAD_SOURCE_CHANGED");
     }
     return freeze({
         typescriptVersion: ts.version,

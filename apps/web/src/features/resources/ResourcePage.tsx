@@ -124,16 +124,12 @@ export function ResourcePage({
                 )}
             </div>
             {workspaces.isPending && <p role="status">{t("loading")}</p>}
-            {workspaces.error && (
-                <ErrorState error={workspaces.error} retry={() => void workspaces.refetch()} />
-            )}
+            {workspaces.error && <ErrorState error={workspaces.error} retry={() => void workspaces.refetch()} />}
             {workspaces.isSuccess && !items.length && (
                 <p>{tx("请先创建或加入空间 / Create or join a Workspace first.")}</p>
             )}
             {workspaces.hasNextPage && (
-                <Button onClick={() => void workspaces.fetchNextPage()}>
-                    {tx("更多空间 / More Workspaces")}
-                </Button>
+                <Button onClick={() => void workspaces.fetchNextPage()}>{tx("更多空间 / More Workspaces")}</Button>
             )}
             {workspace && (
                 <CloudWorkspace
@@ -160,12 +156,7 @@ function CloudWorkspace({
         { signal } = useWorkspace();
     return (
         <>
-            <ResourceWorkspaceView
-                workspace={workspace}
-                adapter={adapter}
-                signal={signal}
-                initialKind={initialKind}
-            />
+            <ResourceWorkspaceView workspace={workspace} adapter={adapter} signal={signal} initialKind={initialKind} />
             {extra?.(workspace)}
         </>
     );
@@ -207,10 +198,7 @@ export function ResourceWorkspaceView({
     // 资源列表的数据引用必须在创建表单编辑期间保持稳定，因为 TanStack Table 会在引用变化时重置内部行状态；已有资源也不
     // 能触发不断重排的渲染循环。仅在分页资源数据变化时重新展开列表，
     // 同一资源查询的普通父级重渲染继续使用既有数组。
-    const items = useMemo(
-        () => resources.data?.pages.flatMap((p) => p.items) ?? [],
-        [resources.data],
-    );
+    const items = useMemo(() => resources.data?.pages.flatMap((p) => p.items) ?? [], [resources.data]);
     const refresh = () => client.invalidateQueries({ queryKey: ["workspace", workspace.id] });
     const columns = useMemo<ColumnDef<Resource>[]>(
         () => [
@@ -255,12 +243,8 @@ export function ResourceWorkspaceView({
                     </select>
                 </label>
                 {resources.isPending && <p role="status">{t("loading")}</p>}
-                {resources.error && (
-                    <ErrorState error={resources.error} retry={() => void resources.refetch()} />
-                )}
-                {resources.isSuccess && !items.length && (
-                    <p data-testid="resource-empty">{t("empty")}</p>
-                )}
+                {resources.error && <ErrorState error={resources.error} retry={() => void resources.refetch()} />}
+                {resources.isSuccess && !items.length && <p data-testid="resource-empty">{t("empty")}</p>}
                 {!!items.length && (
                     <div className="table-scroll">
                         <table data-testid="resource-table">
@@ -268,12 +252,7 @@ export function ResourceWorkspaceView({
                                 {table.getHeaderGroups().map((group) => (
                                     <tr key={group.id}>
                                         {group.headers.map((h) => (
-                                            <th key={h.id}>
-                                                {flexRender(
-                                                    h.column.columnDef.header,
-                                                    h.getContext(),
-                                                )}
-                                            </th>
+                                            <th key={h.id}>{flexRender(h.column.columnDef.header, h.getContext())}</th>
                                         ))}
                                     </tr>
                                 ))}
@@ -283,10 +262,7 @@ export function ResourceWorkspaceView({
                                     <tr key={row.id}>
                                         {row.getVisibleCells().map((cell) => (
                                             <td key={cell.id}>
-                                                {flexRender(
-                                                    cell.column.columnDef.cell,
-                                                    cell.getContext(),
-                                                )}
+                                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
                                             </td>
                                         ))}
                                     </tr>
@@ -296,10 +272,7 @@ export function ResourceWorkspaceView({
                     </div>
                 )}
                 {resources.hasNextPage && (
-                    <Button
-                        disabled={resources.isFetchingNextPage}
-                        onClick={() => void resources.fetchNextPage()}
-                    >
+                    <Button disabled={resources.isFetchingNextPage} onClick={() => void resources.fetchNextPage()}>
                         {tx("更多资源 / More resources")}
                     </Button>
                 )}
@@ -470,10 +443,7 @@ export function ResourceEditorView({
     };
     const jsonDirty = buffer !== jsonBaseline,
         dirty = serialized !== pretty(saved.content),
-        writable =
-            !adapter.readOnly &&
-            resource.status !== "ARCHIVED" &&
-            editableRole(workspace, resource.kind);
+        writable = !adapter.readOnly && resource.status !== "ARCHIVED" && editableRole(workspace, resource.kind);
     const jobId = validation?.jobId ?? "";
     const candidateIsCurrent =
         !!validation &&
@@ -485,9 +455,7 @@ export function ResourceEditorView({
         !dirty &&
         !jsonDirty;
     const currentReceipt =
-        receipt && validation && candidateIsCurrent && receiptMatchesCandidate(receipt, validation)
-            ? receipt
-            : null;
+        receipt && validation && candidateIsCurrent && receiptMatchesCandidate(receipt, validation) ? receipt : null;
     // clean 每次渲染都会复制文档，因此用实际序列化内容作为校验输入边界；无关状态改变不重建诊断快照，重复诊断的展示身份
     // 也不会随一次普通渲染而变化。
     const issues = useMemo(() => {
@@ -525,8 +493,7 @@ export function ResourceEditorView({
     });
     const job = useQuery({
         queryKey: ["workspace", workspace.id, "validation-job", jobId],
-        queryFn: ({ signal: querySignal }) =>
-            adapter.job(jobId, AbortSignal.any([signal, querySignal])),
+        queryFn: ({ signal: querySignal }) => adapter.job(jobId, AbortSignal.any([signal, querySignal])),
         enabled: !!jobId,
         refetchInterval: (query) => (query.state.data?.state === "FINISHED" ? false : 1000),
     });
@@ -547,32 +514,20 @@ export function ResourceEditorView({
         void adapter
             .receipt(validation.jobId, receiptSignal)
             .then((r) => {
-                if (!active || receiptSignal.aborted || validationGeneration.current !== generation)
-                    return;
-                if (!receiptMatchesCandidate(r, validation))
-                    throw new Error("VALIDATION_RECEIPT_MISMATCH");
+                if (!active || receiptSignal.aborted || validationGeneration.current !== generation) return;
+                if (!receiptMatchesCandidate(r, validation)) throw new Error("VALIDATION_RECEIPT_MISMATCH");
                 setReceipt(r);
                 setStatus(t("success"));
             })
             .catch((e) => {
-                if (active && !receiptSignal.aborted && validationGeneration.current === generation)
-                    setError(e);
+                if (active && !receiptSignal.aborted && validationGeneration.current === generation) setError(e);
             });
         return () => {
             active = false;
             controller.abort();
             if (receiptRequest.current === controller) receiptRequest.current = null;
         };
-    }, [
-        job.data?.id,
-        job.data?.state,
-        job.data?.outcome,
-        validation,
-        candidateIsCurrent,
-        signal,
-        adapter,
-        t,
-    ]);
+    }, [job.data?.id, job.data?.state, job.data?.outcome, validation, candidateIsCurrent, signal, adapter, t]);
     const run = (action: () => Promise<void>) => {
         setBusy(true);
         setError(null);
@@ -629,9 +584,7 @@ export function ResourceEditorView({
                 </p>
             )}
             {error && <ErrorState error={error} />}
-            {allVersions.error && (
-                <ErrorState error={allVersions.error} retry={() => void allVersions.refetch()} />
-            )}
+            {allVersions.error && <ErrorState error={allVersions.error} retry={() => void allVersions.refetch()} />}
             {jsonDirty && (
                 <p role="alert" data-testid="resource-json-pending">
                     {t("pendingJson")}
@@ -649,16 +602,8 @@ export function ResourceEditorView({
             {conflict && (
                 <Section title={t("conflict")} testId="resource-conflict">
                     <MonacoDiff original={pretty(conflict.content)} modified={serialized} />
-                    <ConfirmDialog
-                        title={t("reload")}
-                        trigger={t("reload")}
-                        onConfirm={() => restore(conflict)}
-                    >
-                        <p>
-                            {tx(
-                                "远端内容将替换本地草稿 / Replace local content with the remote draft.",
-                            )}
-                        </p>
+                    <ConfirmDialog title={t("reload")} trigger={t("reload")} onConfirm={() => restore(conflict)}>
+                        <p>{tx("远端内容将替换本地草稿 / Replace local content with the remote draft.")}</p>
                     </ConfirmDialog>
                     <Button
                         data-testid="resource-rebase"
@@ -673,11 +618,7 @@ export function ResourceEditorView({
                 </Section>
             )}
             <div className="vq-actions">
-                <Button
-                    tone="secondary"
-                    data-testid="resource-form-tab"
-                    onClick={() => setMode("form")}
-                >
+                <Button tone="secondary" data-testid="resource-form-tab" onClick={() => setMode("form")}>
                     {t("form")}
                 </Button>
                 <Button
@@ -694,11 +635,7 @@ export function ResourceEditorView({
             <FormProvider {...form}>
                 <fieldset className="vq-editor-fields" disabled={!writable || busy}>
                     {mode === "form" ? (
-                        <ResourceForms
-                            key={formLifetime}
-                            kind={resource.kind}
-                            versions={allVersions.data ?? []}
-                        />
+                        <ResourceForms key={formLifetime} kind={resource.kind} versions={allVersions.data ?? []} />
                     ) : (
                         <>
                             <Monaco
@@ -714,15 +651,10 @@ export function ResourceEditorView({
                                     onClick={() => {
                                         try {
                                             const next: unknown = JSON.parse(buffer);
-                                            const problems = validateSchema(
-                                                "ResourceDocumentV1",
-                                                next,
-                                            );
+                                            const problems = validateSchema("ResourceDocumentV1", next);
                                             if (problems.length)
                                                 throw new Error(
-                                                    problems
-                                                        .map((p) => `${p.path}: ${p.message}`)
-                                                        .join("\n"),
+                                                    problems.map((p) => `${p.path}: ${p.message}`).join("\n"),
                                                 );
                                             if ((next as ResourceDocumentV1).kind !== resource.kind)
                                                 throw new Error("RESOURCE_KIND_IMMUTABLE");
@@ -777,16 +709,8 @@ export function ResourceEditorView({
                             const generation = invalidateValidation();
                             const preview = await adapter.preview(resource.id, signal);
                             signal.throwIfAborted();
-                            if (
-                                preview.revision !== saved.revision ||
-                                preview.documentHash !== saved.documentHash
-                            )
-                                throw new ApiError(
-                                    "STALE_REVISION",
-                                    "Draft changed before validation",
-                                    409,
-                                    "",
-                                );
+                            if (preview.revision !== saved.revision || preview.documentHash !== saved.documentHash)
+                                throw new ApiError("STALE_REVISION", "Draft changed before validation", 409, "");
                             const queued = await adapter.validate(
                                 resource.id,
                                 { revision: saved.revision, sourceHash: preview.sourceHash },
@@ -812,12 +736,7 @@ export function ResourceEditorView({
                 </Button>
                 <Button
                     data-testid="case.publish"
-                    disabled={
-                        !writable ||
-                        busy ||
-                        !["OWNER", "ADMIN"].includes(workspace.role) ||
-                        !currentReceipt
-                    }
+                    disabled={!writable || busy || !["OWNER", "ADMIN"].includes(workspace.role) || !currentReceipt}
                     onClick={() =>
                         run(async () => {
                             guard(true);
@@ -855,21 +774,13 @@ export function ResourceEditorView({
             <Section title={tx("资源设置 / Resource settings")}>
                 <label>
                     {tx("名称 / Name")}
-                    <input
-                        value={rename}
-                        disabled={!writable}
-                        onChange={(e) => setRename(e.target.value)}
-                    />
+                    <input value={rename} disabled={!writable} onChange={(e) => setRename(e.target.value)} />
                 </label>
                 <Button
                     disabled={!writable || busy || !rename.trim()}
                     onClick={() =>
                         run(async () => {
-                            const next = await adapter.update(
-                                resource.id,
-                                { name: rename },
-                                signal,
-                            );
+                            const next = await adapter.update(resource.id, { name: rename }, signal);
                             signal.throwIfAborted();
                             onResource(next);
                             await refresh();
@@ -910,12 +821,7 @@ export function ResourceEditorView({
                 signal={signal}
                 content={content}
             />
-            <Impact
-                resource={resource}
-                adapter={adapter}
-                workspaceId={workspace.id}
-                signal={signal}
-            />
+            <Impact resource={resource} adapter={adapter} workspaceId={workspace.id} signal={signal} />
         </article>
     );
 }
@@ -978,8 +884,7 @@ function VersionHistory({
     }, [resource.latestVersionId, versionId]);
     const versions = useInfiniteQuery({
         queryKey: ["workspace", workspaceId, "versions", resource.id],
-        queryFn: ({ pageParam, signal: qs }) =>
-            adapter.versions(resource.id, pageParam, AbortSignal.any([signal, qs])),
+        queryFn: ({ pageParam, signal: qs }) => adapter.versions(resource.id, pageParam, AbortSignal.any([signal, qs])),
         initialPageParam: undefined as string | undefined,
         getNextPageParam: (p) => p.nextCursor ?? undefined,
     });
@@ -988,27 +893,21 @@ function VersionHistory({
         compared = other === "draft" ? content : items.find((v) => v.id === other)?.content;
     const files = useQuery({
         queryKey: ["workspace", workspaceId, "compiled-files", resource.id, versionId],
-        queryFn: ({ signal: qs }) =>
-            adapter.sourceFiles(resource.id, versionId, AbortSignal.any([signal, qs])),
+        queryFn: ({ signal: qs }) => adapter.sourceFiles(resource.id, versionId, AbortSignal.any([signal, qs])),
         enabled: !!selected,
     });
     const file = files.data?.files.find((f) => f.path === path);
     const source = useQuery({
         queryKey: ["workspace", workspaceId, "compiled-source", versionId, path],
-        queryFn: ({ signal: qs }) =>
-            adapter.source(resource.id, versionId, file!, AbortSignal.any([signal, qs])),
+        queryFn: ({ signal: qs }) => adapter.source(resource.id, versionId, file!, AbortSignal.any([signal, qs])),
         enabled: !!file,
     });
     return (
         <>
             <Section title={t("versions")}>
                 {versions.isPending && <p role="status">{t("loading")}</p>}
-                {versions.error && (
-                    <ErrorState error={versions.error} retry={() => void versions.refetch()} />
-                )}
-                {!items.length && versions.isSuccess && (
-                    <p>{tx("尚无发布版本 / No published versions.")}</p>
-                )}
+                {versions.error && <ErrorState error={versions.error} retry={() => void versions.refetch()} />}
+                {!items.length && versions.isSuccess && <p>{tx("尚无发布版本 / No published versions.")}</p>}
                 {!!items.length && (
                     <>
                         <label>
@@ -1045,25 +944,18 @@ function VersionHistory({
                             </select>
                         </label>
                         {selected && compared && (
-                            <MonacoDiff
-                                original={pretty(selected.content)}
-                                modified={pretty(compared)}
-                            />
+                            <MonacoDiff original={pretty(selected.content)} modified={pretty(compared)} />
                         )}
                     </>
                 )}
                 {versions.hasNextPage && (
-                    <Button onClick={() => void versions.fetchNextPage()}>
-                        {tx("更多版本 / More versions")}
-                    </Button>
+                    <Button onClick={() => void versions.fetchNextPage()}>{tx("更多版本 / More versions")}</Button>
                 )}
             </Section>
             <Section title={t("source")}>
                 {!selected && <p>{t("noSource")}</p>}
                 {files.isFetching && <p role="status">{t("loading")}</p>}
-                {files.error && (
-                    <ErrorState error={files.error} retry={() => void files.refetch()} />
-                )}
+                {files.error && <ErrorState error={files.error} retry={() => void files.refetch()} />}
                 {files.data && (
                     <>
                         <p>
@@ -1088,9 +980,7 @@ function VersionHistory({
                     </>
                 )}
                 {source.isFetching && <p role="status">{t("loading")}</p>}
-                {source.error && (
-                    <ErrorState error={source.error} retry={() => void source.refetch()} />
-                )}
+                {source.error && <ErrorState error={source.error} retry={() => void source.refetch()} />}
                 {source.data !== undefined && file && (
                     <>
                         <p>
@@ -1133,9 +1023,7 @@ function Impact({
     return (
         <Section title={tx("引用影响 / Reference impact")} testId="resource-impact">
             {dependents.isPending && <p role="status">{tx("正在加载 / Loading…")}</p>}
-            {dependents.error && (
-                <ErrorState error={dependents.error} retry={() => void dependents.refetch()} />
-            )}
+            {dependents.error && <ErrorState error={dependents.error} retry={() => void dependents.refetch()} />}
             {dependents.isSuccess && !items.length && (
                 <p>{tx("没有已发布资源引用此资源 / No published dependents.")}</p>
             )}
@@ -1147,9 +1035,7 @@ function Impact({
                 ))}
             </ul>
             {dependents.hasNextPage && (
-                <Button onClick={() => void dependents.fetchNextPage()}>
-                    {tx("更多引用 / More dependents")}
-                </Button>
+                <Button onClick={() => void dependents.fetchNextPage()}>{tx("更多引用 / More dependents")}</Button>
             )}
         </Section>
     );

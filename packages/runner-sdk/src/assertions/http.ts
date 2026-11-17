@@ -82,8 +82,7 @@ export async function runAssertion(
             const timeout = budget(ctx, a.timeoutMs ?? 10000),
                 deadline = Date.now() + timeout;
             const path = binding(a.query.path, ctx);
-            if (typeof path !== "string" || a.query.method !== "GET")
-                throw new Error("READ_ONLY_QUERY_REQUIRED");
+            if (typeof path !== "string" || a.query.method !== "GET") throw new Error("READ_ONLY_QUERY_REQUIRED");
             await interruptible(ctx, () =>
                 expect
                     .poll(
@@ -147,17 +146,14 @@ export async function runAssertion(
                     break;
                 case "responseSchema":
                     actual = { present: true, value: x.response.body };
-                    pass =
-                        x.response.bodyKind === "json" &&
-                        ajv.compile(a.expected)(x.response.body) === true;
+                    pass = x.response.bodyKind === "json" && ajv.compile(a.expected)(x.response.body) === true;
                     break;
             }
         }
         if (!pass) errorCode = "ASSERTION_FAILED";
     } catch (e) {
         if (e instanceof ExecutionCancelled) throw e;
-        errorCode =
-            e instanceof Error && /^[A-Z_]+$/.test(e.message) ? e.message : "ASSERTION_FAILED";
+        errorCode = e instanceof Error && /^[A-Z_]+$/.test(e.message) ? e.message : "ASSERTION_FAILED";
         if (a.type === "ui" || a.type === "url") {
             try {
                 actual = await uiActual(a, ctx);

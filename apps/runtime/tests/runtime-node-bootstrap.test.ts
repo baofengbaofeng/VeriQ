@@ -1,22 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import {
-    readFile,
-    lstat,
-    readdir,
-    writeFile,
-    mkdir,
-    rename,
-    open,
-    unlink,
-    type FileHandle,
-} from "node:fs/promises";
+import { readFile, lstat, readdir, writeFile, mkdir, rename, open, unlink, type FileHandle } from "node:fs/promises";
 import { join } from "node:path";
 import { spawnSync, spawn } from "node:child_process";
-import {
-    extractNodeSourceSnapshot,
-    prepareMacNodeBootstrap,
-} from "../scripts/runtime-node-bootstrap.ts";
+import { extractNodeSourceSnapshot, prepareMacNodeBootstrap } from "../scripts/runtime-node-bootstrap.ts";
 import { ArchiveTransaction } from "../scripts/runtime-payload-transaction.ts";
 import { RuntimePayloadError } from "../scripts/runtime-payload-inputs.ts";
 import { assetFailure, OFFICIAL_ASSETS } from "../scripts/runtime-assets-observation.ts";
@@ -56,25 +43,14 @@ for (const arch of ["x64", "arm64"] as const)
                 assert.equal((await lstat(path)).mode & 0o777, 0o600);
             }
             assert.equal(
-                (
-                    await lstat(
-                        join(
-                            tx.directory,
-                            "trees/node",
-                            `node-v24.22.1-darwin-${arch}/include/empty`,
-                        ),
-                    )
-                ).mode & 0o777,
+                (await lstat(join(tx.directory, "trees/node", `node-v24.22.1-darwin-${arch}/include/empty`))).mode &
+                    0o777,
                 0o700,
             );
-            await assert.rejects(
-                lstat(join(tx.directory, "trees/node", `node-v24.22.1-darwin-${arch}/bin/npm`)),
-                { code: "ENOENT" },
-            );
-            assert.equal(
-                result.members.members.find((m) => m.path.endsWith("/bin/node"))?.mode,
-                0o755,
-            );
+            await assert.rejects(lstat(join(tx.directory, "trees/node", `node-v24.22.1-darwin-${arch}/bin/npm`)), {
+                code: "ENOENT",
+            });
+            assert.equal(result.members.members.find((m) => m.path.endsWith("/bin/node"))?.mode, 0o755);
             assert.equal(result.nodeMember, `trees/node/node-v24.22.1-darwin-${arch}/bin/node`);
             await assert.rejects(lstat(join(tx.directory, result.npmRoot, "bin/npm-alt.js")), {
                 code: "ENOENT",
@@ -129,19 +105,14 @@ for (const scenario of [
         const npm = "node-v24.22.1-darwin-x64/lib/node_modules/npm";
         const aliasManifest = entries.find((e) => e.path.endsWith("alias/package.json"));
         assert.ok(aliasManifest);
-        if (scenario === "missing-required")
-            entries = entries.filter((e) => !e.path.endsWith("/LICENSE"));
-        if (scenario === "missing-manifest")
-            entries = entries.filter((e) => !e.path.endsWith("alias/package.json"));
-        if (scenario === "invalid-manifest")
-            aliasManifest.body = '{"name":"duplicate","version":0}';
+        if (scenario === "missing-required") entries = entries.filter((e) => !e.path.endsWith("/LICENSE"));
+        if (scenario === "missing-manifest") entries = entries.filter((e) => !e.path.endsWith("alias/package.json"));
+        if (scenario === "invalid-manifest") aliasManifest.body = '{"name":"duplicate","version":0}';
         if (scenario === "oversize-manifest") aliasManifest.body = " ".repeat(1024 ** 2 + 1);
         if (scenario === "empty-modules")
             entries.push({ path: `${npm}/node_modules/alias/node_modules`, kind: "directory" });
-        if (scenario === "bad-scope")
-            entries.push({ path: `${npm}/node_modules/@empty`, kind: "directory" });
-        if (scenario === "package-file")
-            entries.push({ path: `${npm}/node_modules/bad`, body: "not a directory" });
+        if (scenario === "bad-scope") entries.push({ path: `${npm}/node_modules/@empty`, kind: "directory" });
+        if (scenario === "package-file") entries.push({ path: `${npm}/node_modules/bad`, body: "not a directory" });
         if (scenario === "alias-package")
             entries.push({ path: `${npm}/node_modules/linked`, kind: "link", target: "alias" });
         if (scenario === "alias-modules")
@@ -153,9 +124,7 @@ for (const scenario of [
         if (scenario === "alias-scope")
             entries.push({ path: `${npm}/node_modules/@linked`, kind: "link", target: "@scope" });
         if (scenario === "alias-root") {
-            entries = entries.filter(
-                (e) => !e.path.startsWith(`${npm}/`) && !e.path.endsWith("/bin/npm"),
-            );
+            entries = entries.filter((e) => !e.path.startsWith(`${npm}/`) && !e.path.endsWith("/bin/npm"));
             entries.push({ path: npm, kind: "link", target: "../../include" });
         }
         await nodeSourceFixture(async ({ tx, snapshot }) => {
@@ -298,8 +267,7 @@ for (const errno of ["ENOSPC", "EDQUOT"] as const)
                 prototype,
                 "write",
                 async function (this: FileHandle, ...args: Parameters<FileHandle["write"]>) {
-                    if (injecting)
-                        throw Object.assign(new Error("INJECTED_WRITE_FAILURE"), { code: errno });
+                    if (injecting) throw Object.assign(new Error("INJECTED_WRITE_FAILURE"), { code: errno });
                     return write.apply(this, args);
                 },
             );
@@ -346,26 +314,22 @@ test("injected helper close uncertainty retains scratch and lock", async (t) =>
         const read = prototype.read;
         let patched = false,
             closeCount = 0;
-        t.mock.method(
-            prototype,
-            "read",
-            function (this: FileHandle, ...args: Parameters<FileHandle["read"]>) {
-                // 现有 audit 使用成熟 stream，而接缝的位置读取通过公开 FileHandle.read 进入；故障只绑定首个独立读取对象
-                // 一次，避免影响事务清理自身新开的句柄或夹具 finally 的回收。
-                if (!patched && (args as unknown[])[3] === 0) {
-                    patched = true;
-                    const close = this.close;
-                    t.mock.method(this, "close", async () => {
-                        closeCount++;
-                        await close.call(this);
-                        throw Object.assign(new Error("INJECTED_CLOSE_UNCONFIRMED"), {
-                            code: "EIO",
-                        });
+        t.mock.method(prototype, "read", function (this: FileHandle, ...args: Parameters<FileHandle["read"]>) {
+            // 现有 audit 使用成熟 stream，而接缝的位置读取通过公开 FileHandle.read 进入；故障只绑定首个独立读取对象
+            // 一次，避免影响事务清理自身新开的句柄或夹具 finally 的回收。
+            if (!patched && (args as unknown[])[3] === 0) {
+                patched = true;
+                const close = this.close;
+                t.mock.method(this, "close", async () => {
+                    closeCount++;
+                    await close.call(this);
+                    throw Object.assign(new Error("INJECTED_CLOSE_UNCONFIRMED"), {
+                        code: "EIO",
                     });
-                }
-                return read.apply(this, args);
-            },
-        );
+                });
+            }
+            return read.apply(this, args);
+        });
         try {
             await assert.rejects(
                 (async () => {
@@ -376,9 +340,7 @@ test("injected helper close uncertainty retains scratch and lock", async (t) =>
                     }
                 })(),
                 (e: unknown) =>
-                    e instanceof RuntimePayloadError &&
-                    e.code === "PAYLOAD_IO" &&
-                    e.cleanup === "INCOMPLETE",
+                    e instanceof RuntimePayloadError && e.code === "PAYLOAD_IO" && e.cleanup === "INCOMPLETE",
             );
             assert.equal(closeCount, 1);
             assert.ok((await lstat(tx.scratch)).isDirectory());
@@ -397,8 +359,7 @@ test("injected final audit uncertainty preserves committed material", async (t) 
         await extractNodeSourceSnapshot(tx, "x64", snapshot);
         const audit = tx.audit.bind(tx);
         t.mock.method(tx, "audit", async (root?: string) => {
-            if (root === tx.directory)
-                throw Object.assign(new Error("INJECTED_FINAL_AUDIT_FAILURE"), { code: "EIO" });
+            if (root === tx.directory) throw Object.assign(new Error("INJECTED_FINAL_AUDIT_FAILURE"), { code: "EIO" });
             return audit(root);
         });
         try {
@@ -566,10 +527,7 @@ test("helper owns snapshot Ref before first await", async () =>
         argument.sizeBytes = 0;
         const result = await promise;
         await tx.publish();
-        assert.equal(
-            await readFile(join(tx.directory, result.nodeMember), "utf8"),
-            "synthetic Node body",
-        );
+        assert.equal(await readFile(join(tx.directory, result.nodeMember), "utf8"), "synthetic Node body");
     }));
 
 /**
@@ -618,8 +576,7 @@ for (const scenario of ["input", "official-hash", "source-ref"] as const)
                 node: {
                     path: "archives/node.tar.gz",
                     sizeBytes: OFFICIAL_ASSETS.x64.nodeBytes,
-                    sha256:
-                        scenario === "official-hash" ? "0".repeat(64) : OFFICIAL_ASSETS.x64.nodeSha,
+                    sha256: scenario === "official-hash" ? "0".repeat(64) : OFFICIAL_ASSETS.x64.nodeSha,
                 },
                 chrome: {
                     path: "archives/chrome.zip",
@@ -695,10 +652,7 @@ for (const primaryReadFailure of [false, true])
                 t.mock.method(
                     prototype,
                     "createReadStream",
-                    function (
-                        this: FileHandle,
-                        options: Parameters<FileHandle["createReadStream"]>[0],
-                    ) {
+                    function (this: FileHandle, options: Parameters<FileHandle["createReadStream"]>[0]) {
                         const result = stream.call(this, options);
                         if (injected.has(this))
                             result.on("error", (error) => {
@@ -717,10 +671,7 @@ for (const primaryReadFailure of [false, true])
                     auditCount++;
                     if (auditCount === 2) {
                         target = await lstat(
-                            join(
-                                tx.scratch,
-                                "trees/node/node-v24.22.1-darwin-x64/lib/node_modules/npm/package.json",
-                            ),
+                            join(tx.scratch, "trees/node/node-v24.22.1-darwin-x64/lib/node_modules/npm/package.json"),
                             { bigint: true },
                         );
                         armed = true;
@@ -731,27 +682,18 @@ for (const primaryReadFailure of [false, true])
                     "stat",
                     async function (this: FileHandle, ...args: Parameters<FileHandle["stat"]>) {
                         const info = await stat.apply(this, args);
-                        if (
-                            armed &&
-                            !bound &&
-                            info.ino === target?.ino &&
-                            info.dev === target.dev
-                        ) {
+                        if (armed && !bound && info.ino === target?.ino && info.dev === target.dev) {
                             bound = true;
                             injected.add(this);
                             const close = this.close;
                             t.mock.method(this, "close", async () => {
                                 closeCount++;
                                 await close.call(this);
-                                throw Object.assign(
-                                    new Error("INJECTED_MANIFEST_CLOSE_UNCONFIRMED"),
-                                    {
-                                        code: "EIO",
-                                    },
-                                );
+                                throw Object.assign(new Error("INJECTED_MANIFEST_CLOSE_UNCONFIRMED"), {
+                                    code: "EIO",
+                                });
                             });
-                            if (primaryReadFailure)
-                                return { ...info, size: BigInt(info.size) + 1n };
+                            if (primaryReadFailure) return { ...info, size: BigInt(info.size) + 1n };
                         }
                         return info;
                     },
@@ -787,18 +729,12 @@ for (const primaryReadFailure of [false, true])
                     assert.ok(bound, "The extracted manifest inode must reach its consumer");
                     assert.equal(closeCount, 1);
                     assert.ok(rejection instanceof RuntimePayloadError);
-                    assert.equal(
-                        rejection.code,
-                        primaryReadFailure ? "PAYLOAD_SOURCE_CHANGED" : "PAYLOAD_IO",
-                    );
+                    assert.equal(rejection.code, primaryReadFailure ? "PAYLOAD_SOURCE_CHANGED" : "PAYLOAD_IO");
                     assert.equal(rejection.causeCode, primaryReadFailure ? null : "EIO");
                     assert.equal(rejection.cleanup, "INCOMPLETE");
                     assert.ok((await lstat(tx.scratch)).isDirectory());
                     assert.ok((await lstat(tx.lockPath)).isFile());
-                    assert.equal(
-                        await readFile(join(old, "sentinel"), "utf8"),
-                        "untouched old candidate",
-                    );
+                    assert.equal(await readFile(join(old, "sentinel"), "utf8"), "untouched old candidate");
                 } finally {
                     t.mock.restoreAll();
                 }
@@ -813,10 +749,7 @@ for (const primaryReadFailure of [false, true])
 for (const mutation of ["file", "parent"] as const)
     test(`extracted manifest finish rejects later ${mutation} mutation`, async (t) =>
         nodeSourceFixture(async ({ tx, snapshot }) => {
-            const manifest = join(
-                tx.scratch,
-                "trees/node/node-v24.22.1-darwin-x64/lib/node_modules/npm/package.json",
-            );
+            const manifest = join(tx.scratch, "trees/node/node-v24.22.1-darwin-x64/lib/node_modules/npm/package.json");
             const probe = await open(join(tx.scratch, snapshot.path), "r");
             const prototype = Object.getPrototypeOf(probe) as FileHandle;
             await probe.close();

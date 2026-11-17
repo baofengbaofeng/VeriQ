@@ -8,12 +8,7 @@ import {
     type MacChromeLayout,
     type MacRuntimeArch,
 } from "../src/distribution-manifest-v2.ts";
-import {
-    admitReleaseRoot,
-    copyReleaseFile,
-    inventoryReleaseTree,
-    writeReleaseJson,
-} from "./runtime-release-files.ts";
+import { admitReleaseRoot, copyReleaseFile, inventoryReleaseTree, writeReleaseJson } from "./runtime-release-files.ts";
 
 /**
  * 归档描述保留本次实际 tar.gz 的大小与摘要及完整 Runtime manifest 身份，签名和独立批准仍由后续发行者完成；调用者不能把
@@ -50,10 +45,7 @@ export async function packageRuntimeCandidate(
         throw new Error("RUNTIME_ARCHIVE_NAME_INVALID");
     const observe = async () => {
         if (metadata.mac) {
-            const report = await verifyMacRuntimeManifestV2(
-                metadata.runtimeDirectory,
-                metadata.mac,
-            );
+            const report = await verifyMacRuntimeManifestV2(metadata.runtimeDirectory, metadata.mac);
             return {
                 manifestSha256: report.manifestSha256,
                 identity: JSON.stringify(report.manifest),
@@ -75,9 +67,7 @@ export async function packageRuntimeCandidate(
         };
     };
     const before = await observe();
-    const directory = await mkdtemp(
-        join(metadata.outputParent, `.veriq-archive-${metadata.candidateName}-`),
-    );
+    const directory = await mkdtemp(join(metadata.outputParent, `.veriq-archive-${metadata.candidateName}-`));
     const archivePath = `${metadata.candidateName}.tar.gz`;
     await create(
         {
@@ -121,13 +111,7 @@ export async function packageRuntimeCandidate(
         await handle.close();
     }
     const archive = { path: archivePath, sizeBytes, sha256: digest.digest("hex") };
-    const receipt = await copyReleaseFile(
-        metadata.receiptPath,
-        directory,
-        "payload-receipt.json",
-        undefined,
-        0o644,
-    );
+    const receipt = await copyReleaseFile(metadata.receiptPath, directory, "payload-receipt.json", undefined, 0o644);
     const result: RuntimeArchiveResult = {
         kind: "RUNTIME_CANDIDATE_ARCHIVE",
         directory,
@@ -138,11 +122,7 @@ export async function packageRuntimeCandidate(
     const candidate = await writeReleaseJson(directory, "candidate.json", result);
     await writeReleaseJson(directory, "checksums.json", {
         schemaVersion: 1,
-        files: [
-            archive,
-            { path: receipt.path, sizeBytes: receipt.sizeBytes, sha256: receipt.sha256 },
-            candidate,
-        ],
+        files: [archive, { path: receipt.path, sizeBytes: receipt.sizeBytes, sha256: receipt.sha256 }, candidate],
         excludedSelf: "checksums.json",
     });
     return result;

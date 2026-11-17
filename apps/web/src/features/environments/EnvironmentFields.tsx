@@ -15,23 +15,12 @@ export function IdentityFields({ path, role = false }: { path: string; role?: bo
     return (
         <>
             {role && <Field name={`${path}.roleKey`} label={tx("业务角色 key / Role key")} />}
-            <Field
-                name={`${path}.authAdapterVersionId`}
-                label={tx("认证适配器固定版本 / Auth adapter version UUID")}
-            />
+            <Field name={`${path}.authAdapterVersionId`} label={tx("认证适配器固定版本 / Auth adapter version UUID")} />
             <Field name={`${path}.secretRef`} label={tx("凭证引用 / Secret reference")} />
-            <Field
-                name={`${path}.secretVersionId`}
-                label={tx("凭证固定版本 / Secret version UUID")}
-            />
-            <StringList
-                name={`${path}.allowedIdentityIds`}
-                label={tx("允许身份 ID / Allowed identity IDs")}
-            />
+            <Field name={`${path}.secretVersionId`} label={tx("凭证固定版本 / Secret version UUID")} />
+            <StringList name={`${path}.allowedIdentityIds`} label={tx("允许身份 ID / Allowed identity IDs")} />
             <small>
-                {tx(
-                    "只保存固定版本引用，不包含密码或会话 / Version references only, no credentials or sessions.",
-                )}
+                {tx("只保存固定版本引用，不包含密码或会话 / Version references only, no credentials or sessions.")}
             </small>
         </>
     );
@@ -51,15 +40,8 @@ export function EnvironmentFields() {
             <Field name="content.document.apiBaseURL" label={tx("API URL")} />
             <Field name="content.document.locale" label={tx("语言 / Locale")} />
             <Field name="content.document.timezone" label={tx("时区 / Timezone")} />
-            <Field
-                name="content.document.buildSha"
-                label={tx("应用构建 SHA / Build SHA")}
-                optional
-            />
-            <StringList
-                name="content.document.allowedOrigins"
-                label={tx("允许来源 / Allowed origins")}
-            />
+            <Field name="content.document.buildSha" label={tx("应用构建 SHA / Build SHA")} optional />
+            <StringList name="content.document.allowedOrigins" label={tx("允许来源 / Allowed origins")} />
             <List
                 name="content.document.roles"
                 title={tx("业务角色身份 / Business role identities")}

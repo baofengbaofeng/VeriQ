@@ -4,12 +4,7 @@ import { lstat, open, type FileHandle } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Arch, Ref, Cleanup } from "./runtime-payload-inputs.ts";
-import {
-    ArchiveBudget,
-    ArchiveScan,
-    type StageOptions,
-    type ArchiveMember,
-} from "./runtime-payload-archive.ts";
+import { ArchiveBudget, ArchiveScan, type StageOptions, type ArchiveMember } from "./runtime-payload-archive.ts";
 import { ArchiveTransaction } from "./runtime-payload-transaction.ts";
 import { InputReader, decode, freeze, limits, relative, sha } from "./runtime-payload-tree.ts";
 import { scanTar } from "./runtime-payload-tar.ts";
@@ -109,12 +104,7 @@ async function* fileChunks(tx: ArchiveTransaction, handle: FileHandle): AsyncGen
  * 大快照通过独立 held FD 以六十四 KiB 块核原始长度和摘要，拒绝 whole-buffer 读取及单独路径断言；close 只尝试一次，无法
  * 确认时通知事务保留 scratch，绝不重试可能已经复用的数字 FD。
  */
-async function holdFile(
-    tx: ArchiveTransaction,
-    path: string,
-    expected?: Ref,
-    maximum = limits.file,
-) {
+async function holdFile(tx: ArchiveTransaction, path: string, expected?: Ref, maximum = limits.file) {
     tx.check();
     const before = await lstat(path, { bigint: true });
     tx.check();
@@ -132,10 +122,7 @@ async function holdFile(
         let reference = expected;
         const check = async () => {
             tx.check();
-            if (
-                !same(before, await held.stat({ bigint: true })) ||
-                !same(before, await lstat(path, { bigint: true }))
-            )
+            if (!same(before, await held.stat({ bigint: true })) || !same(before, await lstat(path, { bigint: true })))
                 tx.fail("PAYLOAD_SOURCE_CHANGED");
             const digest = createHash("sha256");
             let size = 0;
@@ -152,15 +139,10 @@ async function holdFile(
             };
             if (
                 size !== Number(before.size) ||
-                (reference &&
-                    (actual.sizeBytes !== reference.sizeBytes ||
-                        actual.sha256 !== reference.sha256))
+                (reference && (actual.sizeBytes !== reference.sizeBytes || actual.sha256 !== reference.sha256))
             )
                 tx.fail("PAYLOAD_SOURCE_CHANGED");
-            if (
-                !same(before, await held.stat({ bigint: true })) ||
-                !same(before, await lstat(path, { bigint: true }))
-            )
+            if (!same(before, await held.stat({ bigint: true })) || !same(before, await lstat(path, { bigint: true })))
                 tx.fail("PAYLOAD_SOURCE_CHANGED");
             tx.check();
             reference ??= freeze(actual);
@@ -209,8 +191,7 @@ async function extractedManifestReader(tx: ArchiveTransaction) {
         tx.check();
         if (
             directory
-                ? !info.isDirectory() ||
-                  ![0o700, 0o755, 0o555].includes(Number(info.mode & 0o7777n))
+                ? !info.isDirectory() || ![0o700, 0o755, 0o555].includes(Number(info.mode & 0o7777n))
                 : !info.isFile() ||
                   info.ino === 0n ||
                   info.nlink !== 1n ||
@@ -225,8 +206,7 @@ async function extractedManifestReader(tx: ArchiveTransaction) {
         await admission.finish();
         for (const [path, before] of observations) {
             tx.check();
-            if (!same(before, await lstat(path, { bigint: true })))
-                tx.fail("PAYLOAD_SOURCE_CHANGED");
+            if (!same(before, await lstat(path, { bigint: true }))) tx.fail("PAYLOAD_SOURCE_CHANGED");
         }
         tx.check();
     };
@@ -253,8 +233,7 @@ async function extractedManifestReader(tx: ArchiveTransaction) {
                 chunks.push(Buffer.from(chunk));
             }
             const bytes = Buffer.concat(chunks, size);
-            if (size !== ref.sizeBytes || sha(bytes) !== ref.sha256)
-                tx.fail("PAYLOAD_SOURCE_CHANGED");
+            if (size !== ref.sizeBytes || sha(bytes) !== ref.sha256) tx.fail("PAYLOAD_SOURCE_CHANGED");
             await held.check();
             await held.close();
             held = undefined;
@@ -304,8 +283,7 @@ function packageRoots(scan: ArchiveScan, npm: string): string[] {
             directory(entry);
             const name = entry.slice(modules.length + 1);
             if (name.startsWith("@")) {
-                if (!/^@[a-zA-Z0-9_~-][a-zA-Z0-9._~-]*$/.test(name))
-                    scan.tx.fail("PAYLOAD_INPUT_INVALID");
+                if (!/^@[a-zA-Z0-9_~-][a-zA-Z0-9._~-]*$/.test(name)) scan.tx.fail("PAYLOAD_INPUT_INVALID");
                 const scoped = children.get(entry) ?? [];
                 if (!scoped.length) scan.tx.fail("PAYLOAD_INPUT_INVALID");
                 for (const pkg of scoped) {
@@ -315,8 +293,7 @@ function packageRoots(scan: ArchiveScan, npm: string): string[] {
                     roots.push(pkg);
                 }
             } else {
-                if (!/^[a-zA-Z0-9_~-][a-zA-Z0-9._~-]*$/.test(name))
-                    scan.tx.fail("PAYLOAD_INPUT_INVALID");
+                if (!/^[a-zA-Z0-9_~-][a-zA-Z0-9._~-]*$/.test(name)) scan.tx.fail("PAYLOAD_INPUT_INVALID");
                 roots.push(entry);
             }
             if (roots.length > limits.instances) scan.tx.fail("PAYLOAD_LIMIT");
@@ -351,29 +328,16 @@ export async function extractNodeSourceSnapshot(
         const budget = new ArchiveBudget(),
             first = new ArchiveScan("node", top, tx, budget);
         await scanTar(join(tx.scratch, ref.path), first);
-        first.links(
-            first.members.filter(
-                (m): m is Extract<ArchiveMember, { kind: "link" }> => m.kind === "link",
-            ),
-        );
+        first.links(first.members.filter((m): m is Extract<ArchiveMember, { kind: "link" }> => m.kind === "link"));
         const files = new Map(
             first.members
                 .filter((m): m is Extract<ArchiveMember, { kind: "file" }> => m.kind === "file")
                 .map((m) => [m.path, m]),
         );
         const roots = packageRoots(first, npm);
-        for (const path of [
-            `${top}/bin/node`,
-            `${top}/LICENSE`,
-            `${npm}/package.json`,
-            `${npm}/bin/npm-cli.js`,
-        ]) {
+        for (const path of [`${top}/bin/node`, `${top}/LICENSE`, `${npm}/package.json`, `${npm}/bin/npm-cli.js`]) {
             if (!files.has(path))
-                tx.fail(
-                    first.effective.get(path)?.kind === "link"
-                        ? "PAYLOAD_ARCHIVE_LINK"
-                        : "PAYLOAD_INPUT_INVALID",
-                );
+                tx.fail(first.effective.get(path)?.kind === "link" ? "PAYLOAD_ARCHIVE_LINK" : "PAYLOAD_INPUT_INVALID");
         }
         for (const root of roots) {
             const manifest = files.get(`${root}/package.json`);
@@ -398,20 +362,15 @@ export async function extractNodeSourceSnapshot(
             if (!member) tx.fail("PAYLOAD_INPUT_INVALID");
             const local = { path: member.path, sizeBytes: member.sizeBytes, sha256: member.sha256 };
             const manifest = decode(await reader.read(local));
-            if (!manifest || typeof manifest !== "object" || Array.isArray(manifest))
-                tx.fail("PAYLOAD_INPUT_INVALID");
+            if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) tx.fail("PAYLOAD_INPUT_INVALID");
             const record = manifest as Record<string, unknown>;
             if (
                 typeof record.name !== "string" ||
-                !/^(?:@[a-zA-Z0-9_~-][a-zA-Z0-9._~-]*\/)?[a-zA-Z0-9_~-][a-zA-Z0-9._~-]*$/.test(
-                    record.name,
-                ) ||
+                !/^(?:@[a-zA-Z0-9_~-][a-zA-Z0-9._~-]*\/)?[a-zA-Z0-9_~-][a-zA-Z0-9._~-]*$/.test(record.name) ||
                 typeof record.version !== "string" ||
                 !record.version.trim() ||
                 record.version.length > 1024 ||
-                Array.from(record.version).some(
-                    (c) => c.charCodeAt(0) <= 32 || c.charCodeAt(0) === 127,
-                )
+                Array.from(record.version).some((c) => c.charCodeAt(0) <= 32 || c.charCodeAt(0) === 127)
             )
                 tx.fail("PAYLOAD_INPUT_INVALID");
             packages.push({
@@ -462,12 +421,7 @@ export async function prepareMacNodeBootstrap(
         input = parseAssetsObservationInput(copy),
         o = assetOptions(options),
         inputSha256 = sha(copy);
-    const tx: ArchiveTransaction = new ArchiveTransaction(
-        o.inputRoot,
-        o.outputParent,
-        o.candidateName,
-        o.signal,
-    );
+    const tx: ArchiveTransaction = new ArchiveTransaction(o.inputRoot, o.outputParent, o.candidateName, o.signal);
     tx.phase = "INPUTS";
     const reader = new InputReader(o.inputRoot, o.signal, []);
     const producers: Awaited<ReturnType<typeof holdFile>>[] = [];
@@ -480,14 +434,7 @@ export async function prepareMacNodeBootstrap(
         await tx.observeRefs([input.node, input.source.evidence]);
         await reader.finish();
         for (const name of ["runtime-node-bootstrap.ts", "prepare-macos-node-bootstrap.mjs"]) {
-            producers.push(
-                await holdFile(
-                    tx,
-                    fileURLToPath(new URL(name, import.meta.url)),
-                    undefined,
-                    limits.json,
-                ),
-            );
+            producers.push(await holdFile(tx, fileURLToPath(new URL(name, import.meta.url)), undefined, limits.json));
         }
         await tx.plan(input.node.sizeBytes + input.source.evidence.sizeBytes + metadataReserve, 12);
         await tx.snapshot(input.node, "snapshots/node.tar.gz");
@@ -496,19 +443,12 @@ export async function prepareMacNodeBootstrap(
         const extracted = await extractNodeSourceSnapshot(tx, input.arch, archive);
         const members = await writeAssetJson(tx, "members/node.json", extracted.members);
         const producerFiles: Ref[] = [];
-        for (const [index, name] of [
-            "runtime-node-bootstrap.ts",
-            "prepare-macos-node-bootstrap.mjs",
-        ].entries()) {
+        for (const [index, name] of ["runtime-node-bootstrap.ts", "prepare-macos-node-bootstrap.mjs"].entries()) {
             const producer = producers[index];
             if (!producer) tx.fail("PAYLOAD_SOURCE_CHANGED");
             await producer.check();
             producerFiles.push(
-                await tx.write(
-                    `evidence/producer/${name}`,
-                    fileChunks(tx, producer.handle),
-                    producer.ref,
-                ),
+                await tx.write(`evidence/producer/${name}`, fileChunks(tx, producer.handle), producer.ref),
             );
             await producer.check();
         }

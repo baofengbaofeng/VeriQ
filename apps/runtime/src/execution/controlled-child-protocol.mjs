@@ -70,8 +70,7 @@ export function parseActivation(raw) {
     const marker = JSON.parse(raw);
     exact(marker, [...identityKeys, "fd"]);
     identity(marker);
-    if (!Number.isSafeInteger(marker.fd) || marker.fd < 4 || JSON.stringify(marker) !== raw)
-        reject();
+    if (!Number.isSafeInteger(marker.fd) || marker.fd < 4 || JSON.stringify(marker) !== raw) reject();
     const binding = Object.fromEntries(identityKeys.map((key) => [key, marker[key]]));
     return { binding, fd: marker.fd };
 }
@@ -81,12 +80,7 @@ export function parseActivation(raw) {
  * 允许写入或读取，目录持久条件留给 B。
  */
 export function inspectJournalFd(fd, requireEmpty = false) {
-    if (
-        !Number.isSafeInteger(fd) ||
-        fd < 0 ||
-        typeof process.getuid !== "function" ||
-        process.platform === "win32"
-    ) {
+    if (!Number.isSafeInteger(fd) || fd < 0 || typeof process.getuid !== "function" || process.platform === "win32") {
         throw new Error("CONTROLLED_CHILD_FD_UNSUPPORTED");
     }
     const stat = fstatSync(fd, { bigint: true });
@@ -107,12 +101,7 @@ export function inspectJournalFd(fd, requireEmpty = false) {
  */
 export function validateJournal(bytes, expectedBinding) {
     const binding = validateBinding(expectedBinding);
-    if (
-        !(bytes instanceof Uint8Array) ||
-        bytes.length === 0 ||
-        bytes.length > LIMITS.fileBytes ||
-        bytes.at(-1) !== 10
-    )
+    if (!(bytes instanceof Uint8Array) || bytes.length === 0 || bytes.length > LIMITS.fileBytes || bytes.at(-1) !== 10)
         reject();
     const objects = [];
     const states = new Map();
@@ -122,26 +111,15 @@ export function validateJournal(bytes, expectedBinding) {
     const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
     for (let end = 0; end < bytes.length; end++) {
         if (bytes[end] !== 10) continue;
-        if (
-            end === offset ||
-            end - offset + 1 > LIMITS.frameBytes ||
-            sequence >= LIMITS.records ||
-            sealed
-        )
-            reject();
+        if (end === offset || end - offset + 1 > LIMITS.frameBytes || sequence >= LIMITS.records || sealed) reject();
         const line = decoder.decode(bytes.subarray(offset, end));
         const frame = JSON.parse(line);
-        if (JSON.stringify(frame) !== line || frame.version !== 1 || frame.seq !== sequence)
-            reject();
+        if (JSON.stringify(frame) !== line || frame.version !== 1 || frame.seq !== sequence) reject();
         offset = end + 1;
         sequence++;
         if (sequence === 1) {
             exact(frame, [...identityKeys, "seq", "type"]);
-            if (
-                frame.type !== "OBSERVER_READY" ||
-                identityKeys.some((key) => frame[key] !== binding[key])
-            )
-                reject();
+            if (frame.type !== "OBSERVER_READY" || identityKeys.some((key) => frame[key] !== binding[key])) reject();
             continue;
         }
         if (frame.type === "SEAL") {

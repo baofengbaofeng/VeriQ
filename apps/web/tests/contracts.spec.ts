@@ -4,13 +4,8 @@ import { test, expect } from "@playwright/test";
 test("shared canonical source bytes run in a real browser without Node APIs", async ({ page }) => {
     // A static same-origin document isolates this contract test from app startup and Vite's client reload while
     // dynamic dependencies are first optimized.
-    await page.goto(
-        "/@fs" +
-            fileURLToPath(new URL("../../../packages/contracts/package.json", import.meta.url)),
-    );
-    const modulePath =
-        "/@fs" +
-        fileURLToPath(new URL("../../../packages/contracts/src/index.ts", import.meta.url));
+    await page.goto("/@fs" + fileURLToPath(new URL("../../../packages/contracts/package.json", import.meta.url)));
+    const modulePath = "/@fs" + fileURLToPath(new URL("../../../packages/contracts/src/index.ts", import.meta.url));
     const result = await page.evaluate(async (modulePath) => {
         // Vite serves the workspace package as browser ESM; no crypto/Buffer polyfill.
         const contracts = await import(/* @vite-ignore */ modulePath);
@@ -23,10 +18,7 @@ test("shared canonical source bytes run in a real browser without Node APIs", as
             assets: [],
             validationTarget: { revision: 1 },
         });
-        const binding = contracts.resolveBinding(
-            { value: "{{data.answer}}" },
-            { data: { answer: 42 }, vars: {} },
-        );
+        const binding = contracts.resolveBinding({ value: "{{data.answer}}" }, { data: { answer: 42 }, vars: {} });
         const missing = contracts.resolvePointer({ present: null }, "/missing");
         const present = contracts.resolvePointer({ present: null }, "/present");
         const eventIssues = contracts.validateSchema("ObserverV1", {

@@ -16,9 +16,7 @@ const settle = (...args: Parameters<typeof vault.settleDarwinCase>) => {
 };
 const frame = (value: unknown) => Buffer.from(JSON.stringify(value) + "\n");
 const collect = (summary: unknown) =>
-    vault.collectDarwinDiagnostics([
-        Buffer.from("# VERIQ_D1_DIAGNOSTICS " + JSON.stringify(summary) + "\n"),
-    ]);
+    vault.collectDarwinDiagnostics([Buffer.from("# VERIQ_D1_DIAGNOSTICS " + JSON.stringify(summary) + "\n")]);
 
 /**
  * 四个组合分别检查原对象身份及执行顺序，清理只由结算器调用一次且密钥必须先覆盖；观察器在 body 结束后已经得到状态，因此
@@ -48,10 +46,7 @@ for (const bodyFails of [false, true]) {
                         },
                     ],
                     async () => {
-                        assert.equal(
-                            observations.at(-1)?.bodyStatus,
-                            bodyFails ? "FAILED" : "PASSED",
-                        );
+                        assert.equal(observations.at(-1)?.bodyStatus, bodyFails ? "FAILED" : "PASSED");
                         order.push("cleanup");
                         assert.ok(key.every((byte) => byte === 0));
                         if (cleanupFails) throw secondary;
@@ -340,9 +335,7 @@ test("worst finite summaries and healthy54 records retain original caps", () => 
         return summary;
     });
     const output = vault.collectDarwinDiagnostics(
-        summaries.map((summary) =>
-            Buffer.from("VERIQ_D1_DIAGNOSTICS " + JSON.stringify(summary) + "\n"),
-        ),
+        summaries.map((summary) => Buffer.from("VERIQ_D1_DIAGNOSTICS " + JSON.stringify(summary) + "\n")),
     );
     assert.equal(output.fixtures.length, 2);
     assert.ok(Buffer.byteLength(JSON.stringify(output.fixtures)) <= 16384);
@@ -374,8 +367,7 @@ test("finite returned facts and independent line record fixture caps", () => {
     refusal.fail("REFUSED");
     assert.equal(refusal.finish(1).operationContext?.helperExit, "UNKNOWN");
     const limit = vault.createDarwinDiagnosticFilter();
-    for (let index = 0; index < 97; index++)
-        limit.push(frame({ schemaVersion: 1, stage: "RANDOM", state: "passed" }));
+    for (let index = 0; index < 97; index++) limit.push(frame({ schemaVersion: 1, stage: "RANDOM", state: "passed" }));
     const end = limit.finish(1);
     assert.equal(end.records.length, 96);
     assert.equal(end.incomplete, true);
@@ -517,12 +509,7 @@ const denialStages = [
     "cipher-stat",
     "cipher-read",
 ];
-const nativeRecord = (
-    nativeOperation = "seed",
-    substage = "input",
-    state = "failed",
-    facts = {},
-) => ({
+const nativeRecord = (nativeOperation = "seed", substage = "input", state = "failed", facts = {}) => ({
     schemaVersion: 1,
     stage: "OP",
     state,
@@ -571,9 +558,7 @@ test("native entered-only remains incomplete with unknown terminal and helper", 
  */
 test("native optional returned facts accept exact finite boundaries", () => {
     const records = [
-        ...[-2147483648, 0, 2147483647].map((osStatus) =>
-            nativeRecord("seed", "trusted", "failed", { osStatus }),
-        ),
+        ...[-2147483648, 0, 2147483647].map((osStatus) => nativeRecord("seed", "trusted", "failed", { osStatus })),
         ...[0, 2147483647].map((errno) => nativeRecord("seed", "cipher-open", "failed", { errno })),
         ...[false, true].map((predicate) => nativeRecord("seed", "value", "failed", { predicate })),
         ...["poll-error", "read-error"].map((eventFailure) =>
@@ -611,9 +596,7 @@ test("native codec rejects incompatible states stages facts and coerced values",
         ...[null, 2147483648, -2147483649, 0.5].map((osStatus) =>
             nativeRecord("seed", "trusted", "failed", { osStatus }),
         ),
-        ...[-1, 2147483648, "5", null].map((errno) =>
-            nativeRecord("seed", "cipher-read", "failed", { errno }),
-        ),
+        ...[-1, 2147483648, "5", null].map((errno) => nativeRecord("seed", "cipher-read", "failed", { errno })),
         nativeRecord("read-denial", "event-after", "failed", { eventFailure: "poll-error" }),
         nativeRecord("read-denial", "event-after", "failed", { eventFailure: "eof", errno: 0 }),
         nativeRecord("read-denial", "event-after", "failed", { errno: 5 }),
@@ -775,9 +758,7 @@ test("native legal worst case74 and case62 fit unchanged fixture and job caps", 
                 ...(["CREATE_STATE", "KEYCHAIN_CREATE", "CLEANUP_DELETE"].includes(stage)
                     ? { created: true, storeReferencePresent: true }
                     : {}),
-                ...(stage === "KEYCHAIN_STAT"
-                    ? { regularFile: true, ownerMatches: true, privateMode: true }
-                    : {}),
+                ...(stage === "KEYCHAIN_STAT" ? { regularFile: true, ownerMatches: true, privateMode: true } : {}),
             });
         }
         for (let index = 0; index < (fixture === 1 ? 8 : 2); index++) {
@@ -852,9 +833,7 @@ test("native legal worst case74 and case62 fit unchanged fixture and job caps", 
         return summary;
     });
     const output = vault.collectDarwinDiagnostics(
-        summaries.map((summary) =>
-            Buffer.from("VERIQ_D1_DIAGNOSTICS " + JSON.stringify(summary) + "\n"),
-        ),
+        summaries.map((summary) => Buffer.from("VERIQ_D1_DIAGNOSTICS " + JSON.stringify(summary) + "\n")),
     );
     assert.equal(output.rejected, false);
     assert.equal(output.fixtures.length, 2);
@@ -881,11 +860,7 @@ test("native terminal cannot close another operation entered boundary", () => {
  * helper 读取事实必须经过真实共享过滤器和工作流消费器，来源固定且仅接纳首次选中调用；合成状态只验证数值约定与隐私拒绝
  * ，不能被解释为本机已经执行系统查询或证明真实授权成功。
  */
-const helperRecord = (
-    read = "inspection",
-    helper: object | null = { phase: "entry" },
-    transport = "AVAILABLE",
-) => ({
+const helperRecord = (read = "inspection", helper: object | null = { phase: "entry" }, transport = "AVAILABLE") => ({
     schemaVersion: 1,
     stage: "HR",
     state: "observed",
@@ -937,9 +912,7 @@ const helperRecords = [
         unlockedBefore: true,
         unlockedAfter: true,
     }),
-    ...["MISSING", "REJECTED", "INCOMPLETE"].map((transport) =>
-        helperRecord("inspection", null, transport),
-    ),
+    ...["MISSING", "REJECTED", "INCOMPLETE"].map((transport) => helperRecord("inspection", null, transport)),
 ];
 for (const [index, record] of helperRecords.entries()) {
     test(`helper evidence canonical finite record ${index}`, () => {
@@ -1021,17 +994,7 @@ test("helper codec rejects coerced extras inconsistent phase and provenance", ()
         }),
         nativeRecord("seed", "read", "failed", { controllerExit: 0, controllerReply: "OTHER" }),
         nativeRecord("seed", "helper-frame", "failed", { controllerExit: 0 }),
-        ...[
-            "key",
-            "value",
-            "account",
-            "path",
-            "error",
-            "env",
-            "frame",
-            "marker",
-            "response",
-        ].flatMap((key) => [
+        ...["key", "value", "account", "path", "error", "env", "frame", "marker", "response"].flatMap((key) => [
             { ...helperRecords[0], [key]: "SECRET_CANARY" },
             helperRecord("inspection", { phase: "entry", [key]: "SECRET_CANARY" }),
         ]),
@@ -1066,10 +1029,7 @@ test("helper admission rejects duplicates and maintains primary cleanup truth", 
     assert.equal(summary.incomplete, true);
     assert.equal(summary.operationContext?.operation, "read-denial");
     assert.equal(summary.nodeCase?.secondary, "CLEANUP");
-    assert.equal(
-        collect({ ...summary, records: [helperRecords[17], helperRecords[17]] }).rejected,
-        true,
-    );
+    assert.equal(collect({ ...summary, records: [helperRecords[17], helperRecords[17]] }).rejected, true);
 });
 
 /**
@@ -1275,9 +1235,7 @@ test("first remove status preserves pre-call unknown and exact original API resu
         return summary;
     });
     const output = vault.collectDarwinDiagnostics(
-        summaries.map((summary) =>
-            Buffer.from("VERIQ_D1_DIAGNOSTICS " + JSON.stringify(summary) + "\n"),
-        ),
+        summaries.map((summary) => Buffer.from("VERIQ_D1_DIAGNOSTICS " + JSON.stringify(summary) + "\n")),
     );
     assert.deepEqual(output.fixtures, summaries);
     assert.equal(output.rejected, false);
@@ -1302,15 +1260,9 @@ test("first remove codec rejects false completion malformed facts and duplicate 
         ...["-50", true, false, null, -2147483649, 2147483648, 0.5].map((osStatus) =>
             nativeRecord("remove", "item-delete", "failed", { osStatus }),
         ),
-        ...[
-            "errno",
-            "predicate",
-            "eventFailure",
-            "controllerExit",
-            "controllerReply",
-            "account",
-            "key",
-        ].map((key) => nativeRecord("remove", "item-delete", "failed", { [key]: "SECRET_CANARY" })),
+        ...["errno", "predicate", "eventFailure", "controllerExit", "controllerReply", "account", "key"].map((key) =>
+            nativeRecord("remove", "item-delete", "failed", { [key]: "SECRET_CANARY" }),
+        ),
         nativeRecord("seed", "item-delete", "failed", { osStatus: -50 }),
         nativeRecord("read-denial", "item-delete", "failed", { osStatus: -50 }),
     ];
@@ -1326,12 +1278,7 @@ test("first remove codec rejects false completion malformed facts and duplicate 
         assert.equal(output.rejected, true);
         assert.ok(!JSON.stringify(output).includes("SECRET_CANARY"));
     }
-    for (const records of [
-        [passed],
-        [entered, entered],
-        [entered, passed, passed],
-        [entered, passed, entered],
-    ]) {
+    for (const records of [[passed], [entered, entered], [entered, passed, passed], [entered, passed, entered]]) {
         const filter = vault.createDarwinDiagnosticFilter();
         for (const record of records) filter.push(frame(record));
         const summary = filter.finish(1);

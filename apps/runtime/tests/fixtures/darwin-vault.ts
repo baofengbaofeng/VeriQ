@@ -13,9 +13,7 @@ import { readFile, lstat } from "node:fs/promises";
 export const nativePaths = Object.freeze({
     production: fileURLToPath(new URL("../../build/vault-darwin/veriq_agent", import.meta.url)),
     test: fileURLToPath(new URL("../../build/vault-darwin-test/veriq_agent", import.meta.url)),
-    controller: fileURLToPath(
-        new URL("../../build/vault-darwin-test/veriq_keychain_controller", import.meta.url),
-    ),
+    controller: fileURLToPath(new URL("../../build/vault-darwin-test/veriq_keychain_controller", import.meta.url)),
     memory: fileURLToPath(new URL("../../build/vault-darwin-test/veriq_acl_test", import.meta.url)),
 });
 
@@ -56,11 +54,7 @@ type Observation = {
  * 测试管道沿用正式协议的单帧与五秒上限，并独立等待 close 事实才完成调用；超时只终止本次子进程，任何秘密响应在断言前转
  * 换为布尔或固定状态，原始标准错误完全不进入测试报告。
  */
-export async function nativeCall(
-    path: string,
-    frame: string,
-    options: Options = {},
-): Promise<Observation> {
+export async function nativeCall(path: string, frame: string, options: Options = {}): Promise<Observation> {
     requireMac();
     if (!Object.values(nativePaths).includes(path)) throw new Error("DARWIN_VAULT_MEMBER_INVALID");
     const timeoutMs = options.timeoutMs ?? 5000;
@@ -147,9 +141,7 @@ export async function runMemoryChecks(): Promise<boolean> {
     }
     const result = await nativeCall(nativePaths.memory, "");
     const ok =
-        result.exitConfirmed &&
-        result.code === 0 &&
-        result.bytes.equals(Buffer.from("ACL_MEMORY_CHECKS_PASSED\n"));
+        result.exitConfirmed && result.code === 0 && result.bytes.equals(Buffer.from("ACL_MEMORY_CHECKS_PASSED\n"));
     result.bytes.fill(0);
     return ok;
 }
@@ -187,14 +179,7 @@ const diagnosticStages = [
     "CLEANUP_DELETE",
     "CLEANUP_DIRECTORY",
 ] as const;
-const diagnosticFailures = [
-    "REFUSED",
-    "DEADLINE",
-    "PROCESS_ERROR",
-    "CLOSED",
-    "PROTOCOL",
-    "EXIT_UNCONFIRMED",
-] as const;
+const diagnosticFailures = ["REFUSED", "DEADLINE", "PROCESS_ERROR", "CLOSED", "PROTOCOL", "EXIT_UNCONFIRMED"] as const;
 const diagnosticSignals = ["SIGKILL", "SIGTERM", "SIGABRT", "SIGSEGV", "SIGPIPE", "OTHER"] as const;
 type DiagnosticFailure = (typeof diagnosticFailures)[number];
 type DiagnosticRecord = {
@@ -327,11 +312,7 @@ type OperationContext = {
 function caseFacts(value: unknown): DarwinCaseFacts | undefined {
     if (!value || typeof value !== "object" || Array.isArray(value)) return;
     const item = value as DarwinCaseFacts;
-    if (
-        Object.keys(item).sort().join(",") !==
-        "bodyStatus,cleanupStatus,primary,secondary,wipeStatus"
-    )
-        return;
+    if (Object.keys(item).sort().join(",") !== "bodyStatus,cleanupStatus,primary,secondary,wipeStatus") return;
     for (const key of ["bodyStatus", "cleanupStatus", "wipeStatus"] as const)
         if (!["NOT_RECORDED", "PASSED", "FAILED"].includes(item[key])) return;
     if (
@@ -350,8 +331,7 @@ function caseFacts(value: unknown): DarwinCaseFacts | undefined {
                 : "NONE";
     const wipe = primary === "BODY" && item.wipeStatus === "FAILED";
     const cleanup = primary !== "CLEANUP" && item.cleanupStatus === "FAILED";
-    const secondary =
-        wipe && cleanup ? "WIPE_AND_CLEANUP" : wipe ? "WIPE" : cleanup ? "CLEANUP" : "NONE";
+    const secondary = wipe && cleanup ? "WIPE_AND_CLEANUP" : wipe ? "WIPE" : cleanup ? "CLEANUP" : "NONE";
     if (item.primary !== primary || item.secondary !== secondary) return;
     return {
         bodyStatus: item.bodyStatus,
@@ -370,8 +350,7 @@ function operationContext(value: unknown): OperationContext | undefined {
     if (!value || typeof value !== "object" || Array.isArray(value)) return;
     const item = value as OperationContext;
     if (
-        Object.keys(item).sort().join(",") !==
-            "category,helperExit,operation,ordinal,provenance,shape,verb" ||
+        Object.keys(item).sort().join(",") !== "category,helperExit,operation,ordinal,provenance,shape,verb" ||
         !diagnosticOperations.includes(item.operation) ||
         !diagnosticVerbs.includes(item.verb) ||
         !Number.isInteger(item.ordinal) ||
@@ -538,14 +517,9 @@ function nativeOperationRecord(item: Record<string, unknown>): DiagnosticRecord 
         !["entered", "passed", "failed"].includes(item.state as string)
     )
         return;
-    const facts = [
-        "osStatus",
-        "errno",
-        "predicate",
-        "eventFailure",
-        "controllerExit",
-        "controllerReply",
-    ].filter((key) => key in item);
+    const facts = ["osStatus", "errno", "predicate", "eventFailure", "controllerExit", "controllerReply"].filter(
+        (key) => key in item,
+    );
     // 移除事实只绑定首次原始删除调用，入口及调用前失败均不得携带状态，成功必须明确保存系统零值；没有返回值的调用阶段保
     // 留失败未知，不允许借用 seed 或读取拒绝的字段来补全删除证明。
     if (item.nativeOperation === "remove") {
@@ -576,11 +550,7 @@ function nativeOperationRecord(item: Record<string, unknown>): DiagnosticRecord 
         };
     }
     if (item.state === "entered") {
-        if (
-            item.substage !== (item.nativeOperation === "seed" ? "input" : "baseline") ||
-            facts.length
-        )
-            return;
+        if (item.substage !== (item.nativeOperation === "seed" ? "input" : "baseline") || facts.length) return;
     } else if (item.state === "passed") {
         if (item.substage !== "done" || facts.length) return;
     } else if (item.substage === "done") return;
@@ -604,28 +574,22 @@ function nativeOperationRecord(item: Record<string, unknown>): DiagnosticRecord 
         if (
             key === "osStatus"
                 ? !nativeStatusStages.includes(item.substage)
-                : !["cipher-open", "cipher-stat", "cipher-read", ...nativeEventStages].includes(
-                      item.substage,
-                  )
+                : !["cipher-open", "cipher-stat", "cipher-read", ...nativeEventStages].includes(item.substage)
         )
             return;
         safe[key] = value;
     }
     if ("predicate" in item) {
-        if (typeof item.predicate !== "boolean" || !nativePredicateStages.includes(item.substage))
-            return;
+        if (typeof item.predicate !== "boolean" || !nativePredicateStages.includes(item.substage)) return;
         safe.predicate = item.predicate;
     }
     if ("eventFailure" in item) {
         if (
             !nativeEventStages.includes(item.substage) ||
-            !["poll-error", "read-error", "eof", "marker", "deadline"].includes(
-                item.eventFailure as string,
-            )
+            !["poll-error", "read-error", "eof", "marker", "deadline"].includes(item.eventFailure as string)
         )
             return;
-        if (["poll-error", "read-error"].includes(item.eventFailure as string) !== "errno" in item)
-            return;
+        if (["poll-error", "read-error"].includes(item.eventFailure as string) !== "errno" in item) return;
         safe.eventFailure = item.eventFailure as NonNullable<DiagnosticRecord["eventFailure"]>;
     } else if (nativeEventStages.includes(item.substage) && "errno" in item) return;
     if ("controllerExit" in item || "controllerReply" in item) {
@@ -637,17 +601,11 @@ function nativeOperationRecord(item: Record<string, unknown>): DiagnosticRecord 
                     !Number.isInteger(item.controllerExit) ||
                     item.controllerExit < 0 ||
                     item.controllerExit > 255)) ||
-            !["EMPTY", "OK_FRAME_SHAPE", "KNOWN_V1_STATUS", "OTHER"].includes(
-                item.controllerReply as string,
-            )
+            !["EMPTY", "OK_FRAME_SHAPE", "KNOWN_V1_STATUS", "OTHER"].includes(item.controllerReply as string)
         )
             return;
-        safe.controllerExit = item.controllerExit as NonNullable<
-            DiagnosticRecord["controllerExit"]
-        >;
-        safe.controllerReply = item.controllerReply as NonNullable<
-            DiagnosticRecord["controllerReply"]
-        >;
+        safe.controllerExit = item.controllerExit as NonNullable<DiagnosticRecord["controllerExit"]>;
+        safe.controllerReply = item.controllerReply as NonNullable<DiagnosticRecord["controllerReply"]>;
     }
     return safe;
 }
@@ -657,9 +615,7 @@ function nativeOperationRecord(item: Record<string, unknown>): DiagnosticRecord 
  * ，第二次调用或重复终态不能冒充同一次删除的补充事实。
  */
 function validRemoveSequence(records: readonly DiagnosticRecord[]): boolean {
-    const removes = records.filter(
-        (record) => record.stage === "OP" && record.nativeOperation === "remove",
-    );
+    const removes = records.filter((record) => record.stage === "OP" && record.nativeOperation === "remove");
     return (
         removes.length <= 2 &&
         (!removes.length || removes[0]!.state === "entered") &&
@@ -675,16 +631,9 @@ function helperReadRecord(item: Record<string, unknown>): DiagnosticRecord | und
     if (
         Object.keys(item).some(
             (key) =>
-                ![
-                    "schemaVersion",
-                    "stage",
-                    "state",
-                    "source",
-                    "read",
-                    "admission",
-                    "transport",
-                    "helper",
-                ].includes(key),
+                !["schemaVersion", "stage", "state", "source", "read", "admission", "transport", "helper"].includes(
+                    key,
+                ),
         ) ||
         item.schemaVersion !== 1 ||
         item.stage !== "HR" ||
@@ -721,8 +670,7 @@ function helperReadRecord(item: Record<string, unknown>): DiagnosticRecord | und
         : item.read === "inspection"
           ? [...common, "read", "array", "unique", "data32", "encoding", "done"]
           : [...common, "channel", "before", "read", "after", "done"];
-    if (h.source !== "TEST_HELPER" || typeof h.phase !== "string" || !phases.includes(h.phase))
-        return;
+    if (h.source !== "TEST_HELPER" || typeof h.phase !== "string" || !phases.includes(h.phase)) return;
     const fields: string[] = [];
     // 新流程的数组和唯一事实来自同一次元数据查询，唯一同时包含类型、精确服务账户与引用守卫；旧记录没有查询槽时沿用原语
     // 义，不能把新流程查询错误塞进秘密读取状态以换取合法记录。
@@ -739,10 +687,7 @@ function helperReadRecord(item: Record<string, unknown>): DiagnosticRecord | und
                 else if (n < index) return;
             }
         }
-        if (
-            item.read === "inspection" &&
-            ["read", "data32", "encoding", "done"].includes(h.phase)
-        ) {
+        if (item.read === "inspection" && ["read", "data32", "encoding", "done"].includes(h.phase)) {
             fields.push("readStatus");
             const predicates = ["data32", "encoding"];
             const index = h.phase === "done" ? 2 : predicates.indexOf(h.phase);
@@ -758,8 +703,7 @@ function helperReadRecord(item: Record<string, unknown>): DiagnosticRecord | und
         }
     }
     if (item.read === "inspection" && !lookupFlow) {
-        if (["read", "array", "unique", "data32", "encoding", "done"].includes(h.phase))
-            fields.push("readStatus");
+        if (["read", "array", "unique", "data32", "encoding", "done"].includes(h.phase)) fields.push("readStatus");
         const predicates = ["array", "unique", "data32", "encoding"];
         const index = h.phase === "done" ? 4 : predicates.indexOf(h.phase);
         if (index >= 0) {
@@ -801,12 +745,7 @@ function helperReadRecord(item: Record<string, unknown>): DiagnosticRecord | und
         }
         const value = h[key];
         if (key.endsWith("Status")) {
-            if (
-                typeof value !== "number" ||
-                !Number.isInteger(value) ||
-                value < -2147483648 ||
-                value > 2147483647
-            )
+            if (typeof value !== "number" || !Number.isInteger(value) || value < -2147483648 || value > 2147483647)
                 return;
         } else if (typeof value !== "boolean") return;
         facts[key] = value as number | boolean;
@@ -867,13 +806,7 @@ function diagnosticRecord(value: unknown): DiagnosticRecord | undefined {
             return;
         safe[key] = number;
     }
-    for (const key of [
-        "created",
-        "storeReferencePresent",
-        "regularFile",
-        "ownerMatches",
-        "privateMode",
-    ] as const) {
+    for (const key of ["created", "storeReferencePresent", "regularFile", "ownerMatches", "privateMode"] as const) {
         if (!(key in item)) continue;
         if (typeof item[key] !== "boolean") return;
         safe[key] = item[key];
@@ -923,12 +856,8 @@ export function createDarwinDiagnosticFilter() {
         incomplete = true;
         metadataStopped = true;
     };
-    const capture = (
-        category: OperationContext["category"],
-        provenance: OperationContext["provenance"],
-    ) => {
-        if (!metadataStopped && current && !firstOperation)
-            firstOperation = { ...current, category, provenance };
+    const capture = (category: OperationContext["category"], provenance: OperationContext["provenance"]) => {
+        if (!metadataStopped && current && !firstOperation) firstOperation = { ...current, category, provenance };
     };
     return {
         /**
@@ -963,10 +892,7 @@ export function createDarwinDiagnosticFilter() {
             if (
                 current.operation !== "run" ||
                 (code !== "UNKNOWN" &&
-                    (typeof code !== "number" ||
-                        !Number.isInteger(code) ||
-                        code < 0 ||
-                        code > 255)) ||
+                    (typeof code !== "number" || !Number.isInteger(code) || code < 0 || code > 255)) ||
                 !responseShapes.includes(shape as OperationContext["shape"]) ||
                 typeof valid !== "boolean"
             ) {
@@ -1017,16 +943,13 @@ export function createDarwinDiagnosticFilter() {
                         try {
                             const item = diagnosticRecord(
                                 JSON.parse(
-                                    new TextDecoder("utf-8", { fatal: true }).decode(
-                                        pending.subarray(0, length),
-                                    ),
+                                    new TextDecoder("utf-8", { fatal: true }).decode(pending.subarray(0, length)),
                                 ),
                             );
                             if (
                                 !item ||
                                 (item.stage === "HR" && admittedReads.has(item.read!)) ||
-                                (item.nativeOperation === "remove" &&
-                                    !validRemoveSequence([...records, item]))
+                                (item.nativeOperation === "remove" && !validRemoveSequence([...records, item]))
                             )
                                 rejected = true;
                             else {
@@ -1075,15 +998,11 @@ export function createDarwinDiagnosticFilter() {
         close(exitCode: number | null, exitSignal: string | null) {
             closeObserved = true;
             code =
-                Number.isInteger(exitCode) && exitCode !== null && exitCode >= 0 && exitCode <= 255
-                    ? exitCode
-                    : null;
+                Number.isInteger(exitCode) && exitCode !== null && exitCode >= 0 && exitCode <= 255 ? exitCode : null;
             signal =
                 exitSignal === null
                     ? null
-                    : diagnosticSignals.includes(
-                            exitSignal as NonNullable<DiagnosticSummary["signal"]>,
-                        )
+                    : diagnosticSignals.includes(exitSignal as NonNullable<DiagnosticSummary["signal"]>)
                       ? (exitSignal as DiagnosticSummary["signal"])
                       : "OTHER";
         },
@@ -1094,8 +1013,7 @@ export function createDarwinDiagnosticFilter() {
         finish(fixture: number): DiagnosticSummary {
             const entered = new Set<string>();
             for (const record of records) {
-                const boundary =
-                    record.stage === "OP" ? `OP:${record.nativeOperation}` : record.stage;
+                const boundary = record.stage === "OP" ? `OP:${record.nativeOperation}` : record.stage;
                 if (record.state === "entered") entered.add(boundary);
                 else entered.delete(boundary);
             }
@@ -1171,20 +1089,15 @@ export function collectDarwinDiagnostics(streams: Buffer[]) {
                         typeof item.rejected !== "boolean" ||
                         typeof item.incomplete !== "boolean" ||
                         typeof item.closeObserved !== "boolean" ||
-                        (item.firstFailure !== null &&
-                            !diagnosticFailures.includes(item.firstFailure)) ||
-                        (item.code !== null &&
-                            (!Number.isInteger(item.code) || item.code < 0 || item.code > 255)) ||
+                        (item.firstFailure !== null && !diagnosticFailures.includes(item.firstFailure)) ||
+                        (item.code !== null && (!Number.isInteger(item.code) || item.code < 0 || item.code > 255)) ||
                         (item.signal !== null && !diagnosticSignals.includes(item.signal)) ||
                         !Array.isArray(item.records) ||
                         item.records.length > diagnosticRecordLimit
                     )
                         throw new Error();
                     const node = "nodeCase" in item ? caseFacts(item.nodeCase) : undefined;
-                    const context =
-                        "operationContext" in item
-                            ? operationContext(item.operationContext)
-                            : undefined;
+                    const context = "operationContext" in item ? operationContext(item.operationContext) : undefined;
                     if (
                         ("nodeCase" in item && !node) ||
                         ("operationContext" in item && !context) ||
@@ -1195,16 +1108,14 @@ export function collectDarwinDiagnostics(streams: Buffer[]) {
                     if (records.some((record) => !record)) throw new Error();
                     if (
                         !validRemoveSequence(records as DiagnosticRecord[]) ||
-                        (records.filter((record) => record?.nativeOperation === "remove").length ===
-                            1 &&
+                        (records.filter((record) => record?.nativeOperation === "remove").length === 1 &&
                             !item.incomplete)
                     )
                         throw new Error();
                     const reads = records.filter((record) => record?.stage === "HR");
                     if (
                         new Set(reads.map((record) => record!.read)).size !== reads.length ||
-                        (reads.some((record) => record!.transport !== "AVAILABLE") &&
-                            !item.incomplete)
+                        (reads.some((record) => record!.transport !== "AVAILABLE") && !item.incomplete)
                     )
                         throw new Error();
                     const safe: DiagnosticSummary = {
@@ -1220,10 +1131,8 @@ export function collectDarwinDiagnostics(streams: Buffer[]) {
                         ...(node ? { nodeCase: node } : {}),
                         ...(context ? { operationContext: context } : {}),
                     };
-                    if (Buffer.byteLength(JSON.stringify({ ...safe, records: [] })) > 512)
-                        throw new Error();
-                    if (Buffer.byteLength(JSON.stringify([...fixtures, safe])) > 16384)
-                        throw new Error();
+                    if (Buffer.byteLength(JSON.stringify({ ...safe, records: [] })) > 512) throw new Error();
+                    if (Buffer.byteLength(JSON.stringify([...fixtures, safe])) > 16384) throw new Error();
                     fixtures.push(safe);
                 } catch {
                     rejected = true;
@@ -1330,12 +1239,7 @@ export async function dedicatedFixture() {
         if (newline < 0) return;
         try {
             const reply: unknown = JSON.parse(pending.subarray(0, newline).toString("utf8"));
-            if (
-                !reply ||
-                typeof reply !== "object" ||
-                Array.isArray(reply) ||
-                newline !== pending.length - 1
-            )
+            if (!reply || typeof reply !== "object" || Array.isArray(reply) || newline !== pending.length - 1)
                 throw new Error();
             pending.fill(0);
             pending = Buffer.alloc(0);
@@ -1392,9 +1296,7 @@ export async function dedicatedFixture() {
             pending.fill(0);
             await confirmedExit();
             throw new Error(
-                mutation
-                    ? "DARWIN_VAULT_MUTATION_UNCONFIRMED"
-                    : "DARWIN_VAULT_CONTROLLER_OPERATION_FAILED",
+                mutation ? "DARWIN_VAULT_MUTATION_UNCONFIRMED" : "DARWIN_VAULT_CONTROLLER_OPERATION_FAILED",
             );
         } finally {
             complete();
@@ -1411,26 +1313,14 @@ export async function dedicatedFixture() {
         }
         throw new Error("DARWIN_VAULT_SESSION_REFUSED");
     }
-    const call = async (
-        operation: string,
-        profile: string,
-        version: string,
-        key?: Buffer,
-        fault?: string,
-    ) => {
+    const call = async (operation: string, profile: string, version: string, key?: Buffer, fault?: string) => {
         const reply = await command(
             "run",
             {
                 frame: `V1 ${operation} ${profile} ${version}${key ? " " + key.toString("base64url") : ""}\n`,
                 fault,
             },
-            operation === "get"
-                ? "GET"
-                : operation === "set"
-                  ? "SET"
-                  : operation === "delete"
-                    ? "DELETE"
-                    : "UNKNOWN",
+            operation === "get" ? "GET" : operation === "set" ? "SET" : operation === "delete" ? "DELETE" : "UNKNOWN",
         );
         if (
             reply.exitConfirmed !== true ||
@@ -1439,10 +1329,7 @@ export async function dedicatedFixture() {
             reply.response.length > 512
         ) {
             diagnostics.helper(
-                typeof reply.code === "number" &&
-                    Number.isInteger(reply.code) &&
-                    reply.code >= 0 &&
-                    reply.code <= 255
+                typeof reply.code === "number" && Number.isInteger(reply.code) && reply.code >= 0 && reply.code <= 255
                     ? reply.code
                     : "UNKNOWN",
                 reply.response === "" ? "EMPTY" : "UNKNOWN",
@@ -1486,9 +1373,7 @@ export async function dedicatedFixture() {
         async settle(body: () => Promise<void>, wipes: (() => void)[]) {
             settling = true;
             try {
-                await settleDarwinCase(body, wipes, cleanup, (facts) =>
-                    diagnostics.nodeCase(facts),
-                );
+                await settleDarwinCase(body, wipes, cleanup, (facts) => diagnostics.nodeCase(facts));
             } finally {
                 settling = false;
                 emitDiagnostics();
@@ -1501,18 +1386,16 @@ export async function dedicatedFixture() {
         async status(operation: string, profile: string, version: string, key?: Buffer) {
             const result = await call(operation, profile, version, key);
             try {
-                const match =
-                    /^V1 (ok|missing|failed|locked|unavailable|mutation-unconfirmed)\n$/.exec(
-                        result.bytes.toString("ascii"),
-                    );
+                const match = /^V1 (ok|missing|failed|locked|unavailable|mutation-unconfirmed)\n$/.exec(
+                    result.bytes.toString("ascii"),
+                );
                 diagnostics.helper(
                     result.code,
                     result.bytes.length === 0 ? "EMPTY" : match ? "PARSED_V1" : "INVALID",
                     result.code === 0 && !!match,
                 );
                 if (result.code !== 0 || !match) {
-                    if (operation === "set" || operation === "delete")
-                        return "mutation-unconfirmed";
+                    if (operation === "set" || operation === "delete") return "mutation-unconfirmed";
                     throw new Error("DARWIN_VAULT_RESPONSE_INVALID");
                 }
                 return match[1];
@@ -1575,11 +1458,7 @@ export async function dedicatedFixture() {
                 profile,
                 version,
             });
-            return (
-                reply.valueUnchanged === true &&
-                reply.aclUnchanged === true &&
-                reply.attributesUnchanged === true
-            );
+            return reply.valueUnchanged === true && reply.aclUnchanged === true && reply.attributesUnchanged === true;
         },
         /**
          * 独立系统拒绝检查要求被拒绝的 helper 实际尝试秘密读取并观察自身前后解锁，控制器另行核验真实状态及值、ACL、属
@@ -1624,11 +1503,7 @@ export async function dedicatedFixture() {
             deletion.bytes.fill(0);
             const missing = await call("get", profile, version);
             try {
-                return (
-                    deletionUncertain &&
-                    missing.code === 0 &&
-                    missing.bytes.equals(Buffer.from("V1 missing\n"))
-                );
+                return deletionUncertain && missing.code === 0 && missing.bytes.equals(Buffer.from("V1 missing\n"));
             } finally {
                 missing.bytes.fill(0);
             }

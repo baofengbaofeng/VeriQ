@@ -8,8 +8,7 @@ import { testEngine } from "../../../tests/e2e/engine.ts";
  * 不生产新候选、不写发行批准文件，也不依赖 renderer 提供版本来绕过库存验证。
  */
 test(
-    "trusted engine selection verifies the selected in" +
-        "ventory and rejects incomplete or wrong identities",
+    "trusted engine selection verifies the selected in" + "ventory and rejects incomplete or wrong identities",
     async () => {
         const root = resolve("../..");
         const existing = await testEngine(root);

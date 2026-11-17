@@ -104,9 +104,7 @@ export function installLifecycleMenu(actions: {
  */
 export function reportLifecycleError(error: unknown): void {
     const code =
-        error instanceof Error && /^[A-Z0-9_]{1,100}$/.test(error.message)
-            ? error.message
-            : "DESKTOP_LIFECYCLE_FAILED";
+        error instanceof Error && /^[A-Z0-9_]{1,100}$/.test(error.message) ? error.message : "DESKTOP_LIFECYCLE_FAILED";
     console.error("VeriQ desktop lifecycle failed:", code);
     dialog.showErrorBox(
         "VeriQ",

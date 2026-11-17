@@ -91,8 +91,7 @@ export class TrustStore {
             if (cache.version !== 2 || !Object.hasOwn(cache.issuers, id)) throw new Error();
             const value = cache.issuers[id]!;
             const result = validateIssuer(value);
-            for (const key of result.keys)
-                if (cache.revokedFingerprints.includes(key.fingerprint)) key.revoked = true;
+            for (const key of result.keys) if (cache.revokedFingerprints.includes(key.fingerprint)) key.revoked = true;
             return result;
         } catch {
             throw new Error("ISSUER_NOT_TRUSTED");
@@ -147,27 +146,22 @@ export class TrustStore {
                       };
             if (cache.origins[origin] && cache.origins[origin] !== value.issuerId && !explicit)
                 throw new Error("ISSUER_REBIND_REQUIRED");
-            const prior = Object.hasOwn(cache.issuers, value.issuerId)
-                ? cache.issuers[value.issuerId]
-                : undefined;
+            const prior = Object.hasOwn(cache.issuers, value.issuerId) ? cache.issuers[value.issuerId] : undefined;
             const authenticated = Object.hasOwn(cache.authenticated, value.issuerId)
                 ? cache.authenticated[value.issuerId]
                 : undefined;
             if (explicit) {
                 const key = value.keys[0]!;
-                if (cache.revokedFingerprints.includes(key.fingerprint))
-                    throw new Error("ISSUER_KEY_REVOKED");
+                if (cache.revokedFingerprints.includes(key.fingerprint)) throw new Error("ISSUER_KEY_REVOKED");
                 const existing = prior?.keys.find((k) => k.keyId === key.keyId);
-                if (existing && existing.publicKey !== key.publicKey)
-                    throw new Error("ISSUER_REPLACEMENT");
+                if (existing && existing.publicKey !== key.publicKey) throw new Error("ISSUER_REPLACEMENT");
                 value = {
                     issuerId: value.issuerId,
                     revision: authenticated?.revision ?? 1,
                     keys: [...(prior?.keys.filter((k) => k.keyId !== key.keyId) ?? []), key],
                 };
             } else {
-                if (authenticated && value.revision < authenticated.revision)
-                    throw new Error("ISSUER_ROLLBACK");
+                if (authenticated && value.revision < authenticated.revision) throw new Error("ISSUER_ROLLBACK");
                 if (
                     authenticated &&
                     value.revision === authenticated.revision &&

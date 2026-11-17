@@ -83,9 +83,7 @@ it("HTTP 200 with missing persistence is FAILED and eventual queries remain GET 
     );
     expect(result.status).toBe("FAILED");
     expect(result.assertions[0]?.actual).toEqual({ present: true, value: false });
-    expect(f.requests.filter((x) => x.path === "/missing").every((x) => x.method === "GET")).toBe(
-        true,
-    );
+    expect(f.requests.filter((x) => x.path === "/missing").every((x) => x.method === "GET")).toBe(true);
 });
 it("eventual consistency succeeds after read-only observations", async () => {
     expect(sdk).toHaveProperty("executeStep");

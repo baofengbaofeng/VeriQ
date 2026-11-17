@@ -16,14 +16,7 @@ export default defineConfig({
         commonjsOptions: { include: [/node_modules/, /validators\.cjs$/] },
         lib: { entry: resolve("src/desktop.ts"), formats: ["es"], fileName: () => "index.js" },
         rollupOptions: {
-            external: [
-                "react",
-                "react/jsx-runtime",
-                "react-dom",
-                "@tanstack/react-query",
-                "i18next",
-                "react-i18next",
-            ],
+            external: ["react", "react/jsx-runtime", "react-dom", "@tanstack/react-query", "i18next", "react-i18next"],
         },
         minify: true,
     },

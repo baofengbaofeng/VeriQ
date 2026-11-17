@@ -56,11 +56,9 @@ export function initialResult(): OfflineResultV1 {
     };
 }
 function child(script: string, dir: string) {
-    const process = spawn(
-        globalThis.process.execPath,
-        ["--import", "tsx", "--input-type=module", "-e", script, dir],
-        { stdio: ["pipe", "pipe", "pipe"] },
-    );
+    const process = spawn(globalThis.process.execPath, ["--import", "tsx", "--input-type=module", "-e", script, dir], {
+        stdio: ["pipe", "pipe", "pipe"],
+    });
     const lines = createInterface({ input: process.stdout })[Symbol.asyncIterator]();
     let errors = "";
     process.stderr.on("data", (b) => (errors += b));
@@ -81,97 +79,91 @@ const common =
     `ss.argv[1];process.stdin._handle.setBlocking(true);const gate=()=>readSync(0,Buffer.alloc(1),0,1,null);const s` +
     `ay=x=>console.log(JSON.stringify(x));`;
 for (const winner of ["host", "recovery"])
-    test(
-        `recovery observation versus real process launch: ${winner} wins`,
-        { timeout: 30000 },
-        async () => {
-            const root = await mkdtemp(join(tmpdir(), "vq-race-")),
-                result = initialResult(),
-                attemptId = result.attempts[0]!.attemptId;
-            const store = await LocalStore.open(root);
-            store.reserve(result.workspaceId, result.localRunId, attemptId, result);
-            const recovering = child(
-                common +
-                    `import {recoverOffline} from './src/offline/run.ts';const active=LocalStore.prototype.active;l` +
-                    `et once=true;LocalStore.prototype.active=function(){const owner=active.call(this);if(once)` +
-                    `{once=false;say({observed:owner.state});gate();}return owner;};try{say({done:await recover` +
-                    `Offline(root)});}catch(e){say({error:e.message});}`,
-                root,
-            );
-            const host = child(
-                common +
-                    `import {ProcessSupervisor} from './src/execution/processes.ts';import {join} from 'node:path';` +
-                    `const store=await LocalStore.open(root);let owner=store.active();say({ready:true});gate();` +
-                    `try{owner=store.spawning(owner.runId,owner.attemptId,owner)??{...owner,state:'SPAWNING'};}` +
-                    `catch(e){say({denied:e.message});store.close();process.exit(0);}const supervisor=new Proce` +
-                    `ssSupervisor(join(root,'processes'));const worker=await supervisor.start(owner.attemptId,{` +
-                    `executable:process.execPath,args:['-e',"console.log('LIVE');setInterval(()=>{},1000)"],cwd` +
-                    `:root});await worker.firstLine();say({live:worker.pid});gate();const stop=await supervisor` +
-                    `.terminateAttempt(owner.attemptId,'TEST_STOP');try{store.stopped(owner.runId,stop,owner);}` +
-                    `catch{}store.close();say({stopped:stop.processStopped});`,
-                root,
-            );
-            try {
-                assert.equal((await recovering.line()).observed, "ALLOCATED");
-                assert.equal((await host.line()).ready, true);
-                if (winner === "host") {
-                    host.go();
-                    const live = await host.line();
-                    assert.equal(typeof live.live, "number");
-                    recovering.go();
-                    const recovered = await recovering.line();
-                    assert.equal(recovered.error, undefined);
-                    const owner = store.active();
-                    if (!owner) {
-                        const receipt = recovered.done as {
-                            processStopped: boolean;
-                            reason: string;
-                        };
-                        assert.equal(receipt.processStopped, true);
-                        assert.notEqual(
-                            receipt.reason,
-                            "NO_PROCESS_SPAWNED",
-                            "stale ALLOCATED observation freed a live native worker",
-                        );
-                        const proof = await new ProcessSupervisor(
-                            join(root, "processes"),
-                        ).terminateAttempt(attemptId, "VERIFY");
-                        assert.equal(proof.processStopped, true);
-                    } else
-                        assert.throws(
-                            () => store.reserve(result.workspaceId, randomUUID(), randomUUID()),
-                            /LOCAL_CAPACITY_HELD/,
-                        );
-                    host.go();
-                    assert.equal((await host.line()).stopped, true);
-                } else {
-                    recovering.go();
-                    const recovered = await recovering.line();
-                    assert.equal(recovered.error, undefined);
-                    assert.equal(
-                        (
-                            recovered.done as {
-                                reason: string;
-                            }
-                        ).reason,
+    test(`recovery observation versus real process launch: ${winner} wins`, { timeout: 30000 }, async () => {
+        const root = await mkdtemp(join(tmpdir(), "vq-race-")),
+            result = initialResult(),
+            attemptId = result.attempts[0]!.attemptId;
+        const store = await LocalStore.open(root);
+        store.reserve(result.workspaceId, result.localRunId, attemptId, result);
+        const recovering = child(
+            common +
+                `import {recoverOffline} from './src/offline/run.ts';const active=LocalStore.prototype.active;l` +
+                `et once=true;LocalStore.prototype.active=function(){const owner=active.call(this);if(once)` +
+                `{once=false;say({observed:owner.state});gate();}return owner;};try{say({done:await recover` +
+                `Offline(root)});}catch(e){say({error:e.message});}`,
+            root,
+        );
+        const host = child(
+            common +
+                `import {ProcessSupervisor} from './src/execution/processes.ts';import {join} from 'node:path';` +
+                `const store=await LocalStore.open(root);let owner=store.active();say({ready:true});gate();` +
+                `try{owner=store.spawning(owner.runId,owner.attemptId,owner)??{...owner,state:'SPAWNING'};}` +
+                `catch(e){say({denied:e.message});store.close();process.exit(0);}const supervisor=new Proce` +
+                `ssSupervisor(join(root,'processes'));const worker=await supervisor.start(owner.attemptId,{` +
+                `executable:process.execPath,args:['-e',"console.log('LIVE');setInterval(()=>{},1000)"],cwd` +
+                `:root});await worker.firstLine();say({live:worker.pid});gate();const stop=await supervisor` +
+                `.terminateAttempt(owner.attemptId,'TEST_STOP');try{store.stopped(owner.runId,stop,owner);}` +
+                `catch{}store.close();say({stopped:stop.processStopped});`,
+            root,
+        );
+        try {
+            assert.equal((await recovering.line()).observed, "ALLOCATED");
+            assert.equal((await host.line()).ready, true);
+            if (winner === "host") {
+                host.go();
+                const live = await host.line();
+                assert.equal(typeof live.live, "number");
+                recovering.go();
+                const recovered = await recovering.line();
+                assert.equal(recovered.error, undefined);
+                const owner = store.active();
+                if (!owner) {
+                    const receipt = recovered.done as {
+                        processStopped: boolean;
+                        reason: string;
+                    };
+                    assert.equal(receipt.processStopped, true);
+                    assert.notEqual(
+                        receipt.reason,
                         "NO_PROCESS_SPAWNED",
+                        "stale ALLOCATED observation freed a live native worker",
                     );
-                    store.reserve(result.workspaceId, randomUUID(), randomUUID());
-                    host.go();
-                    assert.equal((await host.line()).denied, "LOCAL_OWNERSHIP_LOST");
-                }
-            } finally {
-                recovering.process.kill("SIGKILL");
-                host.process.kill("SIGKILL");
-                await new ProcessSupervisor(join(root, "processes")).terminateAttempt(
-                    attemptId,
-                    "TEST_CLEANUP",
+                    const proof = await new ProcessSupervisor(join(root, "processes")).terminateAttempt(
+                        attemptId,
+                        "VERIFY",
+                    );
+                    assert.equal(proof.processStopped, true);
+                } else
+                    assert.throws(
+                        () => store.reserve(result.workspaceId, randomUUID(), randomUUID()),
+                        /LOCAL_CAPACITY_HELD/,
+                    );
+                host.go();
+                assert.equal((await host.line()).stopped, true);
+            } else {
+                recovering.go();
+                const recovered = await recovering.line();
+                assert.equal(recovered.error, undefined);
+                assert.equal(
+                    (
+                        recovered.done as {
+                            reason: string;
+                        }
+                    ).reason,
+                    "NO_PROCESS_SPAWNED",
                 );
-                store.close();
-                await rm(root, { recursive: true, force: true });
+                store.reserve(result.workspaceId, randomUUID(), randomUUID());
+                host.go();
+                assert.equal((await host.line()).denied, "LOCAL_OWNERSHIP_LOST");
             }
-        },
-    );
+        } finally {
+            recovering.process.kill("SIGKILL");
+            host.process.kill("SIGKILL");
+            await new ProcessSupervisor(join(root, "processes")).terminateAttempt(attemptId, "TEST_CLEANUP");
+            store.close();
+            await rm(root, { recursive: true, force: true });
+        }
+    });
 test("ownership handoff commits the next attempt checkpoint before abrupt host death", async () => {
     const root = await mkdtemp(join(tmpdir(), "vq-handoff-")),
         result = initialResult();
@@ -204,9 +196,7 @@ test("ownership handoff commits the next attempt checkpoint before abrupt host d
             const reopened = await LocalStore.open(root);
             const owned = reopened.active()!;
             assert(
-                reopened
-                    .result(owned.workspaceId, owned.runId)
-                    .attempts.some((a) => a.attemptId === owned.attemptId),
+                reopened.result(owned.workspaceId, owned.runId).attempts.some((a) => a.attemptId === owned.attemptId),
                 "ownership names an attempt absent from the durable report",
             );
             reopened.close();
@@ -238,12 +228,7 @@ test("ambiguous legacy upload retains history and an actionable pending error wi
     await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
     try {
         const store = await LocalStore.open(root);
-        let owner = store.reserve(
-            result.workspaceId,
-            result.localRunId,
-            result.attempts[0]!.attemptId,
-            result,
-        );
+        let owner = store.reserve(result.workspaceId, result.localRunId, result.attempts[0]!.attemptId, result);
         owner = store.stopped(
             result.localRunId,
             {
@@ -273,10 +258,7 @@ test("ambiguous legacy upload retains history and an actionable pending error wi
         const reopened = await LocalStore.open(root);
         assert.deepEqual(reopened.result(result.workspaceId, result.localRunId), result);
         assert.equal(reopened.history(result.workspaceId)[0]!.uploadState, "PENDING");
-        assert.equal(
-            reopened.history(result.workspaceId)[0]!.uploadError,
-            "OFFLINE_VARIANT_FACTS_REQUIRED",
-        );
+        assert.equal(reopened.history(result.workspaceId)[0]!.uploadError, "OFFLINE_VARIANT_FACTS_REQUIRED");
         assert.equal(reopened.active(), undefined);
         reopened.close();
         assert.equal(requests, 1);

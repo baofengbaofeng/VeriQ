@@ -26,11 +26,7 @@ import { openTrace } from "./trace.ts";
 import { Command } from "commander";
 import pino from "pino";
 import { join, dirname, basename } from "node:path";
-import {
-    loadInstalledRuntimeDistribution,
-    assertRuntimeRole,
-    diagnoseRelease,
-} from "./distribution.ts";
+import { loadInstalledRuntimeDistribution, assertRuntimeRole, diagnoseRelease } from "./distribution.ts";
 import { spawn } from "node:child_process";
 import { DeviceSession } from "./agent/credentials.ts";
 import { AgentClient } from "./agent/transport.ts";
@@ -60,8 +56,7 @@ const entryRole = basename(process.execPath).replace(/\.exe$/i, "");
 const entryDistribution = ["veriq_cli", "veriq_agent"].includes(entryRole)
     ? await loadInstalledRuntimeDistribution(dirname(dirname(dirname(process.execPath))))
     : undefined;
-if (entryDistribution)
-    assertRuntimeRole(entryDistribution, entryRole === "veriq_agent" ? "agent" : "cli");
+if (entryDistribution) assertRuntimeRole(entryDistribution, entryRole === "veriq_agent" ? "agent" : "cli");
 let entryCredentials: CredentialOptions | undefined;
 const program = new Command()
     .name("veriq_cli")
@@ -74,18 +69,9 @@ program.option(
     "Credential backend: os-vault or explicit managed Linux restricted-file",
     "os-vault",
 );
-program.option(
-    "--managed-service-uid <uid>",
-    "Exact dedicated nonroot Linux service UID for restricted-file mode",
-);
-program.option(
-    "--persistent-volume <directory>",
-    "Existing private external persistent mount containing --config-dir",
-);
-program.option(
-    "--acknowledge-unencrypted-storage",
-    "Acknowledge restricted-file provides no encryption at rest",
-);
+program.option("--managed-service-uid <uid>", "Exact dedicated nonroot Linux service UID for restricted-file mode");
+program.option("--persistent-volume <directory>", "Existing private external persistent mount containing --config-dir");
+program.option("--acknowledge-unencrypted-storage", "Acknowledge restricted-file provides no encryption at rest");
 /**
  * 服务文件模式必须由命令行明确选择并完整核验，不能因默认保险库构造失败而落入此分支；选择不改变设备执行位置或控制平台信
  * 任等级，未选模式却携带服务参数同样拒绝，避免操作者误以为限制已经生效。
@@ -141,9 +127,7 @@ async function installedDistribution() {
     const role = basename(process.execPath).replace(/\.exe$/i, "");
     const root =
         program.opts<{ distributionRoot?: string }>().distributionRoot ??
-        (["veriq_cli", "veriq_agent"].includes(role)
-            ? dirname(dirname(dirname(process.execPath)))
-            : undefined);
+        (["veriq_cli", "veriq_agent"].includes(role) ? dirname(dirname(dirname(process.execPath))) : undefined);
     if (!root) return;
     const installed = await loadInstalledRuntimeDistribution(root);
     assertRuntimeRole(installed, role === "veriq_agent" ? "agent" : "cli");
@@ -155,10 +139,7 @@ async function installedDistribution() {
  * 离线恢复交付能力；开发入口不因本辅助函数获得安装路径或平台后备。
  * 能力保存在当前进程内，不能通过参数 JSON、业务包或档案字段恢复，失败不会开启普通子进程路径。
  */
-async function installedDarwinExecution(
-    installed: RuntimeDistribution | undefined,
-    profile: string,
-) {
+async function installedDarwinExecution(installed: RuntimeDistribution | undefined, profile: string) {
     if (!installed || process.platform !== "darwin") return {};
     const temporaryDirectory = join(profile, "darwin-control");
     darwinNative().openPrivateDirectory(temporaryDirectory, true).close();
@@ -192,9 +173,7 @@ async function nativeDoctor(options: { server?: string; browserExecutable?: stri
  * 安装 CLI 启动在线服务时必须转交给真实 Agent 角色 Node，而不是只修改当前 CLI 的进程标题；参数按原始数组传递，
  * 父进程等待真实退出，并把取消信号传给会执行既有排空协议的 Agent。
  */
-async function startInstalledAgent(
-    installed: NonNullable<Awaited<ReturnType<typeof installedDistribution>>>,
-) {
+async function startInstalledAgent(installed: NonNullable<Awaited<ReturnType<typeof installedDistribution>>>) {
     controller.signal.throwIfAborted();
     const child = spawn(installed.agentExecutable, [installed.cliEntry, ...process.argv.slice(2)], {
         stdio: "inherit",
@@ -221,8 +200,7 @@ program
     .command("open <file>")
     .description("Open a downloaded Trace locally using pinned Playwright")
     .action((file: string) => openTrace(file, controller.signal));
-const store = () =>
-    new DeviceStore(program.opts<{ configDir?: string }>().configDir, entryCredentials);
+const store = () => new DeviceStore(program.opts<{ configDir?: string }>().configDir, entryCredentials);
 const common = (command: Command) =>
     command.option(
         "--browser-executable <path>",
@@ -235,8 +213,7 @@ common(
         .option("--server <origin>", "Control service origin"),
 ).action(async (options: { server?: string; browserExecutable?: string }) => {
     const result = await nativeDoctor(options);
-    for (const c of result.checks)
-        process.stdout.write(`${c.ok ? "PASS" : "FAIL"} ${c.name}: ${c.detail}\n`);
+    for (const c of result.checks) process.stdout.write(`${c.ok ? "PASS" : "FAIL"} ${c.name}: ${c.detail}\n`);
     process.exitCode = result.ok ? 0 : 1;
 });
 common(
@@ -256,11 +233,7 @@ common(
     const client = new RuntimeClient(options.server);
     const diagnostics = await nativeDoctor(options);
     if (!diagnostics.ok || !diagnostics.capabilities) throw new Error("DOCTOR_FAILED");
-    const enrollment = await client.begin(
-        options.name,
-        diagnostics.capabilities,
-        controller.signal,
-    );
+    const enrollment = await client.begin(options.name, diagnostics.capabilities, controller.signal);
     process.stdout.write(
         `Open ${enrollment.verificationUrl}\nApproval code: ${enrollment.userCode}` +
             `\nConfirm the device, Workspace and sharing scope.\n`,
@@ -277,8 +250,7 @@ common(
             );
             return;
         } catch (error) {
-            if (!(error instanceof RuntimeError && error.code === "ENROLLMENT_PENDING"))
-                throw error;
+            if (!(error instanceof RuntimeError && error.code === "ENROLLMENT_PENDING")) throw error;
         }
     }
     throw new Error("ENROLLMENT_EXPIRED");
@@ -290,49 +262,39 @@ common(
         .requiredOption("--server <origin>", "HTTPS control origin")
         .option("--name <name>", "Device name", hostname())
         .option("--share-workspace", "Explicitly consent to Workspace sharing", false),
-).action(
-    async (options: {
-        server: string;
-        name: string;
-        shareWorkspace: boolean;
-        browserExecutable?: string;
-    }) => {
-        const deviceStore = store();
-        try {
-            await deviceStore.load();
-            throw new Error("ALREADY_ENROLLED");
-        } catch (error) {
-            if (!(error instanceof Error && "code" in error && error.code === "ENOENT"))
-                throw error;
+).action(async (options: { server: string; name: string; shareWorkspace: boolean; browserExecutable?: string }) => {
+    const deviceStore = store();
+    try {
+        await deviceStore.load();
+        throw new Error("ALREADY_ENROLLED");
+    } catch (error) {
+        if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
+    }
+    const client = new RuntimeClient(options.server);
+    const diagnostics = await nativeDoctor(options);
+    if (!diagnostics.ok || !diagnostics.capabilities) throw new Error("DOCTOR_FAILED");
+    let secret = "";
+    const timeout = setTimeout(() => process.stdin.destroy(new Error("INPUT_TIMEOUT")), 30_000);
+    try {
+        for await (const chunk of process.stdin) {
+            secret += String(chunk);
+            if (secret.length > 128) throw new Error("INVALID_TOKEN_INPUT");
         }
-        const client = new RuntimeClient(options.server);
-        const diagnostics = await nativeDoctor(options);
-        if (!diagnostics.ok || !diagnostics.capabilities) throw new Error("DOCTOR_FAILED");
-        let secret = "";
-        const timeout = setTimeout(() => process.stdin.destroy(new Error("INPUT_TIMEOUT")), 30_000);
-        try {
-            for await (const chunk of process.stdin) {
-                secret += String(chunk);
-                if (secret.length > 128) throw new Error("INVALID_TOKEN_INPUT");
-            }
-        } finally {
-            clearTimeout(timeout);
-        }
-        secret = secret.trim();
-        if (!/^[A-Za-z0-9_-]{43}$/.test(secret)) throw new Error("INVALID_TOKEN_INPUT");
-        const receipt = await client.serviceEnroll(
-            options.name,
-            diagnostics.capabilities,
-            secret,
-            options.shareWorkspace,
-            controller.signal,
-        );
-        await store().save({ server: client.server, ...receipt });
-        process.stdout.write(
-            `Registered ${receipt.runnerId}. Worker is offline; trust requires administrator approval.\n`,
-        );
-    },
-);
+    } finally {
+        clearTimeout(timeout);
+    }
+    secret = secret.trim();
+    if (!/^[A-Za-z0-9_-]{43}$/.test(secret)) throw new Error("INVALID_TOKEN_INPUT");
+    const receipt = await client.serviceEnroll(
+        options.name,
+        diagnostics.capabilities,
+        secret,
+        options.shareWorkspace,
+        controller.signal,
+    );
+    await store().save({ server: client.server, ...receipt });
+    process.stdout.write(`Registered ${receipt.runnerId}. Worker is offline; trust requires administrator approval.\n`);
+});
 program
     .command("logout")
     .description("Revoke the current device token and remove local configuration")
@@ -374,23 +336,15 @@ program
                 : "Device credential revoked and local configuration removed.\n",
         );
     });
-const workspace = program
-    .command("workspace")
-    .description("Inspect or select an existing approved device binding");
+const workspace = program.command("workspace").description("Inspect or select an existing approved device binding");
 workspace.command("list").action(async () => {
     const config = await store().load();
-    const info = await new RuntimeClient(config.server).inspectDevice(
-        config.deviceToken,
-        controller.signal,
-    );
+    const info = await new RuntimeClient(config.server).inspectDevice(config.deviceToken, controller.signal);
     process.stdout.write(`${info.workspaceId}\n`);
 });
 workspace.command("use <workspace-id>").action(async (id: string) => {
     const config = await store().load();
-    const info = await new RuntimeClient(config.server).inspectDevice(
-        config.deviceToken,
-        controller.signal,
-    );
+    const info = await new RuntimeClient(config.server).inspectDevice(config.deviceToken, controller.signal);
     if (info.workspaceId !== id) throw new Error("WORKSPACE_NOT_BOUND");
     process.stdout.write(`Using approved Workspace ${id}.\n`);
 });
@@ -399,10 +353,7 @@ program
     .description("Inspect registration and current authorization; does not start a worker")
     .action(async () => {
         const config = await store().load();
-        const info = await new RuntimeClient(config.server).inspectDevice(
-            config.deviceToken,
-            controller.signal,
-        );
+        const info = await new RuntimeClient(config.server).inspectDevice(config.deviceToken, controller.signal);
         process.stdout.write(`${info.name}: ${info.status}; current trust ${info.trustStatus}\n`);
     });
 const runtime = program.command("runtime").description("Run and control the online Agent");
@@ -427,14 +378,12 @@ runtime
         if (
             installed &&
             ((options.releaseDir && options.releaseDir !== installed.engineDirectory) ||
-                (options.browserExecutable &&
-                    options.browserExecutable !== installed.browserExecutable))
+                (options.browserExecutable && options.browserExecutable !== installed.browserExecutable))
         )
             throw new Error("RUNTIME_CONFIGURATION_MISMATCH");
         const releaseDirectory = installed?.engineDirectory ?? options.releaseDir;
         const browserExecutable = installed?.browserExecutable ?? options.browserExecutable;
-        if (!releaseDirectory || !browserExecutable)
-            throw new Error("RUNTIME_CONFIGURATION_REQUIRED");
+        if (!releaseDirectory || !browserExecutable) throw new Error("RUNTIME_CONFIGURATION_REQUIRED");
         const diagnostics = await diagnoseRelease({
             engineDirectory: releaseDirectory,
             engineVersion: installed?.engineVersion ?? "1.0.0",
@@ -470,9 +419,9 @@ runtime
             close = await serveAgentControl(root, () => controller.abort());
             const transport = new AgentClient(session);
             const info =
-                await transport.request<
-                    import("@veriq/contracts").PlatformComponents["schemas"]["RuntimeDTO"]
-                >("/internal/v1/runtime");
+                await transport.request<import("@veriq/contracts").PlatformComponents["schemas"]["RuntimeDTO"]>(
+                    "/internal/v1/runtime",
+                );
             if (info.capabilities.engineVersion !== diagnostics.capabilities.engineVersion)
                 throw new Error("RUNTIME_CAPABILITY_MISMATCH_REENROLL");
             const supervisor = new ExecutionSupervisor({
@@ -503,9 +452,7 @@ runtime.command("status").action(async () => {
 });
 runtime.command("stop").action(async () => {
     await agentControl(join(store().directory, "agent"), "stop");
-    process.stdout.write(
-        "Agent stop requested; active Attempt cleanup and process confirmation precede shutdown.\n",
-    );
+    process.stdout.write("Agent stop requested; active Attempt cleanup and process confirmation precede shutdown.\n");
 });
 const bundle = program.command("bundle").description("Download and verify signed offline data");
 bundle
@@ -540,10 +487,7 @@ trust
 trust
     .command("bind <public-metadata-file>")
     .requiredOption("--origin <origin>", "Administrator-confirmed control origin")
-    .requiredOption(
-        "--fingerprint <sha256>",
-        "Out-of-band administrator verified active key fingerprint",
-    )
+    .requiredOption("--fingerprint <sha256>", "Out-of-band administrator verified active key fingerprint")
     .action(async (file: string, options: { origin: string; fingerprint: string }) => {
         const raw = await readFile(file);
         if (raw.length > 65536) throw new Error("INVALID_ISSUER");
@@ -554,9 +498,7 @@ trust
         );
         process.stdout.write("Out-of-band issuer fingerprint bound.\n");
     });
-const secret = program
-    .command("secret")
-    .description("Exact local credential mappings; never print values");
+const secret = program.command("secret").description("Exact local credential mappings; never print values");
 secret
     .command("delete-profile")
     .description(
@@ -567,8 +509,7 @@ secret
         "Confirm deleting every local credential purpose and exact vault key; use a new profile directory afterward",
     )
     .action(async (options: { confirmAll?: boolean }) => {
-        if (options.confirmAll !== true)
-            throw new Error("CREDENTIAL_PROFILE_DELETE_CONFIRMATION_REQUIRED");
+        if (options.confirmAll !== true) throw new Error("CREDENTIAL_PROFILE_DELETE_CONFIRMATION_REQUIRED");
         await store().deleteCredentials();
         process.stdout.write(
             "Local credential profile retired; trust/history retained. Server device revocation is separate. Use a n" +
@@ -577,14 +518,10 @@ secret
     });
 secret
     .command("recover-initialization")
-    .description(
-        "Explicitly recover an empty pending credential initialization; never replace an active missing key",
-    )
+    .description("Explicitly recover an empty pending credential initialization; never replace an active missing key")
     .action(async () => {
         await store().recoverCredentialInitialization();
-        process.stdout.write(
-            "Empty credential initialization recovered; prior key intents retained.\n",
-        );
+        process.stdout.write("Empty credential initialization recovered; prior key intents retained.\n");
     });
 secret
     .command("migrate")
@@ -606,28 +543,26 @@ for (const name of ["set", "remove"]) {
         .requiredOption("--workspace <id>", "Workspace UUID")
         .requiredOption("--ref <key>", "Exact secret reference")
         .requiredOption("--version <id>", "Exact version UUID");
-    command.action(
-        async (options: { issuer: string; workspace: string; ref: string; version: string }) => {
-            const ref: SecretReference = {
-                issuerId: options.issuer,
-                workspaceId: options.workspace,
-                secretRef: options.ref,
-                versionId: options.version,
-            };
-            await new TrustStore(store().directory).issuer(ref.issuerId);
-            const local = new SecretStore(store().directory, entryCredentials);
-            if (name === "remove") await local.remove(ref);
-            else {
-                let input = "";
-                for await (const chunk of process.stdin) {
-                    input += String(chunk);
-                    if (Buffer.byteLength(input) > 65536) throw new Error("SECRET_INPUT_LIMIT");
-                }
-                await local.set(ref, JSON.parse(input));
+    command.action(async (options: { issuer: string; workspace: string; ref: string; version: string }) => {
+        const ref: SecretReference = {
+            issuerId: options.issuer,
+            workspaceId: options.workspace,
+            secretRef: options.ref,
+            versionId: options.version,
+        };
+        await new TrustStore(store().directory).issuer(ref.issuerId);
+        const local = new SecretStore(store().directory, entryCredentials);
+        if (name === "remove") await local.remove(ref);
+        else {
+            let input = "";
+            for await (const chunk of process.stdin) {
+                input += String(chunk);
+                if (Buffer.byteLength(input) > 65536) throw new Error("SECRET_INPUT_LIMIT");
             }
-            process.stdout.write("Local mapping updated.\n");
-        },
-    );
+            await local.set(ref, JSON.parse(input));
+        }
+        process.stdout.write("Local mapping updated.\n");
+    });
 }
 const localRoot = () => join(store().directory, "offline");
 /**
@@ -688,21 +623,15 @@ program
             if (
                 installed &&
                 ((options.releaseDir && options.releaseDir !== installed.engineDirectory) ||
-                    (options.browserExecutable &&
-                        options.browserExecutable !== installed.browserExecutable))
+                    (options.browserExecutable && options.browserExecutable !== installed.browserExecutable))
             )
                 throw new Error("RUNTIME_CONFIGURATION_MISMATCH");
             const releaseDirectory = installed?.engineDirectory ?? options.releaseDir;
             const browserExecutable = installed?.browserExecutable ?? options.browserExecutable;
-            if (!releaseDirectory || !browserExecutable)
-                throw new Error("RUNTIME_CONFIGURATION_REQUIRED");
+            if (!releaseDirectory || !browserExecutable) throw new Error("RUNTIME_CONFIGURATION_REQUIRED");
             process.title = "veriq_cli";
             const profile = store().directory;
-            await updatePrivate<{ id: string }>(
-                profile,
-                "local-device.json",
-                (old) => old ?? { id: randomUUID() },
-            );
+            await updatePrivate<{ id: string }>(profile, "local-device.json", (old) => old ?? { id: randomUUID() });
             const identity = await readPrivate<{ id: string }>(profile, "local-device.json");
             const overrides = {
                 ...(options.baseUrl ? { baseURL: options.baseUrl } : {}),
@@ -735,8 +664,7 @@ program
                     revocationStatus: result.revocationStatus,
                 }) + "\n",
             );
-            process.exitCode =
-                result.outcome === "PASSED" ? 0 : result.outcome === "CANCELLED" ? 130 : 1;
+            process.exitCode = result.outcome === "PASSED" ? 0 : result.outcome === "CANCELLED" ? 130 : 1;
         },
     );
 const results = program
@@ -758,9 +686,7 @@ results
     .requiredOption("--workspace <id>", "Workspace UUID")
     .action(async (runId: string, options: { workspace: string }) => {
         process.stdout.write(
-            JSON.stringify(
-                await new LocalReports(localRoot(), () => false).snapshot(options.workspace, runId),
-            ) + "\n",
+            JSON.stringify(await new LocalReports(localRoot(), () => false).snapshot(options.workspace, runId)) + "\n",
         );
     });
 results
@@ -791,16 +717,13 @@ results
     });
 results
     .command("upload <runId>")
-    .description(
-        "Upload using the separately enrolled current device; retain failed uploads for retry",
-    )
+    .description("Upload using the separately enrolled current device; retain failed uploads for retry")
     .action(async (runId: string) => {
         const profile = store(),
             saved = await profile.load();
         const current = await profile.renew(new RuntimeClient(saved.server));
         process.stdout.write(
-            JSON.stringify(await uploadOffline(localRoot(), runId, current, controller.signal)) +
-                "\n",
+            JSON.stringify(await uploadOffline(localRoot(), runId, current, controller.signal)) + "\n",
         );
     });
 try {
@@ -815,8 +738,6 @@ try {
                 ? error.message
                 : "OPERATION_FAILED";
     logger.error({ event: "command_failed", code }, "VeriQ command failed");
-    process.stderr.write(
-        `VeriQ: ${code}. Check doctor, connectivity and current authorization, then retry.\n`,
-    );
+    process.stderr.write(`VeriQ: ${code}. Check doctor, connectivity and current authorization, then retry.\n`);
     process.exitCode = controller.signal.aborted ? 130 : 1;
 }

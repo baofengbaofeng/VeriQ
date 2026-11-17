@@ -105,8 +105,7 @@ async function controlledWorker(
     await create({ cwd: root, file: join(root, "engine/compiler.tgz"), gzip: true }, ["marker"]);
     await writeFile(join(root, "loader.mjs"), "");
     await writeFile(join(root, "npm.mjs"), options.npmSource ?? "");
-    if (options.preloadSource)
-        await writeFile(join(root, "test-preload.mjs"), options.preloadSource);
+    if (options.preloadSource) await writeFile(join(root, "test-preload.mjs"), options.preloadSource);
     await writeFile(
         join(root, "compile-entry.mjs"),
         "import {writeFileSync} from 'node:fs'; writeFileSync('worker-result.json',JSON.stringify({kind:'READY'}));",
@@ -172,17 +171,12 @@ async function controlledWorker(
             const consume = waiting.get(type)?.shift();
             if (consume) consume(value);
             else {
-                assert.ok(
-                    buffered.length < 16,
-                    "Worker control message buffer must remain bounded",
-                );
+                assert.ok(buffered.length < 16, "Worker control message buffer must remain bounded");
                 buffered.push(value);
             }
         });
         const message = (type: string): Promise<unknown> => {
-            const index = buffered.findIndex(
-                (value) => (value as { type?: unknown })?.type === type,
-            );
+            const index = buffered.findIndex((value) => (value as { type?: unknown })?.type === type);
             if (index >= 0) return Promise.resolve(buffered.splice(index, 1)[0]);
             return new Promise((resolve, reject) => {
                 const consumers = waiting.get(type) ?? [];
@@ -215,24 +209,17 @@ test("controlled worker distinguishes CLI business failure from management fault
     await controlledWorker("process.exitCode=1", async ({ child, exit, root, binding }) => {
         child.send({ type: "START" });
         assert.equal(await exit, 1);
-        assert.equal(
-            validateJournal(await readFile(join(root, "commands")), binding).objects.length,
-            3,
-        );
+        assert.equal(validateJournal(await readFile(join(root, "commands")), binding).objects.length, 3);
         await assert.rejects(readFile(join(root, "worker-failure.json")), { code: "ENOENT" });
     });
-    await controlledWorker(
-        "throw new Error('third party secret')",
-        async ({ child, exit, root }) => {
-            child.send({ type: "START" });
-            assert.equal(await exit, 73);
-            assert.deepEqual(
-                JSON.parse(await readFile(join(root, "worker-failure.json"), "utf8")),
-                { failureCode: "CONTROLLED_COMMAND_MANAGEMENT_FAILED" },
-            );
-            assert.ok(!(await readFile(join(root, "commands"), "utf8")).includes('"type":"SEAL"'));
-        },
-    );
+    await controlledWorker("throw new Error('third party secret')", async ({ child, exit, root }) => {
+        child.send({ type: "START" });
+        assert.equal(await exit, 73);
+        assert.deepEqual(JSON.parse(await readFile(join(root, "worker-failure.json"), "utf8")), {
+            failureCode: "CONTROLLED_COMMAND_MANAGEMENT_FAILED",
+        });
+        assert.ok(!(await readFile(join(root, "commands"), "utf8")).includes('"type":"SEAL"'));
+    });
 });
 
 /**
@@ -241,20 +228,14 @@ test("controlled worker distinguishes CLI business failure from management fault
  */
 test("controlled worker accepts generation-bound cancellation before START", async () => {
     const { validateJournal } = await import("../src/execution/controlled-child-protocol.mjs");
-    await controlledWorker(
-        "process.exitCode=0",
-        async ({ child, exit, root, binding, message }) => {
-            const ack = message("CANCEL_ACK");
-            child.send({ type: "CANCEL", binding });
-            assert.deepEqual(await ack, { type: "CANCEL_ACK", binding });
-            child.send({ type: "START" });
-            assert.equal(await exit, 130);
-            assert.equal(
-                validateJournal(await readFile(join(root, "commands")), binding).objects.length,
-                0,
-            );
-        },
-    );
+    await controlledWorker("process.exitCode=0", async ({ child, exit, root, binding, message }) => {
+        const ack = message("CANCEL_ACK");
+        child.send({ type: "CANCEL", binding });
+        assert.deepEqual(await ack, { type: "CANCEL_ACK", binding });
+        child.send({ type: "START" });
+        assert.equal(await exit, 130);
+        assert.equal(validateJournal(await readFile(join(root, "commands")), binding).objects.length, 0);
+    });
 });
 
 /**
@@ -271,10 +252,7 @@ test("Darwin component fixture keeps cancellation ACK separate from START releas
             assert.deepEqual(await ack, { type: "CANCEL_ACK", binding });
             const status = message("TEST_GATE_STATUS");
             child.send({ type: "TEST_GATE_STATUS" }, () => {});
-            const actual = await Promise.race([
-                status.catch(() => "EXITED"),
-                exit.then(() => "EXITED"),
-            ]);
+            const actual = await Promise.race([status.catch(() => "EXITED"), exit.then(() => "EXITED")]);
             assert.deepEqual(actual, {
                 type: "TEST_GATE_STATUS",
                 released: false,
@@ -286,12 +264,7 @@ test("Darwin component fixture keeps cancellation ACK separate from START releas
                 .trim()
                 .split("\n")
                 .map((line) => JSON.parse(line).type);
-            assert.deepEqual(frames, [
-                "CANCEL_INSTALLED",
-                "ACK_SENT",
-                "START_RECEIVED",
-                "GATE_RELEASED",
-            ]);
+            assert.deepEqual(frames, ["CANCEL_INSTALLED", "ACK_SENT", "START_RECEIVED", "GATE_RELEASED"]);
         },
         { componentScenario: "gate-inspection" },
     );
@@ -331,9 +304,10 @@ test("desktop stages and hashes the complete ordinary Node command closure twice
             [fileURLToPath(new URL("../../desktop/scripts/stage-runtime.mjs", import.meta.url))],
             { cwd: join(root, "desktop"), timeout: 10000 },
         );
-        const inventory = JSON.parse(
-            await readFile(join(root, "desktop/out/runtime-files.json"), "utf8"),
-        ) as { path: string; sha256: string }[];
+        const inventory = JSON.parse(await readFile(join(root, "desktop/out/runtime-files.json"), "utf8")) as {
+            path: string;
+            sha256: string;
+        }[];
         for (const target of ["out/main", "out/execution"]) {
             for (const name of names) {
                 const bytes = await readFile(join(root, "desktop", target, name));
@@ -369,11 +343,11 @@ test("desktop stages and hashes the complete ordinary Node command closure twice
             assert.equal(output.trim(), "3");
             const preload = join(root, "desktop", target, "controlled-child-preload.mjs");
             assert.equal(
-                execFileSync(
-                    process.execPath,
-                    ["--import", preload, "-e", "console.log('passive')"],
-                    { cwd: root, encoding: "utf8", timeout: 10000 },
-                ).trim(),
+                execFileSync(process.execPath, ["--import", preload, "-e", "console.log('passive')"], {
+                    cwd: root,
+                    encoding: "utf8",
+                    timeout: 10000,
+                }).trim(),
                 "passive",
             );
         }
@@ -419,10 +393,9 @@ test("controlled worker waits for actual command exit after timeout observation 
             assert.ok(!(await readFile(join(root, "commands"), "utf8")).includes('"type":"SEAL"'));
             child.send({ type: "TEST_RELEASE" });
             assert.equal(await exit, 73);
-            assert.deepEqual(
-                JSON.parse(await readFile(join(root, "worker-failure.json"), "utf8")),
-                { failureCode: "CONTROLLED_COMMAND_MANAGEMENT_FAILED" },
-            );
+            assert.deepEqual(JSON.parse(await readFile(join(root, "worker-failure.json"), "utf8")), {
+                failureCode: "CONTROLLED_COMMAND_MANAGEMENT_FAILED",
+            });
         },
         { npmSource: "setInterval(()=>{},1000)", preloadSource },
     );

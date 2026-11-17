@@ -1,17 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-    chmod,
-    lstat,
-    mkdir,
-    mkdtemp,
-    open,
-    readFile,
-    readdir,
-    rm,
-    symlink,
-    writeFile,
-} from "node:fs/promises";
+import { chmod, lstat, mkdir, mkdtemp, open, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
@@ -57,8 +46,8 @@ async function fixture(root: string) {
 }
 
 for (const bytes of ["SPAWNING", '{"claim":']) {
-    test(`interrupted journal staging quarantines only its attempt and preserves other recovery: ${bytes}`, async (
-        ) => {
+    const name = `interrupted journal staging quarantines only its attempt and preserves other recovery: ${bytes}`;
+    test(name, async () => {
         const root = await mkdtemp(join(tmpdir(), "vq-journal-stage-")),
             affected = randomUUID(),
             healthy = randomUUID();
@@ -79,18 +68,9 @@ for (const bytes of ["SPAWNING", '{"claim":']) {
             });
             await worker.firstLine();
             const receipts = await f.supervisor.recover();
-            assert.equal(
-                receipts.find((item) => item.attemptId === affected)?.processStopped,
-                false,
-            );
-            assert.equal(
-                receipts.find((item) => item.attemptId === affected)?.processStopScope,
-                undefined,
-            );
-            assert.equal(
-                receipts.find((item) => item.attemptId === healthy)?.processStopScope,
-                "FULL_DESCENDANT_TREE",
-            );
+            assert.equal(receipts.find((item) => item.attemptId === affected)?.processStopped, false);
+            assert.equal(receipts.find((item) => item.attemptId === affected)?.processStopScope, undefined);
+            assert.equal(receipts.find((item) => item.attemptId === healthy)?.processStopScope, "FULL_DESCENDANT_TREE");
             assert.equal(await processes.isRunning(worker.pid), false);
             assert.equal(f.bodies.length, 2);
             assert.deepEqual(await readFile(staged), before);
@@ -98,10 +78,7 @@ for (const bytes of ["SPAWNING", '{"claim":']) {
             assert(strict);
             try {
                 await assert.rejects(strict.names(4096), /PROCESS_RECORD_NAME_INVALID/);
-                await assert.rejects(
-                    strict.read(staged.split("/").at(-1)!, 65536),
-                    /PROCESS_RECORD_NAME_INVALID/,
-                );
+                await assert.rejects(strict.read(staged.split("/").at(-1)!, 65536), /PROCESS_RECORD_NAME_INVALID/);
                 await assert.rejects(strict.journalNames(1), /PROCESS_RECORD_LIMIT_OR_TYPE/);
             } finally {
                 await strict.close();
@@ -123,14 +100,8 @@ test("orphan journal staging returns explicit uncertainty while another pre-spaw
         await f.committed(healthy);
         const receipts = await f.supervisor.recover();
         assert.equal(receipts.find((item) => item.attemptId === orphan)?.processStopped, false);
-        assert.equal(
-            receipts.find((item) => item.attemptId === orphan)?.reason,
-            "JOURNAL_STAGING_UNCONFIRMED",
-        );
-        assert.equal(
-            receipts.find((item) => item.attemptId === healthy)?.processStopScope,
-            "NO_PROCESS_SPAWNED",
-        );
+        assert.equal(receipts.find((item) => item.attemptId === orphan)?.reason, "JOURNAL_STAGING_UNCONFIRMED");
+        assert.equal(receipts.find((item) => item.attemptId === healthy)?.processStopScope, "NO_PROCESS_SPAWNED");
         assert.equal(f.bodies.length, 1);
     } finally {
         await rm(root, { recursive: true, force: true });
@@ -145,7 +116,8 @@ test("actual writer exit after staging flush preserves uncertainty without block
     try {
         await f.committed(affected);
         await f.committed(healthy);
-        const script = `import {open} from 'node:fs/promises';import {ExecutionSupervisor} from './src/execution/su` +
+        const script =
+            `import {open} from 'node:fs/promises';import {ExecutionSupervisor} from './src/execution/su` +
             `pervisor.ts';const root=process.argv[1],record=JSON.parse(process.argv[2]),handle=await open(root,'r')` +
             `,prototype=Object.getPrototypeOf(handle),sync=prototype.sync;await handle.close();prototype.sync=async` +
             ` function(){await sync.call(this);if((await this.stat()).isFile())process.exit(0);};const supervisor=n` +
@@ -168,56 +140,32 @@ test("actual writer exit after staging flush preserves uncertainty without block
         assert.equal(child.status, 0, child.stderr);
         const stages = (await readdir(f.directory)).filter((name) => name.includes(".json."));
         assert.equal(stages.length, 1);
-        assert.equal(
-            JSON.parse(await readFile(join(f.directory, stages[0]!), "utf8")).state,
-            "SPAWNING",
-        );
+        assert.equal(JSON.parse(await readFile(join(f.directory, stages[0]!), "utf8")).state, "SPAWNING");
         const receipts = await f.supervisor.recover();
-        assert.equal(
-            receipts.find((receipt) => receipt.attemptId === affected)?.processStopped,
-            false,
-        );
-        assert.equal(
-            receipts.find((receipt) => receipt.attemptId === affected)?.processStopScope,
-            undefined,
-        );
-        assert.equal(
-            receipts.find((receipt) => receipt.attemptId === healthy)?.processStopScope,
-            "NO_PROCESS_SPAWNED",
-        );
+        assert.equal(receipts.find((receipt) => receipt.attemptId === affected)?.processStopped, false);
+        assert.equal(receipts.find((receipt) => receipt.attemptId === affected)?.processStopScope, undefined);
+        assert.equal(receipts.find((receipt) => receipt.attemptId === healthy)?.processStopScope, "NO_PROCESS_SPAWNED");
         assert.equal(f.bodies.length, 2);
     } finally {
         await rm(root, { recursive: true, force: true });
     }
 });
 
-for (const invalid of [
-    "unknown",
-    "malformed-name",
-    "link",
-    "mode",
-    "oversize",
-    "malformed-committed",
-]) {
+for (const invalid of ["unknown", "malformed-name", "link", "mode", "oversize", "malformed-committed"]) {
     test(`journal staging does not relax private and malformed member rejection: ${invalid}`, async () => {
         const root = await mkdtemp(join(tmpdir(), "vq-journal-invalid-")),
             id = randomUUID();
         const f = await fixture(root);
         try {
             await f.committed(id);
-            if (invalid === "unknown")
-                await writeFile(join(f.directory, "unknown.tmp"), "{}", { mode: 0o600 });
+            if (invalid === "unknown") await writeFile(join(f.directory, "unknown.tmp"), "{}", { mode: 0o600 });
             if (invalid === "malformed-name")
                 await writeFile(join(f.directory, `${id}.json.not-a-uuid`), "{}", { mode: 0o600 });
             if (invalid === "link")
-                await symlink(
-                    join(f.directory, `${id}.json`),
-                    join(f.directory, `${id}.json.${randomUUID()}`),
-                );
+                await symlink(join(f.directory, `${id}.json`), join(f.directory, `${id}.json.${randomUUID()}`));
             if (invalid === "mode") await chmod(await f.stage(id), 0o644);
             if (invalid === "oversize") await f.stage(id, "x".repeat(65537));
-            if (invalid === "malformed-committed")
-                await writeFile(join(f.directory, `${id}.json`), "{");
+            if (invalid === "malformed-committed") await writeFile(join(f.directory, `${id}.json`), "{");
             await assert.rejects(f.supervisor.recover());
             assert.equal(f.bodies.length, 0);
         } finally {
@@ -245,10 +193,7 @@ for (const failure of ["write", "rename"]) {
                         data: Parameters<typeof fs.writeFile>[1],
                         options: Parameters<typeof fs.writeFile>[2],
                     ) => {
-                        if (
-                            String(path).includes(".json.") &&
-                            !String(path).endsWith(older.split("/").at(-1)!)
-                        ) {
+                        if (String(path).includes(".json.") && !String(path).endsWith(older.split("/").at(-1)!)) {
                             await pathWrite(path, "{", options);
                             throw new Error("JOURNAL_WRITE_FAILED");
                         }
@@ -278,9 +223,7 @@ for (const failure of ["write", "rename"]) {
             } else {
                 await mkdir(join(f.directory, `${id}.json`));
                 await assert.rejects(journal(f.record(id)), (error) =>
-                    ["EISDIR", "ENOTDIR", "EEXIST"].includes(
-                        (error as NodeJS.ErrnoException).code ?? "",
-                    ),
+                    ["EISDIR", "ENOTDIR", "EEXIST"].includes((error as NodeJS.ErrnoException).code ?? ""),
                 );
                 assert.equal((await lstat(join(f.directory, `${id}.json`))).isDirectory(), true);
             }

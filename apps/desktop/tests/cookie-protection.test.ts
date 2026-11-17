@@ -22,8 +22,7 @@ function platform(tag = "v11", backend = "gnome_libsecret") {
 const enabled = async () => ({ version: "1", 1: 49 });
 
 test(
-    "Darwin without verified installed identity and unsupp" +
-        "orted platforms refuse before fuse or provider access",
+    "Darwin without verified installed identity and unsupp" + "orted platforms refuse before fuse or provider access",
     async () => {
         const storage = new Proxy({} as CookieSafeStorage, {
             get: () => assert.fail("Unexpected provider access"),
@@ -35,9 +34,7 @@ test(
                 }),
                 {
                     message:
-                        platform === "darwin"
-                            ? "COOKIE_MAC_HOST_IDENTITY_REQUIRED"
-                            : "COOKIE_PLATFORM_UNSUPPORTED",
+                        platform === "darwin" ? "COOKIE_MAC_HOST_IDENTITY_REQUIRED" : "COOKIE_PLATFORM_UNSUPPORTED",
                 },
             );
         }
@@ -95,14 +92,8 @@ test("Linux available encryption still refuses basic_text and known fallback key
         requireCookieProtection(platform("v10", "basic_text"), "linux", enabled),
         /COOKIE_OS_PROTECTION_REQUIRED/,
     );
-    await assert.rejects(
-        requireCookieProtection(platform("v10"), "linux", enabled),
-        /COOKIE_OS_PROTECTION_REQUIRED/,
-    );
-    await assert.rejects(
-        requireCookieProtection(platform("v99"), "linux", enabled),
-        /COOKIE_OS_PROTECTION_REQUIRED/,
-    );
+    await assert.rejects(requireCookieProtection(platform("v10"), "linux", enabled), /COOKIE_OS_PROTECTION_REQUIRED/);
+    await assert.rejects(requireCookieProtection(platform("v99"), "linux", enabled), /COOKIE_OS_PROTECTION_REQUIRED/);
 });
 
 test("Cookie protection requires a successful exact roundtrip from an approved current provider", async () => {
@@ -112,40 +103,24 @@ test("Cookie protection requires a successful exact roundtrip from an approved c
         provider: "v11",
         encrypted: true,
     });
-    assert.equal(
-        (await requireCookieProtection(platform("v12", "unknown"), "linux", enabled)).provider,
-        "v12",
-    );
-    assert.equal(
-        (await requireCookieProtection(platform("v10"), "win32", enabled)).provider,
-        "v10",
-    );
+    assert.equal((await requireCookieProtection(platform("v12", "unknown"), "linux", enabled)).provider, "v12");
+    assert.equal((await requireCookieProtection(platform("v10"), "win32", enabled)).provider, "v10");
     const failed = platform();
     failed.decryptStringAsync = async () => ({ result: "different", shouldReEncrypt: false });
-    await assert.rejects(
-        requireCookieProtection(failed, "linux", enabled),
-        /COOKIE_OS_PROTECTION_REQUIRED/,
-    );
+    await assert.rejects(requireCookieProtection(failed, "linux", enabled), /COOKIE_OS_PROTECTION_REQUIRED/);
 });
 
 test("OS unavailability and native errors never become an encrypted Cookie claim", async () => {
     const absent = platform();
     absent.isAsyncEncryptionAvailable = async () => false;
-    await assert.rejects(
-        requireCookieProtection(absent, "linux", enabled),
-        /COOKIE_OS_PROTECTION_UNAVAILABLE/,
-    );
+    await assert.rejects(requireCookieProtection(absent, "linux", enabled), /COOKIE_OS_PROTECTION_UNAVAILABLE/);
     const rejected = platform();
     rejected.encryptStringAsync = async () => {
         throw new Error("PRIVATE_NATIVE_MESSAGE");
     };
     await assert.rejects(
         requireCookieProtection(rejected, "linux", enabled),
-        (error: unknown) =>
-            error instanceof Error && error.message === "COOKIE_OS_PROTECTION_UNAVAILABLE",
+        (error: unknown) => error instanceof Error && error.message === "COOKIE_OS_PROTECTION_UNAVAILABLE",
     );
-    await assert.rejects(
-        requireCookieProtection(platform(), "darwin", enabled),
-        /COOKIE_MAC_HOST_IDENTITY_REQUIRED/,
-    );
+    await assert.rejects(requireCookieProtection(platform(), "darwin", enabled), /COOKIE_MAC_HOST_IDENTITY_REQUIRED/);
 });

@@ -25,9 +25,7 @@ class Keys implements VaultKeyBackend {
     async get(scope: VaultKeyScope) {
         if (this.locked) return { status: "locked" as const };
         const key = this.values.get(JSON.stringify(scope));
-        return key
-            ? { status: "ok" as const, key: Buffer.from(key) }
-            : { status: "missing" as const };
+        return key ? { status: "ok" as const, key: Buffer.from(key) } : { status: "missing" as const };
     }
     async set(scope: VaultKeyScope, key: Buffer) {
         this.writes++;
@@ -38,9 +36,7 @@ class Keys implements VaultKeyBackend {
         this.deletes++;
         if (this.uncertain) return { status: "mutation-unconfirmed" as const };
         return {
-            status: this.values.delete(JSON.stringify(scope))
-                ? ("ok" as const)
-                : ("missing" as const),
+            status: this.values.delete(JSON.stringify(scope)) ? ("ok" as const) : ("missing" as const),
         };
     }
     async probe() {
@@ -60,9 +56,7 @@ const device = {
     deviceToken: "synthetic-private-token-for-owned-deletion",
     expiresAt: "2027-01-01T00:00:00Z",
 };
-async function fixture(
-    run: (directory: string, profile: CredentialProfile, keys: Keys) => Promise<void>,
-) {
+async function fixture(run: (directory: string, profile: CredentialProfile, keys: Keys) => Promise<void>) {
     const root = await mkdtemp(join(tmpdir(), "veriq-delete-")),
         directory = join(root, "profile");
     const keys = new Keys(),
@@ -92,9 +86,7 @@ test("whole credential deletion retires all purposes and exact key but preserves
         assert.equal(keys.values.size, 0);
         assert.deepEqual(await readdir(join(directory, "vault")), ["deletion.json"]);
         assert.deepEqual(await readFile(join(directory, "trust.json")), preserved);
-        const tombstone = JSON.parse(
-            await readFile(join(directory, "vault", "deletion.json"), "utf8"),
-        );
+        const tombstone = JSON.parse(await readFile(join(directory, "vault", "deletion.json"), "utf8"));
         assert.equal(tombstone.state, "deleted");
         assert.equal(tombstone.keys[0].status, "absent");
         await assert.rejects(
@@ -108,8 +100,7 @@ test("whole credential deletion retires all purposes and exact key but preserves
     }));
 
 test(
-    "uncertain key retirement remains pending and explici" +
-        "t resume reads exact scope before any repeat mutation",
+    "uncertain key retirement remains pending and explici" + "t resume reads exact scope before any repeat mutation",
     async () =>
         fixture(async (directory, profile, keys) => {
             const [scope, key] = [...keys.values][0]!;
@@ -153,10 +144,7 @@ test("local retirement uncertainty retains the key and exact remaining file inte
         }
         assert.equal(keys.deletes, 0);
         assert.equal(keys.values.size, 1);
-        assert.equal(
-            JSON.parse(await readFile(join(directory, "vault", "deletion.json"), "utf8")).state,
-            "pending",
-        );
+        assert.equal(JSON.parse(await readFile(join(directory, "vault", "deletion.json"), "utf8")).state, "pending");
         await profile.deleteCredentials();
         assert.equal(keys.values.size, 0);
     }));
@@ -172,10 +160,7 @@ test("locked or conflicting keys cannot be deleted as a guessed profile scope", 
         assert.equal(keys.deletes, 0);
         keys.values.set(scope, actual);
         await profile.deleteCredentials();
-        assert.equal(
-            JSON.parse(await readFile(join(directory, "vault", "deletion.json"), "utf8")).state,
-            "deleted",
-        );
+        assert.equal(JSON.parse(await readFile(join(directory, "vault", "deletion.json"), "utf8")).state, "deleted");
     }));
 
 /**
@@ -184,9 +169,7 @@ test("locked or conflicting keys cannot be deleted as a guessed profile scope", 
  */
 test("whole credential deletion retains and rechecks late old initialization scopes", async () =>
     fixture(async (directory, profile, keys) => {
-        const manifest = JSON.parse(
-            await readFile(join(directory, "vault", "profile.json"), "utf8"),
-        );
+        const manifest = JSON.parse(await readFile(join(directory, "vault", "profile.json"), "utf8"));
         const old = randomBytes(32),
             oldVersion = randomUUID();
         const files = await VaultFiles.acquire(join(directory, "vault"));
@@ -210,14 +193,9 @@ test("whole credential deletion retains and rechecks late old initialization sco
         } finally {
             await files.close();
         }
-        keys.values.set(
-            JSON.stringify({ profileId: manifest.profileId, keyVersion: oldVersion }),
-            old,
-        );
+        keys.values.set(JSON.stringify({ profileId: manifest.profileId, keyVersion: oldVersion }), old);
         await profile.deleteCredentials();
-        const journal = JSON.parse(
-            await readFile(join(directory, "vault", "deletion.json"), "utf8"),
-        );
+        const journal = JSON.parse(await readFile(join(directory, "vault", "deletion.json"), "utf8"));
         assert.equal(journal.keys.length, 2);
         assert.equal(journal.keys[0].keyVersion, oldVersion);
         assert(journal.keys.every((entry: { status: string }) => entry.status === "absent"));
@@ -261,10 +239,7 @@ test("CLI whole-profile deletion requires explicit confirmation before touching 
                 { timeout: 15000, maxBuffer: 8192 },
             ),
             (error: unknown) => {
-                assert.match(
-                    (error as { stderr: string }).stderr,
-                    /CREDENTIAL_PROFILE_DELETE_CONFIRMATION_REQUIRED/,
-                );
+                assert.match((error as { stderr: string }).stderr, /CREDENTIAL_PROFILE_DELETE_CONFIRMATION_REQUIRED/);
                 return true;
             },
         );

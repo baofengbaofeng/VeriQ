@@ -63,13 +63,7 @@ export interface WindowsNative {
      * 原子更新在已验证父句柄下创建临时成员并提交，首次注册可明确禁止覆盖；提交后刷新不确定性原样抛出，不执行回调、
      * 自动重试或回退普通 Node 文件写入，默认仍保持既有替换行为。
      */
-    replacePrivate(
-        directory: string,
-        name: string,
-        temporary: string,
-        content: string,
-        createOnly?: boolean,
-    ): void;
+    replacePrivate(directory: string, name: string, temporary: string, content: string, createOnly?: boolean): void;
     /**
      * 退休仅针对有限普通私有成员并在原生持有的父链及文件句柄上完成，未知权限或重解析错误继续上抛；
      * 成功表示删除标记和句柄释放完成，不代表存储介质已擦除或目录断电持久化。
@@ -85,10 +79,7 @@ export interface WindowsNative {
      * 在原生流式核对；缓存库存退休先隔离专用 UUID 命名空间后才改变只读属性，
      * 未知成员或关闭失败保持错误，不扩大凭据读取能力。
      */
-    retirePrivateEvidence(
-        path: string,
-        file: { path: string; sizeBytes: number; sha256: string },
-    ): void;
+    retirePrivateEvidence(path: string, file: { path: string; sizeBytes: number; sha256: string }): void;
     /**
      * 有限库存必须由宿主信任校验产生且本机 SQLite 已提交退休意图，原生只允许 bundles/UUID 到对应退休名的隔离与清单成员
      * 删除；单次最大四千零九十八文件及一百二十八 MiB，不能删除引擎、凭据或未知源目录。
@@ -138,9 +129,7 @@ export function windowsNative(): WindowsNative {
     if (process.platform !== "win32") throw new Error("WINDOWS_NATIVE_PLATFORM_REQUIRED");
     if (!installedPath && /^veriq_(agent|cli|runner)(?:\.exe)?$/i.test(basename(process.execPath)))
         throw new Error("WINDOWS_NATIVE_DISTRIBUTION_REQUIRED");
-    const path =
-        installedPath ??
-        fileURLToPath(new URL("../../build/Release/veriq_native.node", import.meta.url));
+    const path = installedPath ?? fileURLToPath(new URL("../../build/Release/veriq_native.node", import.meta.url));
     if (!loaded) {
         loaded = createRequire(import.meta.url)(path) as WindowsNative;
         loadedPath = path;

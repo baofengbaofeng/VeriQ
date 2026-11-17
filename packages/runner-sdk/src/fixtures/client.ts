@@ -5,11 +5,7 @@
 import { Ajv2020 } from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import type { FixtureV1, JsonObject, JsonValue } from "@veriq/contracts";
-import type {
-    FixtureServiceContext,
-    LifecycleContext,
-    LifecycleProvider,
-} from "../register-case.js";
+import type { FixtureServiceContext, LifecycleContext, LifecycleProvider } from "../register-case.js";
 import { authorizedURL } from "../http.js";
 import { authenticatedRequest, authenticateBusiness } from "./auth.js";
 const schemas = new Ajv2020({ strict: false, allErrors: true });
@@ -47,11 +43,7 @@ function envelope(context: FixtureServiceContext) {
         idempotencyKey: `${e.workspaceId}:${e.caseExecutionId}:${e.attemptNo}`,
     };
 }
-async function call(
-    request: FixtureRequest,
-    operation: "prepare" | "cleanup",
-    token?: JsonValue,
-): Promise<JsonObject> {
+async function call(request: FixtureRequest, operation: "prepare" | "cleanup", token?: JsonValue): Promise<JsonObject> {
     const { context, fixture } = request;
     const identity = context.execution.environment.fixtureIdentity,
         base = context.execution.environment.fixtureBaseURL;
@@ -105,8 +97,7 @@ export async function prepareFixture(request: FixtureRequest): Promise<FixtureCo
         !Object.hasOwn(result, "cleanupToken")
     )
         throw new Error("FIXTURE_RESPONSE_INVALID");
-    if (!schemas.compile(request.fixture.outputSchema)(result.variables))
-        throw new Error("FIXTURE_OUTPUT_INVALID");
+    if (!schemas.compile(request.fixture.outputSchema)(result.variables)) throw new Error("FIXTURE_OUTPUT_INVALID");
     return {
         ...request,
         fixtureId: result.fixtureId,
@@ -119,12 +110,9 @@ export async function prepareFixture(request: FixtureRequest): Promise<FixtureCo
  * 公开函数 cleanupFixture 在独立预算信号下执行幂等清理：即使业务失败或取消也必须尝试（cleanupFixture/CLEANUP_RESPONSE_
  * INVALID）。
  */
-export async function cleanupFixture(
-    context: FixtureRequest & { cleanupToken?: JsonValue },
-): Promise<CleanupReceipt> {
+export async function cleanupFixture(context: FixtureRequest & { cleanupToken?: JsonValue }): Promise<CleanupReceipt> {
     const result = await call(context, "cleanup", context.cleanupToken);
-    if (result.status !== "CLEANED" && result.status !== "ALREADY_CLEANED")
-        throw new Error("CLEANUP_RESPONSE_INVALID");
+    if (result.status !== "CLEANED" && result.status !== "ALREADY_CLEANED") throw new Error("CLEANUP_RESPONSE_INVALID");
     return {
         status: result.status,
         ...(typeof result.fixtureId === "string" ? { fixtureId: result.fixtureId } : {}),

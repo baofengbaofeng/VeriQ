@@ -50,9 +50,7 @@ if (phase === "prepare") {
         debug: input.scenario === "draft_suite",
     });
 } else if (phase === "execute" || phase === "execute_prefix" || phase === "recover") {
-    await assert.rejects(
-        fetch(config.server + "/api/v1/setup", { signal: AbortSignal.timeout(2000) }),
-    );
+    await assert.rejects(fetch(config.server + "/api/v1/setup", { signal: AbortSignal.timeout(2000) }));
     if (phase === "execute_prefix") {
         const original = LocalStore.prototype.stopped;
         LocalStore.prototype.stopped = function (runId, receipt, owner) {
@@ -66,10 +64,7 @@ if (phase === "prepare") {
         await recoverOffline(root);
         const store = await LocalStore.open(root);
         try {
-            result = store.result(
-                config.workspaceId,
-                String(store.history(config.workspaceId)[0]!.id),
-            );
+            result = store.result(config.workspaceId, String(store.history(config.workspaceId)[0]!.id));
         } finally {
             store.close();
         }
@@ -84,17 +79,13 @@ if (phase === "prepare") {
                 browserExecutable: process.env.VERIQ_TEST_CHROMIUM ?? "/usr/bin/chromium",
                 deviceId: config.runnerId,
                 debug: input.scenario === "draft_suite",
-                ...(["draft_suite", "matrix"].includes(input.scenario ?? "")
-                    ? { browsers: ["firefox" as const] }
-                    : {}),
+                ...(["draft_suite", "matrix"].includes(input.scenario ?? "") ? { browsers: ["firefox" as const] } : {}),
             },
         );
     assert.equal(
         result.outcome,
         phase === "recover" ? "INCOMPLETE" : phase === "execute_prefix" ? "CANCELLED" : "PASSED",
-        JSON.stringify(
-            result.attempts.map((a) => ({ outcome: a.outcome, failure: a.failureCode })),
-        ),
+        JSON.stringify(result.attempts.map((a) => ({ outcome: a.outcome, failure: a.failureCode }))),
     );
     assert.equal(result.attempts[0]!.processStopped, true);
     if (["draft_suite", "matrix"].includes(input.scenario ?? "")) {
@@ -104,9 +95,7 @@ if (phase === "prepare") {
             assert.equal(attempt.execution?.browser, "chromium");
         }
     }
-    const trace = result.attempts[0]!.artifacts.find(
-        (a) => a.kind === (phase === "recover" ? "DOWNLOAD" : "TRACE"),
-    );
+    const trace = result.attempts[0]!.artifacts.find((a) => a.kind === (phase === "recover" ? "DOWNLOAD" : "TRACE"));
     assert(trace?.artifactId);
     const reports = new LocalReports(root, (workspace) => workspace === config.workspaceId);
     const bytes = await reports.readRaw(
@@ -121,9 +110,7 @@ if (phase === "prepare") {
     assert.equal(snapshot.reports[0]!.gateNow.passed, false);
     await writeFile(join(profile, "local-result.json"), JSON.stringify(result), { mode: 0o600 });
 } else if (phase === "upload") {
-    const result = JSON.parse(
-        await readFile(join(profile, "local-result.json"), "utf8"),
-    ) as OfflineResultV1;
+    const result = JSON.parse(await readFile(join(profile, "local-result.json"), "utf8")) as OfflineResultV1;
     const originalFetch = globalThis.fetch;
     globalThis.fetch = async (...args) => {
         const response = await originalFetch(...args);
@@ -131,9 +118,7 @@ if (phase === "prepare") {
             const body = (await response.clone().json()) as {
                 code?: string;
             };
-            process.stderr.write(
-                JSON.stringify({ importHttpStatus: response.status, code: body.code }) + "\n",
-            );
+            process.stderr.write(JSON.stringify({ importHttpStatus: response.status, code: body.code }) + "\n");
         }
         return response;
     };

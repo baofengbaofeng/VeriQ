@@ -8,14 +8,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 // 此脚本只在经过外层准入的目标 Node 中执行解析，不导入或运行任何候选包正文；两个真实 Node 解析器的结果分别记录，导出条
 // 件指向不同物理实例时交给外层明确拒绝，不自行解析 exports。
 const [root, requestPath, resultPath] = process.argv.slice(2);
-if (
-    !root ||
-    !requestPath ||
-    !resultPath ||
-    !isAbsolute(root) ||
-    resolve(root) !== root ||
-    !isAbsolute(resultPath)
-)
+if (!root || !requestPath || !resultPath || !isAbsolute(root) || resolve(root) !== root || !isAbsolute(resultPath))
     throw new Error("Invalid resolver invocation");
 const bytes = await readFile(requestPath);
 if (bytes.length > 4 * 1024 ** 2) throw new Error("Resolver request limit");
@@ -59,12 +52,9 @@ for (const request of requests) {
             result[mode] = { path: output.split(sep).join("/"), error: null };
         } catch (error) {
             if (
-                ![
-                    "ERR_MODULE_NOT_FOUND",
-                    "MODULE_NOT_FOUND",
-                    "ERR_PACKAGE_PATH_NOT_EXPORTED",
-                    "ENOENT",
-                ].includes(error?.code)
+                !["ERR_MODULE_NOT_FOUND", "MODULE_NOT_FOUND", "ERR_PACKAGE_PATH_NOT_EXPORTED", "ENOENT"].includes(
+                    error?.code,
+                )
             )
                 throw error;
             result[mode] = { path: null, error: error.code };

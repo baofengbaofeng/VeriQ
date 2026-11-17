@@ -3,12 +3,7 @@
  * 私有文件边界，并同时读取本代已提交过程记录和对应证明，绝不能从状态名称或 PID 消失推断停止。
  */
 import { createHash } from "node:crypto";
-import {
-    LIMITS,
-    validateBinding,
-    validateJournal,
-    type ObserverBinding,
-} from "./controlled-child-protocol.mjs";
+import { LIMITS, validateBinding, validateJournal, type ObserverBinding } from "./controlled-child-protocol.mjs";
 
 /**
  * 过程记录先持久化完整派生计划与双绑定，随后只增加本次原对象登记、取消授权和浏览器停止授权；尚未取得实际对象的意图仍然
@@ -95,14 +90,11 @@ const recordKeys = [
     "cancellationAuthorized",
     "browserStopAuthorized",
 ];
-const positive = (value: unknown): value is number =>
-    Number.isSafeInteger(value) && Number(value) > 0;
+const positive = (value: unknown): value is number => Number.isSafeInteger(value) && Number(value) > 0;
 const object = (value: unknown): value is Record<string, unknown> =>
     !!value && typeof value === "object" && !Array.isArray(value);
 const exact = (value: unknown, keys: string[]): value is Record<string, unknown> =>
-    object(value) &&
-    Object.keys(value).length === keys.length &&
-    Object.keys(value).every((key) => keys.includes(key));
+    object(value) && Object.keys(value).length === keys.length && Object.keys(value).every((key) => keys.includes(key));
 function reject(): never {
     throw new Error("CONTROLLED_PROOF_INVALID");
 }
@@ -193,8 +185,7 @@ function summary(value: unknown, limit: number, empty: boolean): boolean {
         Number(value.count) <= limit &&
         typeof value.sha256 === "string" &&
         /^[a-f0-9]{64}$/.test(value.sha256) &&
-        (Number(value.bytes) > 0 ||
-            (value.count === 0 && value.sha256 === createHash("sha256").digest("hex")))
+        (Number(value.bytes) > 0 || (value.count === 0 && value.sha256 === createHash("sha256").digest("hex")))
     );
 }
 
@@ -202,12 +193,7 @@ function summary(value: unknown, limit: number, empty: boolean): boolean {
  * 退出字段必须同时表达正常退出码或单一信号而没有双重含义，外层只接受业务零或一与已授权取消的一百三十；
  * 浏览器的主动关闭可以有真实信号，但只能与已持久化的本次浏览器停止授权共同配对。
  */
-function exit(
-    value: unknown,
-    pid: number | undefined,
-    outer: boolean,
-    cancelled: boolean,
-): boolean {
+function exit(value: unknown, pid: number | undefined, outer: boolean, cancelled: boolean): boolean {
     if (
         !exact(value, ["pid", "code", "signal", "observed"]) ||
         !positive(pid) ||
@@ -216,15 +202,10 @@ function exit(
     )
         return false;
     if (outer)
-        return (
-            value.signal === null &&
-            (value.code === 0 || value.code === 1 || (value.code === 130 && cancelled))
-        );
+        return value.signal === null && (value.code === 0 || value.code === 1 || (value.code === 130 && cancelled));
     return (
         (Number.isSafeInteger(value.code) && Number(value.code) >= 0 && value.signal === null) ||
-        (value.code === null &&
-            typeof value.signal === "string" &&
-            /^SIG[A-Z0-9]+$/.test(value.signal))
+        (value.code === null && typeof value.signal === "string" && /^SIG[A-Z0-9]+$/.test(value.signal))
     );
 }
 
@@ -247,22 +228,17 @@ export function validateControlledPair(
         )
             return false;
         identity(proof);
-        if (proof.state !== "CONTROLLED_STOPPED" || proof.scope !== "CONTROLLED_WORKER_BROWSER")
-            return false;
+        if (proof.state !== "CONTROLLED_STOPPED" || proof.scope !== "CONTROLLED_WORKER_BROWSER") return false;
         for (const key of identityKeys) {
             if (key === "commandBinding" || key === "cliBinding") {
-                if (
-                    JSON.stringify(validateBinding(proof[key])) !==
-                    JSON.stringify(validateBinding(journal[key]))
-                )
+                if (JSON.stringify(validateBinding(proof[key])) !== JSON.stringify(validateBinding(journal[key])))
                     return false;
             } else if (proof[key] !== journal[key as keyof DarwinProcessRecord]) return false;
         }
         if (
             !exit(proof.outer, journal.outerPid, true, journal.cancellationAuthorized) ||
             (journal.browserPlanned
-                ? !journal.browserStopAuthorized ||
-                  !exit(proof.chrome, journal.chromePid, false, false)
+                ? !journal.browserStopAuthorized || !exit(proof.chrome, journal.chromePid, false, false)
                 : proof.chrome !== null) ||
             !exact(proof.journals, ["commands", "cli"]) ||
             !summary(proof.journals.commands, journal.kind === "TEST" ? 3 : 2, false) ||
@@ -291,11 +267,7 @@ export function verifyControlledJournals(
     const commands = validateJournal(commandBytes, journal.commandBinding).objects;
     if (commands.length > (journal.kind === "TEST" ? 3 : 2)) reject();
     for (const [index, member] of commands.entries()) {
-        if (
-            index > 0 &&
-            (commands[index - 1]!.exitCode !== 0 || commands[index - 1]!.signal !== null)
-        )
-            reject();
+        if (index > 0 && (commands[index - 1]!.exitCode !== 0 || commands[index - 1]!.signal !== null)) reject();
         if (index === 2) {
             if (
                 member.signal !== null ||
@@ -305,9 +277,7 @@ export function verifyControlledJournals(
         } else if (
             !(
                 (member.signal === null && [0, 1].includes(member.exitCode!)) ||
-                (journal.cancellationAuthorized &&
-                    member.exitCode === null &&
-                    member.signal === "SIGINT")
+                (journal.cancellationAuthorized && member.exitCode === null && member.signal === "SIGINT")
             )
         )
             reject();

@@ -39,8 +39,7 @@ const en = {
     output: "Proposed output",
     unknown: "Unknown cost / reservation retained",
     edit: "Open draft editor: validate, debug, publish",
-    readonly:
-        "Editor is required to generate/review; Owner/Admin is required to configure providers.",
+    readonly: "Editor is required to generate/review; Owner/Admin is required to configure providers.",
     requirement: "Requirement / expected-result basis",
     versions: "Selected immutable version IDs (comma separated)",
     openapi: "Supplied OpenAPI JSON",
@@ -86,8 +85,7 @@ const zh: typeof en = {
     enabled: "启用",
     key: "只写 API Key",
     keyHint: "在此输入密钥。已保存密钥不可读回。",
-    estimate:
-        "配置价格仅为估算，不是供应商账单。未知或取消调用保留预算；取消不能保证上游停止执行或计费。",
+    estimate: "配置价格仅为估算，不是供应商账单。未知或取消调用保留预算；取消不能保证上游停止执行或计费。",
     preview: "预览所选上下文与预算",
     generate: "使用已审核上下文生成",
     cancel: "取消本地结果",

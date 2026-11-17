@@ -30,18 +30,26 @@ function argumentsFor(command: string | undefined, args: string[]): Map<string, 
         "mac-inputs": { required: ["--job"] },
         "v1-inputs": { required: ["--job"] },
         "mac-stage": { required: ["--recipe", "--expected", "--input-root", "--output-parent", "--candidate"] },
-        "package": {
+        package: {
             required: ["--runtime-root", "--receipt", "--output-parent", "--candidate"],
             optional: ["--mac-policy"],
         },
     };
     const definition = command ? definitions[command] : undefined;
     if (!definition || args.length % 2) throw new Error("RUNTIME_BUILD_ARGUMENTS_INVALID");
-    const allowed = [...definition.required, ...(definition.optional ?? [])], values = new Map<string, string>();
+    const allowed = [...definition.required, ...(definition.optional ?? [])],
+        values = new Map<string, string>();
     for (let index = 0; index < args.length; index += 2) {
-        const name = args[index]!, value = args[index + 1]!;
-        if (!allowed.includes(name) || values.has(name) || !value || value.startsWith("--") ||
-            (name !== "--candidate" && !isAbsolute(value))) throw new Error("RUNTIME_BUILD_ARGUMENTS_INVALID");
+        const name = args[index]!,
+            value = args[index + 1]!;
+        if (
+            !allowed.includes(name) ||
+            values.has(name) ||
+            !value ||
+            value.startsWith("--") ||
+            (name !== "--candidate" && !isAbsolute(value))
+        )
+            throw new Error("RUNTIME_BUILD_ARGUMENTS_INVALID");
         values.set(name, value);
     }
     if (definition.required.some((name) => !values.has(name))) throw new Error("RUNTIME_BUILD_ARGUMENTS_INVALID");
@@ -63,11 +71,17 @@ async function inputBytes(path: string): Promise<Buffer> {
         if (opened.dev !== before.dev || opened.ino !== before.ino) throw new Error("RUNTIME_BUILD_INPUT_CHANGED");
         const bytes = await handle.readFile();
         const after = await handle.stat({ bigint: true });
-        if (bytes.length !== Number(before.size) || after.size !== before.size ||
-            after.mtimeNs !== before.mtimeNs || after.ctimeNs !== before.ctimeNs)
+        if (
+            bytes.length !== Number(before.size) ||
+            after.size !== before.size ||
+            after.mtimeNs !== before.mtimeNs ||
+            after.ctimeNs !== before.ctimeNs
+        )
             throw new Error("RUNTIME_BUILD_INPUT_CHANGED");
         return bytes;
-    } finally { await handle.close(); }
+    } finally {
+        await handle.close();
+    }
 }
 
 /**
@@ -88,13 +102,27 @@ try {
         result = await produceRuntimeV1(job, runBoundedAssetCli);
     } else if (command === "mac-stage") {
         const expected = JSON.parse((await inputBytes(get("--expected"))).toString()) as ExpectedPayloadInputs;
-        result = await stageProducedMacRuntime(await inputBytes(get("--recipe")), expected,
-            get("--input-root"), get("--output-parent"), get("--candidate"));
+        result = await stageProducedMacRuntime(
+            await inputBytes(get("--recipe")),
+            expected,
+            get("--input-root"),
+            get("--output-parent"),
+            get("--candidate"),
+        );
     } else {
-        const mac = flags.has("--mac-policy") ? JSON.parse((await inputBytes(get("--mac-policy"))).toString()) as
-            { arch: MacRuntimeArch; layout: MacChromeLayout } : undefined;
-        result = await packageRuntimeCandidate({ runtimeDirectory: get("--runtime-root"), receiptPath: get("--receipt"),
-            outputParent: get("--output-parent"), candidateName: get("--candidate"), ...(mac ? { mac } : {}) });
+        const mac = flags.has("--mac-policy")
+            ? (JSON.parse((await inputBytes(get("--mac-policy"))).toString()) as {
+                  arch: MacRuntimeArch;
+                  layout: MacChromeLayout;
+              })
+            : undefined;
+        result = await packageRuntimeCandidate({
+            runtimeDirectory: get("--runtime-root"),
+            receiptPath: get("--receipt"),
+            outputParent: get("--output-parent"),
+            candidateName: get("--candidate"),
+            ...(mac ? { mac } : {}),
+        });
     }
     process.stdout.write(`${JSON.stringify(result)}\n`);
 } catch (error) {

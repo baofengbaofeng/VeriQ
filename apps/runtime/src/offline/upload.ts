@@ -23,16 +23,10 @@ export async function uploadOffline(
     try {
         const result = store.result(config.workspaceId, runId);
         if (store.active()?.runId === runId) throw new Error("LOCAL_RUN_UNFINISHED");
-        if (validateSchema("OfflineResultV1", result).length)
-            throw new Error("INVALID_OFFLINE_RESULT");
+        if (validateSchema("OfflineResultV1", result).length) throw new Error("INVALID_OFFLINE_RESULT");
         const origin = controlOrigin(config.server),
             base = `/internal/v1/workspaces/${config.workspaceId}`;
-        const request = async (
-            path: string,
-            method: string,
-            body: BodyInit,
-            contentType: string,
-        ) => {
+        const request = async (path: string, method: string, body: BodyInit, contentType: string) => {
             if (!path.startsWith(base + "/") || new URL(path, origin).origin !== origin)
                 throw new Error("UPLOAD_ORIGIN_MISMATCH");
             const response = await fetch(origin + path, {
@@ -84,12 +78,7 @@ export async function uploadOffline(
         for (const attempt of result.attempts)
             for (const file of attempt.artifacts) {
                 if (!file.artifactId || !file.kind) throw new Error("INVALID_OFFLINE_ARTIFACT");
-                const bytes = await reports.readRaw(
-                    config.workspaceId,
-                    runId,
-                    attempt.attemptId,
-                    file.artifactId,
-                );
+                const bytes = await reports.readRaw(config.workspaceId, runId, attempt.attemptId, file.artifactId);
                 const reserved = (await request(
                     base + "/result-import-uploads",
                     "POST",
@@ -145,12 +134,9 @@ export async function uploadOffline(
         return receipt;
     } catch (error) {
         const failure =
-            error instanceof Error && /^[A-Z_]{1,80}$/.test(error.message)
-                ? error.message
-                : "UPLOAD_FAILED";
+            error instanceof Error && /^[A-Z_]{1,80}$/.test(error.message) ? error.message : "UPLOAD_FAILED";
         // Scope mismatch must not disclose or update another Workspace's history.
-        if (failure !== "LOCAL_RUN_NOT_FOUND")
-            store.uploadFailed(config.workspaceId, runId, failure);
+        if (failure !== "LOCAL_RUN_NOT_FOUND") store.uploadFailed(config.workspaceId, runId, failure);
         throw new Error(failure);
     } finally {
         store.close();

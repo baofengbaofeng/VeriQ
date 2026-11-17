@@ -17,11 +17,7 @@ let disconnecting = false;
 let active;
 if (invocation.controlled !== undefined) {
     try {
-        if (
-            invocation.controlled.commandJournalFd !== 5 ||
-            invocation.controlled.cliJournalFd !== 4
-        )
-            throw new Error();
+        if (invocation.controlled.commandJournalFd !== 5 || invocation.controlled.cliJournalFd !== 4) throw new Error();
         owner = createControlledCommandOwner({ ...invocation.controlled, kind: invocation.kind });
     } catch {
         managementFailed = true;
@@ -55,12 +51,9 @@ await new Promise((resolve) => {
             try {
                 owner.requestStop(message.binding);
                 cancelled = true;
-                process.send?.(
-                    { type: "CANCEL_ACK", binding: invocation.controlled.commandBinding },
-                    (error) => {
-                        if (error) failManagement();
-                    },
-                );
+                process.send?.({ type: "CANCEL_ACK", binding: invocation.controlled.commandBinding }, (error) => {
+                    if (error) failManagement();
+                });
             } catch {
                 failManagement();
             }
@@ -152,19 +145,12 @@ try {
     await mkdir(join(invocation.work, "engine/compiler"), { recursive: true });
     // 编译归档已经在激活前与运维固定库存逐项匹配，此处只解压该受信成员且继续沿用原有编译桥与结果路径，
     // 不增加业务输入可选择的新加载器或执行文件入口。
-    await extractCompiler(
-        join(invocation.work, "engine/compiler.tgz"),
-        join(invocation.work, "engine/compiler"),
-    );
+    await extractCompiler(join(invocation.work, "engine/compiler.tgz"), join(invocation.work, "engine/compiler"));
     if (cancelled) throw new Error("WORKER_CANCELLED");
     stage = "COMPILER_PROCESS_FAILED";
     await command(
         "compiler",
-        [
-            "--import",
-            pathToFileURL(invocation.tsx).href,
-            join(invocation.work, "compile-entry.mjs"),
-        ],
+        ["--import", pathToFileURL(invocation.tsx).href, join(invocation.work, "compile-entry.mjs")],
         45000,
     );
     const result = JSON.parse(await readFile(join(invocation.work, "worker-result.json"), "utf8"));
@@ -186,9 +172,7 @@ try {
                 pathToFileURL(join(invocation.work, "node_modules/@veriq/runner-sdk/src/index.js"))
             );
             const { contact } = await import(pathToFileURL(join(invocation.work, "provider.mjs")));
-            const subject = JSON.parse(
-                await readFile(join(invocation.work, "subject.json"), "utf8"),
-            );
+            const subject = JSON.parse(await readFile(join(invocation.work, "subject.json"), "utf8"));
             await cleanupFixture({
                 fixture: subject.fixture,
                 context: {
@@ -221,11 +205,9 @@ try {
     } else if (cancelled) {
         process.exitCode = 130;
     } else {
-        await writeFile(
-            join(invocation.work, "worker-failure.json"),
-            JSON.stringify({ failureCode: stage }),
-            { mode: 0o600 },
-        );
+        await writeFile(join(invocation.work, "worker-failure.json"), JSON.stringify({ failureCode: stage }), {
+            mode: 0o600,
+        });
         // 第三方调用可能把凭据写入异常或原始输出，跨越 Worker 边界只保存这里选定的稳定英文阶段码，
         // 业务报告仍由原有结果文件承载，不复制异常消息或第三方日志。
         if (invocation.kind === "CLEANUP")

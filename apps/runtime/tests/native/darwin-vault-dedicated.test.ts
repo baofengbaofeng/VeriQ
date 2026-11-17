@@ -25,26 +25,14 @@ test("dedicated session proves persistent exact-scope storage and refusal behavi
         assert.equal(await fixture.status("get", version, profile), "missing");
         assert.equal(await fixture.race(version, version, key, key), true);
         assert.equal(await fixture.matches(version, version, key), true);
-        assert.equal(
-            await fixture.race("21234567-89ab-cdef-0123-456789abcdef", version, key, different),
-            true,
-        );
+        assert.equal(await fixture.race("21234567-89ab-cdef-0123-456789abcdef", version, key, different), true);
         await fixture.control("lock");
         assert.equal(await fixture.status("get", profile, version), "locked");
         await fixture.control("unlock");
         assert.equal(await fixture.matches(profile, version, key), true);
         assert.equal(await fixture.status("delete", profile, version), "ok");
         assert.equal(await fixture.status("get", profile, version), "missing");
-        for (const policy of [
-            "broad",
-            "empty",
-            "any",
-            "second",
-            "owner",
-            "mixed",
-            "unknown",
-            "denied",
-        ] as const) {
+        for (const policy of ["broad", "empty", "any", "second", "owner", "mixed", "unknown", "denied"] as const) {
             await fixture.control("seed", {
                 policy,
                 profile,

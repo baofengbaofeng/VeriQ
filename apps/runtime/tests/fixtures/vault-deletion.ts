@@ -31,6 +31,14 @@ export async function verifyCredentialDeletion(directory: string, options: Crede
         expiresAt: "2027-01-01T00:00:00Z",
     };
     let scope: VaultKeyScope | undefined;
+    let closeError: unknown;
+    let result: {
+        threePurposesRetired: boolean;
+        exactKeyActuallyMissing: boolean;
+        publicDataRetained: boolean;
+        tombstoneRetained: boolean;
+        restartCannotReinitialize: boolean;
+    };
     try {
         await profile.transaction(async (tx) => {
             await tx.set(ref, "synthetic-owned-deletion-value");
@@ -50,10 +58,7 @@ export async function verifyCredentialDeletion(directory: string, options: Crede
         await updatePrivate(directory, "public-marker.json", () => ({ public: "retained" }));
         const marker = await readFile(join(directory, "public-marker.json"));
         await profile.deleteCredentials();
-        assert.equal(
-            (await options.backend.get(scope, AbortSignal.timeout(5000))).status,
-            "missing",
-        );
+        assert.equal((await options.backend.get(scope, AbortSignal.timeout(5000))).status, "missing");
         assert.deepEqual(await readdir(join(directory, "vault")), ["deletion.json"]);
         assert.deepEqual(await readFile(join(directory, "public-marker.json")), marker);
         const journal = JSON.parse(await readFile(join(directory, "vault/deletion.json"), "utf8"));
@@ -66,7 +71,7 @@ export async function verifyCredentialDeletion(directory: string, options: Crede
             /VAULT_PROFILE_DELETED/,
         );
         await profile.deleteCredentials();
-        return {
+        result = {
             threePurposesRetired: true,
             exactKeyActuallyMissing: true,
             publicDataRetained: true,
@@ -76,25 +81,20 @@ export async function verifyCredentialDeletion(directory: string, options: Crede
     } finally {
         if (!scope) {
             try {
-                const manifest = JSON.parse(
-                    await readFile(join(directory, "vault/profile.json"), "utf8"),
-                );
+                const manifest = JSON.parse(await readFile(join(directory, "vault/profile.json"), "utf8"));
                 scope = { profileId: manifest.profileId, keyVersion: manifest.keyVersion };
             } catch (error) {
-                if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+                if ((error as NodeJS.ErrnoException).code !== "ENOENT") closeError = error;
             }
         }
         if (scope) {
             assert(
-                ["ok", "missing"].includes(
-                    (await options.backend.delete(scope, AbortSignal.timeout(5000))).status,
-                ),
+                ["ok", "missing"].includes((await options.backend.delete(scope, AbortSignal.timeout(5000))).status),
                 "VAULT_DELETION_FIXTURE_CLEANUP_FAILED",
             );
-            assert.equal(
-                (await options.backend.get(scope, AbortSignal.timeout(5000))).status,
-                "missing",
-            );
+            assert.equal((await options.backend.get(scope, AbortSignal.timeout(5000))).status, "missing");
         }
     }
+    if (closeError !== undefined) throw closeError;
+    return result;
 }

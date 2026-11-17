@@ -52,8 +52,7 @@ export function snapshot(
     return rehash(result);
 }
 export function rehash(s: AssetSnapshotV1): AssetSnapshotV1 {
-    for (const a of s.assets)
-        a.sha256 = hash(canonicalBytes({ kind: a.kind, document: a.document }));
+    for (const a of s.assets) a.sha256 = hash(canonicalBytes({ kind: a.kind, document: a.document }));
     s.sourceHash = hash(assetSourceBytes(s));
     return s;
 }

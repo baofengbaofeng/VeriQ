@@ -29,14 +29,8 @@ export function tarBytes(entries: readonly ArchiveFixtureEntry[], tail = Buffer.
             path: entry.path,
             type:
                 entry.type ??
-                (entry.kind === "directory"
-                    ? "Directory"
-                    : entry.kind === "link"
-                      ? "SymbolicLink"
-                      : "File"),
-            mode:
-                entry.mode ??
-                (entry.kind === "link" ? 0o777 : entry.kind === "directory" ? 0o755 : 0o644),
+                (entry.kind === "directory" ? "Directory" : entry.kind === "link" ? "SymbolicLink" : "File"),
+            mode: entry.mode ?? (entry.kind === "link" ? 0o777 : entry.kind === "directory" ? 0o755 : 0o644),
             size: entry.declaredSize ?? body.length,
             linkpath: entry.target ?? "",
             uid: 0,
@@ -128,9 +122,7 @@ export function archiveModel(arch: Arch = "x64") {
         value.nodeReceipt.archiveSha256 = hash(node);
         for (const instance of value.nodeReceipt.npmGraph.instances)
             instance.lockSnapshot = `node-archive:${hash(node)}:.`;
-        const npm = Buffer.from(
-            nodeEntries.find((e) => e.path.endsWith("/npm/package.json"))!.body!,
-        );
+        const npm = Buffer.from(nodeEntries.find((e) => e.path.endsWith("/npm/package.json"))!.body!);
         Object.assign(value.nodeReceipt.npmPackageJson, {
             sizeBytes: npm.length,
             sha256: hash(npm),

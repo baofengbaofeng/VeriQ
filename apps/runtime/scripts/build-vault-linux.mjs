@@ -9,30 +9,24 @@ import { mkdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 
-if (process.platform !== "linux" || process.arch !== "x64")
-    throw new Error("VAULT_BUILD_PLATFORM_UNSUPPORTED");
+if (process.platform !== "linux" || process.arch !== "x64") throw new Error("VAULT_BUILD_PLATFORM_UNSUPPORTED");
 const testDriver = process.argv.slice(2).includes("--test-driver");
-if (process.argv.slice(2).some((value) => value !== "--test-driver"))
-    throw new Error("VAULT_BUILD_ARGUMENT_INVALID");
+if (process.argv.slice(2).some((value) => value !== "--test-driver")) throw new Error("VAULT_BUILD_ARGUMENT_INVALID");
 const root = fileURLToPath(new URL("../", import.meta.url));
 const source = join(root, "native/vault/linux-vault.c");
 const directory = join(root, "build", testDriver ? "vault-test" : "vault");
 const output = join(directory, "veriq_agent");
 const env = { PATH: "/usr/bin:/bin", LANG: "C.UTF-8" };
 const execute = async (file, args, maxBuffer = 1024 * 1024) =>
-    (await promisify(execFile)(file, args, { env, timeout: 60_000, maxBuffer, encoding: "utf8" }))
-        .stdout;
+    (await promisify(execFile)(file, args, { env, timeout: 60_000, maxBuffer, encoding: "utf8" })).stdout;
 const hash = async (path) =>
     createHash("sha256")
         .update(await readFile(path))
         .digest("hex");
 const compiler = await realpath("/usr/bin/cc");
 const pkgConfig = await realpath("/usr/bin/pkg-config");
-const options = (await execute(pkgConfig, ["--cflags", "--libs", "libsecret-1"]))
-    .trim()
-    .split(/\s+/);
-if (options.some((value) => !/^[A-Za-z0-9_./=+,-]+$/.test(value)))
-    throw new Error("VAULT_BUILD_FLAGS_INVALID");
+const options = (await execute(pkgConfig, ["--cflags", "--libs", "libsecret-1"])).trim().split(/\s+/);
+if (options.some((value) => !/^[A-Za-z0-9_./=+,-]+$/.test(value))) throw new Error("VAULT_BUILD_FLAGS_INVALID");
 const args = [
     "-std=c11",
     "-O2",
@@ -84,12 +78,7 @@ if (evidence) {
         pkgConfig,
         pkgConfigSha256: await hash(pkgConfig),
         pkgConfigVersion: await execute(pkgConfig, ["--version"]),
-        libraryVersions: await execute(pkgConfig, [
-            "--modversion",
-            "libsecret-1",
-            "glib-2.0",
-            "gio-2.0",
-        ]),
+        libraryVersions: await execute(pkgConfig, ["--modversion", "libsecret-1", "glib-2.0", "gio-2.0"]),
         args,
         output,
         sha256: await hash(output),
@@ -99,9 +88,6 @@ if (evidence) {
     };
     await writeFile(join(evidence, `${prefix}.json`), JSON.stringify(record, null, 2) + "\n");
     await writeFile(join(evidence, `${prefix}-dependencies.log`), dependencies);
-    await writeFile(
-        join(evidence, `${prefix}-elf.log`),
-        await execute("/usr/bin/readelf", ["-d", "-W", "-s", output]),
-    );
+    await writeFile(join(evidence, `${prefix}-elf.log`), await execute("/usr/bin/readelf", ["-d", "-W", "-s", output]));
 }
 process.stdout.write(testDriver ? "VAULT_TEST_DRIVER_BUILT\n" : "VAULT_PRODUCTION_HELPER_BUILT\n");

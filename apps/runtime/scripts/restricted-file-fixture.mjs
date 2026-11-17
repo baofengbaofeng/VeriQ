@@ -33,8 +33,7 @@ const run = (file, args, extra = {}) =>
         env: { PATH: "/usr/sbin:/usr/bin:/sbin:/bin", LANG: "C.UTF-8" },
         ...extra,
     });
-const save = (name, value) =>
-    writeFile(join(evidence, name), JSON.stringify(value, null, 2) + "\n", { mode: 0o644 });
+const save = (name, value) => writeFile(join(evidence, name), JSON.stringify(value, null, 2) + "\n", { mode: 0o644 });
 async function account(name) {
     try {
         const fields = (await run("/usr/bin/getent", ["passwd", name])).stdout.trim().split(":");
@@ -127,8 +126,7 @@ async function cleanup(label) {
         const entries = await mounts(),
             nested = entries.filter((entry) => entry.path.startsWith(state.root + "/"));
         assert(
-            nested.length <= 1 &&
-                nested.every((entry) => entry.path === join(state.root, "volume")),
+            nested.length <= 1 && nested.every((entry) => entry.path === join(state.root, "volume")),
             "FIXTURE_UNEXPECTED_MOUNT",
         );
         /**
@@ -271,14 +269,8 @@ if (mode === "cleanup") {
             await mkdir(path, { mode: 0o700 });
             await chown(path, user.uid, user.gid);
         }
-        await run("/usr/bin/mount", [
-            "--bind",
-            join(state.root, "backing"),
-            join(state.root, "volume"),
-        ]);
-        const mounted = (await mounts()).filter(
-            (entry) => entry.path === join(state.root, "volume"),
-        );
+        await run("/usr/bin/mount", ["--bind", join(state.root, "backing"), join(state.root, "volume")]);
+        const mounted = (await mounts()).filter((entry) => entry.path === join(state.root, "volume"));
         assert.equal(mounted.length, 1);
         state.mountId = mounted[0].id;
         await save("restricted-file-state.json", state);
@@ -300,8 +292,7 @@ if (mode === "cleanup") {
                 dev: fixtureAncestor.dev,
                 ino: fixtureAncestor.ino,
             },
-            acceptance:
-                "Network-isolated credential/file fixture on an owned CI account and bind volume",
+            acceptance: "Network-isolated credential/file fixture on an owned CI account and bind volume",
         });
         /**
          * 每个业务子进程都先创建独立网络命名空间再降权，并由固定 timeout 监督；结束后必须同时核验账户无残留进程、真实输
@@ -309,13 +300,7 @@ if (mode === "cleanup") {
          * 行替代业务。
          */
         const child = async (phase, args) => {
-            const result = await executeNetworkIsolatedFixture(
-                process.execPath,
-                user.uid,
-                user.gid,
-                staged,
-                args,
-            );
+            const result = await executeNetworkIsolatedFixture(process.execPath, user.uid, user.gid, staged, args);
             await nobody(user.uid);
             observations.push({ phase, stdout: result.stdout, stderr: result.stderr, exitCode: 0 });
             await save("restricted-file-observations.json", observations);
@@ -351,9 +336,7 @@ if (mode === "cleanup") {
                 assert.equal(facts.tsxCacheDisabled, true);
                 if (phase === "closure") {
                     assert.equal(facts.loaderMarker, "tsx-esbuild");
-                    const manifest = JSON.parse(
-                        await readFile(join(staged, "package.json"), "utf8"),
-                    );
+                    const manifest = JSON.parse(await readFile(join(staged, "package.json"), "utf8"));
                     assert.deepEqual(
                         facts.loadedPackages.map((entry) => entry.name).sort(),
                         Object.keys({

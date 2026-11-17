@@ -19,12 +19,8 @@ export function offlineWorkerEnvironment(
      */
     if (platform === "win32") {
         const system = trustedHost.SystemRoot ?? trustedHost.SYSTEMROOT;
-        if (
-            !system ||
-            !/^[A-Za-z]:\\/.test(system) ||
-            system.length > 260 ||
-            /[\x00-\x1f\x7f;]/.test(system)
-        )
+        // biome-ignore lint/suspicious/noControlCharactersInRegex: 有意拒绝路径控制字符与 DEL，属安全校验而非误写
+        if (!system || !/^[A-Za-z]:\\/.test(system) || system.length > 260 || /[\x00-\x1f\x7f;]/.test(system))
             throw new Error("WINDOWS_SYSTEM_ROOT_INVALID");
         return {
             SystemRoot: system,
@@ -41,9 +37,7 @@ export function offlineWorkerEnvironment(
         if (
             !value ||
             !/^:[0-9]{1,5}(?:\.[0-9]{1,2})?$/.test(value) ||
-            Array.from(value).some(
-                (character) => character.charCodeAt(0) <= 32 || character.charCodeAt(0) === 127,
-            )
+            Array.from(value).some((character) => character.charCodeAt(0) <= 32 || character.charCodeAt(0) === 127)
         )
             throw new Error("VISIBLE_DISPLAY_UNAVAILABLE");
         display.DISPLAY = value;

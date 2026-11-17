@@ -10,8 +10,7 @@ const { join } = require("node:path");
 const { requireCookieProtection } = typedRequire("../../src/main/cookie-protection.ts", __filename);
 
 const [profile, phase] = process.argv.slice(2);
-if (!profile || !["write", "read", "fallback"].includes(phase))
-    throw new Error("COOKIE_FIXTURE_ARGUMENTS_INVALID");
+if (!profile || !["write", "read", "fallback"].includes(phase)) throw new Error("COOKIE_FIXTURE_ARGUMENTS_INVALID");
 app.setName("VeriQ Cookie acceptance");
 app.setPath("userData", profile);
 if (phase === "fallback") app.commandLine.appendSwitch("password-store", "basic");
@@ -28,10 +27,7 @@ void app
         } catch (error) {
             if (phase !== "fallback" || error.message !== "COOKIE_OS_PROTECTION_REQUIRED")
                 throw new Error("COOKIE_FIXTURE_PROTECTION_FAILED");
-            await writeFile(
-                join(profile, "fallback.json"),
-                JSON.stringify({ rejected: true, code: error.message }),
-            );
+            await writeFile(join(profile, "fallback.json"), JSON.stringify({ rejected: true, code: error.message }));
             app.exit(0);
             return;
         }
@@ -50,8 +46,7 @@ void app
             await target.cookies.flushStore();
         }
         const cookies = await target.cookies.get({ url, name });
-        if (cookies.length !== 1 || cookies[0].value !== value)
-            throw new Error("COOKIE_FIXTURE_ROUNDTRIP_FAILED");
+        if (cookies.length !== 1 || cookies[0].value !== value) throw new Error("COOKIE_FIXTURE_ROUNDTRIP_FAILED");
         await writeFile(
             join(profile, `${phase}.json`),
             JSON.stringify({

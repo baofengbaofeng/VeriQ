@@ -14,9 +14,6 @@ export default defineConfig({
         ? `${process.env.VERIQ_DESKTOP_EVIDENCE}/playwright-results`
         : "../../.superpowers/sdd/veriq-1/evidence/t19/playwright-results",
     reporter: process.env.VERIQ_DESKTOP_EVIDENCE
-        ? [
-              ["line"],
-              ["json", { outputFile: `${process.env.VERIQ_DESKTOP_EVIDENCE}/gui-results.json` }],
-          ]
+        ? [["line"], ["json", { outputFile: `${process.env.VERIQ_DESKTOP_EVIDENCE}/gui-results.json` }]]
         : [["line"]],
 });

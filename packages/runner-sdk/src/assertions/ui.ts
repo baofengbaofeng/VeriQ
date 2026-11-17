@@ -10,15 +10,10 @@ type UIAssertion = Extract<AssertionV1, { type: "ui" | "url" }>;
 /**
  * 公开函数 assertUI 按 UI 断言类型读取定位器实际值并比对期望：超时与取消映射为失败结果（assertUI）。
  */
-export async function assertUI(
-    a: UIAssertion,
-    expected: JsonValue,
-    ctx: StepContext,
-): Promise<Presence> {
+export async function assertUI(a: UIAssertion, expected: JsonValue, ctx: StepContext): Promise<Presence> {
     const timeout = budget(ctx, a.timeoutMs ?? 5000);
     if (a.type === "url") {
-        if (a.operator === "equals")
-            await expect(ctx.page).toHaveURL(String(expected), { timeout });
+        if (a.operator === "equals") await expect(ctx.page).toHaveURL(String(expected), { timeout });
         else await expect.poll(() => ctx.page.url(), { timeout }).toContain(String(expected));
         return { present: true, value: ctx.page.url() };
     }

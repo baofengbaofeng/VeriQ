@@ -5,12 +5,7 @@
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import type { Page, Request, Response, APIResponse } from "@playwright/test";
-import {
-    canonicalBytes,
-    type JsonValue,
-    type NetworkObserverV1,
-    type ObserverResultPayloadV1,
-} from "@veriq/contracts";
+import { canonicalBytes, type JsonValue, type NetworkObserverV1, type ObserverResultPayloadV1 } from "@veriq/contracts";
 
 /**
  * 公开接口 Exchange 表示一次匹配到的 HTTP 交换：含请求与响应摘要：供 HTTP 断言读取（Exchange）。
@@ -67,10 +62,7 @@ export class ObserverRegistry {
     /**
      * 公开方法 captureRequest 把请求分发给活跃观察器：返回响应收尾回调：无匹配则忽略（captureRequest）。
      */
-    captureRequest(
-        url: string,
-        data: Exchange["request"],
-    ): (response: Exchange["response"] | Error) => void {
+    captureRequest(url: string, data: Exchange["request"]): (response: Exchange["response"] | Error) => void {
         const callbacks = [...this.handles].map((h) => h.captureRequest?.(url, data));
         return (response) => {
             for (const cb of callbacks) cb?.(response);
@@ -100,9 +92,7 @@ export interface NetworkContext {
 /**
  * 公开函数 responseData 按编码读取响应体并限制体积：超限失败：供断言提取字段，供调用方理解 responseData 路径。
  */
-export async function responseData(
-    response: Response | APIResponse,
-): Promise<Exchange["response"]> {
+export async function responseData(response: Response | APIResponse): Promise<Exchange["response"]> {
     const text = await response.text();
     let body: JsonValue = text,
         bodyKind: Exchange["response"]["bodyKind"] = text ? "text" : "empty";
@@ -182,9 +172,7 @@ function subset(actual: JsonValue, expected: JsonValue): boolean {
         actual !== null &&
         typeof actual === "object" &&
         !Array.isArray(actual) &&
-        Object.entries(expected).every(
-            ([k, v]) => Object.hasOwn(actual, k) && subset(actual[k]!, v),
-        )
+        Object.entries(expected).every(([k, v]) => Object.hasOwn(actual, k) && subset(actual[k]!, v))
     );
 }
 /**
@@ -221,10 +209,7 @@ export function armObserver(spec: NetworkObserverV1, ctx: NetworkContext): Obser
             url.pathname !== spec.path
         )
             return;
-        if (
-            (queryMatch && !subset(data.query, queryMatch)) ||
-            (spec.bodyMatch && !subset(data.body, spec.bodyMatch))
-        )
+        if ((queryMatch && !subset(data.query, queryMatch)) || (spec.bodyMatch && !subset(data.body, spec.bodyMatch)))
             return;
         const record: (typeof records)[number] = {
             data,
@@ -328,9 +313,7 @@ export function armObserver(spec: NetworkObserverV1, ctx: NetworkContext): Obser
                 const end =
                     fixedEnd ??
                     Math.max(settled, last) +
-                        (spec.window?.mode === "UNTIL_ACTION_SETTLED"
-                            ? (spec.window.quietMs ?? 500)
-                            : 500);
+                        (spec.window?.mode === "UNTIL_ACTION_SETTLED" ? (spec.window.quietMs ?? 500) : 500);
                 if (Date.now() >= end) break;
                 if (Date.now() >= timeout) throw new Error("NETWORK_TIMEOUT");
                 await changed(Math.min(end, timeout));

@@ -11,10 +11,7 @@ export type { VaultHelperObservation } from "./helper.ts";
  * 所有公开密钥操作继承同一固定协议，不提供任意命令、路径或系统凭据枚举接口。
  */
 export class LinuxVaultBackend extends VaultHelperBackend {
-    constructor(
-        distribution: RuntimeDistribution,
-        options: ConstructorParameters<typeof VaultHelperBackend>[1] = {},
-    ) {
+    constructor(distribution: RuntimeDistribution, options: ConstructorParameters<typeof VaultHelperBackend>[1] = {}) {
         if (process.platform !== "linux") throw new Error("VAULT_PLATFORM_UNSUPPORTED");
         super(distribution, options);
     }

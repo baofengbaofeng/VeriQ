@@ -24,10 +24,7 @@ export type AdapterSummary = S["AuthAdapterDTO"];
 export interface IdentityAdapter {
     credentials(cursor?: string, signal?: AbortSignal): Promise<S["CredentialListDTO"]>;
     adapters(cursor?: string, signal?: AbortSignal): Promise<S["AuthAdapterListDTO"]>;
-    createAdapter(
-        configuration: AuthAdapterConfigV1,
-        signal?: AbortSignal,
-    ): Promise<AdapterSummary>;
+    createAdapter(configuration: AuthAdapterConfigV1, signal?: AbortSignal): Promise<AdapterSummary>;
     revokeAdapter(id: string, signal?: AbortSignal): Promise<AdapterSummary>;
     credential(
         secretRef: string,
@@ -64,12 +61,7 @@ export class CloudIdentityAdapter implements IdentityAdapter {
     createAdapter = (configuration: AuthAdapterConfigV1, signal?: AbortSignal) =>
         request<AdapterSummary>(this.base("auth-adapters"), "POST", { configuration }, signal);
     revokeAdapter = (id: string, signal?: AbortSignal) =>
-        request<AdapterSummary>(
-            this.base(`auth-adapters/${encodeURIComponent(id)}/revoke`),
-            "POST",
-            {},
-            signal,
-        );
+        request<AdapterSummary>(this.base(`auth-adapters/${encodeURIComponent(id)}/revoke`), "POST", {}, signal);
     credential = (
         secretRef: string,
         value: JsonObject,
@@ -78,18 +70,14 @@ export class CloudIdentityAdapter implements IdentityAdapter {
         signal?: AbortSignal,
     ) =>
         request<CredentialSummary>(
-            this.base(
-                rotate ? `credentials/${encodeURIComponent(secretRef)}/versions` : "credentials",
-            ),
+            this.base(rotate ? `credentials/${encodeURIComponent(secretRef)}/versions` : "credentials"),
             "POST",
             { ...(rotate ? {} : { secretRef }), value, allowedIdentityIds },
             signal,
         );
     revokeCredential = (ref: string, id: string, signal?: AbortSignal) =>
         request<CredentialSummary>(
-            this.base(
-                `credentials/${encodeURIComponent(ref)}/versions/${encodeURIComponent(id)}/revoke`,
-            ),
+            this.base(`credentials/${encodeURIComponent(ref)}/versions/${encodeURIComponent(id)}/revoke`),
             "POST",
             {},
             signal,

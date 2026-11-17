@@ -22,12 +22,7 @@ import {
     type CleanupStatus,
     type AttemptOutcome,
 } from "@veriq/contracts";
-import {
-    createStepContext,
-    type StepContext,
-    type StepContextOptions,
-    type StepResult,
-} from "./context.js";
+import { createStepContext, type StepContext, type StepContextOptions, type StepResult } from "./context.js";
 import { executeStep, skipStep } from "./execute-step.js";
 const fixtureSchemas = new Ajv2020({ strict: false, allErrors: true });
 addFormats.default(fixtureSchemas);
@@ -46,17 +41,9 @@ export interface CredentialProvider {
 export interface FixtureServiceContext {
     execution: Pick<
         ExecutionSnapshotV1,
-        | "workspaceId"
-        | "authAdapters"
-        | "secretVersions"
-        | "caseExecutionId"
-        | "attemptNo"
-        | "namespace"
+        "workspaceId" | "authAdapters" | "secretVersions" | "caseExecutionId" | "attemptNo" | "namespace"
     > & {
-        environment: Pick<
-            ExecutionSnapshotV1["environment"],
-            "allowedOrigins" | "fixtureBaseURL" | "fixtureIdentity"
-        >;
+        environment: Pick<ExecutionSnapshotV1["environment"], "allowedOrigins" | "fixtureBaseURL" | "fixtureIdentity">;
     };
     signal: AbortSignal;
     credentials?: CredentialProvider;
@@ -84,11 +71,7 @@ export interface LifecycleProvider {
         fixture: FixtureV1,
         context: LifecycleContext,
     ): Promise<{ variables: JsonObject; cleanupToken: JsonValue }>;
-    cleanup?(
-        fixture: FixtureV1,
-        token: JsonValue | undefined,
-        context: LifecycleContext,
-    ): Promise<void>;
+    cleanup?(fixture: FixtureV1, token: JsonValue | undefined, context: LifecycleContext): Promise<void>;
 }
 /**
  * 公开接口 CaseResult 汇总整案业务结局与 cleanupStatus：供事件上报与完成清单使用（CaseResult）。
@@ -104,9 +87,7 @@ export interface CaseResult {
 /**
  * 公开类型 SdkEvent 为整案执行过程中向上层报告的实时事件联合类型，专用于 SdkEvent 路径（CANCELLED）。
  */
-export type SdkEvent =
-    | { type: "STEP_FINISHED"; step: StepResult }
-    | { type: "CASE_FINISHED"; result: CaseResult };
+export type SdkEvent = { type: "STEP_FINISHED"; step: StepResult } | { type: "CASE_FINISHED"; result: CaseResult };
 /**
  * 公开接口 ExecutionOptions 配置 executeCase 的上下文提供者、信号、事件回调与预算相关选项。
  */
@@ -135,11 +116,7 @@ export interface ExecutionOptions {
     emit?: (event: SdkEvent) => Promise<void>;
     redact?: (value: JsonValue) => JsonValue;
 }
-async function bounded<T>(
-    run: (signal: AbortSignal) => Promise<T>,
-    ms: number,
-    parent?: AbortSignal,
-): Promise<T> {
+async function bounded<T>(run: (signal: AbortSignal) => Promise<T>, ms: number, parent?: AbortSignal): Promise<T> {
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     let rejectWait: ((e: Error) => void) | undefined;
@@ -215,9 +192,7 @@ export async function executeCase(
         if (options.emit) {
             if (!options.redact) throw new Error("REDACTION_PROVIDER_REQUIRED");
             await options.emit(
-                options.redact(
-                    evidence.redactProtocol(event as unknown as JsonValue),
-                ) as unknown as SdkEvent,
+                options.redact(evidence.redactProtocol(event as unknown as JsonValue)) as unknown as SdkEvent,
             );
         }
     }
@@ -226,8 +201,7 @@ export async function executeCase(
             evidence.protect(pin.secretRef);
             evidence.protect(pin.versionId);
         }
-        if (validateSchema("ExecutionSnapshotV1", execution).length)
-            throw new Error("INVALID_EXECUTION_CONTEXT");
+        if (validateSchema("ExecutionSnapshotV1", execution).length) throw new Error("INVALID_EXECUTION_CONTEXT");
         if (
             execution.workspaceId !== source.workspaceId ||
             execution.assetSourceHash !== source.sourceHash ||
@@ -237,14 +211,10 @@ export async function executeCase(
         const catalog = source.assets.find((a) => a.versionId === plan.document.catalogVersionId);
         if (catalog?.kind !== "ELEMENT_CATALOG") throw new Error("CATALOG_REQUIRED");
         if (!options.lifecycle?.authenticate) throw new Error("AUTH_PROVIDER_REQUIRED");
-        if ((options.emit || options.onEvent) && !options.redact)
-            throw new Error("REDACTION_PROVIDER_REQUIRED");
+        if ((options.emit || options.onEvent) && !options.redact) throw new Error("REDACTION_PROVIDER_REQUIRED");
         const role = execution.environment.roles.find((r) => r.roleKey === execution.roleKey);
         if (!role) throw new Error("ROLE_NOT_FOUND");
-        const initialVariables = resolveInitialVariables(
-            plan.document.initialVariables,
-            execution.variables,
-        );
+        const initialVariables = resolveInitialVariables(plan.document.initialVariables, execution.variables);
         if (plan.document.fixtureVersionId) {
             const asset = source.assets.find((a) => a.versionId === plan.document.fixtureVersionId);
             if (asset?.kind !== "FIXTURE") throw new Error("FIXTURE_REQUIRED");
@@ -253,10 +223,8 @@ export async function executeCase(
                 data: execution.dataRow?.values ?? {},
                 vars: initialVariables,
             }) as JsonObject;
-            if (!fixtureSchemas.compile(fixture.inputSchema)(fixtureInput))
-                throw new Error("FIXTURE_INPUT_INVALID");
-            if (!options.lifecycle.prepare || !options.lifecycle.cleanup)
-                throw new Error("FIXTURE_PROVIDER_REQUIRED");
+            if (!fixtureSchemas.compile(fixture.inputSchema)(fixtureInput)) throw new Error("FIXTURE_INPUT_INVALID");
+            if (!options.lifecycle.prepare || !options.lifecycle.cleanup) throw new Error("FIXTURE_PROVIDER_REQUIRED");
         }
         await options.page.context().route("**/*", route);
         const identity = await bounded(
@@ -264,10 +232,7 @@ export async function executeCase(
             60000,
             options.signal,
         );
-        if (
-            !identity.identityId ||
-            (role.allowedIdentityIds && !role.allowedIdentityIds.includes(identity.identityId))
-        )
+        if (!identity.identityId || (role.allowedIdentityIds && !role.allowedIdentityIds.includes(identity.identityId)))
             throw new Error("IDENTITY_NOT_ALLOWED");
         let variables = execution.variables;
         if (fixture) {
@@ -284,10 +249,7 @@ export async function executeCase(
                 throw new Error("FIXTURE_OUTPUT_INVALID");
             variables = { ...variables, ...prepared.variables };
         }
-        retryObservation = new RetryObservation(
-            options.page.context(),
-            plan.document.kind === "WRITE",
-        );
+        retryObservation = new RetryObservation(options.page.context(), plan.document.kind === "WRITE");
         ctx = createStepContext({
             onBusinessRequest: (method) => retryObservation!.method(method),
             page: options.page,
@@ -338,12 +300,9 @@ export async function executeCase(
                 }
             }
         }
-        const allSteps = (steps: StepResult[]): StepResult[] =>
-            steps.flatMap((s) => [s, ...allSteps(s.children)]);
+        const allSteps = (steps: StepResult[]): StepResult[] => steps.flatMap((s) => [s, ...allSteps(s.children)]);
         if (plan.document.kind === "WRITE" && result.businessOutcome === "PASSED") {
-            const checkpoint = allSteps(result.steps).find(
-                (s) => s.id === plan.persistenceCheckpointStepId,
-            );
+            const checkpoint = allSteps(result.steps).find((s) => s.id === plan.persistenceCheckpointStepId);
             if (
                 !checkpoint ||
                 checkpoint.status !== "PASSED" ||
@@ -359,15 +318,13 @@ export async function executeCase(
         }
     } catch (e) {
         result.businessOutcome = options.signal?.aborted ? "CANCELLED" : "ERROR";
-        result.errorCode =
-            e instanceof Error && /^[A-Z_]+$/.test(e.message) ? e.message : "EXECUTION_ERROR";
+        result.errorCode = e instanceof Error && /^[A-Z_]+$/.test(e.message) ? e.message : "EXECUTION_ERROR";
     } finally {
         ctx?.dispose();
         if (preparing) {
             try {
                 await bounded(
-                    (signal) =>
-                        options.lifecycle!.cleanup!(fixture!, token, lifecycleContext(signal)),
+                    (signal) => options.lifecycle!.cleanup!(fixture!, token, lifecycleContext(signal)),
                     30000,
                 );
                 result.cleanupStatus = "SUCCEEDED";
@@ -378,10 +335,7 @@ export async function executeCase(
         }
         if (options.lifecycle?.dispose) {
             try {
-                await bounded(
-                    (signal) => options.lifecycle!.dispose!(lifecycleContext(signal)),
-                    30000,
-                );
+                await bounded((signal) => options.lifecycle!.dispose!(lifecycleContext(signal)), 30000);
             } catch {
                 result.cleanupStatus = "FAILED";
                 result.errorCode = "AUTH_CLEANUP_FAILED";
@@ -408,9 +362,7 @@ export async function executeCase(
         await options.onEvent?.({ type: "CLEANUP_RESULT", cleanupStatus: result.cleanupStatus });
         await options.onEvent?.({
             type: "CASE_FINISHED",
-            result: options.redact!(
-                evidence.redactProtocol(result as unknown as JsonValue),
-            ) as unknown as CaseResult,
+            result: options.redact!(evidence.redactProtocol(result as unknown as JsonValue)) as unknown as CaseResult,
         });
         await emit({ type: "CASE_FINISHED", result });
     } catch {
@@ -440,9 +392,9 @@ export function registerCase(plan: CompiledCase, source: AssetSnapshotV1): void 
         test(plan.document.title, async ({ page }, info) => {
             info.setTimeout(240000);
             if (!provider && process.env.VERIQ_EXECUTION_CONTEXT_MODULE) {
-                const module = (await import(
-                    pathToFileURL(process.env.VERIQ_EXECUTION_CONTEXT_MODULE).href
-                )) as { createExecutionContext?: ExecutionContextProvider };
+                const module = (await import(pathToFileURL(process.env.VERIQ_EXECUTION_CONTEXT_MODULE).href)) as {
+                    createExecutionContext?: ExecutionContextProvider;
+                };
                 provider = module.createExecutionContext;
             }
             if (!provider) throw new Error("EXECUTION_CONTEXT_PROVIDER_REQUIRED");

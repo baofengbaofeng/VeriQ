@@ -32,10 +32,7 @@ async function main(): Promise<void> {
     );
     const keyPath = flags.get("--key-file")!;
     const keyInfo = await lstat(keyPath);
-    if (
-        process.platform !== "win32" &&
-        (keyInfo.uid !== process.getuid!() || (keyInfo.mode & 0o077) !== 0)
-    )
+    if (process.platform !== "win32" && (keyInfo.uid !== process.getuid!() || (keyInfo.mode & 0o077) !== 0))
         throw new Error("DESKTOP_UPDATE_SIGN_KEY_NOT_PRIVATE");
     const key = createPrivateKey(await input(keyPath, 16384));
     if (key.asymmetricKeyType !== "ed25519") throw new Error("DESKTOP_UPDATE_SIGN_KEY_INVALID");
@@ -48,16 +45,12 @@ async function main(): Promise<void> {
     );
     verifyUpdateEnvelope(envelope, release);
     await writeFile(flags.get("--output")!, envelope, { flag: "wx", mode: 0o644 });
-    process.stdout.write(
-        "VeriQ update manifest signed; native acceptance and publication remain separate gates.\n",
-    );
+    process.stdout.write("VeriQ update manifest signed; native acceptance and publication remain separate gates.\n");
 }
 main().catch((error: unknown) => {
     process.stderr.write(
         `VeriQ update manifest signing failed: ${
-            error instanceof Error && /^[A-Z0-9_]+$/.test(error.message)
-                ? error.message
-                : "DESKTOP_UPDATE_SIGN_FAILED"
+            error instanceof Error && /^[A-Z0-9_]+$/.test(error.message) ? error.message : "DESKTOP_UPDATE_SIGN_FAILED"
         }\n`,
     );
     process.exitCode = 1;

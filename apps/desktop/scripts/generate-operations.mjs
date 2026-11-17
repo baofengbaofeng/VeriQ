@@ -27,16 +27,10 @@ for (const [path, item] of Object.entries(document.paths)) {
         const name = operation.operationId;
         if (!allowed.has(name)) continue;
         const parameters = (operation.parameters ?? []).map((parameter) =>
-            parameter.$ref
-                ? document.components.parameters[parameter.$ref.split("/").at(-1)]
-                : parameter,
+            parameter.$ref ? document.components.parameters[parameter.$ref.split("/").at(-1)] : parameter,
         );
-        const request = operation.requestBody?.content?.["application/json"]?.schema?.$ref
-            ?.split("/")
-            .at(-1);
-        const ids = parameters
-            .filter((parameter) => parameter.in === "path")
-            .map((parameter) => parameter.name);
+        const request = operation.requestBody?.content?.["application/json"]?.schema?.$ref?.split("/").at(-1);
+        const ids = parameters.filter((parameter) => parameter.in === "path").map((parameter) => parameter.name);
         const queries = Object.fromEntries(
             parameters
                 .filter((parameter) => parameter.in === "query")
@@ -66,15 +60,9 @@ for (const [path, item] of Object.entries(document.paths)) {
                 "    | {",
                 `        operation: ${JSON.stringify(name)};`,
                 ...(ids.length
-                    ? [
-                          "        params: {",
-                          ...ids.map((id) => `            ${id}: string;`),
-                          "        };",
-                      ]
+                    ? ["        params: {", ...ids.map((id) => `            ${id}: string;`), "        };"]
                     : []),
-                ...(Object.keys(queries).length
-                    ? ["        query?: Record<string, string | number | boolean>;"]
-                    : []),
+                ...(Object.keys(queries).length ? ["        query?: Record<string, string | number | boolean>;"] : []),
                 ...(request ? [`        data: S[${JSON.stringify(request)}];`] : []),
                 ...(idempotency ? ["        idempotencyKey: string;"] : []),
                 "    }",
@@ -106,9 +94,7 @@ await writeFile(
  * Ajv 实例检查完整正文，避免手写协议解析器。
  */
 const platform = JSON.parse(
-    await readFile(
-        new URL("../../../packages/contracts/schemas/platform-v1.schema.json", import.meta.url),
-    ),
+    await readFile(new URL("../../../packages/contracts/schemas/platform-v1.schema.json", import.meta.url)),
 );
 const definitions = { ...platform.$defs };
 for (const [name, schema] of Object.entries(document.components.schemas)) {

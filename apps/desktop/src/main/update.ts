@@ -2,7 +2,7 @@ import { createHash, verify } from "node:crypto";
 import { constants, createReadStream, createWriteStream } from "node:fs";
 import { Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import { lstat, mkdir, realpath, rm } from "node:fs/promises";
+import { lstat, mkdir, open, realpath, rm } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
@@ -67,9 +67,7 @@ export function verifyUpdateEnvelope(bytes: Uint8Array, release: DesktopRelease)
         !verify(null, payload, release.updatePublicKeyPem, signature)
     )
         throw new Error("DESKTOP_UPDATE_SIGNATURE_INVALID");
-    const update = JSON.parse(
-        new TextDecoder("utf-8", { fatal: true }).decode(payload),
-    ) as DesktopUpdate;
+    const update = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(payload)) as DesktopUpdate;
     const keys = [
         "schemaVersion",
         "appId",
@@ -87,10 +85,7 @@ export function verifyUpdateEnvelope(bytes: Uint8Array, release: DesktopRelease)
         Array.isArray(values) &&
         values.length > 0 &&
         values.length <= 100 &&
-        values.every(
-            (value) =>
-                typeof value === "string" && /^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$/.test(value),
-        );
+        values.every((value) => typeof value === "string" && /^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$/.test(value));
     /**
      * 安装载体按当前原生目标固定扩展名，完整文件名只能是同目录可移植单组件；来源版本、数据格式与当前引擎同时构成兼容门
      * 槛，回滚方向不会取消这些条件或允许任意数据库降级。此首版入口只更新桌面壳并保持相同执行引擎。
@@ -98,8 +93,7 @@ export function verifyUpdateEnvelope(bytes: Uint8Array, release: DesktopRelease)
      * 本机安装材料。nativeSigner 的有限字符集合允许证书主体或指纹，但禁止命令控制字符。
      * 安装清单允许升级和回滚，当前版本重放仍明确拒绝。
      */
-    const extension =
-        release.platform === "darwin" ? ".pkg" : release.platform === "win32" ? ".exe" : ".deb";
+    const extension = release.platform === "darwin" ? ".pkg" : release.platform === "win32" ? ".exe" : ".deb";
     if (
         !update ||
         Object.keys(update).length !== keys.length ||
@@ -150,10 +144,7 @@ export async function stageDesktopUpdate(
     const info = await lstat(manifest);
     if (!info.isFile() || info.nlink !== 1 || info.size > 128 * 1024)
         throw new Error("DESKTOP_UPDATE_MANIFEST_INVALID");
-    const update = verifyUpdateEnvelope(
-        await readBoundedRegularFile(manifest, 128 * 1024),
-        release,
-    );
+    const update = verifyUpdateEnvelope(await readBoundedRegularFile(manifest, 128 * 1024), release);
     /**
      * 原始安装文件仅定位于签名清单同目录，验证真实普通文件和单硬链接后复制；之后所有系统工具与人工安装入口只接触私有副
      * 本，下载目录在复制期间发生变化也必须被副本摘要发现。不对源文件改权限、不删除用户下载，也不展开未核验归档。随机
@@ -180,23 +171,25 @@ export async function stageDesktopUpdate(
          * 文件，最终摘要仍在关闭复制流后重新计算，不能借流完成代替完整性结论。
          */
         let copied = 0;
-        await pipeline(
-            createReadStream(source, {
-                flags: constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
-            }),
-            new Transform({
-                transform(chunk: Buffer, _encoding, callback) {
-                    copied += chunk.length;
-                    callback(
-                        copied > update.installer.sizeBytes
-                            ? new Error("DESKTOP_UPDATE_INSTALLER_LIMIT")
-                            : null,
-                        chunk,
-                    );
-                },
-            }),
-            createWriteStream(installer, { flags: "wx", mode: 0o600 }),
-        );
+        // 源描述符以 O_NOFOLLOW 打开，防止 lstat 后路径被替换为链接导致越权读取，与有界文件读取保持一致。
+        const sourceHandle = await open(source, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+        try {
+            await pipeline(
+                sourceHandle.createReadStream({ autoClose: false }),
+                new Transform({
+                    transform(chunk: Buffer, _encoding, callback) {
+                        copied += chunk.length;
+                        callback(
+                            copied > update.installer.sizeBytes ? new Error("DESKTOP_UPDATE_INSTALLER_LIMIT") : null,
+                            chunk,
+                        );
+                    },
+                }),
+                createWriteStream(installer, { flags: "wx", mode: 0o600 }),
+            );
+        } finally {
+            await sourceHandle.close();
+        }
         const hash = createHash("sha256");
         for await (const bytes of createReadStream(installer)) hash.update(bytes);
         if (
@@ -214,15 +207,11 @@ export async function stageDesktopUpdate(
          * 用户确认和后台停止检查位于 main 的后续阶段，不由这项静态检查代替。
          */
         if (release.platform === "darwin") {
-            const result = await promisify(execFile)(
-                "/usr/sbin/pkgutil",
-                ["--check-signature", installer],
-                {
-                    timeout: 30000,
-                    maxBuffer: 65536,
-                    env: { ...agentEnvironment(""), LANG: "C", LC_ALL: "C" },
-                },
-            );
+            const result = await promisify(execFile)("/usr/sbin/pkgutil", ["--check-signature", installer], {
+                timeout: 30000,
+                maxBuffer: 65536,
+                env: { ...agentEnvironment(""), LANG: "C", LC_ALL: "C" },
+            });
             if (
                 !result.stdout.includes("Status: signed by a certificate trusted by") ||
                 !result.stdout.includes(update.installer.nativeSigner)
@@ -233,10 +222,7 @@ export async function stageDesktopUpdate(
                 "$s=Get-AuthenticodeSignature -LiteralPath $env:VERIQ_UPDATE_INSTALLER; @{status=$s.Status.ToString(" +
                 ");thumbprint=$s.SignerCertificate.Thumbprint}|ConvertTo-Json -Compress";
             const result = await promisify(execFile)(
-                join(
-                    process.env.SystemRoot ?? "C:\\Windows",
-                    "System32/WindowsPowerShell/v1.0/powershell.exe",
-                ),
+                join(process.env.SystemRoot ?? "C:\\Windows", "System32/WindowsPowerShell/v1.0/powershell.exe"),
                 ["-NoProfile", "-NonInteractive", "-Command", command],
                 {
                     timeout: 30000,
@@ -245,10 +231,7 @@ export async function stageDesktopUpdate(
                 },
             );
             const signature = JSON.parse(result.stdout);
-            if (
-                signature.status !== "Valid" ||
-                signature.thumbprint !== update.installer.nativeSigner
-            )
+            if (signature.status !== "Valid" || signature.thumbprint !== update.installer.nativeSigner)
                 throw new Error("DESKTOP_UPDATE_NATIVE_SIGNATURE_INVALID");
         }
         return { update, installer, cleanup };

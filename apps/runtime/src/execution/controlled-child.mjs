@@ -1,10 +1,6 @@
 import { ChildProcess } from "node:child_process";
 import { readSync } from "node:fs";
-import {
-    inspectJournalFd,
-    validateBinding,
-    validateJournal,
-} from "./controlled-child-protocol.mjs";
+import { inspectJournalFd, validateBinding, validateJournal } from "./controlled-child-protocol.mjs";
 
 /**
  * VeriQ 的父侧观察器统一服务普通 Node 与 TypeScript 消费者，保留原始 ChildProcess 的 exit 和 error 事实；它借入日志 FD
@@ -46,8 +42,7 @@ export function trackObservedCli(child, options) {
         finish({ kind: "failure", reason: "CLI_ERROR" });
     });
     child.once("exit", (code, signal) => finish({ kind: "exit", code, signal }));
-    if (child.exitCode !== null || child.signalCode !== null)
-        finish({ kind: "failure", reason: "CLI_ALREADY_EXITED" });
+    if (child.exitCode !== null || child.signalCode !== null) finish({ kind: "failure", reason: "CLI_ALREADY_EXITED" });
 
     /**
      * 期望身份与启动时兼容授权都立即经过原协议验证器复制，之后只保留快照或匹配布尔值；对复制结果再次核验可拒绝 getter
@@ -75,11 +70,7 @@ export function trackObservedCli(child, options) {
     if (options.timeoutMs !== undefined) {
         if (!Number.isSafeInteger(options.timeoutMs) || options.timeoutMs <= 0)
             throw new TypeError("CONTROLLED_CHILD_TIMEOUT_INVALID");
-        if (!terminal)
-            timer = setTimeout(
-                () => finish({ kind: "failure", reason: "CLI_TIMEOUT" }),
-                options.timeoutMs,
-            );
+        if (!terminal) timer = setTimeout(() => finish({ kind: "failure", reason: "CLI_TIMEOUT" }), options.timeoutMs);
     }
     let result;
     return {
@@ -99,8 +90,7 @@ export function trackObservedCli(child, options) {
          */
         authorizeCancellation(value) {
             try {
-                if (terminal || error || child.exitCode !== null || child.signalCode !== null)
-                    throw new Error();
+                if (terminal || error || child.exitCode !== null || child.signalCode !== null) throw new Error();
                 const snapshot = validateBinding(validateBinding(value));
                 if (
                     JSON.stringify(snapshot) !== JSON.stringify(binding) ||
@@ -128,8 +118,7 @@ export function trackObservedCli(child, options) {
             result ??= (async () => {
                 const observation = await exited;
                 if (error) return { ok: false, reason: "CLI_ERROR" };
-                if (observation.kind === "failure")
-                    return { ok: false, reason: observation.reason };
+                if (observation.kind === "failure") return { ok: false, reason: observation.reason };
                 if (
                     observation.signal !== null ||
                     ![0, 1, 130].includes(observation.code ?? -1) ||

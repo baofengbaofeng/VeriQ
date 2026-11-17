@@ -37,10 +37,7 @@ export const runtimesMessages: Record<string, readonly [string, string]> = {
         "No registered Runtimes in this Workspace.",
     ],
     "Load more devices": ["加载更多设备", "Load more devices"],
-    "Members allowed to use this device": [
-        "允许使用此设备的成员",
-        "Members allowed to use this device",
-    ],
+    "Members allowed to use this device": ["允许使用此设备的成员", "Members allowed to use this device"],
     "Personal device": ["个人设备", "Personal device"],
     "Service account device": ["服务账号设备", "Service account device"],
     "Current trust:": ["当前信任状态：", "Current trust:"],
@@ -55,11 +52,10 @@ export const runtimesMessages: Record<string, readonly [string, string]> = {
     Private: ["私有", "Private"],
     ". Platform credential delivery:": ["。平台凭证投递：", ". Platform credential delivery:"],
     "Worker is": ["Worker 状态为", "Worker is"],
-    ". Execution history becomes available after runs exist; current trust does not rewrite past results.":
-        [
-            "。开始运行后可查看执行历史；当前信任状态不修改过去的结果。",
-            ". Execution history becomes available after runs exist; current trust does not rewrite past results.",
-        ],
+    ". Execution history becomes available after runs exist; current trust does not rewrite past results.": [
+        "。开始运行后可查看执行历史；当前信任状态不修改过去的结果。",
+        ". Execution history becomes available after runs exist; current trust does not rewrite past results.",
+    ],
     "Share with the Workspace": ["共享给工作区", "Share with the Workspace"],
     "Save sharing": ["保存共享设置", "Save sharing"],
     "Revoke device": ["吊销设备", "Revoke device"],
@@ -74,17 +70,13 @@ export const runtimesMessages: Record<string, readonly [string, string]> = {
         "Workspace owners and administrators may approve delivery after hardware trust is managed. Updating hard" +
             "ware trust clears this approval.",
     ],
-    "Allow platform credential delivery": [
-        "允许平台投递凭证",
-        "Allow platform credential delivery",
-    ],
+    "Allow platform credential delivery": ["允许平台投递凭证", "Allow platform credential delivery"],
     "Save credential delivery": ["保存凭证投递设置", "Save credential delivery"],
     "Deployment service accounts": ["部署服务账号", "Deployment service accounts"],
-    "Use a one-time registration token with VeriQ enroll-service. Registration does not grant managed trust.":
-        [
-            "通过 VeriQ enroll-service 使用一次性登记令牌。完成登记不自动授予受管理信任。",
-            "Use a one-time registration token with VeriQ enroll-service. Registration does not grant managed trust.",
-        ],
+    "Use a one-time registration token with VeriQ enroll-service. Registration does not grant managed trust.": [
+        "通过 VeriQ enroll-service 使用一次性登记令牌。完成登记不自动授予受管理信任。",
+        "Use a one-time registration token with VeriQ enroll-service. Registration does not grant managed trust.",
+    ],
     "Create service account": ["创建服务账号", "Create service account"],
     "Loading service accounts…": ["正在加载服务账号…", "Loading service accounts…"],
     "No deployment service accounts.": ["尚无部署服务账号。", "No deployment service accounts."],

@@ -120,10 +120,7 @@ export class ExecutionCancelled extends Error {
 /**
  * 公开函数 interruptible 在 AbortSignal 触发时拒绝 Promise：包装可等待操作以支持取消。
  */
-export function interruptible<T>(
-    ctx: Pick<StepContext, "signal">,
-    operation: () => Promise<T>,
-): Promise<T> {
+export function interruptible<T>(ctx: Pick<StepContext, "signal">, operation: () => Promise<T>): Promise<T> {
     if (ctx.signal?.aborted) return Promise.reject(new ExecutionCancelled());
     return new Promise<T>((resolve, reject) => {
         let settled = false;
@@ -194,17 +191,11 @@ export function locator(key: string, ctx: StepContext, seen = new Set<string>())
         e.locator.by === "testId"
             ? root.getByTestId(e.locator.value)
             : root.getByRole(e.locator.role as Parameters<Page["getByRole"]>[0], {
-                  ...(e.locator.name === undefined
-                      ? {}
-                      : { name: stringBinding(e.locator.name, ctx) }),
+                  ...(e.locator.name === undefined ? {} : { name: stringBinding(e.locator.name, ctx) }),
                   ...(e.locator.exact === undefined ? {} : { exact: e.locator.exact }),
               });
     if (e.recordKey !== undefined)
-        result = result.and(
-            ctx.page.locator(
-                `[data-record-key=${JSON.stringify(stringBinding(e.recordKey, ctx))}]`,
-            ),
-        );
+        result = result.and(ctx.page.locator(`[data-record-key=${JSON.stringify(stringBinding(e.recordKey, ctx))}]`));
     return result;
 }
 /**

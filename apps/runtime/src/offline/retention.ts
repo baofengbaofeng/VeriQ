@@ -7,11 +7,7 @@ import { join, resolve } from "node:path";
 import { createHash } from "node:crypto";
 import lockfile from "proper-lockfile";
 import { validateSchema, type OfflineResultV1 } from "@veriq/contracts";
-import {
-    acquireDesktopProfileOwner,
-    ownsDesktopProfile,
-    type DesktopProfileOwner,
-} from "../credentials/ownership.ts";
+import { acquireDesktopProfileOwner, ownsDesktopProfile, type DesktopProfileOwner } from "../credentials/ownership.ts";
 import { VaultFiles } from "../credentials/files.ts";
 import { requireStoppedHistory } from "../execution/stopped-history.ts";
 import { ProcessRecords } from "../execution/records.ts";
@@ -81,9 +77,7 @@ async function requireOfflineStopped(root: string, store: LocalStore): Promise<v
         const names = await records.names(8192),
             ids = new Set<string>();
         for (const name of names) {
-            const match = /^([a-zA-Z0-9_-]{1,100})\.(?:process|drained|controlled)\.json$/.exec(
-                name,
-            );
+            const match = /^([a-zA-Z0-9_-]{1,100})\.(?:process|drained|controlled)\.json$/.exec(name);
             if (!match) throw new Error("LOCAL_RETENTION_UNKNOWN_PROCESS");
             ids.add(match[1]!);
         }
@@ -109,16 +103,14 @@ async function catalog(profile: string): Promise<CachedBundle[]> {
         if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
         throw error;
     }
-    if (!Array.isArray(value) || value.length > 1000)
-        throw new Error("LOCAL_RETENTION_CATALOG_INVALID");
+    if (!Array.isArray(value) || value.length > 1000) throw new Error("LOCAL_RETENTION_CATALOG_INVALID");
     const ids = new Set<string>();
     for (const item of value as CachedBundle[]) {
         if (
             !item ||
             typeof item !== "object" ||
             Object.keys(item).some(
-                (key) =>
-                    !["id", "workspaceId", "engineVersion", "createdAt", "debug"].includes(key),
+                (key) => !["id", "workspaceId", "engineVersion", "createdAt", "debug"].includes(key),
             ) ||
             validateSchema("Id", item.id).length ||
             validateSchema("Id", item.workspaceId).length ||
@@ -170,8 +162,7 @@ export async function pruneLocalProfile(
 ): Promise<LocalRetentionResult> {
     const profile = resolve(profileRoot),
         workspace = options.workspaceId;
-    if (validateSchema("Id", workspace).length)
-        throw new Error("LOCAL_RETENTION_WORKSPACE_INVALID");
+    if (validateSchema("Id", workspace).length) throw new Error("LOCAL_RETENTION_WORKSPACE_INVALID");
     const policy = {
         metadata: budget(options.metadataDays, 90, 3650),
         bundle: budget(options.bundleDays, 14, 3650),
@@ -187,11 +178,8 @@ export async function pruneLocalProfile(
         retained: 0,
         hasMore: false,
     };
-    let desktopRelease: (() => Promise<void>) | undefined,
-        onlineRelease: (() => Promise<void>) | undefined;
-    let owner: VaultFiles | undefined,
-        store: LocalStore | undefined,
-        end: ((commit: boolean) => void) | undefined;
+    let desktopRelease: (() => Promise<void>) | undefined, onlineRelease: (() => Promise<void>) | undefined;
+    let owner: VaultFiles | undefined, store: LocalStore | undefined, end: ((commit: boolean) => void) | undefined;
     let usedFiles = 0,
         usedBytes = 0;
     const fits = (files: RetentionFile[]) =>
@@ -203,8 +191,7 @@ export async function pruneLocalProfile(
     };
     try {
         if (options.desktopOwner) {
-            if (!ownsDesktopProfile(options.desktopOwner, profile))
-                throw new Error("LOCAL_RETENTION_OWNER_INVALID");
+            if (!ownsDesktopProfile(options.desktopOwner, profile)) throw new Error("LOCAL_RETENTION_OWNER_INVALID");
         } else desktopRelease = (await acquireDesktopProfileOwner(profile)).release;
         owner = await VaultFiles.acquire(join(profile, "agent-owner"));
         onlineRelease = await lockfile.lock(join(profile, "agent-owner"), {
@@ -266,15 +253,7 @@ export async function pruneLocalProfile(
                 let complete = true;
                 artifacts: for (const attempt of document.attempts)
                     for (const file of attempt.artifacts) {
-                        if (
-                            store.artifactRetired(
-                                workspace,
-                                document.localRunId,
-                                attempt.attemptId,
-                                file,
-                            )
-                        )
-                            continue;
+                        if (store.artifactRetired(workspace, document.localRunId, attempt.attemptId, file)) continue;
                         if (!fits([file])) {
                             complete = false;
                             result.hasMore = true;
@@ -287,12 +266,7 @@ export async function pruneLocalProfile(
                             complete = false;
                             break artifacts;
                         }
-                        store.retireArtifact(
-                            workspace,
-                            document.localRunId,
-                            attempt.attemptId,
-                            file,
-                        );
+                        store.retireArtifact(workspace, document.localRunId, attempt.attemptId, file);
                     }
                 if (!complete) {
                     result.retained++;
@@ -310,14 +284,7 @@ export async function pruneLocalProfile(
                         let bytes: Buffer;
                         try {
                             bytes = await readBoundedFile(
-                                join(
-                                    profile,
-                                    "offline",
-                                    "work",
-                                    attempt.attemptId,
-                                    "metadata",
-                                    "report-display.json",
-                                ),
+                                join(profile, "offline", "work", attempt.attemptId, "metadata", "report-display.json"),
                                 1024 * 1024,
                                 true,
                             );
@@ -325,10 +292,7 @@ export async function pruneLocalProfile(
                             if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
                             throw error;
                         }
-                        if (
-                            validateSchema("ReportDisplayV1", JSON.parse(bytes.toString("utf8")))
-                                .length
-                        )
+                        if (validateSchema("ReportDisplayV1", JSON.parse(bytes.toString("utf8"))).length)
                             throw new Error("INVALID_REPORT_DISPLAY");
                         const file = {
                             path: "report-display.json",
@@ -353,23 +317,13 @@ export async function pruneLocalProfile(
         const bundles = await catalog(profile),
             candidates = new Map<string, RetentionFile[]>();
         for (const pending of store.pendingCacheRetirements(workspace, policy.batch)) {
-            candidates.set(
-                String(pending.bundleId),
-                inventory(String(pending.retirement), String(pending.bundleId)),
-            );
+            candidates.set(String(pending.bundleId), inventory(String(pending.retirement), String(pending.bundleId)));
         }
         for (const item of bundles.filter((item) => item.workspaceId === workspace)) {
             const lifecycle = store.observeCache(workspace, item.id, now);
-            if (!lifecycle || lifecycle.retirement === "COMPLETE" || candidates.has(item.id))
-                continue;
-            const age =
-                now - Math.max(Number(lifecycle.firstObserved), Number(lifecycle.lastAccess));
-            if (
-                age < policy.bundle * DAY ||
-                age < 0 ||
-                !Number.isFinite(age) ||
-                store.cacheReferenced(item.id)
-            ) {
+            if (!lifecycle || lifecycle.retirement === "COMPLETE" || candidates.has(item.id)) continue;
+            const age = now - Math.max(Number(lifecycle.firstObserved), Number(lifecycle.lastAccess));
+            if (age < policy.bundle * DAY || age < 0 || !Number.isFinite(age) || store.cacheReferenced(item.id)) {
                 result.retained++;
                 continue;
             }
@@ -383,8 +337,7 @@ export async function pruneLocalProfile(
                     workspaceId: workspace,
                     debug: true,
                 });
-                if (checked.manifest.bundleId !== item.id)
-                    throw new Error("BUNDLE_WORKSPACE_MISMATCH");
+                if (checked.manifest.bundleId !== item.id) throw new Error("BUNDLE_WORKSPACE_MISMATCH");
                 const files: RetentionFile[] = [
                     ...checked.manifest.files,
                     {
@@ -395,12 +348,7 @@ export async function pruneLocalProfile(
                     {
                         path: "manifest.sig",
                         sizeBytes: 64,
-                        sha256: digest(
-                            await readBoundedFile(
-                                join(profile, "bundles", item.id, "manifest.sig"),
-                                64,
-                            ),
-                        ),
+                        sha256: digest(await readBoundedFile(join(profile, "bundles", item.id, "manifest.sig"), 64)),
                     },
                 ];
                 if (!fits(files)) {
@@ -408,11 +356,7 @@ export async function pruneLocalProfile(
                     result.hasMore = true;
                     continue;
                 }
-                store.cacheRetirement(
-                    workspace,
-                    item.id,
-                    JSON.stringify({ bundleId: item.id, files }),
-                );
+                store.cacheRetirement(workspace, item.id, JSON.stringify({ bundleId: item.id, files }));
                 candidates.set(item.id, files);
             } catch {
                 result.retained++;
@@ -442,9 +386,7 @@ export async function pruneLocalProfile(
                     continue;
                 }
                 await updatePrivate<CachedBundle[]>(profile, "desktop-bundles.json", (old) =>
-                    (old ?? []).filter(
-                        (item) => item.id !== bundleId || item.workspaceId !== workspace,
-                    ),
+                    (old ?? []).filter((item) => item.id !== bundleId || item.workspaceId !== workspace),
                 );
                 store.completeCacheRetirement(workspace, bundleId);
                 result.bundlesRetired++;

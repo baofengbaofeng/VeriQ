@@ -44,9 +44,7 @@ export function controlOrigin(value: string): string {
         !["https:", "http:"].includes(url.protocol) ||
         (url.protocol === "http:" && !["localhost", "127.0.0.1", "[::1]"].includes(url.hostname))
     )
-        throw new Error(
-            "Use an HTTPS control origin (HTTP is allowed only for local development).",
-        );
+        throw new Error("Use an HTTPS control origin (HTTP is allowed only for local development).");
     return url.origin;
 }
 /**
@@ -70,18 +68,8 @@ export class RuntimeClient {
     constructor(server: string) {
         this.server = controlOrigin(server);
     }
-    async request<T>(
-        path: string,
-        method = "GET",
-        body?: unknown,
-        token?: string,
-        signal?: AbortSignal,
-    ): Promise<T> {
-        if (
-            !path.startsWith("/") ||
-            path.startsWith("//") ||
-            new URL(path, this.server).origin !== this.server
-        )
+    async request<T>(path: string, method = "GET", body?: unknown, token?: string, signal?: AbortSignal): Promise<T> {
+        if (!path.startsWith("/") || path.startsWith("//") || new URL(path, this.server).origin !== this.server)
             throw new RuntimeError("CONTROL_ORIGIN_MISMATCH", 0);
         let response: Response;
         try {
@@ -128,9 +116,7 @@ export class RuntimeClient {
         }
         if (!response.ok) {
             const code =
-                typeof value.code === "string" && /^[A-Z_]{1,80}$/.test(value.code)
-                    ? value.code
-                    : "REQUEST_FAILED";
+                typeof value.code === "string" && /^[A-Z_]{1,80}$/.test(value.code) ? value.code : "REQUEST_FAILED";
             throw new RuntimeError(code, response.status);
         }
         if (value.data === undefined) throw new RuntimeError("INVALID_RESPONSE", response.status);
@@ -162,13 +148,7 @@ export class RuntimeClient {
      * 公开方法 inspectDevice 用设备令牌查询当前设备视图：供续期与诊断使用（inspectDevice）（inspectDevice）。
      */
     inspectDevice(token: string, signal?: AbortSignal) {
-        return this.request<Schemas["RuntimeDTO"]>(
-            "/internal/v1/runtime",
-            "GET",
-            undefined,
-            token,
-            signal,
-        );
+        return this.request<Schemas["RuntimeDTO"]>("/internal/v1/runtime", "GET", undefined, token, signal);
     }
     /**
      * 公开方法 poll 轮询人工审批结果：成功后取回设备令牌：过期或拒绝映射稳定错误码（poll），说明 poll 在 enrollment
@@ -217,13 +197,7 @@ export class RuntimeClient {
      * 公开方法 logout 向控制面注销设备令牌：本机删除配置由 DeviceStore.remove 负责（logout）。
      */
     logout(token: string, signal?: AbortSignal) {
-        return this.request<Record<string, never>>(
-            "/internal/v1/runtime/logout",
-            "POST",
-            {},
-            token,
-            signal,
-        );
+        return this.request<Record<string, never>>("/internal/v1/runtime/logout", "POST", {}, token, signal);
     }
 }
 
@@ -276,8 +250,7 @@ export class DeviceStore {
         }
         await mkdir(this.directory, { recursive: true, mode: 0o700 });
         const info = await lstat(this.directory);
-        if (!info.isDirectory() || info.isSymbolicLink())
-            throw new Error("Unsafe device configuration directory");
+        if (!info.isDirectory() || info.isSymbolicLink()) throw new Error("Unsafe device configuration directory");
         await chmod(this.directory, 0o700);
     }
     /**
@@ -296,24 +269,16 @@ export class DeviceStore {
         const file = join(this.directory, "device.json");
         let value: DeviceConfig;
         if (process.platform === "win32") {
-            value = JSON.parse(
-                (await readBoundedFile(file, 65536, true)).toString("utf8"),
-            ) as DeviceConfig;
+            value = JSON.parse((await readBoundedFile(file, 65536, true)).toString("utf8")) as DeviceConfig;
         } else {
             const info = await lstat(file);
-            if (
-                !info.isFile() ||
-                info.isSymbolicLink() ||
-                info.size > 65536 ||
-                (info.mode & 0o077) !== 0
-            )
+            if (!info.isFile() || info.isSymbolicLink() || info.size > 65536 || (info.mode & 0o077) !== 0)
                 throw new Error("Unsafe device credential file permissions");
             value = JSON.parse(await readFile(file, "utf8")) as DeviceConfig;
         }
         controlOrigin(value.server);
         const { server: _, ...receipt } = value;
-        if (validateSchema("DeviceCredentialsDTO", receipt).length)
-            throw new Error("Invalid device configuration");
+        if (validateSchema("DeviceCredentialsDTO", receipt).length) throw new Error("Invalid device configuration");
         return value;
     }
     /**
@@ -324,9 +289,7 @@ export class DeviceStore {
         await this.prepare();
         const release = await lockfile.lock(this.directory, {
             retries: 0,
-            ...(process.platform === "win32"
-                ? { lockfilePath: join(this.directory, ".device.lock") }
-                : {}),
+            ...(process.platform === "win32" ? { lockfilePath: join(this.directory, ".device.lock") } : {}),
         });
         /**
          * Windows 初次注册使用已持有父目录下的独占私有创建，目录内合作锁同样从私有父项继承；已有对象不被收紧或覆盖，
@@ -337,19 +300,9 @@ export class DeviceStore {
                 const value = JSON.stringify(config);
                 if (Buffer.byteLength(value) > 65536) throw new Error("CONFIGURATION_LIMIT");
                 const { windowsNative } = await import("./native/windows.ts");
-                windowsNative().replacePrivate(
-                    this.directory,
-                    "device.json",
-                    `.${randomUUID()}.tmp`,
-                    value,
-                    true,
-                );
+                windowsNative().replacePrivate(this.directory, "device.json", `.${randomUUID()}.tmp`, value, true);
             } catch (error) {
-                if (
-                    error instanceof Error &&
-                    "win32" in error &&
-                    [80, 183].includes(Number(error.win32))
-                )
+                if (error instanceof Error && "win32" in error && [80, 183].includes(Number(error.win32)))
                     throw new Error("ALREADY_ENROLLED");
                 throw error;
             } finally {
@@ -363,8 +316,7 @@ export class DeviceStore {
                 await lstat(join(this.directory, "device.json"));
                 throw new Error("ALREADY_ENROLLED");
             } catch (error) {
-                if (!(error instanceof Error && "code" in error && error.code === "ENOENT"))
-                    throw error;
+                if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
             }
             await writeFile(temporary, JSON.stringify(config), {
                 mode: 0o600,
@@ -386,9 +338,7 @@ export class DeviceStore {
         await this.prepare();
         const release = await lockfile.lock(this.directory, {
             retries: 0,
-            ...(process.platform === "win32"
-                ? { lockfilePath: join(this.directory, ".device.lock") }
-                : {}),
+            ...(process.platform === "win32" ? { lockfilePath: join(this.directory, ".device.lock") } : {}),
         });
         const pendingPath = join(this.directory, "rotation.json");
         const atomic = async (path: string, value: unknown) => {
@@ -396,12 +346,7 @@ export class DeviceStore {
                 const bytes = JSON.stringify(value);
                 if (Buffer.byteLength(bytes) > 65536) throw new Error("CONFIGURATION_LIMIT");
                 const { windowsNative } = await import("./native/windows.ts");
-                windowsNative().replacePrivate(
-                    dirname(path),
-                    basename(path),
-                    `.${randomUUID()}.tmp`,
-                    bytes,
-                );
+                windowsNative().replacePrivate(dirname(path), basename(path), `.${randomUUID()}.tmp`, bytes);
                 return;
             }
             const temporary = join(this.directory, `.renew-${randomUUID()}.json`);
@@ -434,17 +379,10 @@ export class DeviceStore {
             };
             try {
                 if (process.platform === "win32") {
-                    pending = JSON.parse(
-                        (await readBoundedFile(pendingPath, 65536, true)).toString("utf8"),
-                    );
+                    pending = JSON.parse((await readBoundedFile(pendingPath, 65536, true)).toString("utf8"));
                 } else {
                     const info = await lstat(pendingPath);
-                    if (
-                        !info.isFile() ||
-                        info.isSymbolicLink() ||
-                        info.size > 65536 ||
-                        info.mode & 0o077
-                    )
+                    if (!info.isFile() || info.isSymbolicLink() || info.size > 65536 || info.mode & 0o077)
                         throw new Error("UNSAFE_ROTATION_JOURNAL");
                     pending = JSON.parse(await readFile(pendingPath, "utf8"));
                 }
@@ -467,8 +405,7 @@ export class DeviceStore {
                 await removePrivate(this.directory, "rotation.json");
                 return current;
             }
-            if (current.deviceToken !== pending.previous.deviceToken)
-                throw new Error("DEVICE_CREDENTIAL_CHANGED");
+            if (current.deviceToken !== pending.previous.deviceToken) throw new Error("DEVICE_CREDENTIAL_CHANGED");
             const receipt = await client.request<Schemas["DeviceCredentialsDTO"]>(
                 "/internal/v1/runtime/token/rotate",
                 "POST",
@@ -502,15 +439,11 @@ export class DeviceStore {
      * 加密轮换在同一档案事务锁内读取当前设备与候选，原请求在网络失败后保留而不生成替代秘密；正式设备发布后才退休候选，
      * 任何提交不确定性直接上抛，下一次显式恢复按同一请求和当前代际判断。
      */
-    private async renewVault(
-        tx: CredentialTransaction,
-        client: RuntimeClient,
-    ): Promise<DeviceConfig> {
+    private async renewVault(tx: CredentialTransaction, client: RuntimeClient): Promise<DeviceConfig> {
         const current = await tx.device();
         controlOrigin(current.server);
         const { server: _, ...oldReceipt } = current;
-        if (validateSchema("DeviceCredentialsDTO", oldReceipt).length)
-            throw new Error("Invalid device configuration");
+        if (validateSchema("DeviceCredentialsDTO", oldReceipt).length) throw new Error("Invalid device configuration");
         if (current.server !== client.server) throw new Error("DEVICE_PRINCIPAL_CHANGED");
         let pending: Rotation | undefined = await tx.rotation();
         if (!pending) {
@@ -531,8 +464,7 @@ export class DeviceStore {
             await tx.removeDevice(true);
             return current;
         }
-        if (current.deviceToken !== pending.previous.deviceToken)
-            throw new Error("DEVICE_CREDENTIAL_CHANGED");
+        if (current.deviceToken !== pending.previous.deviceToken) throw new Error("DEVICE_CREDENTIAL_CHANGED");
         const receipt = await client.request<Schemas["DeviceCredentialsDTO"]>(
             "/internal/v1/runtime/token/rotate",
             "POST",
@@ -548,8 +480,7 @@ export class DeviceStore {
             receipt.deviceToken !== pending.replacementToken
         )
             throw new Error("DEVICE_PRINCIPAL_CHANGED");
-        if (JSON.stringify(await tx.device()) !== JSON.stringify(current))
-            throw new Error("DEVICE_CREDENTIAL_CHANGED");
+        if (JSON.stringify(await tx.device()) !== JSON.stringify(current)) throw new Error("DEVICE_CREDENTIAL_CHANGED");
         const replacement = { ...current, ...receipt };
         await tx.saveDevice(replacement, false);
         await tx.removeDevice(true);
@@ -560,12 +491,10 @@ export class DeviceStore {
      */
     async ensureStopped() {
         if (
-            await lockfile
-                .check(join(this.directory, "agent-owner"))
-                .catch((error: NodeJS.ErrnoException) => {
-                    if (error.code === "ENOENT") return false;
-                    throw error;
-                })
+            await lockfile.check(join(this.directory, "agent-owner")).catch((error: NodeJS.ErrnoException) => {
+                if (error.code === "ENOENT") return false;
+                throw error;
+            })
         )
             throw new Error("AGENT_RUNNING_STOP_FIRST");
     }
@@ -573,8 +502,7 @@ export class DeviceStore {
      * 公开方法 hasPendingRotation 检测是否存在未完成的令牌轮换候选：供启动恢复路径决定续写策略（hasPendingRotation）。
      */
     async hasPendingRotation() {
-        if (this.profile)
-            return this.profile.transaction(async (tx) => (await tx.rotation()) !== undefined);
+        if (this.profile) return this.profile.transaction(async (tx) => (await tx.rotation()) !== undefined);
         if (process.platform === "win32") {
             try {
                 await readBoundedFile(join(this.directory, "rotation.json"), 65536, true);
@@ -624,20 +552,16 @@ export class DeviceStore {
         try {
             const release = await lockfile.lock(this.directory, {
                 retries: 0,
-                ...(process.platform === "win32"
-                    ? { lockfilePath: join(this.directory, ".device.lock") }
-                    : {}),
+                ...(process.platform === "win32" ? { lockfilePath: join(this.directory, ".device.lock") } : {}),
             });
             try {
                 /**
                  * 先退休轮换候选再删除正式凭证，使崩溃恢复不会用旧候选复活已注销档案；未知删除失败继续上抛，
                  * 只有明确不存在可以忽略，档案锁直到两步处理结束才释放。
                  */
-                await removePrivate(this.directory, "rotation.json").catch(
-                    (error: NodeJS.ErrnoException) => {
-                        if (error.code !== "ENOENT") throw error;
-                    },
-                );
+                await removePrivate(this.directory, "rotation.json").catch((error: NodeJS.ErrnoException) => {
+                    if (error.code !== "ENOENT") throw error;
+                });
                 await removePrivate(this.directory, "device.json");
             } finally {
                 await release();

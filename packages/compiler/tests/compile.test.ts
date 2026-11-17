@@ -43,9 +43,7 @@ describe("semantic validation", () => {
         expect(codes(rehash(s))).toContain("REFERENCE_KIND_MISMATCH");
     });
     it("rejects missing catalog element", () =>
-        expect(codes(snapshot([{ id: "click", action: "click", target: "missing" }]))).toContain(
-            "UNKNOWN_ELEMENT",
-        ));
+        expect(codes(snapshot([{ id: "click", action: "click", target: "missing" }]))).toContain("UNKNOWN_ELEMENT"));
     it("requires WRITE persistence and critical business result", () =>
         expect(
             codes(
@@ -53,16 +51,11 @@ describe("semantic validation", () => {
                     kind: "WRITE",
                 }),
             ),
-        ).toEqual(
-            expect.arrayContaining([
-                "MISSING_PERSISTENCE_CHECKPOINT",
-                "MISSING_BUSINESS_ASSERTION",
-            ]),
-        ));
+        ).toEqual(expect.arrayContaining(["MISSING_PERSISTENCE_CHECKPOINT", "MISSING_BUSINESS_ASSERTION"])));
     it("rejects unsafe expressions structurally", () =>
-        expect(
-            codes(snapshot([{ id: "fill", action: "fill", target: "name", value: "{{evil()}}" }])),
-        ).toContain("SCHEMA_VIOLATION"));
+        expect(codes(snapshot([{ id: "fill", action: "fill", target: "name", value: "{{evil()}}" }]))).toContain(
+            "SCHEMA_VIOLATION",
+        ));
 });
 describe("closure and dependency semantics", () => {
     it("rejects duplicate version identities", () =>
@@ -233,12 +226,8 @@ describe("binding and pointer behavior", () => {
     });
     it("preserves full binding types without reinterpreting resolved data", async () => {
         const { resolveBinding } = await import("../src/index.js");
-        expect(resolveBinding("{{data.x}}", { data: { x: "{{evil()}}" }, vars: {} })).toBe(
-            "{{evil()}}",
-        );
+        expect(resolveBinding("{{data.x}}", { data: { x: "{{evil()}}" }, vars: {} })).toBe("{{evil()}}");
         expect(resolveBinding("{{data.x}}", { data: { x: 12 }, vars: {} })).toBe(12);
-        expect(() => resolveBinding("{{vars.constructor}}", { data: {}, vars: {} })).toThrow(
-            "MISSING_BINDING",
-        );
+        expect(() => resolveBinding("{{vars.constructor}}", { data: {}, vars: {} })).toThrow("MISSING_BINDING");
     });
 });

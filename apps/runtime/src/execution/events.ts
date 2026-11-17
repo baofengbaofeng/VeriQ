@@ -33,8 +33,7 @@ export class EventBuffer {
     append(fact: Fact) {
         const event = executionEvent(this.claim.attemptId, this.sequence + 1, fact);
         const size = Buffer.byteLength(JSON.stringify(event));
-        if (this.bytes + size > this.limit || this.queue.length >= 10000)
-            throw new Error("EVENT_BUFFER_FULL");
+        if (this.bytes + size > this.limit || this.queue.length >= 10000) throw new Error("EVENT_BUFFER_FULL");
         this.queue.push(event);
         this.bytes += size;
         this.sequence++;
@@ -102,8 +101,7 @@ export function executionEvent(attemptId: string, sequence: number, fact: Fact):
         timestamp: new Date().toISOString(),
         ...fact,
     } as ExecutionEventV1;
-    if (validateSchema("ExecutionEventV1", event).length)
-        throw new Error("INVALID_EXECUTION_EVENT");
+    if (validateSchema("ExecutionEventV1", event).length) throw new Error("INVALID_EXECUTION_EVENT");
     return event;
 }
 /**

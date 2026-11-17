@@ -1,9 +1,6 @@
 import type { ChildProcess } from "node:child_process";
 
-const exits = new WeakMap<
-    ChildProcess,
-    Promise<{ code: number | null; signal: NodeJS.Signals | null }>
->();
+const exits = new WeakMap<ChildProcess, Promise<{ code: number | null; signal: NodeJS.Signals | null }>>();
 
 /**
  * 在创建测试子进程的同一同步阶段登记 close 事件，保存真实退出及标准流关闭的共同边界；后续失败清理即使发生在进程已经退
@@ -14,11 +11,8 @@ export function trackFixture<T extends ChildProcess>(child: T): T {
     child.once("error", (error) => {
         spawnError = error;
     });
-    const closed = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(
-        (resolve, reject) =>
-            child.once("close", (code, signal) =>
-                spawnError ? reject(spawnError) : resolve({ code, signal }),
-            ),
+    const closed = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve, reject) =>
+        child.once("close", (code, signal) => (spawnError ? reject(spawnError) : resolve({ code, signal }))),
     );
     void closed.catch(() => {});
     exits.set(child, closed);
@@ -52,12 +46,7 @@ export async function stopFixture(child: ChildProcess): Promise<void> {
         ]);
         if (result.code !== 0 && result.signal !== "SIGTERM")
             throw new Error(`FIXTURE_EXIT_FAILED code=${result.code} signal=${result.signal}`);
-        console.log(
-            "Owned fixture exited and streams closed",
-            child.pid,
-            result.code,
-            result.signal,
-        );
+        console.log("Owned fixture exited and streams closed", child.pid, result.code, result.signal);
     } finally {
         if (timer) clearTimeout(timer);
     }

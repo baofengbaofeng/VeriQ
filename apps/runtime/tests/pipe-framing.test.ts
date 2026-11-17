@@ -14,10 +14,7 @@ import { expectedPipeResponse } from "./support/pipe-response.ts";
 const expected = { ok: true, value: { text: "中文😀" } };
 async function withServer(write: (socket: Socket) => void, run: (path: string) => Promise<void>) {
     const root = await mkdtemp(join(tmpdir(), "veriq-frame-"));
-    const path =
-        process.platform === "win32"
-            ? "\\\\.\\pipe\\veriq-framing-" + randomUUID()
-            : join(root, "test.sock");
+    const path = process.platform === "win32" ? "\\\\.\\pipe\\veriq-framing-" + randomUUID() : join(root, "test.sock");
     const sockets = new Set<Socket>();
     const server = createServer({ allowHalfOpen: true }, (socket) => {
         sockets.add(socket);
@@ -33,9 +30,7 @@ async function withServer(write: (socket: Socket) => void, run: (path: string) =
         await run(path);
     } finally {
         for (const socket of sockets) socket.destroy();
-        await new Promise<void>((resolve, reject) =>
-            server.close((error) => (error ? reject(error) : resolve())),
-        );
+        await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
         await rm(root, { recursive: true, force: true });
     }
 }
@@ -50,9 +45,7 @@ test("pipe client validates its expected frame without waiting for server EOF", 
         (socket) => socket.write(JSON.stringify(expected) + "\n"),
         async (path) => {
             assert.deepEqual(
-                await expectedPipeResponse(path, "{}\n", expected, (event) =>
-                    events.push(String(event.event)),
-                ),
+                await expectedPipeResponse(path, "{}\n", expected, (event) => events.push(String(event.event))),
                 expected,
             );
         },

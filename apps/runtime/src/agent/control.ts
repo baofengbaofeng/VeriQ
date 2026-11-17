@@ -22,11 +22,10 @@ export async function serveAgentControl(root: string, stop: () => void) {
         if (e.code !== "ENOENT") throw e;
     });
     await broker.open();
-    await writeFile(
-        join(root, "agent-control.json"),
-        JSON.stringify({ socket: broker.path, nonce: broker.nonce }),
-        { mode: 0o600, flush: true },
-    );
+    await writeFile(join(root, "agent-control.json"), JSON.stringify({ socket: broker.path, nonce: broker.nonce }), {
+        mode: 0o600,
+        flush: true,
+    });
     return async () => {
         await broker.close();
         await unlink(join(root, "agent-control.json"));
@@ -48,9 +47,7 @@ export async function agentControl(root: string, type: "stop" | "status") {
     }>((resolve, reject) => {
         const socket = connect(config.socket);
         let data = "";
-        socket.on("connect", () =>
-            socket.write(JSON.stringify({ type, nonce: config.nonce }) + "\n"),
-        );
+        socket.on("connect", () => socket.write(JSON.stringify({ type, nonce: config.nonce }) + "\n"));
         socket.on("error", () => reject(new Error("AGENT_UNAVAILABLE")));
         socket.setTimeout(5000, () => {
             socket.destroy();

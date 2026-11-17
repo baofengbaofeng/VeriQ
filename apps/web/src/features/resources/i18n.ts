@@ -68,12 +68,10 @@ const en: typeof zh = {
     json: "JSON source",
     form: "Visual form",
     apply: "Apply JSON",
-    pendingJson:
-        "Unapplied JSON changes: apply or discard them before saving, validating or publishing.",
+    pendingJson: "Unapplied JSON changes: apply or discard them before saving, validating or publishing.",
     discard: "Discard JSON changes",
     invalid: "Correct validation issues",
-    conflict:
-        "The remote draft changed. Your local content is retained; compare before reapplying.",
+    conflict: "The remote draft changed. Your local content is retained; compare before reapplying.",
     readonly: "Read only: your role, archive state or local snapshot does not allow changes.",
     impact: "Reference impact",
     versions: "Immutable versions and diff",

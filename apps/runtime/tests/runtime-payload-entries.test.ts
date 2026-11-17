@@ -32,8 +32,8 @@ import type {
     TreeInventory,
 } from "../scripts/runtime-payload-inputs.ts";
 
-// @ts-expect-error 既有进程管理器属于没有类型声明的独立 JavaScript 模块，这里只在测试中原样复用它的真实准入和关闭观察而
-// 不复制实现或添加伪造的进程结算路径。
+// 有界 CLI 管理器已通过独立声明文件提供类型，测试仅复用其真实 MJS 实现的准入与关闭观察，
+// 不复制实现也不伪造进程结算路径。
 import { runBoundedAssetCli } from "../scripts/runtime-assets-ci-process.mjs";
 
 /**
@@ -119,10 +119,7 @@ async function fixture(
             devDependencies: { vite: "6.4.5" },
         }),
     );
-    await put(
-        "apps/runtime/package.json",
-        JSON.stringify({ name: "@veriq/runtime", type: "module" }),
-    );
+    await put("apps/runtime/package.json", JSON.stringify({ name: "@veriq/runtime", type: "module" }));
     await put(
         "packages/contracts/package.json",
         JSON.stringify({
@@ -137,10 +134,7 @@ async function fixture(
         'import schema from "../schemas/test.json"; import { suffix } from "./transitive.js"; export function shared' +
             "(value: string) { return schema.title + value + suffix; }",
     );
-    await put(
-        "packages/contracts/src/transitive.ts",
-        'export const suffix: string = "-transitive";',
-    );
+    await put("packages/contracts/src/transitive.ts", 'export const suffix: string = "-transitive";');
     await put("packages/contracts/schemas/test.json", '{"title":"bound-schema"}');
     await put(
         "apps/desktop/src/agent/index.ts",
@@ -148,10 +142,7 @@ async function fixture(
             'import { shared } from "@veriq/contracts"; import external from "fixture-external"; console.log(shared(' +
                 '"agent"), external);',
     );
-    await put(
-        "apps/runtime/src/cli.ts",
-        'import { shared } from "@veriq/contracts"; console.log(shared("cli"));',
-    );
+    await put("apps/runtime/src/cli.ts", 'import { shared } from "@veriq/contracts"; console.log(shared("cli"));');
     for (const name of names)
         await put(
             `apps/runtime/src/execution/${name}`,
@@ -221,19 +212,9 @@ test("real host Vite creates live strict entry and exact unchanged execution vie
                 await reader.ref(ref, false, 2 * 1024 ** 3, false);
                 assert.equal(Number((await lstat(join(inputRoot, ref.path))).mode & 0o777), 0o644);
             }
-            const entries = await document<EntriesReceipt>(
-                reader,
-                trees.entries.buildReceipt,
-                schemas.entries,
-            );
-            const execution = await document<ExecutionReceipt>(
-                reader,
-                trees.execution.buildReceipt,
-                schemas.execution,
-            );
-            const command = JSON.parse(
-                (await reader.ref(entries.build.commandEvidence, true)).toString(),
-            );
+            const entries = await document<EntriesReceipt>(reader, trees.entries.buildReceipt, schemas.entries);
+            const execution = await document<ExecutionReceipt>(reader, trees.execution.buildReceipt, schemas.execution);
+            const command = JSON.parse((await reader.ref(entries.build.commandEvidence, true)).toString());
             assert.equal(command.operation, "VITE_BUILD");
             assert.equal(command.observation.admitted, true);
             assert.equal(command.observation.closeConfirmed, true);
@@ -254,9 +235,7 @@ test("real host Vite creates live strict entry and exact unchanged execution vie
             assert.equal(command.tools[1].files.length, 3);
             await reader.ref(command.observation.stdout);
             await reader.ref(command.observation.stderr);
-            const copied = JSON.parse(
-                (await reader.ref(execution.build.commandEvidence, true)).toString(),
-            );
+            const copied = JSON.parse((await reader.ref(execution.build.commandEvidence, true)).toString());
             assert.equal(copied.operation, "IN_PROCESS_SOURCE_COPY");
             assert.equal(copied.host.pid, process.pid);
             assert.equal("exit" in copied, false);
@@ -264,10 +243,7 @@ test("real host Vite creates live strict entry and exact unchanged execution vie
             assert(entries.outputs.some((o) => o.kind === "chunk"));
             assert(
                 entries.outputs.some((o) =>
-                    o.imports.some(
-                        (i) =>
-                            i.specifier === "fixture-external" && i.target === "fixture-external",
-                    ),
+                    o.imports.some((i) => i.specifier === "fixture-external" && i.target === "fixture-external"),
                 ),
             );
             assert.deepEqual(entries.embeddedWorkspaces, [
@@ -282,11 +258,7 @@ test("real host Vite creates live strict entry and exact unchanged execution vie
                 },
             ]);
             for (const kind of ["entries", "execution"] as const) {
-                const inventory = await document<TreeInventory>(
-                    reader,
-                    trees[kind].inventory,
-                    schemas.inventory,
-                );
+                const inventory = await document<TreeInventory>(reader, trees[kind].inventory, schemas.inventory);
                 await reader.tree(trees[kind], inventory, kind);
                 assert.deepEqual(inventory.links, []);
                 assert(inventory.files.every((f) => f.mode === 0o644));
@@ -296,10 +268,7 @@ test("real host Vite creates live strict entry and exact unchanged execution vie
             for (const member of execution.members) {
                 const original = await readFile(join(sourceRoot, member.sourcePath));
                 assert.equal(sha(original), member.sha256);
-                assert.deepEqual(
-                    await readFile(join(inputRoot, "execution", member.path)),
-                    original,
-                );
+                assert.deepEqual(await readFile(join(inputRoot, "execution", member.path)), original);
             }
             await reader.finish();
             await work.audit();
@@ -314,11 +283,7 @@ test("real host Vite creates live strict entry and exact unchanged execution vie
  * 源码和锁的变更发生在生产器已观察来源、真实构建刚关闭的边界，不能依赖旧 Ref 或成功退出忽略字节变化；这里直接改真实文
  * 件，回调是否运行由外部变量核实。
  */
-for (const path of [
-    "pnpm-lock.yaml",
-    "packages/contracts/src/transitive.ts",
-    "packages/contracts/schemas/test.json",
-])
+for (const path of ["pnpm-lock.yaml", "packages/contracts/src/transitive.ts", "packages/contracts/schemas/test.json"])
     test(`source mutation after build rejects ${path}`, async () =>
         fixture(async ({ options, work, put }) => {
             const original = options.hostBuild.run;
@@ -362,11 +327,7 @@ test("caller metadata and action are snapshotted before first await", async () =
         const pending = withEntryInputViews(work, copied, async (inputRoot, trees) => {
             const reader = new InputReader(inputRoot, undefined, ["entries", "execution"]);
             await reader.initialize();
-            const receipt = await document<EntriesReceipt>(
-                reader,
-                trees.entries.buildReceipt,
-                schemas.entries,
-            );
+            const receipt = await document<EntriesReceipt>(reader, trees.entries.buildReceipt, schemas.entries);
             assert.equal(receipt.build.target.arch, "arm64");
             await reader.finish();
         });
@@ -417,8 +378,7 @@ for (const mutation of [
                             await rm(join(root, "agent.js"));
                             await symlink("cli.js", join(root, "agent.js"));
                         }
-                        if (mutation === "case")
-                            await copyFile(join(root, "agent.js"), join(root, "Agent.js"));
+                        if (mutation === "case") await copyFile(join(root, "agent.js"), join(root, "Agent.js"));
                         if (mutation === "modified-entry")
                             await writeFile(join(root, "agent.js"), "console.log('changed');");
                         if (mutation === "empty-directory") await mkdir(join(root, "empty"));
@@ -430,9 +390,7 @@ for (const mutation of [
                                 const bytes = Buffer.from('import "@veriq/unbundled";');
                                 await writeFile(join(root, "agent.js"), bytes);
                                 Object.assign(
-                                    trace.outputs.find(
-                                        (output: { path: string }) => output.path === "agent.js",
-                                    ),
+                                    trace.outputs.find((output: { path: string }) => output.path === "agent.js"),
                                     { sizeBytes: bytes.length, sha256: sha(bytes) },
                                 );
                             }
@@ -440,9 +398,7 @@ for (const mutation of [
                         }
                         if (mutation === "hidden-asset" || mutation === "asset-import") {
                             const bytes = Buffer.from(
-                                mutation === "hidden-asset"
-                                    ? 'import "electron";'
-                                    : 'import "node:path";',
+                                mutation === "hidden-asset" ? 'import "electron";' : 'import "node:path";',
                             );
                             await writeFile(join(root, "hidden.js"), bytes);
                             const tracePath = join(root, ".veriq-entry-trace.json");
@@ -498,11 +454,7 @@ for (const missing of [false, true])
                     consumed = true;
                     const reader = new InputReader(inputRoot, undefined, ["entries", "execution"]);
                     await reader.initialize();
-                    const receipt = await document<EntriesReceipt>(
-                        reader,
-                        trees.entries.buildReceipt,
-                        schemas.entries,
-                    );
+                    const receipt = await document<EntriesReceipt>(reader, trees.entries.buildReceipt, schemas.entries);
                     assert.deepEqual(
                         receipt.outputs.find((output) => output.path === "assets/schema.json"),
                         { path: "assets/schema.json", kind: "asset", imports: [] },
@@ -533,9 +485,7 @@ test("unknown close prevents output observation and preserves scratch", async ()
             ...options,
             hostBuild: {
                 ...options.hostBuild,
-                run: async (
-                    invocation: Parameters<typeof original>[0],
-                ): Promise<HostBuildObservation> => {
+                run: async (invocation: Parameters<typeof original>[0]): Promise<HostBuildObservation> => {
                     const result = await original(invocation);
                     assert.equal(result.exit, 0);
                     await rm(options.buildRoot, { recursive: true });
@@ -587,8 +537,7 @@ for (const [name, entry] of [
                     !!error &&
                     typeof error === "object" &&
                     "code" in error &&
-                    error.code ===
-                        (name === "build failure" ? "PAYLOAD_IO" : "PAYLOAD_GRAPH_MISMATCH"),
+                    error.code === (name === "build failure" ? "PAYLOAD_IO" : "PAYLOAD_GRAPH_MISMATCH"),
             );
             assert.equal(observed?.admitted, true);
             assert.equal(observed?.closeConfirmed, true);
@@ -604,9 +553,7 @@ test("resolved workspace source absent from SourceBinding is rejected", async ()
     fixture(async ({ options, work }) => {
         const source = {
                 ...options.source,
-                files: options.source.files.filter(
-                    (ref) => ref.path !== "packages/contracts/src/transitive.ts",
-                ),
+                files: options.source.files.filter((ref) => ref.path !== "packages/contracts/src/transitive.ts"),
             },
             binding = sha(canonicalBytes(source)),
             original = options.hostBuild.run;
@@ -626,9 +573,7 @@ test("resolved workspace source absent from SourceBinding is rejected", async ()
                 },
             },
         };
-        await assert.rejects(
-            withEntryInputViews(work, modified, async () => assert.fail("consumer called")),
-        );
+        await assert.rejects(withEntryInputViews(work, modified, async () => assert.fail("consumer called")));
         assert.equal(built, true);
     }));
 
@@ -646,9 +591,7 @@ for (const name of ["fixture-decoy", "@veriq/decoy"])
             const source = {
                     ...options.source,
                     files: [
-                        ...options.source.files.filter(
-                            (ref) => ref.path !== "packages/contracts/package.json",
-                        ),
+                        ...options.source.files.filter((ref) => ref.path !== "packages/contracts/package.json"),
                         { path, sizeBytes: bytes.length, sha256: sha(bytes) },
                     ],
                 },
@@ -691,14 +634,7 @@ for (const name of ["fixture-decoy", "@veriq/decoy"])
  * 固定视图命名空间在大小写敏感宿主上也必须按可移植规则预留，大小写成对用例保持真实来源文件和正确构建绑定；拒绝必须发生
  * 在宿主动作与消费之前，不能靠后续构建错误碰巧满足断言。
  */
-for (const prefix of [
-    "entries",
-    "Entries",
-    "execution",
-    "ExEcUtIoN",
-    "input-evidence",
-    "INPUT-EVIDENCE",
-])
+for (const prefix of ["entries", "Entries", "execution", "ExEcUtIoN", "input-evidence", "INPUT-EVIDENCE"])
     test(`reserved view namespace rejects before host action: ${prefix}`, async () =>
         fixture(async ({ options, work, put }) => {
             const path = `${prefix}/extra.ts`,
@@ -706,10 +642,7 @@ for (const prefix of [
             await put(path, bytes);
             const source = {
                     ...options.source,
-                    files: [
-                        ...options.source.files,
-                        { path, sizeBytes: bytes.length, sha256: sha(bytes) },
-                    ],
+                    files: [...options.source.files, { path, sizeBytes: bytes.length, sha256: sha(bytes) }],
                 },
                 sourceBindingSha256 = sha(canonicalBytes(source)),
                 original = options.hostBuild.run;
@@ -733,10 +666,7 @@ for (const prefix of [
                     consumed = true;
                 }),
                 (error: unknown) =>
-                    !!error &&
-                    typeof error === "object" &&
-                    "code" in error &&
-                    error.code === "PAYLOAD_PATH",
+                    !!error && typeof error === "object" && "code" in error && error.code === "PAYLOAD_PATH",
             );
             assert.equal(admitted, false);
             assert.equal(consumed, false);
@@ -750,8 +680,7 @@ for (const invalid of ["nonempty", "source", "work"])
     test(`build root ownership rejects ${invalid}`, async () =>
         fixture(async ({ options, work, sourceRoot }) => {
             let admitted = false;
-            if (invalid === "nonempty")
-                await writeFile(join(options.buildRoot, "existing"), "owned");
+            if (invalid === "nonempty") await writeFile(join(options.buildRoot, "existing"), "owned");
             const modified = {
                 ...options,
                 buildRoot:
@@ -768,9 +697,7 @@ for (const invalid of ["nonempty", "source", "work"])
                     },
                 },
             };
-            await assert.rejects(
-                withEntryInputViews(work, modified, async () => assert.fail("consumer called")),
-            );
+            await assert.rejects(withEntryInputViews(work, modified, async () => assert.fail("consumer called")));
             assert.equal(admitted, false);
         }));
 
@@ -800,9 +727,7 @@ for (const source of [false, true])
                 withEntryInputViews(work, options, async (inputRoot) => {
                     consumed = true;
                     await writeFile(
-                        source
-                            ? join(sourceRoot, "pnpm-lock.yaml")
-                            : join(inputRoot, "entries/agent.js"),
+                        source ? join(sourceRoot, "pnpm-lock.yaml") : join(inputRoot, "entries/agent.js"),
                         "changed",
                     );
                     return "must not escape";

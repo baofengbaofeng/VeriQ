@@ -18,11 +18,7 @@ export interface LeaseGrant {
  * LEASE_BUDGET_EXHAUSTED（leaseDeadline）。
  * 时长非法、超过六十秒或预算在响应到达前已耗尽时分别抛出 INVALID_LEASE 与 LEASE_BUDGET_EXHAUSTED。
  */
-export function leaseDeadline(
-    grant: LeaseGrant,
-    requestStarted: number,
-    responseReceived: number,
-): number {
+export function leaseDeadline(grant: LeaseGrant, requestStarted: number, responseReceived: number): number {
     const duration = Date.parse(grant.leaseExpiresAt) - Date.parse(grant.serverTime);
     if (
         !Number.isFinite(duration) ||

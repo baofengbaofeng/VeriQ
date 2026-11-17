@@ -13,8 +13,8 @@ import { responseData, queryData, queryParameters, type Exchange } from "./obser
 export function authorizedURL(path: string, base: string, origins: string[]): URL {
     let decoded = path;
     while (true) {
-        if (!/^\/(?!\/)/u.test(decoded) || /[\\\u0000-\u001f\u007f]/u.test(decoded))
-            throw new Error("INVALID_PATH");
+        // biome-ignore lint/suspicious/noControlCharactersInRegex: 本正则有意拒绝控制字符与 DEL 路径输入，属安全校验
+        if (!/^\/(?!\/)/u.test(decoded) || /[\\\u0000-\u001f\u007f]/u.test(decoded)) throw new Error("INVALID_PATH");
         let next: string;
         try {
             next = decodeURIComponent(decoded);
@@ -25,8 +25,7 @@ export function authorizedURL(path: string, base: string, origins: string[]): UR
         decoded = next;
     }
     const url = new URL(path, base);
-    if (url.origin !== new URL(base).origin || !origins.includes(url.origin))
-        throw new Error("ORIGIN_NOT_ALLOWED");
+    if (url.origin !== new URL(base).origin || !origins.includes(url.origin)) throw new Error("ORIGIN_NOT_ALLOWED");
     return url;
 }
 /**
@@ -77,10 +76,7 @@ export async function apiRequest(
                     const location = response.headers().location;
                     if (!location) throw new Error("INVALID_REDIRECT");
                     url = new URL(location, url);
-                    if (
-                        url.origin !== original.origin ||
-                        !ctx.environment.allowedOrigins.includes(url.origin)
-                    )
+                    if (url.origin !== original.origin || !ctx.environment.allowedOrigins.includes(url.origin))
                         throw new Error("ORIGIN_NOT_ALLOWED");
                     authorizedURL(
                         url.pathname + url.search,
@@ -88,8 +84,7 @@ export async function apiRequest(
                         ctx.environment.allowedOrigins,
                     );
                     // Never replay a write at an implicit redirect destination.
-                    if (method !== "GET" && method !== "HEAD")
-                        throw new Error("WRITE_REDIRECT_FORBIDDEN");
+                    if (method !== "GET" && method !== "HEAD") throw new Error("WRITE_REDIRECT_FORBIDDEN");
                     continue;
                 }
                 const result = await responseData(response);

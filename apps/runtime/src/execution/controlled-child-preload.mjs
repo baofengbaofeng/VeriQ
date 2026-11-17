@@ -1,12 +1,7 @@
 import fs from "node:fs";
 import { channel } from "node:diagnostics_channel";
 import { ChildProcess } from "node:child_process";
-import {
-    inspectJournalFd,
-    LIMITS,
-    parseActivation,
-    validateJournal,
-} from "./controlled-child-protocol.mjs";
+import { inspectJournalFd, LIMITS, parseActivation, validateJournal } from "./controlled-child-protocol.mjs";
 
 const raw = process.env.VERIQ_CHILD_OBSERVER;
 if (raw !== undefined) {
@@ -51,19 +46,8 @@ if (raw !== undefined) {
             try {
                 let written = 0;
                 while (written < frame.length) {
-                    const count = fs.writeSync(
-                        fd,
-                        frame,
-                        written,
-                        frame.length - written,
-                        position + written,
-                    );
-                    if (
-                        !Number.isSafeInteger(count) ||
-                        count <= 0 ||
-                        count > frame.length - written
-                    )
-                        fail();
+                    const count = fs.writeSync(fd, frame, written, frame.length - written, position + written);
+                    if (!Number.isSafeInteger(count) || count <= 0 || count > frame.length - written) fail();
                     written += count;
                 }
                 fs.fsyncSync(fd);
@@ -89,12 +73,7 @@ if (raw !== undefined) {
         channel("child_process").subscribe(({ process: child }) => {
             if (fault || sealed || terminating) fail();
             try {
-                if (
-                    !(child instanceof ChildProcess) ||
-                    roster.has(child) ||
-                    slots >= LIMITS.objects
-                )
-                    fail();
+                if (!(child instanceof ChildProcess) || roster.has(child) || slots >= LIMITS.objects) fail();
                 const slot = ++slots;
                 append("INTENT", { slot });
                 roster.set(child, "INTENT");

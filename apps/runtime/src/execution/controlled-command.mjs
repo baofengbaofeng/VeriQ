@@ -2,12 +2,7 @@ import { spawn } from "node:child_process";
 import { fsyncSync, readSync, writeSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { trackObservedCli } from "./controlled-child.mjs";
-import {
-    inspectJournalFd,
-    LIMITS,
-    validateBinding,
-    validateJournal,
-} from "./controlled-child-protocol.mjs";
+import { inspectJournalFd, LIMITS, validateBinding, validateJournal } from "./controlled-child-protocol.mjs";
 
 /**
  * VeriQ 的 Worker 只持有固定顺序的三个直接命令，借入两份私有日志描述符且始终保留原始子对象；管理失败与实际退出独立，
@@ -30,10 +25,7 @@ export function createControlledCommandOwner(options) {
     }
     const commandIdentity = inspectJournalFd(commandFd, true);
     const cliIdentity = inspectJournalFd(cliFd, true);
-    if (
-        commandFd === cliFd ||
-        (commandIdentity.dev === cliIdentity.dev && commandIdentity.ino === cliIdentity.ino)
-    ) {
+    if (commandFd === cliFd || (commandIdentity.dev === cliIdentity.dev && commandIdentity.ino === cliIdentity.ino)) {
         throw new Error("CONTROLLED_COMMAND_CONFIGURATION_INVALID");
     }
     let fault;
@@ -65,9 +57,7 @@ export function createControlledCommandOwner(options) {
      */
     function append(type, fields = {}) {
         if (fault || sealed) throw new Error(fault ?? "CONTROLLED_COMMAND_ADMISSION_CLOSED");
-        const bytes = Buffer.from(
-            `${JSON.stringify({ version: 1, seq: sequence, type, ...fields })}\n`,
-        );
+        const bytes = Buffer.from(`${JSON.stringify({ version: 1, seq: sequence, type, ...fields })}\n`);
         try {
             if (
                 sequence >= LIMITS.records ||
@@ -77,15 +67,8 @@ export function createControlledCommandOwner(options) {
                 throw new Error();
             let written = 0;
             while (written < bytes.length) {
-                const count = writeSync(
-                    commandFd,
-                    bytes,
-                    written,
-                    bytes.length - written,
-                    position + written,
-                );
-                if (!Number.isSafeInteger(count) || count <= 0 || count > bytes.length - written)
-                    throw new Error();
+                const count = writeSync(commandFd, bytes, written, bytes.length - written, position + written);
+                if (!Number.isSafeInteger(count) || count <= 0 || count > bytes.length - written) throw new Error();
                 written += count;
             }
             fsyncSync(commandFd);
@@ -107,8 +90,7 @@ export function createControlledCommandOwner(options) {
             if (closed || sealed || fault) throw new Error("CONTROLLED_COMMAND_ADMISSION_CLOSED");
             if (role !== roles[members.length] || (role === "cli" && kind !== "TEST"))
                 throw new Error("CONTROLLED_COMMAND_ROLE_REJECTED");
-            if (members.some((member) => !member.settled))
-                throw new Error("CONTROLLED_COMMAND_UNSETTLED");
+            if (members.some((member) => !member.settled)) throw new Error("CONTROLLED_COMMAND_UNSETTLED");
             if (
                 !Number.isSafeInteger(command.timeoutMs) ||
                 command.timeoutMs <= 0 ||
@@ -134,15 +116,11 @@ export function createControlledCommandOwner(options) {
             if (cli) env.VERIQ_CHILD_OBSERVER = JSON.stringify({ ...cliBinding, fd: 4 });
             let child;
             try {
-                child = spawn(
-                    process.execPath,
-                    cli ? ["--import", preload, ...command.args] : command.args,
-                    {
-                        cwd: command.cwd,
-                        env,
-                        stdio: cli ? ["ignore", "ignore", "ignore", "ignore", cliFd] : "ignore",
-                    },
-                );
+                child = spawn(process.execPath, cli ? ["--import", preload, ...command.args] : command.args, {
+                    cwd: command.cwd,
+                    env,
+                    stdio: cli ? ["ignore", "ignore", "ignore", "ignore", cliFd] : "ignore",
+                });
             } catch {
                 fail("CONTROLLED_COMMAND_ERROR");
                 throw new Error(fault);
@@ -162,11 +140,7 @@ export function createControlledCommandOwner(options) {
             child.once("spawn", () => {
                 if (fault) return;
                 try {
-                    if (
-                        member.state !== "INTENT" ||
-                        !Number.isSafeInteger(child.pid) ||
-                        child.pid <= 0
-                    )
+                    if (member.state !== "INTENT" || !Number.isSafeInteger(child.pid) || child.pid <= 0)
                         throw new Error();
                     append("SPAWNED", { slot, pid: child.pid });
                     member.state = "SPAWNED";

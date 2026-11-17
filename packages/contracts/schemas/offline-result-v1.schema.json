@@ -1,5 +1,5 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://veriq.dev/schemas/offline-result-v1.schema.json",
-  "$ref": "platform-v1.schema.json#/$defs/OfflineResultV1"
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://veriq.dev/schemas/offline-result-v1.schema.json",
+    "$ref": "platform-v1.schema.json#/$defs/OfflineResultV1"
 }

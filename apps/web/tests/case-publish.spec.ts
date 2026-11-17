@@ -69,14 +69,10 @@ test("resource forms save a canonical case and publish only after real Agent val
     const profile = await mkdtemp("/tmp/vq11-");
     const command = (args: string[], input = "") =>
         new Promise<{ code: number | null; output: string }>((resolve, reject) => {
-            const child = spawn(
-                process.execPath,
-                ["--import", "tsx", "src/cli.ts", "--config-dir", profile, ...args],
-                {
-                    cwd: fileURLToPath(new URL("../../runtime/", import.meta.url)),
-                    stdio: ["pipe", "pipe", "pipe"],
-                },
-            );
+            const child = spawn(process.execPath, ["--import", "tsx", "src/cli.ts", "--config-dir", profile, ...args], {
+                cwd: fileURLToPath(new URL("../../runtime/", import.meta.url)),
+                stdio: ["pipe", "pipe", "pipe"],
+            });
             let output = "";
             child.stdout.on("data", (d) => (output += String(d)));
             child.stderr.on("data", (d) => (output += String(d)));
@@ -120,13 +116,10 @@ test("resource forms save a canonical case and publish only after real Agent val
             const device = JSON.parse(await readFile(join(profile, "device.json"), "utf8"));
             expect(
                 (
-                    await page.request.put(
-                        `/api/v1/workspaces/${workspace.id}/runtimes/${device.runnerId}/trust`,
-                        {
-                            headers,
-                            data: { trustStatus: "MANAGED", allowCredentialDelivery: false },
-                        },
-                    )
+                    await page.request.put(`/api/v1/workspaces/${workspace.id}/runtimes/${device.runnerId}/trust`, {
+                        headers,
+                        data: { trustStatus: "MANAGED", allowCredentialDelivery: false },
+                    })
                 ).status(),
             ).toBe(200);
             const compile = async () => {
@@ -134,9 +127,7 @@ test("resource forms save a canonical case and publish only after real Agent val
                     "runtime",
                     "start",
                     "--release-dir",
-                    fileURLToPath(
-                        new URL("../../../.superpowers/cache/t11/release/", import.meta.url),
-                    ),
+                    fileURLToPath(new URL("../../../.superpowers/cache/t11/release/", import.meta.url)),
                     "--browser-executable",
                     "/usr/bin/chromium",
                     "--once",
@@ -157,9 +148,7 @@ test("resource forms save a canonical case and publish only after real Agent val
                     timeout: 20_000,
                 });
                 const status = (
-                    await (
-                        await page.request.get(`/api/v1/workspaces/${workspace.id}/jobs/${job.id}`)
-                    ).json()
+                    await (await page.request.get(`/api/v1/workspaces/${workspace.id}/jobs/${job.id}`)).json()
                 ).data;
                 expect(status.outcome).toBe("PASSED");
                 const publishing = page.waitForResponse(
@@ -172,9 +161,7 @@ test("resource forms save a canonical case and publish only after real Agent val
                 return (await published.json()).data;
             };
             await page.goto("/resources");
-            await expect(
-                page.getByRole("heading", { name: "Resources", exact: true }),
-            ).toBeVisible();
+            await expect(page.getByRole("heading", { name: "Resources", exact: true })).toBeVisible();
             await page.getByTestId("resource-workspace").selectOption(workspace.id);
             await expect(page.getByTestId("resource-empty")).toBeVisible();
             await page.getByTestId("resource-kind").selectOption("ELEMENT_CATALOG");
@@ -205,15 +192,8 @@ test("resource forms save a canonical case and publish only after real Agent val
             expect(createHash("sha256").update(exact).digest("hex")).toBe(file.sha256);
             expect(exactResponse.headers()["content-type"]).toContain("text/plain");
             expect(exactResponse.headers()["x-content-type-options"]).toBe("nosniff");
-            for (const path of [
-                "package.json",
-                "../../secrets",
-                "trace.zip",
-                "source/asset-snapshot.json",
-            ])
-                expect((await page.request.get(sourceBase, { params: { path } })).status()).toBe(
-                    404,
-                );
+            for (const path of ["package.json", "../../secrets", "trace.zip", "source/asset-snapshot.json"])
+                expect((await page.request.get(sourceBase, { params: { path } })).status()).toBe(404);
 
             await expect(page.getByTestId("case.generated-file")).toBeVisible();
             await page.getByTestId("case.generated-file").selectOption(file.path);
@@ -225,9 +205,7 @@ test("resource forms save a canonical case and publish only after real Agent val
             await expect(page.getByTestId("content.document.catalogVersionId")).toBeVisible();
             await page.getByTestId("content.document.catalogVersionId").selectOption(catalog.id);
             await page.getByTestId("content.document.steps.0.afterAssertions.add").click();
-            await expect(
-                page.getByTestId("content.document.steps.0.afterAssertions.0.type"),
-            ).toHaveValue("ui");
+            await expect(page.getByTestId("content.document.steps.0.afterAssertions.0.type")).toHaveValue("ui");
             await page.getByTestId("resource-save").click();
             await expect(page.getByTestId("resource-status")).toContainText("Saved");
             expect(await page.getByTestId("case.validation-errors").count()).toBe(0);
@@ -240,9 +218,7 @@ test("resource forms save a canonical case and publish only after real Agent val
                     )
                 ).json()
             ).data;
-            const generated = files.files.find((f: { path: string }) =>
-                f.path.startsWith("cases/"),
-            );
+            const generated = files.files.find((f: { path: string }) => f.path.startsWith("cases/"));
             await expect(page.getByTestId("case.generated-file")).toBeVisible();
             await page.getByTestId("case.generated-file").selectOption(generated.path);
             await expect(page.getByTestId("case.generated-source")).toContainText("registerCase");
@@ -258,9 +234,7 @@ test("resource forms save a canonical case and publish only after real Agent val
     );
 });
 
-test("environment manager creates immutable auth and credential versions without echoing secrets", async ({
-    page,
-}) => {
+test("environment manager creates immutable auth and credential versions without echoing secrets", async ({ page }) => {
     const alpha = await editorScope(page, `identity-immutable-${randomUUID()}`);
     await page.goto("/environments");
     await page.getByTestId("resource-workspace").selectOption(alpha.workspaceId);
@@ -284,11 +258,7 @@ test("environment manager creates immutable auth and credential versions without
     await expect(page.getByTestId("credential-list").getByRole("article")).toHaveCount(2);
     await expect(page.getByTestId("credential-token")).toHaveValue("");
     await expect(page.locator("body")).not.toContainText("browser-rotated-only-once");
-    await page
-        .getByTestId("credential-list")
-        .getByRole("button", { name: "Revoke" })
-        .first()
-        .click();
+    await page.getByTestId("credential-list").getByRole("button", { name: "Revoke" }).first().click();
     await expect(page.getByTestId("credential-list")).toContainText("REVOKED");
 });
 
@@ -296,9 +266,7 @@ test("environment manager creates immutable auth and credential versions without
  * 使用真实身份管理器和服务端凭证提交验证表单生命周期，认证类型的无关重渲染必须保留未提交输入；旧空间请求已提交但响应尚
  * 未交付时切换空间，随后仅允许原空间显示已保存摘要。
  */
-test("identity manager retains scope across rerenders and late credential responses", async ({
-    page,
-}) => {
+test("identity manager retains scope across rerenders and late credential responses", async ({ page }) => {
     const origin = "http://127.0.0.1:5173";
     const alpha = await editorScope(page, `identity-lifetime-alpha-${randomUUID()}`);
     const betaResponse = await page.request.post("/api/v1/workspaces", {
@@ -391,9 +359,7 @@ test("identity manager retains scope across rerenders and late credential respon
     await expect(manager).not.toContainText(secret);
 });
 
-test("all eight kinds expose usable typed controls and preserve literal business values", async ({
-    page,
-}) => {
+test("all eight kinds expose usable typed controls and preserve literal business values", async ({ page }) => {
     test.setTimeout(120_000);
     await page.goto("/login");
     await page.getByTestId("email").fill("browser-admin@example.com");
@@ -426,16 +392,12 @@ test("all eight kinds expose usable typed controls and preserve literal business
         await page.getByTestId("resource-kind").selectOption(kind);
         await page.getByTestId("resource-key").fill("typed_" + kind.toLowerCase());
         await page.getByTestId("resource-name").fill("Typed " + kind);
-        const response = page.waitForResponse(
-            (r) => r.url().endsWith("/resources") && r.request().method() === "POST",
-        );
+        const response = page.waitForResponse((r) => r.url().endsWith("/resources") && r.request().method() === "POST");
         await page.getByTestId("resource-create").click();
         const created = await response;
         expect(created.status(), await created.text()).toBe(201);
         await expect(
-            page
-                .getByTestId("resource-editor")
-                .getByRole("heading", { name: "Typed " + kind + " · " + kind }),
+            page.getByTestId("resource-editor").getByRole("heading", { name: "Typed " + kind + " · " + kind }),
         ).toBeVisible();
         if (kind === "CASE" || kind === "FLOW") {
             await page.getByTestId("content.document.steps.0.action").selectOption("fill");
@@ -449,28 +411,20 @@ test("all eight kinds expose usable typed controls and preserve literal business
             await page.getByTestId(observer + ".kind").selectOption("newPage");
             await page.getByTestId(observer + ".pageKey").fill("detail");
             await page.getByTestId("content.document.steps.0.afterAssertions.add").click();
-            const assertionPage = page.getByTestId(
-                "content.document.steps.0.afterAssertions.0.pageKey",
-            );
+            const assertionPage = page.getByTestId("content.document.steps.0.afterAssertions.0.pageKey");
             if (kind === "FLOW") await assertionPage.fill("detail");
             else await assertionPage.selectOption("detail");
             await expect(assertionPage).toHaveValue("detail");
-            await page
-                .getByTestId("content.document.steps.0.afterAssertions.0.type")
-                .selectOption("eventually");
-            await page
-                .getByTestId("content.document.steps.0.afterAssertions.0.query.path")
-                .fill("/status");
-            await page
-                .getByTestId("content.document.steps.0.afterAssertions.0.pointer")
-                .fill("/ok");
+            await page.getByTestId("content.document.steps.0.afterAssertions.0.type").selectOption("eventually");
+            await page.getByTestId("content.document.steps.0.afterAssertions.0.query.path").fill("/status");
+            await page.getByTestId("content.document.steps.0.afterAssertions.0.pointer").fill("/ok");
             await page.getByTestId(observer + ".kind").selectOption("download");
             // 事件观察器不能提供网络响应的正文或请求头，所以提取来源列表必须排除该类观察器；这里使用真实编辑控件核对来
             // 源选项，防止不可执行的引用被保存进用例。
             await page.getByTestId("content.document.steps.0.extract.add").click();
-            await expect(
-                page.getByTestId("content.document.steps.0.extract.0.source").locator("option"),
-            ).toHaveCount(0);
+            await expect(page.getByTestId("content.document.steps.0.extract.0.source").locator("option")).toHaveCount(
+                0,
+            );
             await page.getByTestId("content.document.steps.0.extract.0.remove").click();
             await page.getByTestId("content.document.steps.add").click();
             await page.getByTestId("content.document.steps.1.id").fill("last");
@@ -485,15 +439,9 @@ test("all eight kinds expose usable typed controls and preserve literal business
         if (kind === "ASSERTION_TEMPLATE") {
             await page.getByTestId("content.document.parameters.key").fill("expectedName");
             await page.getByTestId("content.document.parameters.add").click();
-            await page
-                .getByTestId("content.document.assertions.0.operator")
-                .selectOption("textEquals");
-            await page
-                .getByTestId("content.document.assertions.0.expected")
-                .fill("{{data.expectedName}}");
-            await page
-                .getByTestId("content.document.assertions.0.type")
-                .selectOption("responseField");
+            await page.getByTestId("content.document.assertions.0.operator").selectOption("textEquals");
+            await page.getByTestId("content.document.assertions.0.expected").fill("{{data.expectedName}}");
+            await page.getByTestId("content.document.assertions.0.type").selectOption("responseField");
             await page.getByTestId("content.document.assertions.0.source").fill("response:save");
             const expectedType = page.getByRole("combobox", {
                 name: "Expected value 类型 / Type",
@@ -536,15 +484,12 @@ test("all eight kinds expose usable typed controls and preserve literal business
                 .fill("reader");
         }
         expect(await page.getByTestId("case.validation-errors").count()).toBe(0);
-        const saved = page.waitForResponse(
-            (r) => r.url().endsWith("/draft") && r.request().method() === "PUT",
-        );
+        const saved = page.waitForResponse((r) => r.url().endsWith("/draft") && r.request().method() === "PUT");
         await page.getByTestId("resource-save").click();
         const result = await saved;
         expect(result.status(), await result.text()).toBe(200);
         const document = (await result.json()).data.content.document;
-        if (kind === "DATASET")
-            expect(document.rows[0].values.name).toBe("{{literal.notEvaluated()}}");
+        if (kind === "DATASET") expect(document.rows[0].values.name).toBe("{{literal.notEvaluated()}}");
         if (kind === "ELEMENT_CATALOG")
             expect(document.elements[0].locator).toEqual({
                 by: "role",
@@ -562,9 +507,7 @@ test("all eight kinds expose usable typed controls and preserve literal business
     }
 });
 
-test("JSON Apply is lossless, blocks unapplied writes, and revision recovery retains local edits", async ({
-    page,
-}) => {
+test("JSON Apply is lossless, blocks unapplied writes, and revision recovery retains local edits", async ({ page }) => {
     test.setTimeout(60_000);
     await page.goto("/login");
     await page.getByTestId("email").fill("browser-admin@example.com");
@@ -586,9 +529,7 @@ test("JSON Apply is lossless, blocks unapplied writes, and revision recovery ret
     await page.getByTestId("resource-kind").selectOption("ELEMENT_CATALOG");
     await page.getByTestId("resource-key").fill("conflict_catalog");
     await page.getByTestId("resource-name").fill("Conflict catalog");
-    const creation = page.waitForResponse(
-        (r) => r.url().endsWith("/resources") && r.request().method() === "POST",
-    );
+    const creation = page.waitForResponse((r) => r.url().endsWith("/resources") && r.request().method() === "POST");
     await page.getByTestId("resource-create").click();
     const resource = (await (await creation).json()).data;
     await expect(page.getByTestId("content.document.elements.0.key")).toBeVisible();
@@ -629,13 +570,9 @@ test("JSON Apply is lossless, blocks unapplied writes, and revision recovery ret
     await page.getByTestId("resource-json-apply").click();
     await expect(page.getByTestId("resource-json-pending")).toHaveCount(0);
     await page.getByTestId("resource-form-tab").click();
-    await expect(page.getByTestId("content.document.elements.0.locator.name")).toHaveValue(
-        "{{data.label}}",
-    );
+    await expect(page.getByTestId("content.document.elements.0.locator.name")).toHaveValue("{{data.label}}");
     await expect(page.getByTestId("content.document.elements.0.locator.exact")).not.toBeChecked();
-    const saving = page.waitForResponse(
-        (r) => r.request().method() === "PUT" && r.url().endsWith("/draft"),
-    );
+    const saving = page.waitForResponse((r) => r.request().method() === "PUT" && r.url().endsWith("/draft"));
     await page.getByTestId("resource-save").click();
     const draft = (await (await saving).json()).data;
     expect(draft.content).toEqual(source);
@@ -652,9 +589,7 @@ test("JSON Apply is lossless, blocks unapplied writes, and revision recovery ret
                 ...source,
                 document: {
                     ...source.document,
-                    elements: source.document.elements.map((e, i) =>
-                        i ? e : { ...e, recordKey: "remote" },
-                    ),
+                    elements: source.document.elements.map((e, i) => (i ? e : { ...e, recordKey: "remote" })),
                 },
             },
         },
@@ -681,9 +616,9 @@ test("JSON Apply is lossless, blocks unapplied writes, and revision recovery ret
     expect(second.status()).toBe(201);
     await page.goto("/resources");
     const secondWorkspace = (await second.json()).data;
-    await expect(
-        page.getByTestId("resource-workspace").locator(`option[value="${secondWorkspace.id}"]`),
-    ).toHaveText("Editor isolation");
+    await expect(page.getByTestId("resource-workspace").locator(`option[value="${secondWorkspace.id}"]`)).toHaveText(
+        "Editor isolation",
+    );
     await page.getByTestId("resource-workspace").selectOption(ownWorkspace.id);
     await page.getByTestId("resource-open-conflict_catalog").click();
     await page.getByTestId("resource-json-tab").click();
@@ -696,9 +631,7 @@ test("JSON Apply is lossless, blocks unapplied writes, and revision recovery ret
     await expect(page.getByTestId("resource-empty")).toBeVisible();
 });
 
-test("fixture binding picker exposes declared initial variables without future outputs", async ({
-    page,
-}) => {
+test("fixture binding picker exposes declared initial variables without future outputs", async ({ page }) => {
     await page.goto("/login");
     await page.getByTestId("email").fill("browser-admin@example.com");
     await page.getByTestId("password").fill("Browser password 123!");
@@ -728,11 +661,7 @@ test("fixture binding picker exposes declared initial variables without future o
             exact: true,
         })
         .fill("answer");
-    await page
-        .getByTestId("resource-editor")
-        .getByRole("button", { name: "Add field", exact: true })
-        .first()
-        .click();
+    await page.getByTestId("resource-editor").getByRole("button", { name: "Add field", exact: true }).first().click();
     const picker = page.getByRole("combobox", {
         name: "Fixture input bindings.answer 插入绑定 / Insert binding",
         exact: true,
@@ -838,15 +767,11 @@ test("T11-R2 BEFORE and AFTER observer choices match actual compiler phases", as
         expect(types).not.toContain("requestCount");
         await before.selectOption("url");
         await page.getByTestId("content.document.steps.0.afterAssertions.add").click();
-        await page
-            .getByTestId("content.document.steps.0.afterAssertions.0.type")
-            .selectOption("httpStatus");
+        await page.getByTestId("content.document.steps.0.afterAssertions.0.type").selectOption("httpStatus");
         await expect(
             page.getByTestId("content.document.steps.0.afterAssertions.0.source").locator("option"),
         ).toHaveText(["response:save"]);
-        await page
-            .getByTestId("content.document.steps.0.afterAssertions.0.source")
-            .selectOption("response:save");
+        await page.getByTestId("content.document.steps.0.afterAssertions.0.source").selectOption("response:save");
         await saveDraft(page);
         const version = await compiler.publish();
         expect(version.content.kind).toBe("CASE");
@@ -855,9 +780,7 @@ test("T11-R2 BEFORE and AFTER observer choices match actual compiler phases", as
     }
 });
 
-test("T11-R3 reusable flow/template page keys round-trip and resolve only in caller scope", async ({
-    page,
-}) => {
+test("T11-R3 reusable flow/template page keys round-trip and resolve only in caller scope", async ({ page }) => {
     test.setTimeout(240_000);
     const scope = await editorScope(page, "fix1-pages");
     const compiler = await managedCompiler(page, scope);
@@ -916,9 +839,7 @@ test("T11-R3 reusable flow/template page keys round-trip and resolve only in cal
             },
         };
         await applyDocument(page, templateSource);
-        await expect(page.getByTestId("content.document.assertions.0.pageKey")).toHaveValue(
-            "detail",
-        );
+        await expect(page.getByTestId("content.document.assertions.0.pageKey")).toHaveValue("detail");
         expect((await saveDraft(page)).content).toEqual(templateSource);
         const template = await compiler.publish();
         await createResource(page, "CASE", "caller-case");
@@ -967,9 +888,7 @@ test("T11-R3 reusable flow/template page keys round-trip and resolve only in cal
         expect(
             await callerPages
                 .locator("option")
-                .evaluateAll((options) =>
-                    options.map((option) => (option as HTMLOptionElement).value),
-                ),
+                .evaluateAll((options) => options.map((option) => (option as HTMLOptionElement).value)),
         ).toEqual(["", "detail"]);
         expect((await saveDraft(page)).content).toEqual(callerSource);
         await compiler.publish();
@@ -993,29 +912,22 @@ test("T11-R3 reusable flow/template page keys round-trip and resolve only in cal
         };
         await applyDocument(page, invalid);
         await expect(page.getByTestId("content.document.steps.2.pageKey")).toHaveValue("inside");
-        await expect(
-            page.getByTestId("content.document.steps.2.pageKey").locator("option:checked"),
-        ).toContainText("inside");
+        await expect(page.getByTestId("content.document.steps.2.pageKey").locator("option:checked")).toContainText(
+            "inside",
+        );
         await saveDraft(page);
         const failed = await queueValidation(page);
         await compiler.compile();
         await expect
             .poll(
                 async () =>
-                    (
-                        await (
-                            await page.request.get(
-                                `/api/v1/workspaces/${scope.workspaceId}/jobs/${failed.id}`,
-                            )
-                        ).json()
-                    ).data.outcome,
+                    (await (await page.request.get(`/api/v1/workspaces/${scope.workspaceId}/jobs/${failed.id}`)).json())
+                        .data.outcome,
             )
             .toBe("ERROR");
         expect(
             (
-                await page.request.get(
-                    `/api/v1/workspaces/${scope.workspaceId}/jobs/${failed.id}/validation-receipt`,
-                )
+                await page.request.get(`/api/v1/workspaces/${scope.workspaceId}/jobs/${failed.id}/validation-receipt`)
             ).status(),
         ).toBe(409);
         await expect(page.getByTestId("case.publish")).toBeDisabled();
@@ -1024,9 +936,7 @@ test("T11-R3 reusable flow/template page keys round-trip and resolve only in cal
     }
 });
 
-test("T11-R4 delayed real J1 receipt cannot validate a saved candidate or queued J2", async ({
-    page,
-}) => {
+test("T11-R4 delayed real J1 receipt cannot validate a saved candidate or queued J2", async ({ page }) => {
     test.setTimeout(180_000);
     const scope = await editorScope(page, "fix1-receipt");
     const compiler = await managedCompiler(page, scope);
@@ -1074,9 +984,7 @@ test("T11-R4 delayed real J1 receipt cannot validate a saved candidate or queued
         });
         const receipt = (
             await (
-                await page.request.get(
-                    `/api/v1/workspaces/${scope.workspaceId}/jobs/${j2.id}/validation-receipt`,
-                )
+                await page.request.get(`/api/v1/workspaces/${scope.workspaceId}/jobs/${j2.id}/validation-receipt`)
             ).json()
         ).data;
         expect(receipt.revision).toBe(next.revision);
@@ -1103,9 +1011,7 @@ test("T11-R4 delayed real J1 receipt cannot validate a saved candidate or queued
  * 通过真实资源创建、JSON Apply 和草稿保存观察字符串及混合 JSON 数组，重复值不能合并节点，输入不能重挂载，删除祖先行必
  * 须保留嵌套存活节点，最终正文只能含原始业务值而无私有行标记。
  */
-test("primitive rows preserve focused survivors and persist only business values", async ({
-    page,
-}) => {
+test("primitive rows preserve focused survivors and persist only business values", async ({ page }) => {
     await editorScope(page, `primitive-rows-${randomUUID()}`);
     await createResource(page, "DATASET", `primitive-dataset-${randomUUID()}`);
     const dataset: ResourceDocumentV1 = {
@@ -1130,9 +1036,7 @@ test("primitive rows preserve focused survivors and persist only business values
     await nested.pressSequentially(" edited");
     await expect(nested).toHaveValue("same edited");
     expect(await survivor.evaluate((node) => node === document.activeElement)).toBe(true);
-    const root = page
-        .getByRole("combobox", { name: "payload 类型 / Type", exact: true })
-        .locator("../..");
+    const root = page.getByRole("combobox", { name: "payload 类型 / Type", exact: true }).locator("../..");
     // 原生 click 激活前面的删除按钮而不把键盘焦点移到该按钮，以便直接观察存活输入节点的焦点；不改写 DOM、值或产品事件处
     // 理，增删仍完全经过真实 React 控件。
     await root
@@ -1145,11 +1049,7 @@ test("primitive rows preserve focused survivors and persist only business values
     expect(await shifted.evaluate((node, retained) => node === retained, survivor)).toBe(true);
     expect(await survivor.evaluate((node) => node === document.activeElement)).toBe(true);
     await root.locator(":scope > button").click();
-    await root
-        .locator(":scope > div")
-        .last()
-        .getByRole("button", { name: "Remove 4", exact: true })
-        .click();
+    await root.locator(":scope > div").last().getByRole("button", { name: "Remove 4", exact: true }).click();
     await root.locator(":scope > button").click();
     const expected: ResourceDocumentV1 = {
         ...dataset,
@@ -1166,11 +1066,7 @@ test("primitive rows preserve focused survivors and persist only business values
     expect((await saveDraft(page)).content).toEqual(expected);
     // 相同长度以及更短、更长的权威导入都开启新行生命周期，不能把旧重复值的标记猜测成新数组身份；每轮都经受支持的 JSON
     // Apply 保存并读取服务端实际草稿。
-    for (const payload of [
-        ["fresh", "", ["x", "y"], { flag: false }, ""],
-        [],
-        ["a", "b", "c", "d", "e", "f"],
-    ]) {
+    for (const payload of [["fresh", "", ["x", "y"], { flag: false }, ""], [], ["a", "b", "c", "d", "e", "f"]]) {
         const replacement: ResourceDocumentV1 = {
             ...dataset,
             document: { ...dataset.document, rows: [{ key: "row_1", values: { payload } }] },
@@ -1182,10 +1078,12 @@ test("primitive rows preserve focused survivors and persist only business values
     await createResource(page, "ENVIRONMENT", `primitive-environment-${randomUUID()}`);
     const environment = (await saveDraft(page)).content;
     if (environment.kind !== "ENVIRONMENT") throw new Error("Expected environment document");
-    const origins = ["http://one.example", "http://two.example", "http://two.example"];
+    const origins: [string, ...string[]] = ["http://one.example", "http://two.example", "http://two.example"];
+    const [firstRole, ...otherRoles] = environment.document.roles;
+    if (!firstRole) throw new Error("Expected environment role");
     await applyDocument(page, {
         ...environment,
-        document: { ...environment.document, allowedOrigins: origins },
+        document: { ...environment.document, allowedOrigins: origins, roles: [firstRole, ...otherRoles] },
     });
     const group = page.getByRole("group", { name: "Allowed origins", exact: true });
     const last = group.getByRole("textbox", { name: "Allowed origins 3", exact: true });
@@ -1199,25 +1097,17 @@ test("primitive rows preserve focused survivors and persist only business values
         .first()
         .evaluate((button) => (button as HTMLButtonElement).click());
     const remaining = group.getByRole("textbox", { name: "Allowed origins 2", exact: true });
-    expect(await remaining.evaluate((node, retained) => node === retained, stringSurvivor)).toBe(
-        true,
-    );
+    expect(await remaining.evaluate((node, retained) => node === retained, stringSurvivor)).toBe(true);
     expect(await stringSurvivor.evaluate((node) => node === document.activeElement)).toBe(true);
     await group.getByTestId("content.document.allowedOrigins.add").click();
     await group.getByRole("button", { name: "Remove", exact: true }).last().click();
     await group.getByTestId("content.document.allowedOrigins.add").click();
-    await group
-        .getByRole("textbox", { name: "Allowed origins 3", exact: true })
-        .fill("http://three.example");
+    await group.getByRole("textbox", { name: "Allowed origins 3", exact: true }).fill("http://three.example");
     expect((await saveDraft(page)).content).toEqual({
         ...environment,
         document: {
             ...environment.document,
-            allowedOrigins: [
-                "http://two.example",
-                "http://two.example/path",
-                "http://three.example",
-            ],
+            allowedOrigins: ["http://two.example", "http://two.example/path", "http://three.example"],
         },
     });
     await createResource(page, "CASE", `field-labels-${randomUUID()}`);
@@ -1233,10 +1123,7 @@ test("primitive rows preserve focused survivors and persist only business values
         expect(
             await page.getByTestId(name).evaluate((element) => {
                 const control = element as HTMLInputElement | HTMLSelectElement;
-                return (
-                    !!control.id &&
-                    [...(control.labels ?? [])].some((label) => label.htmlFor === control.id)
-                );
+                return !!control.id && [...(control.labels ?? [])].some((label) => label.htmlFor === control.id);
             }),
         ).toBe(true);
     }

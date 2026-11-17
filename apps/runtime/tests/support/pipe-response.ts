@@ -58,8 +58,7 @@ export async function expectedPipeResponse(
                 });
                 if (!complete) return;
                 try {
-                    if (frame.indexOf(10) !== frame.length - 1)
-                        throw new Error("TEST_PIPE_EXTRA_FRAME_DATA");
+                    if (frame.indexOf(10) !== frame.length - 1) throw new Error("TEST_PIPE_EXTRA_FRAME_DATA");
                     const text = new TextDecoder("utf-8", { fatal: true }).decode(frame);
                     const value: unknown = JSON.parse(text);
                     assert.deepEqual(value, expected);

@@ -31,14 +31,10 @@ export async function observeCrashFailure(electron: Desktop, evidence: string) {
         const contents = BrowserWindow.getAllWindows()[0]!.webContents;
         let records = 0;
         const token = (value: unknown, max: number) =>
-            typeof value === "string" && value.length <= max && /^[A-Za-z0-9_.<>-]+$/.test(value)
-                ? value
-                : "unknown";
+            typeof value === "string" && value.length <= max && /^[A-Za-z0-9_.<>-]+$/.test(value) ? value : "unknown";
         const monitor = (error: Error & { code?: unknown }, origin: string) => {
             if (records++ >= 4) return;
-            const frames = (
-                typeof error.stack === "string" ? error.stack.split("\n").slice(1, 9) : []
-            ).map((line) => {
+            const frames = (typeof error.stack === "string" ? error.stack.split("\n").slice(1, 9) : []).map((line) => {
                 const symbol = /^\s*at\s+(?:new\s+)?([A-Za-z0-9_.<>-]+)\s+\(/.exec(line)?.[1];
                 const position = /:(\d{1,8}):(\d{1,8})\)?$/.exec(line);
                 return {
@@ -108,17 +104,10 @@ export async function observeCrashFailure(electron: Desktop, evidence: string) {
                     const current = await identity(owner.pid);
                     if (!current || current.uid !== owner.uid || current.start !== owner.start)
                         return { pid: owner.pid, sameIdentity: false };
-                    const status = await readFile(`/proc/${owner.pid}/status`, "utf8").catch(
-                        (error) => {
-                            if (
-                                ["ENOENT", "ESRCH"].includes(
-                                    (error as NodeJS.ErrnoException).code ?? "",
-                                )
-                            )
-                                return "";
-                            throw error;
-                        },
-                    );
+                    const status = await readFile(`/proc/${owner.pid}/status`, "utf8").catch((error) => {
+                        if (["ENOENT", "ESRCH"].includes((error as NodeJS.ErrnoException).code ?? "")) return "";
+                        throw error;
+                    });
                     const after = await identity(owner.pid);
                     if (!after || after.uid !== owner.uid || after.start !== owner.start)
                         return { pid: owner.pid, sameIdentity: false };
@@ -142,14 +131,12 @@ export async function observeCrashFailure(electron: Desktop, evidence: string) {
             });
             // 私有显示器只包含本轮合成验收窗口；截图命令最多运行三秒且输出限制在一 MiB，失败只记稳定诊断状态，
             // 不改主测试的等待结果或关闭任何窗口。
-            const image = await command(
-                "import",
-                ["-window", "root", "-resize", "1280x800>", "-depth", "8", "png:-"],
-                { encoding: "buffer", maxBuffer: 1024 * 1024, timeout: 3000 },
-            );
-            await (
-                await import("node:fs/promises")
-            ).writeFile(join(evidence, "crash-failure-root.png"), image.stdout);
+            const image = await command("import", ["-window", "root", "-resize", "1280x800>", "-depth", "8", "png:-"], {
+                encoding: "buffer",
+                maxBuffer: 1024 * 1024,
+                timeout: 3000,
+            });
+            await (await import("node:fs/promises")).writeFile(join(evidence, "crash-failure-root.png"), image.stdout);
             await log({ screenshotBytes: image.stdout.length });
         })().catch(async () => {
             await log({ diagnosticFailed: true });
@@ -169,10 +156,7 @@ export async function observeCrashFailure(electron: Desktop, evidence: string) {
             await Promise.race([
                 removal,
                 new Promise<never>((_resolve, reject) => {
-                    deadline = setTimeout(
-                        () => reject(new Error("CRASH_OBSERVATION_CLEANUP_PENDING")),
-                        3000,
-                    );
+                    deadline = setTimeout(() => reject(new Error("CRASH_OBSERVATION_CLEANUP_PENDING")), 3000);
                 }),
             ]);
         } catch (error) {
