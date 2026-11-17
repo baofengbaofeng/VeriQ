@@ -236,7 +236,7 @@ test("real setup, login, account, administration and one-time reset", async ({ p
         fullPage: true,
         mask: [page.getByLabel("Reset link")],
     });
-    await page.getByRole("button", { name: "Sign out" }).click();
+    await page.getByRole("button", { name: "Sign out", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
     await page.goto(link);
     await expect(page.getByRole("heading", { name: "Choose a new password" })).toBeVisible();
@@ -398,7 +398,7 @@ test("real setup, login, account, administration and one-time reset", async ({ p
         const createUserSubmit = createUserForm.getByRole("button");
         await expect(createUserSubmit).toHaveText("Working…");
         await expect(createUserSubmit).toBeDisabled();
-        await page.getByRole("button", { name: "Sign out" }).click();
+        await page.getByRole("button", { name: "Sign out", exact: true }).click();
         await outgoingLogout.held;
         logoutIntentEvents.push({ event: "outgoing-logout-held-before-backend" });
         const updateDelivered = page.waitForResponse(
@@ -422,7 +422,7 @@ test("real setup, login, account, administration and one-time reset", async ({ p
         logoutIntentEvents.push({ event: "logout-forwarded-to-real-backend" });
         expect((await completedLogout).status()).toBe(200);
         await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
-        await expect(page.getByRole("button", { name: "Sign out" })).toHaveCount(0);
+        await expect(page.getByRole("button", { name: "Sign out", exact: true })).toHaveCount(0);
         logoutIntentEvents.push({ event: "signed-out-ui-confirmed" });
     };
     await withCleanup(verifyLogoutIntent, async () => {
@@ -447,7 +447,7 @@ test("real setup, login, account, administration and one-time reset", async ({ p
         .click();
     await expect(page.getByRole("row", { name: "browser-admin@example.com" })).toContainText("System administrator");
     pendingAdminRecovery = undefined;
-    await page.getByRole("button", { name: "Sign out" }).click();
+    await page.getByRole("button", { name: "Sign out", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
     await page.getByRole("textbox", { name: "Email" }).fill("browser-admin@example.com");
     await page.getByLabel("Password").fill("Browser password 123!");
@@ -494,7 +494,7 @@ test("real setup, login, account, administration and one-time reset", async ({ p
         const expired = page.waitForResponse(
             (response) => new URL(response.url()).pathname === "/api/v1/auth/session" && response.status() === 401,
         );
-        await page.getByRole("button", { name: "Sign out" }).click();
+        await page.getByRole("button", { name: "Sign out", exact: true }).click();
         expect((await logout).status()).toBe(200);
         await expired;
         await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
@@ -551,7 +551,7 @@ test("real setup, login, account, administration and one-time reset", async ({ p
     const verifySessionOwnership = async () => {
         await page.getByLabel("Sessions per page").selectOption("1");
         expect((await sessionBarrier.held).status()).toBe(200);
-        await page.getByRole("button", { name: "Sign out" }).click();
+        await page.getByRole("button", { name: "Sign out", exact: true }).click();
         await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
         await page.getByRole("textbox", { name: "Email" }).fill("browser-second-admin@example.com");
         await page.getByLabel("Password").fill("Second password 123!");
@@ -598,7 +598,7 @@ test("real setup, login, account, administration and one-time reset", async ({ p
         .getByRole("button", { name: "Remove admin", exact: true })
         .click();
     await expect(page.getByRole("heading", { name: "Access restricted" })).toBeVisible();
-    await page.getByRole("button", { name: "Sign out" }).click();
+    await page.getByRole("button", { name: "Sign out", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
 
     /**
@@ -633,7 +633,7 @@ test("real setup, login, account, administration and one-time reset", async ({ p
         await page.getByLabel("Sessions per page").selectOption("1");
         await oldRead.held;
         newerLoginEvents.push({ event: "old-sessions-get-held-before-backend" });
-        await page.getByRole("button", { name: "Sign out" }).click();
+        await page.getByRole("button", { name: "Sign out", exact: true }).click();
         const realLogout = await oldLogoutResponse.held;
         expect(realLogout.status).toBe(200);
         newerLoginEvents.push({

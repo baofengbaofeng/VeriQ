@@ -18,6 +18,42 @@ import { restoreTestAdmin } from "../support/restore-test-admin.js";
 import { withCleanup } from "../support/case-profile-cleanup.js";
 
 /**
+ * 成功响应按仓库现有接口契约校验后才能进入恢复夹具，普通登录用户不得附加管理员字段，避免合成数据掩盖真实差异。
+ * 校验器复用契约包已锁定的依赖与原始定义，不创建第二套用户字段表；诊断只报告校验结果，不输出认证内容。
+ */
+const contractRequire = createRequire(import.meta.resolve("@veriq/contracts"));
+const { Ajv2020 } = contractRequire("ajv/dist/2020.js");
+const addFormats = contractRequire("ajv-formats");
+const parser = contractRequire("@apidevtools/swagger-parser");
+const contractRoot = new URL("../", import.meta.resolve("@veriq/contracts"));
+const api = await parser.parse(fileURLToPath(new URL("openapi/platform.yaml", contractRoot)));
+const validator = new Ajv2020({ strict: true, allErrors: true });
+addFormats(validator);
+validator.addSchema(JSON.parse(await readFile(new URL("schemas/platform-v1.schema.json", contractRoot), "utf8")));
+const apiId = "https://veriq.dev/openapi/platform.yaml";
+validator.addSchema({
+    $id: apiId,
+    $defs: JSON.parse(
+        JSON.stringify(api.components.schemas, (key, value: unknown) =>
+            key === "$ref" && typeof value === "string"
+                ? value.replace(/^#\/components\/schemas\//, "#/$defs/")
+                : value,
+        ),
+    ),
+});
+const backupUser = {
+    id: "22222222-2222-4222-8222-222222222222",
+    email: "backup@example.test",
+    displayName: "Backup administrator",
+    disabled: false,
+};
+const accountUser = { ...backupUser, systemAdmin: true };
+const session = { user: backupUser, csrfToken: "authenticated-csrf", expiresAt: "2026-11-18T00:00:00Z" };
+assert.equal(validator.getSchema(`${apiId}#/$defs/SessionDTO`)(session), true);
+assert.equal(validator.getSchema(`${apiId}#/$defs/AdminUserDTO`)(accountUser), true);
+assert.equal(validator.getSchema(`${apiId}#/$defs/UserDTO`)({ ...backupUser, systemAdmin: true }), false);
+
+/**
  * 每个场景拥有单独端口及角色状态，拒绝登录、错误身份和写入失败均由受控 HTTP 响应表达，不替换请求客户端或伪造通过结果。
  * 所有凭据、Cookie 和 CSRF 均为该服务内部合成值；断言只输出布尔事实，不能在失败诊断中转储认证字节。
  */
@@ -27,6 +63,16 @@ async function fixture(
         | "login-denied"
         | "patch-denied"
         | "wrong-principal"
+        | "disabled-login"
+        | "invalid-login-id"
+        | "missing-login-name"
+        | "wrong-account-id"
+        | "wrong-account-email"
+        | "disabled-account"
+        | "non-admin-account"
+        | "missing-account-role"
+        | "account-denied"
+        | "account-redirect"
         | "invalid-json"
         | "network-failure"
         | "setup-redirect"
@@ -59,7 +105,7 @@ async function fixture(
             JSON.stringify({
                 data: {
                     csrfToken: "foreign-csrf",
-                    user: { email: "backup@example.test", systemAdmin: true },
+                    user: backupUser,
                     id: targetId,
                     email: "owner@example.test",
                     systemAdmin: true,
@@ -81,6 +127,7 @@ async function fixture(
         const redirect =
             (mode === "setup-redirect" && path === "/api/v1/setup") ||
             (mode === "login-redirect" && path === "/api/v1/auth/login") ||
+            (mode === "account-redirect" && path === "/api/v1/account") ||
             (mode === "patch-redirect" && path === `/api/v1/admin/users/${targetId}`);
         if (redirect) {
             outgoing.statusCode = mode === "setup-redirect" ? 302 : mode === "login-redirect" ? 307 : 308;
@@ -94,7 +141,9 @@ async function fixture(
             if (mode === "invalid-json") return void outgoing.end("private-invalid-response");
             if (mode === "slow-body") return void outgoing.write('{"data":');
             return void outgoing.end(
-                JSON.stringify({ data: { csrfToken: mode === "missing-setup-csrf" ? "" : "anonymous-csrf" } }),
+                JSON.stringify({
+                    data: { initialized: true, csrfToken: mode === "missing-setup-csrf" ? "" : "anonymous-csrf" },
+                }),
             );
         }
         if (incoming.headers.origin !== origin) violations.push("origin");
@@ -109,8 +158,30 @@ async function fixture(
             return void outgoing.end(
                 JSON.stringify({
                     data: {
-                        csrfToken: mode === "missing-login-csrf" ? "" : "authenticated-csrf",
-                        user: { email: "backup@example.test", systemAdmin: mode !== "wrong-principal" },
+                        ...session,
+                        csrfToken: mode === "missing-login-csrf" ? "" : session.csrfToken,
+                        user: {
+                            ...backupUser,
+                            email: mode === "wrong-principal" ? "other@example.test" : backupUser.email,
+                            disabled: mode === "disabled-login",
+                            id: mode === "invalid-login-id" ? "invalid" : backupUser.id,
+                            displayName: mode === "missing-login-name" ? undefined : backupUser.displayName,
+                        },
+                    },
+                }),
+            );
+        }
+        if (path === "/api/v1/account" && incoming.method === "GET") {
+            if (incoming.headers.cookie !== "fixture=authenticated") violations.push("account-cookie");
+            if (mode === "account-denied") outgoing.statusCode = 403;
+            return void outgoing.end(
+                JSON.stringify({
+                    data: {
+                        ...accountUser,
+                        id: mode === "wrong-account-id" ? targetId : backupUser.id,
+                        email: mode === "wrong-account-email" ? "other@example.test" : backupUser.email,
+                        disabled: mode === "disabled-account",
+                        systemAdmin: mode === "missing-account-role" ? undefined : mode !== "non-admin-account",
                     },
                 }),
             );
@@ -128,6 +199,8 @@ async function fixture(
                     data: {
                         id: mode === "wrong-target" ? "foreign-id" : targetId,
                         email: "owner@example.test",
+                        displayName: "Recovery owner",
+                        disabled: false,
                         systemAdmin: true,
                     },
                 }),
@@ -222,17 +295,31 @@ test("restores only the owned target through an independent authenticated contex
         await current.recover();
         assert.equal(current.promoted(), true);
         assert.deepEqual(current.violations, []);
-        assert.equal(current.paths.length, 3);
+        assert.deepEqual(current.paths, [
+            "/api/v1/setup",
+            "/api/v1/auth/login",
+            "/api/v1/account",
+            "/api/v1/admin/users/11111111-1111-4111-8111-111111111111",
+        ]);
     }, current.close);
 });
 
 /**
  * 登录拒绝、非管理员身份和未知 JSON 都不能进入权限写入，分别覆盖 HTTP、身份与数据边界，而非一律把异常吞掉当作成功。
- * 每轮仍检查上下文已关闭；服务仅收到握手或登录请求，目标账号的已降权状态必须保持。
+ * 每轮仍检查上下文已关闭；账户负例必须真实到达同一会话的读取阶段，目标账号的已降权状态必须保持。
  */
 for (const mode of [
     "login-denied",
     "wrong-principal",
+    "disabled-login",
+    "invalid-login-id",
+    "missing-login-name",
+    "wrong-account-id",
+    "wrong-account-email",
+    "disabled-account",
+    "non-admin-account",
+    "missing-account-role",
+    "account-denied",
     "invalid-json",
     "missing-setup-csrf",
     "missing-login-csrf",
@@ -240,7 +327,21 @@ for (const mode of [
     test(`${mode} fails closed without a role mutation`, async () => {
         const current = await fixture(mode);
         await withCleanup(async () => {
-            await assert.rejects(current.recover());
+            const expected =
+                mode === "login-denied"
+                    ? "login: HTTP 401"
+                    : mode === "account-denied"
+                      ? "account: HTTP 403"
+                      : mode === "invalid-json"
+                        ? "setup: invalid JSON"
+                        : mode === "missing-setup-csrf"
+                          ? "setup: missing CSRF"
+                          : mode === "missing-login-csrf"
+                            ? "login: missing CSRF"
+                            : `${mode.includes("account") ? "account" : "login"}: unexpected principal`;
+            await assert.rejects(current.recover(), { message: `Test admin recovery ${expected}` });
+            if (mode.includes("account"))
+                assert.deepEqual(current.paths, ["/api/v1/setup", "/api/v1/auth/login", "/api/v1/account"]);
             assert.equal(current.promoted(), false);
             assert.equal(
                 current.paths.some((path) => path.includes("/admin/users/")),
@@ -305,10 +406,10 @@ test("body and recovery failures retain both causes", async () => {
 });
 
 /**
- * 三个恢复阶段都用第二个真实环回源提供看似正确的成功正文，跳转不得转送认证数据，也不得成为权限恢复成功的依据。
+ * 四个恢复阶段都用第二个真实环回源提供看似正确的成功正文，跳转不得转送认证数据，也不得成为权限恢复成功的依据。
  * 初始握手覆盖普通跳转，登录和补丁分别覆盖保留方法与正文的跳转；外源必须始终没有收到请求。
  */
-for (const mode of ["setup-redirect", "login-redirect", "patch-redirect"] as const) {
+for (const mode of ["setup-redirect", "login-redirect", "account-redirect", "patch-redirect"] as const) {
     test(`${mode} rejects foreign replies without contacting the destination`, async () => {
         const current = await fixture(mode);
         await withCleanup(async () => {
@@ -337,7 +438,7 @@ test("successive recoveries own separate cleared jars and closed clients", async
         await current.recover();
         assert.equal(current.resources[0].client !== current.resources[1].client, true);
         assert.equal(current.resources[0].jar !== current.resources[1].jar, true);
-        assert.equal(current.paths.length, 6);
+        assert.equal(current.paths.length, 8);
         assert.deepEqual(current.violations, []);
     }, current.close);
 });
@@ -472,7 +573,7 @@ facts = []
 for mode in ("success", "network-failure"):
     data = json.loads((root / (mode + ".json")).read_text())
     sentinels.extend(data.pop("sentinels"))
-    facts.append(data["cleanupSettled"] and data["protocolValid"] and data["requests"] == 3
+    facts.append(data["cleanupSettled"] and data["protocolValid"] and data["requests"] == 4
         and data["recovered"] == (mode == "success") and data["patched"] == data["recovered"]
         and data["fixedFailure"] == (mode == "network-failure"))
 needles = [variant.encode() for value in sentinels for variant in

@@ -4,9 +4,12 @@
  */
 import { randomUUID } from "node:crypto";
 import { once } from "node:events";
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { join } from "node:path";
+import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
+import assert from "node:assert/strict";
 import { test, expect } from "@playwright/test";
 import { restoreTestAdmin } from "../../support/restore-test-admin";
 
@@ -19,6 +22,42 @@ test.afterEach(async () => {
     const mode = testInfo.title;
     const directory = process.env.VERIQ_RECOVERY_PROBE_DIR;
     if (!directory) throw new Error("Missing isolated recovery probe directory");
+
+    /**
+     * 成功响应按仓库现有接口契约校验后才能进入恢复夹具，普通登录用户不得附加管理员字段，避免合成数据掩盖真实差异。
+     * 校验器复用契约包已锁定的依赖与原始定义，不创建第二套用户字段表；诊断只报告校验结果，不输出认证内容。
+     */
+    const contractRequire = createRequire(import.meta.resolve("@veriq/contracts"));
+    const { Ajv2020 } = contractRequire("ajv/dist/2020.js");
+    const addFormats = contractRequire("ajv-formats");
+    const parser = contractRequire("@apidevtools/swagger-parser");
+    const contractRoot = new URL("../", import.meta.resolve("@veriq/contracts"));
+    const api = await parser.parse(fileURLToPath(new URL("openapi/platform.yaml", contractRoot)));
+    const validator = new Ajv2020({ strict: true, allErrors: true });
+    addFormats(validator);
+    validator.addSchema(JSON.parse(await readFile(new URL("schemas/platform-v1.schema.json", contractRoot), "utf8")));
+    const apiId = "https://veriq.dev/openapi/platform.yaml";
+    validator.addSchema({
+        $id: apiId,
+        $defs: JSON.parse(
+            JSON.stringify(api.components.schemas, (key, value: unknown) =>
+                key === "$ref" && typeof value === "string"
+                    ? value.replace(/^#\/components\/schemas\//, "#/$defs/")
+                    : value,
+            ),
+        ),
+    });
+    const backupUser = {
+        id: "22222222-2222-4222-8222-222222222222",
+        email: "backup@example.test",
+        displayName: "Backup administrator",
+        disabled: false,
+    };
+    const accountUser = { ...backupUser, systemAdmin: true };
+    const session = { user: backupUser, csrfToken: "authenticated-csrf", expiresAt: "2026-11-18T00:00:00Z" };
+    assert.equal(validator.getSchema(`${apiId}#/$defs/SessionDTO`)(session), true);
+    assert.equal(validator.getSchema(`${apiId}#/$defs/AdminUserDTO`)(accountUser), true);
+    assert.equal(validator.getSchema(`${apiId}#/$defs/UserDTO`)({ ...backupUser, systemAdmin: true }), false);
     const password = `${randomUUID()}"\\`;
     const anonymousCsrf = randomUUID();
     const authenticatedCsrf = randomUUID();
@@ -38,7 +77,7 @@ test.afterEach(async () => {
         if (incoming.url === "/api/v1/setup" && incoming.method === "GET") {
             protocolValid &&= !incoming.headers.cookie;
             outgoing.setHeader("Set-Cookie", `fixture=${anonymousCookie}; Path=/; HttpOnly`);
-            return void outgoing.end(JSON.stringify({ data: { csrfToken: anonymousCsrf } }));
+            return void outgoing.end(JSON.stringify({ data: { initialized: true, csrfToken: anonymousCsrf } }));
         }
         protocolValid &&= incoming.headers.origin === origin;
         if (incoming.url === "/api/v1/auth/login" && incoming.method === "POST") {
@@ -49,11 +88,15 @@ test.afterEach(async () => {
             return void outgoing.end(
                 JSON.stringify({
                     data: {
+                        ...session,
                         csrfToken: authenticatedCsrf,
-                        user: { email: "backup@example.test", systemAdmin: true },
                     },
                 }),
             );
+        }
+        if (incoming.url === "/api/v1/account" && incoming.method === "GET") {
+            protocolValid &&= incoming.headers.cookie === `fixture=${authenticatedCookie}`;
+            return void outgoing.end(JSON.stringify({ data: accountUser }));
         }
         if (incoming.url === `/api/v1/admin/users/${targetId}` && incoming.method === "PATCH") {
             protocolValid &&= incoming.headers.cookie === `fixture=${authenticatedCookie}`;
@@ -66,6 +109,8 @@ test.afterEach(async () => {
                     data: {
                         id: targetId,
                         email: "owner@example.test",
+                        displayName: "Recovery owner",
+                        disabled: false,
                         systemAdmin: true,
                     },
                 }),
@@ -109,7 +154,7 @@ test.afterEach(async () => {
             { mode: 0o600 },
         );
     }
-    expect(protocolValid && requests === 3).toBe(true);
+    expect(protocolValid && requests === 4).toBe(true);
     expect(recovered === (mode === "success") && patched === recovered).toBe(true);
     expect(fixedFailure === (mode === "network-failure")).toBe(true);
 });

@@ -137,14 +137,40 @@ export async function restoreTestAdmin(
             if (
                 user === null ||
                 typeof user !== "object" ||
+                Array.isArray(user) ||
+                !("id" in user) ||
+                typeof user.id !== "string" ||
+                !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.id) ||
                 !("email" in user) ||
-                !("systemAdmin" in user) ||
                 user.email !== options.backupEmail ||
-                user.systemAdmin !== true
+                !("displayName" in user) ||
+                typeof user.displayName !== "string" ||
+                !user.displayName ||
+                !("disabled" in user) ||
+                user.disabled !== false
             )
                 throw new Error("Test admin recovery login: unexpected principal");
             const loginCsrf = login.csrfToken;
             if (typeof loginCsrf !== "string" || !loginCsrf) throw new Error("Test admin recovery login: missing CSRF");
+            // 登录只返回普通用户字段，必须在同一独立会话读取账户权限，并与已知备用邮箱及刚登录的主体标识严格绑定。
+            const account = await responseData(
+                client,
+                jar,
+                options.origin,
+                "/api/v1/account",
+                "GET",
+                "account",
+                loginCsrf,
+            );
+            if (
+                account.id !== user.id ||
+                account.email !== options.backupEmail ||
+                typeof account.displayName !== "string" ||
+                !account.displayName ||
+                account.disabled !== false ||
+                account.systemAdmin !== true
+            )
+                throw new Error("Test admin recovery account: unexpected principal");
             // 只恢复本测试已知账号初始角色，补丁响应也须确认相同标识和邮箱，不能误把其它用户的成功正文当作恢复完成。
             const restored = await responseData(
                 client,
