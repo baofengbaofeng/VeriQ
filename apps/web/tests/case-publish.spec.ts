@@ -1078,10 +1078,12 @@ test("primitive rows preserve focused survivors and persist only business values
     await createResource(page, "ENVIRONMENT", `primitive-environment-${randomUUID()}`);
     const environment = (await saveDraft(page)).content;
     if (environment.kind !== "ENVIRONMENT") throw new Error("Expected environment document");
-    const origins = ["http://one.example", "http://two.example", "http://two.example"];
+    const origins: [string, ...string[]] = ["http://one.example", "http://two.example", "http://two.example"];
+    const [firstRole, ...otherRoles] = environment.document.roles;
+    if (!firstRole) throw new Error("Expected environment role");
     await applyDocument(page, {
         ...environment,
-        document: { ...environment.document, allowedOrigins: origins },
+        document: { ...environment.document, allowedOrigins: origins, roles: [firstRole, ...otherRoles] },
     });
     const group = page.getByRole("group", { name: "Allowed origins", exact: true });
     const last = group.getByRole("textbox", { name: "Allowed origins 3", exact: true });
