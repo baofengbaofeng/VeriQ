@@ -3,6 +3,7 @@
  * 延迟真实服务器响应，不构造资源或替换权限数据。
  */
 import { randomUUID } from "node:crypto";
+import { writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { test, expect, request, type Request } from "@playwright/test";
 import { withCleanup } from "./support/case-profile-cleanup";
@@ -543,25 +544,31 @@ test("four GUI entry selectors retain manual selection across real list refetch"
                     page.off("request", requestStarted);
                     page.off("requestfinished", requestFinished);
                     page.off("requestfailed", requestFailed);
+                    /**
+                     * 先写入结果目录再按路径附加有界观测，使通过场景也能保留同一份文件；写入失败仍传播原始错误。
+                     */
+                    const evidencePath = testInfo.outputPath("workspace-request-ownership.json");
+                    const payload = Buffer.from(
+                        JSON.stringify(
+                            {
+                                schema: "workspace-request-ownership-v1",
+                                eventLimit: 100,
+                                browserLimit: 60,
+                                protocolLimit: 40,
+                                browser,
+                                protocolEvents,
+                                protocolOverflow,
+                                correlation:
+                                    "requestId is exact protocol identity; fetchId joins require timing review.",
+                            },
+                            null,
+                            2,
+                        ),
+                    );
+                    await writeFile(evidencePath, payload);
                     await testInfo.attach("workspace-request-ownership.json", {
                         contentType: "application/json",
-                        body: Buffer.from(
-                            JSON.stringify(
-                                {
-                                    schema: "workspace-request-ownership-v1",
-                                    eventLimit: 100,
-                                    browserLimit: 60,
-                                    protocolLimit: 40,
-                                    browser,
-                                    protocolEvents,
-                                    protocolOverflow,
-                                    correlation:
-                                        "requestId is exact protocol identity; fetchId joins require timing review.",
-                                },
-                                null,
-                                2,
-                            ),
-                        ),
+                        path: evidencePath,
                     });
                 },
             );
