@@ -31,7 +31,7 @@ test("AI configuration is a real workspace page and explains no-provider executi
 });
 
 import { createServer, type Server } from "node:http";
-import { createResource, managedCompiler } from "./editor-fixture";
+import { closeResourceEditor, createResource, managedCompiler } from "./editor-fixture";
 let model: Server,
     calls = 0;
 let catalogId = "";
@@ -103,6 +103,7 @@ test("real UI config, paid-call preview, review, genuine compiler, cancel and sc
     try {
         await createResource(page, "ELEMENT_CATALOG", "catalog");
         catalogId = (await compiler.publish()).id;
+        await closeResourceEditor(page);
         await page.getByRole("link", { name: "AI", exact: true }).click();
         await page.getByLabel("Workspace").selectOption(scope.workspaceId);
         await page.getByLabel("Language").selectOption("en");
