@@ -16,39 +16,43 @@ const traceName = ".veriq-entry-trace.json";
 function observation() {
     return {
         name: "veriq-entry-input-observation",
-        generateBundle(_options, bundle) {
-            const sources = new Set();
-            for (const id of this.getModuleIds()) {
-                if (id.startsWith("\0")) continue;
-                const info = this.getModuleInfo(id);
-                if (info?.isExternal) continue;
-                if (!isAbsolute(id)) this.error("Non-physical entry input");
-                const path = relative(sourceRoot, id).split("\\").join("/");
-                if (
-                    !path ||
-                    path.startsWith("../") ||
-                    isAbsolute(path) ||
-                    path.includes("?") ||
-                    path.split("/").includes("node_modules")
-                )
-                    this.error("Unbound entry input");
-                sources.add(path);
-            }
-            const outputs = Object.values(bundle).map((output) => {
-                const bytes = Buffer.from(output.type === "asset" ? output.source : output.code);
-                return {
-                    path: output.fileName,
-                    kind: output.type === "asset" ? "asset" : output.isEntry ? "entry" : "chunk",
-                    sizeBytes: bytes.length,
-                    sha256: createHash("sha256").update(bytes).digest("hex"),
-                };
-            });
-            const bytes = JSON.stringify({
-                sources: [...sources].sort(),
-                outputs: outputs.sort((a, b) => a.path.localeCompare(b.path)),
-            });
-            if (Buffer.byteLength(bytes) > 4 * 1024 ** 2) this.error("Entry observation limit exceeded");
-            this.emitFile({ type: "asset", fileName: traceName, source: bytes });
+        // 显式后序钩子等待 Vite 完成预加载标记改写，再声明写盘前字节；落盘后的独立摘要核验仍由生产器执行。
+        generateBundle: {
+            order: "post",
+            handler(_options, bundle) {
+                const sources = new Set();
+                for (const id of this.getModuleIds()) {
+                    if (id.startsWith("\0")) continue;
+                    const info = this.getModuleInfo(id);
+                    if (info?.isExternal) continue;
+                    if (!isAbsolute(id)) this.error("Non-physical entry input");
+                    const path = relative(sourceRoot, id).split("\\").join("/");
+                    if (
+                        !path ||
+                        path.startsWith("../") ||
+                        isAbsolute(path) ||
+                        path.includes("?") ||
+                        path.split("/").includes("node_modules")
+                    )
+                        this.error("Unbound entry input");
+                    sources.add(path);
+                }
+                const outputs = Object.values(bundle).map((output) => {
+                    const bytes = Buffer.from(output.type === "asset" ? output.source : output.code);
+                    return {
+                        path: output.fileName,
+                        kind: output.type === "asset" ? "asset" : output.isEntry ? "entry" : "chunk",
+                        sizeBytes: bytes.length,
+                        sha256: createHash("sha256").update(bytes).digest("hex"),
+                    };
+                });
+                const bytes = JSON.stringify({
+                    sources: [...sources].sort(),
+                    outputs: outputs.sort((a, b) => a.path.localeCompare(b.path)),
+                });
+                if (Buffer.byteLength(bytes) > 4 * 1024 ** 2) this.error("Entry observation limit exceeded");
+                this.emitFile({ type: "asset", fileName: traceName, source: bytes });
+            },
         },
     };
 }
