@@ -1,0 +1,176 @@
+{
+    "observedAtUTC": "2026-11-17T16:34:30.099658+00:00",
+    "source": "Reused same-session official PyPI wheels, verified RECORD and full MIT texts, and retained exact-version OSV responses; frozen service environment validated separately.",
+    "directDevelopmentPins": ["tree-sitter==0.26.1", "tree-sitter-bash==0.25.1", "tree-sitter-css==0.25.0"],
+    "newPackages": 3,
+    "existingVersionsSourcesAndMarkersChanged": {},
+    "existingNonProjectPackageRecordsChanged": [],
+    "lockHeaderUnchanged": true,
+    "productionDependencyListUnchanged": true,
+    "productionClosureUnchanged": true,
+    "uvExportRequirementCount": 56,
+    "uvExportRawSHA256": "be8ce958ee8f7db6ea70b35e92652842eb2303e03daa52d5e0f96c01146837a6",
+    "productionExportCommand": [
+        "uv",
+        "export",
+        "--project",
+        "apps/srv",
+        "--frozen",
+        "--no-dev",
+        "--no-hashes",
+        "--no-header"
+    ],
+    "productionExportComparison": "Exact raw stdout bytes, including comments and editable project entry; no normalization.",
+    "newDevNamesAbsentFromProduction": true,
+    "distributionBoundary": "Development source-comment parsing only. No parser code is copied into the service wheel or Runtime; the service production --no-dev wheelhouse excludes these three packages. Distributing a development environment or these tools requires preserving every upstream MIT copyright and license text.",
+    "licenseAssessment": "The original wheel LICENSE texts below grant MIT permission including redistribution and require retaining their copyright and permission notices. This bounded development-tool use is compatible with the unchanged AGPL-3.0-only project license. Metadata alone was not treated as original license evidence.",
+    "advisoryLimit": "The retained same-session precise PyPI-name/version OSV responses listed no advisories. Their supply-evidence capture times are recorded per package; exact individual HTTP query times were not separately recorded. No new OSV requests or whole-library rescan were made. This does not prove absence of unknown vulnerabilities or future advisories, nor bound arbitrary parser inputs.",
+    "abiValidation": {
+        "python": "3.12.14",
+        "platform": "Linux-6.18.57-x86_64-with-glibc2.41",
+        "coreCompatibleGrammarABIMinimum": 13,
+        "coreCompatibleGrammarABIMaximum": 15,
+        "bashABI": 15,
+        "cssABI": 15,
+        "actualLanguageAndParserConstruction": true,
+        "realCommentExtractionAndStringExclusion": true,
+        "scope": "Installed Linux x86_64 service environment; no macOS or Windows loading claim."
+    },
+    "scopeLimit": "Dependency preparation only. No production comment adapter or source-language support state changed. Future shell parsing is restricted to .sh and the registered preinstall with an explicit recognized Bash/POSIX-sh shebang, and CSS .css; unknown or missing shebang, ERROR, missing nodes or unavailable parser must fail closed. HTML, Java and native support remain blocked. Global ratio remains None with 48 unsupported files and the >40% hard gate failing.",
+    "packages": [
+        {
+            "name": "tree-sitter",
+            "version": "0.26.1",
+            "developmentOnly": true,
+            "pypiURL": "https://pypi.org/pypi/tree-sitter/0.26.1/json",
+            "metadataSHA256": "976943f1ab0439994bf043accc7c10f1cd0f3b1f9cb238afef876953b1912272",
+            "requiresPython": ">=3.10",
+            "requirements": [
+                "sphinx~=8.2; extra == \"docs\"",
+                "sphinx-book-theme; extra == \"docs\"",
+                "tree-sitter-html==0.23.2; extra == \"tests\"",
+                "tree-sitter-javascript==0.25.0; extra == \"tests\"",
+                "tree-sitter-json==0.24.8; extra == \"tests\"",
+                "tree-sitter-python==0.25.0; extra == \"tests\"",
+                "tree-sitter-rust==0.24.2; extra == \"tests\""
+            ],
+            "enabledExtras": [],
+            "resolvedUnconditionalDependencies": [],
+            "declaredLicense": null,
+            "licenseExpression": null,
+            "reviewedLicense": "MIT",
+            "licenseTexts": [
+                {
+                    "distributionPath": "tree_sitter-0.26.1.dist-info/licenses/LICENSE",
+                    "sha256": "1af0790543fffac99dd3bd290bf83ca963f4f8029065eb6f35638f4df863ae8e",
+                    "text": "The MIT License (MIT)\n\nCopyright (c) 2019 Max Brunsfeld, GitHub\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n"
+                }
+            ],
+            "wheel": "tree_sitter-0.26.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+            "wheelURL": "https://files.pythonhosted.org/packages/9a/d9/238f956bff9be77ad43b7efe5b03fdc0c5ccef41b1018888c420d7eb604b/tree_sitter-0.26.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+            "wheelSHA256": "7b14ac81a2afdcf75610f714f1d2eeaac40da93965c104cabb5c4c2b536a488a",
+            "wheelBytes": 678547,
+            "wheelHashMatchesLockAndOfficialMetadata": true,
+            "priorRecordVerifiedFiles": 8,
+            "recordUnhashedFiles": ["tree_sitter-0.26.1.dist-info/RECORD"],
+            "installedPayloadMatchesAuditedWheel": true,
+            "evidenceCapturedAtUTC": "2026-11-17T14:15:22.261418+00:00",
+            "priorSupplyEvidenceSHA256": "6387e53f9c8b192577e42d6dae948d6486361c9f3fa49653790c5019faac57e7",
+            "advisoryEndpoint": "https://api.osv.dev/v1/query",
+            "advisoryQuery": {
+                "package": {
+                    "name": "tree-sitter",
+                    "ecosystem": "PyPI"
+                },
+                "version": "0.26.1"
+            },
+            "advisoryRawResponse": "{}",
+            "advisoryResponseSHA256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "osv": {}
+        },
+        {
+            "name": "tree-sitter-bash",
+            "version": "0.25.1",
+            "developmentOnly": true,
+            "pypiURL": "https://pypi.org/pypi/tree-sitter-bash/0.25.1/json",
+            "metadataSHA256": "cf21d2ae724a0d7e12c0f611231d646c4a578abbe70059974c8a429ea7954506",
+            "requiresPython": ">=3.10",
+            "requirements": ["tree-sitter~=0.24; extra == \"core\""],
+            "enabledExtras": [],
+            "resolvedUnconditionalDependencies": [],
+            "declaredLicense": "MIT",
+            "licenseExpression": null,
+            "reviewedLicense": "MIT",
+            "licenseTexts": [
+                {
+                    "distributionPath": "tree_sitter_bash-0.25.1.dist-info/licenses/LICENSE",
+                    "sha256": "49bf33cf78ef5897e4e161ce1517df7de1ae5042a65b6bcfd44401e0fc606559",
+                    "text": "The MIT License (MIT)\n\nCopyright (c) 2017 Max Brunsfeld\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n"
+                }
+            ],
+            "wheel": "tree_sitter_bash-0.25.1-cp310-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+            "wheelURL": "https://files.pythonhosted.org/packages/d7/22/9f70bc3d3b942ab9fc0f89c1dc9e087519a3a94f64ae6b7377aae3a7a0f0/tree_sitter_bash-0.25.1-cp310-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+            "wheelSHA256": "3f484c4bb8796cde7a87ca351e6116f09653edac0eb3c6d238566359dd28b117",
+            "wheelBytes": 231981,
+            "wheelHashMatchesLockAndOfficialMetadata": true,
+            "priorRecordVerifiedFiles": 10,
+            "recordUnhashedFiles": ["tree_sitter_bash-0.25.1.dist-info/RECORD"],
+            "installedPayloadMatchesAuditedWheel": true,
+            "evidenceCapturedAtUTC": "2026-11-17T16:08:00.867029+00:00",
+            "priorSupplyEvidenceSHA256": "fc4d7164e7989d45a7eda93ca3c7262dfb26deb90b599e81d2755fbafb6eff2c",
+            "advisoryEndpoint": "https://api.osv.dev/v1/query",
+            "advisoryQuery": {
+                "package": {
+                    "name": "tree-sitter-bash",
+                    "ecosystem": "PyPI"
+                },
+                "version": "0.25.1"
+            },
+            "advisoryRawResponse": "{}",
+            "advisoryResponseSHA256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "osv": {}
+        },
+        {
+            "name": "tree-sitter-css",
+            "version": "0.25.0",
+            "developmentOnly": true,
+            "pypiURL": "https://pypi.org/pypi/tree-sitter-css/0.25.0/json",
+            "metadataSHA256": "302d2b4b4d2d9e4795e8e5d816342c8c533e193cb81d35fa7f0119546e09b9f4",
+            "requiresPython": ">=3.10",
+            "requirements": ["tree-sitter~=0.24; extra == \"core\""],
+            "enabledExtras": [],
+            "resolvedUnconditionalDependencies": [],
+            "declaredLicense": "MIT",
+            "licenseExpression": null,
+            "reviewedLicense": "MIT",
+            "licenseTexts": [
+                {
+                    "distributionPath": "tree_sitter_css-0.25.0.dist-info/licenses/LICENSE",
+                    "sha256": "c5cfb43042b6b72045f4ba997834d0a7786d2793d91680868b5815b39f14fc78",
+                    "text": "The MIT License (MIT)\n\nCopyright (c) 2018 Max Brunsfeld\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n"
+                }
+            ],
+            "wheel": "tree_sitter_css-0.25.0-cp310-abi3-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl",
+            "wheelURL": "https://files.pythonhosted.org/packages/86/a2/6f9658c723f3a857367c198bd4f50d854aa9468783b418407492c9634a44/tree_sitter_css-0.25.0-cp310-abi3-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl",
+            "wheelSHA256": "4f5e1135bfd01bce24e2fc7bca1381f52bdd6c6282ee28f7aa77185340bcd135",
+            "wheelBytes": 41713,
+            "wheelHashMatchesLockAndOfficialMetadata": true,
+            "priorRecordVerifiedFiles": 10,
+            "recordUnhashedFiles": ["tree_sitter_css-0.25.0.dist-info/RECORD"],
+            "installedPayloadMatchesAuditedWheel": true,
+            "evidenceCapturedAtUTC": "2026-11-17T16:08:00.867029+00:00",
+            "priorSupplyEvidenceSHA256": "fc4d7164e7989d45a7eda93ca3c7262dfb26deb90b599e81d2755fbafb6eff2c",
+            "advisoryEndpoint": "https://api.osv.dev/v1/query",
+            "advisoryQuery": {
+                "package": {
+                    "name": "tree-sitter-css",
+                    "ecosystem": "PyPI"
+                },
+                "version": "0.25.0"
+            },
+            "advisoryRawResponse": "{}",
+            "advisoryResponseSHA256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "osv": {}
+        }
+    ]
+}
