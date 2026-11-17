@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page, type Response } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import type { PlatformComponents } from "@veriq/contracts";
 import { editorScope } from "./editor-fixture";
@@ -114,7 +114,7 @@ test("real UI config, paid-call preview, review, genuine compiler, cancel and sc
         await page.getByLabel("Enabled").check();
         await page.getByRole("button", { name: "Save provider" }).click();
         await expect(page.getByLabel("Write-only API key")).toHaveValue("");
-        await expect(page.getByText("Budget USD").locator("..")).toContainText("Available");
+        await expect(page.locator("strong", { hasText: /^Budget USD$/ }).locator("..")).toContainText("Available");
         await page.getByRole("button", { name: "Test connection (uses budget)" }).click();
         await expect(page.getByRole("heading", { name: "Call history" }).locator("..").getByRole("list")).toContainText(
             "CONNECTION_TEST · SUCCEEDED",
@@ -209,6 +209,7 @@ test("fix1 existing CASE review increments only its draft and rejects a stale re
     try {
         await createResource(page, "ELEMENT_CATALOG", "existing-catalog");
         catalogId = (await compiler.publish()).id;
+        await closeResourceEditor(page);
         const original = {
             kind: "CASE",
             document: {
@@ -383,7 +384,9 @@ async function aiEffectProvider(page: Page, headers: Record<string, string>, wor
         },
     });
     expect(response.status()).toBe(201);
-    return (await response.json()).data as PlatformComponents["schemas"]["ProviderDTO"];
+    const provider = (await response.json()).data as PlatformComponents["schemas"]["ProviderDTO"];
+    expect(provider.monthlyBudgetUsd).toBe(budget);
+    return provider;
 }
 
 /**
@@ -408,36 +411,122 @@ function aiEffectLists(page: Page, workspaceId: string) {
     );
 }
 
+/**
+ * 从真实空间分页响应核对新增选项，再用空间选择框旁的加载按钮寻找自有夹具，避免误点同名的提供方或历史分页按钮。
+ * 空页、重复记录或游标、列表耗尽及超过百页都明确失败，不改变默认选择或请求页大小。
+ */
+async function aiEffectWorkspaces(page: Page, firstPage: Response, workspaceIds: readonly string[]) {
+    const picker = page.getByRole("combobox", { name: "Workspace", exact: true });
+    const seenIds = new Set<string>();
+    const seenCursors = new Set<string>();
+    let response = firstPage;
+    for (let pageNumber = 0; pageNumber < 100; pageNumber++) {
+        expect(response.status()).toBe(200);
+        const body: PlatformComponents["schemas"]["WorkspaceDTOPageEnvelope"] = await response.json();
+        const { items, nextCursor } = body.data;
+        const last = items.at(-1);
+        if (!last) throw new Error("Workspace pages must contain new options");
+        for (const item of items) {
+            expect(seenIds.has(item.id), "Workspace pages must not repeat IDs").toBe(false);
+            seenIds.add(item.id);
+        }
+        await expect(picker.locator(`option[value="${last.id}"]`)).toBeAttached();
+        if (workspaceIds.every((id) => seenIds.has(id))) {
+            for (const id of workspaceIds) await expect(picker.locator(`option[value="${id}"]`)).toBeAttached();
+            return;
+        }
+        if (!nextCursor) throw new Error("Known AI Workspaces were absent from the complete list");
+        if (seenCursors.has(nextCursor)) throw new Error("Workspace pagination repeated a cursor");
+        seenCursors.add(nextCursor);
+        if (pageNumber === 99) break;
+        const more = picker
+            .locator("..")
+            .locator("..")
+            .locator(":scope > button")
+            .filter({ hasText: /^Load more$/ });
+        await expect(more).toBeEnabled();
+        const nextPage = page.waitForResponse((candidate) => {
+            const url = new URL(candidate.url());
+            return (
+                candidate.request().method() === "GET" &&
+                url.pathname === "/api/v1/workspaces" &&
+                url.searchParams.get("cursor") === nextCursor
+            );
+        });
+        await more.click();
+        response = await nextPage;
+    }
+    throw new Error("Known AI Workspaces were not loaded within 100 pages");
+}
+
 test("AI request inputs invalidate reviewed context and preserve manual scope", async ({ page }) => {
     test.setTimeout(120000);
     const scope = await aiEffectScope(page);
-    for (const id of [scope.alpha, scope.beta]) {
-        await aiEffectProvider(page, scope.headers, id, 11);
-        await aiEffectProvider(page, scope.headers, id, 23);
-    }
+    const ownProviders = new Map<string, PlatformComponents["schemas"]["ProviderDTO"][]>();
+    for (const id of [scope.alpha, scope.beta])
+        ownProviders.set(
+            id,
+            [
+                await aiEffectProvider(page, scope.headers, id, 11),
+                await aiEffectProvider(page, scope.headers, id, 23),
+            ].sort((a, b) => a.id.localeCompare(b.id)),
+        );
     const listed = (await (await page.request.get("/api/v1/workspaces")).json()).data.items as {
         id: string;
     }[];
     const firstWorkspaceId = aiEffectItem(listed).id;
     const initial = aiEffectLists(page, firstWorkspaceId);
+    const firstPage = page.waitForResponse((response) => {
+        const url = new URL(response.url());
+        return (
+            response.request().method() === "GET" &&
+            url.pathname === "/api/v1/workspaces" &&
+            !url.searchParams.has("cursor")
+        );
+    });
     await page.getByRole("link", { name: "AI", exact: true }).click();
     const [firstProviders] = await initial;
     await expect(page.getByLabel("Workspace")).toHaveValue(firstWorkspaceId);
-    await expect(page.getByLabel("Provider")).toHaveValue(aiEffectItem(firstProviders).id);
-    await expect(page.getByText("Budget USD").locator("..")).toBeVisible();
-    const firstProvider = aiEffectItem(firstProviders) as PlatformComponents["schemas"]["ProviderDTO"];
-    await expect(page.getByText("Budget USD").locator("..")).toContainText(String(firstProvider.monthlyBudgetUsd));
-    const manualWorkspace = aiEffectItem(listed.filter((w) => w.id !== firstWorkspaceId)).id;
+    if (firstProviders?.length) {
+        await expect(page.getByLabel("Provider")).toHaveValue(aiEffectItem(firstProviders).id);
+    } else {
+        expect(firstProviders).toEqual([]);
+        await expect(page.getByLabel("Provider")).toHaveValue("");
+        await expect(page.getByLabel("Provider").locator("option")).toHaveCount(1);
+        await expect(page.getByText("No providers configured", { exact: true })).toBeVisible();
+    }
+    await aiEffectWorkspaces(page, await firstPage, [scope.alpha, scope.beta]);
+    // 默认首项允许没有提供方；正向预算断言改用自有空间，并以创建返回且独立排序的标识核对真实列表和默认提供方。
+    let alphaProviders = firstProviders;
+    if (firstWorkspaceId !== scope.alpha) {
+        const alphaLists = aiEffectLists(page, scope.alpha);
+        await page.getByLabel("Workspace").selectOption(scope.alpha);
+        [alphaProviders] = await alphaLists;
+    }
+    const knownAlpha = ownProviders.get(scope.alpha);
+    expect(alphaProviders?.map((p) => p.id)).toEqual(knownAlpha?.map((p) => p.id));
+    const firstProvider = aiEffectItem(knownAlpha);
+    await expect(page.getByLabel("Provider")).toHaveValue(firstProvider.id);
+    await expect(page.locator("strong", { hasText: /^Budget USD$/ }).locator("..")).toBeVisible();
+    await expect(page.locator("strong", { hasText: /^Budget USD$/ }).locator("..")).toContainText(
+        String(firstProvider.monthlyBudgetUsd),
+    );
+    const manualWorkspace = scope.beta;
     const switched = aiEffectLists(page, manualWorkspace);
     await page.getByLabel("Workspace").selectOption(manualWorkspace);
     const [providers] = await switched;
     const providerRows = (await (await page.request.get(`/api/v1/workspaces/${manualWorkspace}/ai/providers`)).json())
         .data.items as PlatformComponents["schemas"]["ProviderDTO"][];
     expect(providers?.map((p) => p.id)).toEqual(providerRows.map((p) => p.id));
-    const selected = aiEffectItem(providerRows, 1);
+    const knownBeta = ownProviders.get(scope.beta);
+    expect(providerRows.map((p) => p.id)).toEqual(knownBeta?.map((p) => p.id));
+    expect(providerRows.map((p) => p.monthlyBudgetUsd)).toEqual(knownBeta?.map((p) => p.monthlyBudgetUsd));
+    const selected = aiEffectItem(knownBeta, 1);
     await page.getByLabel("Provider").selectOption(selected.id);
     await page.getByLabel("Language").selectOption("en");
-    await expect(page.getByText("Budget USD").locator("..")).toContainText(`Available: ${selected.monthlyBudgetUsd}`);
+    await expect(page.locator("strong", { hasText: /^Budget USD$/ }).locator("..")).toContainText(
+        `Available: ${selected.monthlyBudgetUsd}`,
+    );
     const refreshed = page.waitForResponse(
         (r) => r.url().endsWith(`/workspaces/${manualWorkspace}/ai/providers`) && r.request().method() === "GET",
     );
@@ -447,7 +536,9 @@ test("AI request inputs invalidate reviewed context and preserve manual scope", 
     await expect(page.getByLabel("Workspace")).toHaveValue(manualWorkspace);
     await page.getByRole("link", { name: "Resources", exact: true }).click();
     await expect(page.getByLabel("Workspace")).toHaveValue(manualWorkspace);
+    const returned = aiEffectLists(page, manualWorkspace);
     await page.getByRole("link", { name: "AI", exact: true }).click();
+    await returned;
     await expect(page.getByLabel("Workspace")).toHaveValue(manualWorkspace);
     await page.getByLabel("Provider").selectOption(selected.id);
     await page.getByLabel("Requirement / expected-result basis").fill("REQ-EFFECTS: reject empty passwords.");
@@ -577,8 +668,21 @@ test("AI generation completion stays in its owning workspace", async ({ page }) 
     test.setTimeout(90000);
     const scope = await aiEffectScope(page);
     const provider = await aiEffectProvider(page, scope.headers, scope.alpha, 11);
+    const firstPage = page.waitForResponse((response) => {
+        const url = new URL(response.url());
+        return (
+            response.request().method() === "GET" &&
+            url.pathname === "/api/v1/workspaces" &&
+            !url.searchParams.has("cursor")
+        );
+    });
     await page.getByRole("link", { name: "AI", exact: true }).click();
-    await page.getByLabel("Workspace").selectOption(scope.alpha);
+    await aiEffectWorkspaces(page, await firstPage, [scope.alpha, scope.beta]);
+    if ((await page.getByLabel("Workspace").inputValue()) !== scope.alpha) {
+        const alphaLists = aiEffectLists(page, scope.alpha);
+        await page.getByLabel("Workspace").selectOption(scope.alpha);
+        await alphaLists;
+    }
     await expect(page.getByLabel("Provider")).toHaveValue(provider.id);
     await page.getByLabel("Language").selectOption("en");
     await page.getByLabel("Purpose").selectOption("BOUNDARY_SUGGESTION");
