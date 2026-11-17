@@ -7,6 +7,7 @@
 import { useState, useCallback, useEffect, useRef, type FormEvent, type ReactNode } from "react";
 import { ApiError } from "./api";
 import { tx } from "./locale";
+import { Input, Field as FormField } from "./components";
 /**
  * 按 role=alert/status 分别展示传入的错误和成功消息，使登录、账户与管理员表单拥有一致且可被辅助技术识别的反馈区域，并
  * 保持消息文本由调用页面决定。
@@ -29,25 +30,30 @@ export function Notice({ error, message }: { error?: string; message?: string })
     );
 }
 /**
- * 带 label/data-testid 的非受控原生 input 保留浏览器必填及长度校验，并按字段类型选择 maxLength 与 autocomplete，使普通
- * 认证表单直接读取用户当前输入。
- * 用于认证与账户表单；资源 DSL 编辑请改用 features/resources/fields 的 RHF 字段。
+ * 带 label/data-testid 的非受控输入字段保留浏览器必填及长度校验，并按字段类型选择 maxLength 与 autocomplete；hint 为短
+ * 提示直接内联展示，longHint 折叠为「?」图标悬停展示，使普通认证与账户表单获得一致的操作提示。字段结构复用组件库的
+ * Field 与 Input，避免重复实现标签、提示与聚焦样式。
+ * 用于认证、账户与管理表单；资源 DSL 编辑请改用 features/resources/fields 的 RHF 字段。
  */
 export function Field({
     name,
     label,
     type = "text",
     minLength,
+    hint,
+    longHint,
 }: {
     name: string;
     label: string;
     type?: string;
     minLength?: number;
+    hint?: string;
+    longHint?: string;
 }) {
     return (
-        <label>
-            {label}
-            <input
+        <FormField label={label} htmlFor={name} hint={hint} longHint={longHint} required>
+            <Input
+                id={name}
                 name={name}
                 data-testid={name}
                 type={type}
@@ -64,7 +70,7 @@ export function Field({
                           : "off"
                 }
             />
-        </label>
+        </FormField>
     );
 }
 /**

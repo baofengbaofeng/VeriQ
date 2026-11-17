@@ -18,6 +18,15 @@ export const commonMessages: Record<string, readonly [string, string]> = {
     测试设计: ["测试设计", "Authoring"],
     执行: ["执行", "Execution"],
     系统管理: ["系统管理", "Administration"],
+    "由部署 VeriQ 的运维人员提供，仅用于首次创建系统管理员。": [
+        "由部署 VeriQ 的运维人员提供，仅用于首次创建系统管理员。",
+        "Provided by your operator; used once to create the first system administrator.",
+    ],
+    "至少 12 个字符，建议混用字母、数字与符号。": [
+        "至少 12 个字符，建议混用字母、数字与符号。",
+        "At least 12 characters; mix letters, numbers and symbols.",
+    ],
+    "展示给其他成员的名字。": ["展示给其他成员的名字。", "The name shown to other members."],
     "Sign out": ["退出登录", "Sign out"],
     "Sign in": ["登录", "Sign in"],
     "Page not found": ["页面不存在", "Page not found"],

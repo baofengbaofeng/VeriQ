@@ -97,6 +97,7 @@ export function Account() {
                     label={tx("New password (at least 12 characters)")}
                     type="password"
                     minLength={12}
+                    longHint={tx("至少 12 个字符，建议混用字母、数字与符号。")}
                 />
                 <button type="submit" data-testid="change-password" disabled={a.busy}>
                     {tx("Change password and sign out")}

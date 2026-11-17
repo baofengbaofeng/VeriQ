@@ -67,7 +67,12 @@ export function Setup() {
                     });
                 }}
             >
-                <Field name="installationSecret" label={tx("Installation secret")} type="password" />
+                <Field
+                    name="installationSecret"
+                    label={tx("Installation secret")}
+                    type="password"
+                    longHint={tx("由部署 VeriQ 的运维人员提供，仅用于首次创建系统管理员。")}
+                />
                 <Field name="email" label={tx("Administrator email")} type="email" />
                 <Field name="displayName" label={tx("Display name")} />
                 <Field name="password" label={tx("Password (at least 12 characters)")} type="password" minLength={12} />
