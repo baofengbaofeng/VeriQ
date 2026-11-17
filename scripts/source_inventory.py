@@ -93,6 +93,17 @@ def inventory(root: Path) -> list[SourceFile]:
             language, reason = "python", None
         elif path.suffix in TYPESCRIPT_EXTENSIONS:
             language, reason = "typescript", None
+        elif path.suffix == ".css":
+            language, reason = "css", None
+        elif path.suffix == ".sh" or path.as_posix() in SOURCE_PATHS:
+            language = "shell"
+            with (root / path).open("rb") as source:
+                first = source.readline().removesuffix(b"\n").removesuffix(b"\r")
+            reason = (
+                None
+                if first in {b"#!/usr/bin/env bash", b"#!/bin/sh"}
+                else "Unsupported shell shebang: expected #!/usr/bin/env bash or #!/bin/sh"
+            )
         entries.append(
             {
                 "path": path,

@@ -23,6 +23,23 @@ uv sync --project apps/srv --frozen --all-groups
 pnpm install --frozen-lockfile
 ```
 
+注释工具也要求先完成上述冻结全组 Python 同步，不能依赖全局偶然安装的 tree-sitter。
+在仓库根运行：
+
+```sh
+pnpm lint:comments
+uv run --project apps/srv --frozen --no-sync python scripts/comment_audit.py --output /tmp/veriq-comment-audit.json
+```
+
+`lint:comments` 同样通过 `uv run --project apps/srv --frozen --no-sync` 使用服务解释器，不自动联网补装或执行源码。
+按需加载的 Shell / CSS parser 会核验精确版本及 ABI，缺包、坏语法、missing 节点或不可信范围直接失败。
+Shell 只接入 `.sh` 与精确 preinstall 路径，并要求首行 `#!/usr/bin/env bash` 或 `#!/bin/sh`；
+shebang 保留代码计数，不能算说明。CSS 仅接受直接位于 stylesheet / block 且没有函数参数祖先的 comment，
+函数、声明等其他注释上下文会明确报 unsupported（包括未引号 URL 中被 grammar 误标的伪注释）。
+这些边界见 [ADR 0026](decisions/0026-trusted-comment-parsers.md)。库存与列宽枚举仍不依赖可选 parser。
+SCSS / LESS、HTML、Java、native 等未支持比例语言继续阻断；YAML / GYP 嵌入代码分类仍待研究。
+全仓比例必须严格大于 40%；`ratio=None` 时只有支持子集的 `observedRatio`，不代表全仓通过，也无逐文件配额。
+
 使用专用 MySQL 8.4 数据库、InnoDB 和 utf8mb4。在 VeriQ 外准备数据库及用户，并授予该库的 Schema 迁移与应用访问权限。随着运维能力完善，生产部署应分离迁移凭据和运行凭据。连接初始化使用 UTC 与 READ COMMITTED；迁移拒绝其他 MySQL 发行系列。开发测试不得使用共享生产数据库。
 
 交互初始化本机配置；命令私下提示输入形如 `mysql+asyncmy://USER:PASSWORD@HOST:3306/DATABASE` 的异步 MySQL URL：
@@ -76,6 +93,7 @@ pnpm --filter @veriq/web test:e2e
 Playwright 默认使用它安装的 Chromium。受管理测试主机可通过 `VERIQ_TEST_CHROMIUM=/usr/bin/chromium` 选择已有测试浏览器；该选项仅属于测试配置。HOME 只读时，使用任务专属的可写 `UV_CACHE_DIR`/`XDG_CONFIG_HOME`/`XDG_CACHE_HOME`。浏览器证据进入已忽略的 `.superpowers/cache/t02/`。Python API 运行时不需要浏览器或 Node 进程。
 
 <a id="runtime-enrollment-and-doctor-t08-development-cli"></a>
+
 ## Runtime 登记与诊断（T08 开发 CLI）
 
 安装冻结的工作区依赖后，使用已实现的 CLI：
@@ -110,6 +128,7 @@ pnpm --filter @veriq/web test:e2e z-runtimes.spec.ts
 真实浏览器流程启动 CLI，在 UI 中批准，读取受保护的本机凭据，修改共享和受管理信任，撤销设备并确认令牌被拒绝。Vite 将 `/api` 与 `/internal` 转发给控制服务。Python 控制服务运行时仍不需要 Node 或 Chrome。
 
 <a id="unified-execution-server-t09"></a>
+
 ## 统一执行服务端（T09）
 
 已实现的控制 API 准入不可变已发布 CASE/SUITE Run 或冻结草稿候选，对 TEST/VALIDATE/CLEANUP 排队，同时检查当前设备和原始请求者。默认仍为全局四个浏览器上下文、每 Workspace 两个、十个未结束 Run、心跳10s、租约60s。副作用发生前必须显式激活；过期或未知进程失去权限，并在停止核对完成前继续隔离占用容量。取消尚未开始的重试会立即结束，同时保留此前失败。
@@ -121,6 +140,7 @@ pnpm --filter @veriq/web test:e2e z-runtimes.spec.ts
 T09 是服务端基础。其真实 MySQL/HTTP 并发及真实编译器归档测试与 TEST/CLEANUP 协议夹具分离；这些夹具不是浏览器 Trace，也不是 Agent 杀进程的证据。T10 已提供真实 Linux 消费者、进程监督、规范 SDK 事件及可恢复轮换。T12 增加受限原始证据访问、保留期及报告。开发 CLI 仍只是登记离线设备，不自动启动 worker。
 
 <a id="online-linux-agent-reviewed-t10"></a>
+
 ## 在线 Linux Agent（T10 已审查）
 
 使用已安装的 C 编译器构建开发启动器，再在独立终端运行已登记档案。生产 Runtime 包会包含预编译助手；正常 Agent 启动绝不编译源码。发行目录必须含管理员批准的固定引擎字节及其库存。当前测试生产器不是生产发行工具。
@@ -141,6 +161,7 @@ SDK 测试入口使用两个 worker，不改变断言/测试超时。资源受�
 Vite 开发应用中的 `/resources` 和 `/environments` 提供资源及环境 UI。编译校验需要当前获授权的 MANAGED Runtime 和运维人员批准的引擎库存；缺少它们时仍可编辑，校验继续排队。不得虚构回执以启用发布。定向浏览器命令为 `VERIQ_TEST_CHROMIUM=/usr/bin/chromium pnpm --filter @veriq/web test:e2e case-publish.spec.ts`。它使用受守卫保护的专用 MySQL 夹具，构建真实、锁定且仅用于测试的发行，登记实际 CLI 并调用真实 Linux Agent 编译器。测试发行不会晋升至生产目录。它需要可写 XDG 路径及足够临时磁盘空间；生成归档、设备档案和各 Attempt 工作目录均为临时材料。
 
 <a id="external-http-plans-and-ci-reviewed-t16"></a>
+
 ## 外部 HTTP 计划与 CI（T16 已审查）
 
 执行计划、独立服务账号 EXECUTION 令牌、同计划 QUEUE/SKIP/REJECT、GUI及安全CI报告由
@@ -161,6 +182,7 @@ Ruff、格式和生成一致性均有记录。不将这些分组结果称为同�
 声明仍须对齐，F10重跑不因旧路由未实现而被移出首发。完整状态以[里程碑](plans/milestones.md)为接续依据。
 
 <a id="production-same-origin-static-service-reviewed-t17"></a>
+
 ## 生产同源静态服务（T17 已审查）
 
 `4b58a4c`沿用唯一make_app工厂实现生产同源静态/SPA/API路由，`0f48d6e`/`67779ed`修复非入口HTML的后缀与MIME参数绕过，独立复审已关闭，零新增问题。
@@ -174,6 +196,7 @@ Ruff、格式和生成一致性均有记录。不将这些分组结果称为同�
 T18已提供实际stage/wheel及Debian下无Node/只读/仓库外安装证明，正常发行和Ubuntu/OCI验收仍开放；T21继续完整存储/静态/关键依赖就绪监控；[里程碑](plans/milestones.md)保留所有发布阻塞。
 
 <a id="server-release-tooling-reviewed-t18-acceptance-pending"></a>
+
 ## 服务端发行工具（T18 已审查，验收待完成）
 
 `3995648` 实现发行流水线，`dc95f26` 修复取消隔离及等待权威锁后的候选新鲜度。独立限定范围复审关闭了两个重要问题，未发现新增问题。构建阶段现使用隔离的 Linux subreaper，直到完整子树被收割才释放构建锁；缺少完成证明时隔离工作区。晋升在取得既有签发者/库存守卫锁后，重新验证最初选定的库存及文件字节。见 [ADR0020](decisions/0020-server-release-pipeline.md) 和[发行指南](release.md)。
@@ -185,6 +208,7 @@ T18已提供实际stage/wheel及Debian下无Node/只读/仓库外安装证明，
 Fix1 wheel（`15bc3473…`）含当前晋升源码，并在 Debian13/Python3.12.14 上通过真实离线、只读、仓库外、空 PATH 的生产启动。其静态原始库存仍为 `561ee42a…`。此前 `3995648` 的无 Git 源码重建和 UNVERIFIED tar 仍是历史候选，不含 Fix1。最终引擎候选条目 `4ac70538…` 和原始库存 `75fc7c83…` 具有加载/安装/导出/编译证据；真实候选浏览器执行归 T19/T23。UTF-16 注释审计及可配置引擎元数据两个次要问题仍分配给 T22。[里程碑](plans/milestones.md)列出全部剩余验收工作。
 
 <a id="electron-desktop-gui-reviewed-t19"></a>
+
 ## Electron 桌面 GUI（T19 已审查）
 
 T19 源码 `bac5162` 及截至 `eb2dc4e` 的 Fix1 通过初次任务审查及针对六个问题的限定范围复审。退出现在会联系服务端并撤销复制的普通 Cookie，同时保留设备绑定；客户端/broker 保留分段 UTF-8 字节，随包资产采用 Windows/POSIX 原生包含关系，可见执行保留可信 X11 上下文，流式 Attempt 保留原生证据所有权，夹具等待进程/标准输入输出关闭。
@@ -198,6 +222,7 @@ CI 使用独立且未批准的引擎1.0.2-t19-fix1（规范 `1c64aff0…`），�
 以上关闭 T19 模块，不代表已安装 Windows11/Ubuntu24.04 分发、vault/进程/签名/升级、真实 Provider、全仓质量或完整 MVP 验收完成。继续 T20 打包及[里程碑接续](plans/milestones.md)；绑定源码的 GUI 证据不是生产发行包。见[桌面开发](desktop.md)。
 
 <a id="current-verification-limits"></a>
+
 ## 当前验证限制
 
 离线执行/导入模块（`1b6fccb`、`86f1602`，修复于 `67968b4`）通过独立规格/质量审查及限定范围复审。真实组合测试覆盖签名且由 Agent 发布的 CASE、取消及完整 SUITE 矩阵、候选 SUITE 的角色/浏览器/数据集覆盖，以及杀死宿主后的 DOWNLOAD 恢复：四个场景通过业务 HTTP 和真实 MySQL 导入 API 验证，执行期间控制监听器被物理停止。源码、变体、事件及原始摘要匹配；重复上传复用 Run，保留在线 Attempt。导入保留 OFFLINE_IMPORT 且门禁为 false；省略工作仍为 INCOMPLETE。
@@ -221,6 +246,7 @@ AI 实现（`f9573d0`，修复于 `3c96eb6`）通过独立代码审查。修复�
 生产构建还保留因提前加载 Monaco 导致的大分块警告；本机 worker 资产仍随包提供以支持离线使用。加载改善归最终 UX 工作。已有测试颜色环境警告仍待基础设施跟进。
 
 <a id="reports-and-restricted-evidence"></a>
+
 ## 报告与受限证据
 
 开发 `/reports` 视图使用真实 Run/Attempt 历史、可重放事件流、编译器派生步骤标签，以及分开的执行时/当前信任门禁。普通成员查看脱敏结构化值。原始 Trace、HTML、截图、下载和日志访问要求当前 Workspace Owner/Admin 权限及精确 Attempt 关联；调用者提供的敏感级别不能授予访问。通过 `pnpm --filter @veriq/runtime dev trace open /path/to/trace.zip` 在本机查看获授权下载的 Trace；它使用钉死版本 Playwright 回环查看器，不会把文件上传至公开服务。

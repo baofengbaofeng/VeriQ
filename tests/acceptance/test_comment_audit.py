@@ -1,7 +1,7 @@
 """注释审计验收通过微型 Git 仓库调用真实 Python 审计和固定 TypeScript 桥接，验证补充字符与原始换行不会改变计数、
 违规行或发行退出码，并保留既有范围和严格比例门槛。
 
-夹具仅复制三个轻量脚本并只读链接既有解析器，不安装或复制依赖树。所有被审计片段都是受控输入，短注释专门验证失败规则而非项
+夹具仅复制四个轻量脚本并只读链接既有解析器，不安装或复制依赖树。所有被审计片段都是受控输入，短注释专门验证失败规则而非项
 目说明。
 """
 
@@ -37,7 +37,12 @@ def repository_fixture(tmp_path: Path) -> Path:
     (root / ".gitignore").write_text("scripts/\npackages/\n", encoding="utf-8")
     scripts = root / "scripts"
     scripts.mkdir()
-    for name in ("comment_ranges.mjs", "comment_audit.py", "source_inventory.py"):
+    for name in (
+        "comment_ranges.mjs",
+        "comment_audit.py",
+        "source_inventory.py",
+        "comment_syntax.py",
+    ):
         target = scripts / name
         shutil.copyfile(ROOT / "scripts" / name, target)
         target.chmod(0o444)
@@ -504,7 +509,7 @@ def test_cli_reports_ratio_unavailable_with_unsupported_source(
 ) -> None:
     """命令行必须落盘完整的不支持路径并返回失败，日志不得将已支持文件的满分观察值标成全仓比例以误导发行门禁。"""
     _write(repository, "sample.ts", f"//{LONG}\n")
-    _write(repository, "style.css", "body {}\n")
+    _write(repository, "style.scss", "body {}\n")
     output = tmp_path / "report.json"
     result = subprocess.run(
         [sys.executable, str(repository / "scripts/comment_audit.py"), "--output", str(output)],
@@ -519,7 +524,7 @@ def test_cli_reports_ratio_unavailable_with_unsupported_source(
     report = json.loads(output.read_text())
     assert report["ratio"] is None
     assert report["passed"] is False
-    assert [item["path"] for item in report["unsupportedPaths"]] == ["style.css"]
+    assert [item["path"] for item in report["unsupportedPaths"]] == ["style.scss"]
 
 
 @pytest.mark.parametrize(("length", "passed"), [(120, True), (121, False)])
@@ -665,3 +670,164 @@ def test_python_ast_docstrings_cover_class_sync_and_async_bodies(repository: Pat
     assert report["ratio"] == 4 / 9
     assert report["violations"] == []
     assert report["passed"] is True
+
+
+@pytest.mark.parametrize("newline", ["\n", "\r\n"])
+def test_shell_shebang_is_code_and_heredoc_hashes_are_data(repository: Path, newline: str) -> None:
+    """解释器首行保留代码分母，正文里的井号由真实 heredoc 边界排除，行内真实说明则与同一行代码分别计数。"""
+    _write(
+        repository,
+        "sample.sh",
+        newline.join(
+            ["#!/bin/sh", "cat <<'EOF'", "#" + LONG, "中😀", "EOF", "printf '#数据' #" + LONG, ""]
+        ),
+    )
+    report = _audit(repository)
+    assert report["files"] == [{"path": "sample.sh", "commentLines": 1, "codeLines": 6}]
+    assert report["violations"] == []
+    assert report["ratio"] == 1 / 7
+    assert report["coverageComplete"] is True
+    assert report["passed"] is False
+
+
+@pytest.mark.parametrize("newline", ["\n", "\r\n"])
+def test_css_literals_empty_separators_and_mixed_lines(repository: Path, newline: str) -> None:
+    """样式地址和字符串中的伪注释留在代码分母，独占空分隔符不能抬分，含真实说明的混合代码行仍保持双计语义。"""
+    _write(
+        repository,
+        "sample.css",
+        newline.join(
+            [
+                'a { content: "/*数据😀*/"; x: url(https://a/中//path); }',
+                "/**/",
+                "/*",
+                " *",
+                " */",
+                "a {} /*" + LONG + "*/",
+            ]
+        ),
+    )
+    report = _audit(repository)
+    assert report["files"] == [{"path": "sample.css", "commentLines": 1, "codeLines": 2}]
+    assert report["ratio"] == 1 / 3
+    assert len(report["violations"]) == 1
+    assert report["violations"][0]["line"] == 2
+
+
+@pytest.mark.parametrize("syntax", [(".css", "/*", "*/"), (".sh", "#!/bin/sh\n#", "")])
+@pytest.mark.parametrize(("length", "valid"), [(40, True), (120, True), (121, False)])
+def test_new_comment_bodies_use_unicode_limits_independent_of_width(
+    repository: Path, syntax: tuple[str, str, str], length: int, valid: bool
+) -> None:
+    """新增语言正文剥离实际分隔符后按码点检查上下限，超宽与正文长度属于不同门禁，不能把字符数量误当显示列数。"""
+    suffix, prefix, postfix = syntax
+    _write(repository, "sample" + suffix, prefix + "中" * (length - 1) + "😀" + postfix)
+    report = _audit(repository)
+    assert bool(report["violations"]) is not valid
+    assert report["files"][0]["commentLines"] == 1
+    assert report["files"][0]["codeLines"] == (1 if suffix == ".sh" else 0)
+
+
+@pytest.mark.parametrize(
+    ("name", "text"),
+    [
+        ("broken.css", '/*合法*/ a {x:"hidden_secret}'),
+        ("broken.sh", "#!/bin/sh\n#合法\ncat <<'EOF'\nhidden_secret"),
+    ],
+)
+def test_new_parser_cli_rejects_entire_report_without_source_leaks(
+    repository: Path, tmp_path: Path, name: str, text: str
+) -> None:
+    """真实命令遇到先有合法注释的坏语法也必须拒绝整份报告，错误日志只保留路径类别与行号，禁止复制源码敏感标记。"""
+    _write(repository, name, text)
+    output = tmp_path / "rejected.json"
+    result = subprocess.run(
+        [sys.executable, str(repository / "scripts/comment_audit.py"), "--output", str(output)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 2
+    assert not output.exists()
+    assert "hidden_secret" not in result.stderr
+    assert name in result.stderr
+    assert "line" in result.stderr
+
+
+@pytest.mark.parametrize(
+    ("name", "source", "comments", "code"),
+    [
+        ("empty.css", "a {} /**/", 0, 1),
+        ("empty.sh", "#!/bin/sh\nprintf value # ***", 0, 2),
+        ("mixed.css", "a {} /*中\n * 续行\n */ a {}", 2, 2),
+    ],
+)
+def test_new_families_count_only_effective_comment_body_lines(
+    repository: Path, name: str, source: str, comments: int, code: int
+) -> None:
+    """新增语言只按真实注释正文计数，空分隔符和关闭行旁的代码不能制造说明行，非空正文与代码同处一行仍各贡献一次。"""
+    _write(repository, name, source)
+    report = _audit(repository)
+    assert report["files"] == [{"path": name, "commentLines": comments, "codeLines": code}]
+
+
+def test_css_ambiguous_url_cannot_return_partial_audit(repository: Path) -> None:
+    """未引号地址中的伪注释即使被成熟语法标记也必须明确阻断整份审计，不能跳过该路径或把已识别的顶层注释计为部分成功。"""
+    _write(repository, "ambiguous.css", "/*" + LONG + "*/ a{x:url(foo/*数据*/bar)}")
+    with pytest.raises(ValueError, match="Unsupported CSS comment context"):
+        _audit(repository)
+
+
+@pytest.mark.parametrize(
+    ("name", "opening", "closing"), [("sample.ts", "//", ""), ("sample.css", "/*", "*/")]
+)
+def test_typescript_hash_in_body_preserves_existing_first_line_length(
+    repository: Path, name: str, opening: str, closing: str
+) -> None:
+    """脚本行注释正文中的井号属于有效文字，新增 Shell 分隔符剥离不能改变既有类型脚本恰好四十字符的通过边界。"""
+    _write(repository, name, opening + "#" + "中" * 39 + closing)
+    report = _audit(repository)
+    assert report["violations"] == []
+    assert report["files"] == [{"path": name, "commentLines": 1, "codeLines": 0}]
+    assert report["ratio"] == 1
+    assert report["passed"] is True
+
+
+@pytest.mark.parametrize(
+    "body",
+    ["/*" + "中" * 38, "中" * 38 + "*/", "*" + "中" * 39, "//" + "中" * 38, "#" + "中" * 39],
+    ids=["opening-literal", "closing-literal", "star-literal", "slash-literal", "hash-literal"],
+)
+def test_shell_body_keeps_literal_c_style_delimiters(repository: Path, body: str) -> None:
+    """脚本井号之后的斜杠星号只是普通正文，不能继续按样式块分隔符剥离并改变恰好四十字符的真实首行边界。"""
+    _write(repository, "sample.sh", "#!/bin/sh\n#" + body)
+    report = _audit(repository)
+    assert report["violations"] == []
+    assert report["files"] == [{"path": "sample.sh", "commentLines": 1, "codeLines": 1}]
+    assert report["passed"] is True
+
+
+@pytest.mark.parametrize(
+    "newline",
+    ["\n", "\r\n", "\v", "\f", "\x1c", "\x1d", "\x1e", "\x85", "\u2028", "\u2029"],
+    ids=["lf", "crlf", "vt", "ff", "fs", "gs", "rs", "nel", "ls", "ps"],
+)
+@pytest.mark.parametrize("language", ["css", "shell"])
+def test_new_family_masks_preserve_physical_breaks_and_trailing_code(
+    repository: Path, newline: str, language: str
+) -> None:
+    """注释内的标准物理分行符必须留在遮罩结果中，否则空正文行会错移并吞掉后续代码，导致观察比例被虚假抬高。"""
+    if language == "css":
+        name = "sample.css"
+        source = "/*" + LONG + newline * 2 + "*/\na{}\n"
+        code_lines = 1
+    else:
+        name = "sample.sh"
+        source = "#!/bin/sh\n#" + LONG + newline * 2 + "\nprintf value\n"
+        code_lines = 2
+    _write(repository, name, source)
+    report = _audit(repository)
+    assert report["files"] == [{"path": name, "commentLines": 1, "codeLines": code_lines}]
+    assert report["violations"] == []
+    assert report["observedRatio"] == 1 / (1 + code_lines)
+    assert report["passed"] is (language == "css")

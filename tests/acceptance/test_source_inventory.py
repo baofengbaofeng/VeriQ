@@ -7,6 +7,7 @@ import importlib.util
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 from typing import Any
 
 import pytest
@@ -110,7 +111,9 @@ def test_source_boundary_keeps_all_existing_suffixes_names_and_explicit_path(
         "deploy/desktop/macos/scripts/preinstall",
     ]
     for name in names:
-        _write(repository, name, "中" * 61 + "\n")
+        _write(
+            repository, name, "/*" + "中" * 59 + "*/\n" if name == "style.css" else "中" * 61 + "\n"
+        )
     for name in [
         "not-preinstall",
         "nested/preinstall",
@@ -123,7 +126,9 @@ def test_source_boundary_keeps_all_existing_suffixes_names_and_explicit_path(
     assert [p.as_posix() for p in width.source_paths(repository)] == sorted(names)
     assert width.check_sources(repository) == [(name, 1, 122) for name in sorted(names)]
     report = _tool("comment_audit").audit(repository)
-    assert [item["path"] for item in report["unsupportedPaths"]] == sorted(names)
+    assert [item["path"] for item in report["unsupportedPaths"]] == sorted(
+        set(names) - {"style.css"}
+    )
     assert all(item["reason"] for item in report["unsupportedPaths"])
 
 
@@ -148,3 +153,58 @@ def test_exact_generated_contracts_remain_width_inputs_but_not_ratio_inputs(
     assert report["generatedExclusions"] == sorted(generated)
     assert [item["path"] for item in report["unsupportedPaths"]] == ["other.generated.cc"]
     assert report["ratio"] is None
+
+
+@pytest.mark.parametrize("shebang", ["#!/bin/sh", "#!/usr/bin/env bash"])
+@pytest.mark.parametrize("name", ["setup.sh", "deploy/desktop/macos/scripts/preinstall"])
+def test_only_registered_shell_paths_and_exact_shebang_are_supported(
+    repository: Path, shebang: str, name: str
+) -> None:
+    """精确登记的脚本路径仅在首行解释器属于批准集合时接入，回车换行不改变识别而相同内容的其他后缀继续阻断比例。"""
+    _write(repository, name, shebang + "\r\necho value\r\n")
+    _write(repository, "other.bash", shebang + "\necho value\n")
+    report = _tool("comment_audit").audit(repository)
+    assert report["files"] == [{"path": name, "commentLines": 0, "codeLines": 2}]
+    assert [item["path"] for item in report["unsupportedPaths"]] == ["other.bash"]
+    assert report["ratio"] is None
+    assert report["passed"] is False
+
+
+@pytest.mark.parametrize(
+    "first",
+    ["", "echo '#!/bin/sh'", "#!/bin/zsh", "#!/bin/bash", "#!/usr/bin/env bash -e", "#!/bin/sh "],
+)
+def test_missing_and_unknown_interpreters_remain_named_unsupported(
+    repository: Path, first: str
+) -> None:
+    """缺失、未知及带未批准参数的解释器必须保留具名阻塞路径，不能凭扩展名将未知语法交给 Bash 或移出源码库存。"""
+    _write(repository, "unknown.sh", first + "\n")
+    report = _tool("comment_audit").audit(repository)
+    assert report["files"] == []
+    assert report["unsupportedPaths"][0]["path"] == "unknown.sh"
+    assert "shebang" in report["unsupportedPaths"][0]["reason"]
+    assert report["coverageComplete"] is False
+
+
+def test_inventory_and_width_work_without_optional_parser_packages(repository: Path) -> None:
+    """禁用站点包的独立解释器仍须枚举样式和脚本并检查列宽，路径消费者不能为了支持标记而导入可选成熟解析器。"""
+    _write(repository, "style.css", "/*" + "中" * 59 + "*/\n")
+    _write(repository, "setup.sh", "#!/bin/sh\n")
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-S",
+            "-c",
+            "import sys; from pathlib import Path; sys.path.insert(0, sys.argv[1]); "
+            "import source_inventory, line_width; root=Path(sys.argv[2]); "
+            "assert len(source_inventory.inventory(root)) == 2; "
+            "assert line_width.check_sources(root) == [('style.css', 1, 122)]; "
+            "assert not any(k.startswith('tree_sitter') for k in sys.modules)",
+            str(ROOT / "scripts"),
+            str(repository),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr

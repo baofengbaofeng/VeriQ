@@ -13,8 +13,8 @@ import subprocess
 import sys
 from typing import Any
 
+import comment_syntax
 from line_width import source_paths
-
 
 JAVASCRIPT = {".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"}
 NATIVE = {".c", ".h", ".cc", ".hh", ".cxx", ".hxx", ".cpp", ".hpp", ".m", ".mm", ".java"}
@@ -33,7 +33,7 @@ class UnsupportedBlockLanguage(ValueError):
 def normalize_block(comment: str, indent: str = "") -> str:
     """独立块注释保留原有正文的相对缩进和空白段落，仅将开闭分隔符移到独占行并为正文补齐统一星号前缀。"""
     opening = comment[:3] if comment.startswith(("/**", "/*!")) else "/*"
-    body = comment[len(opening):-2]
+    body = comment[len(opening) : -2]
     rows = body.split("\n")
     content = []
     for index, row in enumerate(rows):
@@ -77,7 +77,7 @@ def native_ranges(text: str, *, styles: bool = False) -> list[dict[str, Any]]:
             result.append({"offsetCodePoint": index, "limitCodePoint": ending + 2})
             index = ending + 2
             continue
-        raw = re.match(r'R"([^ ()\\\t\r\n]{0,16})\(', text[index:index + 20])
+        raw = re.match(r'R"([^ ()\\\t\r\n]{0,16})\(', text[index : index + 20])
         if raw:
             ending = text.find(")" + raw.group(1) + '"', index + len(raw.group(0)))
             if ending < 0:
@@ -127,16 +127,27 @@ def comment_ranges(
         environment = os.environ.copy()
         if typescript:
             environment["VERIQ_TYPESCRIPT_PATH"] = str(Path(typescript).resolve())
-        output.update(json.loads(subprocess.check_output(
-            ["node", str(Path(__file__).with_name("comment_ranges.mjs"))],
-            cwd=root,
-            input=json.dumps(javascript),
-            text=True,
-            env=environment,
-            stderr=subprocess.PIPE,
-        )))
+        output.update(
+            json.loads(
+                subprocess.check_output(
+                    ["node", str(Path(__file__).with_name("comment_ranges.mjs"))],
+                    cwd=root,
+                    input=json.dumps(javascript),
+                    text=True,
+                    env=environment,
+                    stderr=subprocess.PIPE,
+                )
+            )
+        )
     for path in paths:
-        if path.suffix in NATIVE | STYLES:
+        if path.suffix == ".css":
+            output[path.as_posix()] = [
+                dict(span)
+                for span in comment_syntax.comment_ranges(
+                    (root / path).read_bytes(), "css", path.as_posix()
+                )
+            ]
+        elif path.suffix in NATIVE | STYLES:
             with (root / path).open(encoding="utf-8", newline="") as source:
                 output[path.as_posix()] = native_ranges(source.read(), styles=path.suffix in STYLES)
     return output
@@ -188,8 +199,10 @@ def select_paths(root: Path, scopes: list[str]) -> list[Path]:
     """按真实 Git 范围筛选调用者指定的文件或目录前缀，生成源码仍参与检查且不会通过目录名称猜测排除旧代码。"""
     prefixes = [Path(value).as_posix().rstrip("/") for value in scopes]
     return [
-        path for path in source_paths(root)
-        if not prefixes or any(
+        path
+        for path in source_paths(root)
+        if not prefixes
+        or any(
             path.as_posix() == prefix or path.as_posix().startswith(prefix + "/")
             for prefix in prefixes
         )
@@ -199,10 +212,16 @@ def select_paths(root: Path, scopes: list[str]) -> list[Path]:
 def main() -> None:
     """默认只报告注释格式的真实位置并以非零退出拒绝违规，显式修复只写普通源码且保留生成器所有权与正文质量门禁。"""
     parser = argparse.ArgumentParser(description="Check source block-comment layout.")
-    parser.add_argument("scopes", nargs="*", help="Optional repository-relative file or directory scopes.")
+    parser.add_argument(
+        "scopes", nargs="*", help="Optional repository-relative file or directory scopes."
+    )
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--typescript", help="Optional installed TypeScript library module path.")
-    parser.add_argument("--fix", action="store_true", help="Format ordinary source; generated files remain read-only.")
+    parser.add_argument(
+        "--fix",
+        action="store_true",
+        help="Format ordinary source; generated files remain read-only.",
+    )
     args = parser.parse_args()
     try:
         root = args.root.resolve()
@@ -230,12 +249,22 @@ def main() -> None:
             else:
                 for start, _, _ in edits:
                     line = text.count("\n", 0, start) + 1
-                    print(f"{name}:{line}: block-comment delimiters and body require separate lines")
+                    print(
+                        f"{name}:{line}: block-comment delimiters and body require separate lines"
+                    )
                 violations += len(edits)
-        print(f"Block-comment layout: {len(paths)} source files, {violations} violations, {changed} files formatted.")
+        print(
+            f"Block-comment layout: {len(paths)} source files, {violations} violations, {changed} files formatted."
+        )
         raise SystemExit(1 if violations else 0)
     except UnsupportedBlockLanguage as error:
-        print(f"{error}: unsupported source language requires a block-comment parser.", file=sys.stderr)
+        print(
+            f"{error}: unsupported source language requires a block-comment parser.",
+            file=sys.stderr,
+        )
+        raise SystemExit(2) from None
+    except comment_syntax.CommentSyntaxError as error:
+        print(str(error), file=sys.stderr)
         raise SystemExit(2) from None
     except (OSError, ValueError, UnicodeError, subprocess.CalledProcessError):
         print("Block-comment check could not parse the source repository.", file=sys.stderr)
