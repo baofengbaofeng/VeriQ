@@ -1,9 +1,14 @@
 import { crc32 } from "node:zlib";
 import { isNode24Version } from "../src/node-version.ts";
-import { InputReader, decode, fail, freeze, io, limits, sha } from "./runtime-payload-tree.ts";
+import { RuntimePayloadError, InputReader, decode, fail, freeze, io, limits, sha } from "./runtime-payload-tree.ts";
 import { checked, recipePolicy, schemas, verifyReceipts } from "./runtime-payload-receipts.ts";
 import { verifyGraph } from "./runtime-payload-graph.ts";
 import type { MacChromeLayout } from "../src/distribution-manifest-v2.ts";
+
+/**
+ * 既有输入入口继续重导出底层树模块的唯一错误构造器，避免类型使用方更换路径或因重复类定义失去实例识别兼容。
+ */
+export { RuntimePayloadError };
 
 /**
  * 深只读映射同时固定对象字段与嵌套数组，避免调用方在等待真实文件读取时修改已经选定的来源策略；它只表达数据不可变性，不
@@ -515,31 +520,6 @@ export type Cleanup = "NOT_NEEDED" | "CONFIRMED" | "INCOMPLETE";
  */
 export type Phase = "INPUTS" | "INTAKE" | "COPY" | "VERIFY" | "PUBLISH";
 
-/**
- * 核验异常只携带固定英文分类与受控系统错误码，不保留可能包含输入正文的原始异常；所有输入阶段都不创建候选目录，取消超时
- * 只允许显式报告句柄关闭尚未确认。
- */
-export class RuntimePayloadError extends Error {
-    readonly phase: Phase;
-    readonly candidateDirectory: string | null;
-    /**
-     * 错误构造只保留固定分类、阶段与受控 causeCode，实例随后冻结防止调用方改写诊断分支；没有原始 cause 或任意 message，
-     * 末尾上下文复制阶段与候选目录标量，旧调用仍维持输入阶段与空目录，不混淆真实事务的
-     * 清理事实。
-     */
-    constructor(
-        public readonly code: PayloadErrorCode,
-        public readonly causeCode: string | null = null,
-        public readonly cleanup: Cleanup = "NOT_NEEDED",
-        context?: Readonly<{ phase: Phase; candidateDirectory: string | null }>,
-    ) {
-        super(code);
-        this.name = "RuntimePayloadError";
-        this.phase = context?.phase ?? "INPUTS";
-        this.candidateDirectory = context?.candidateDirectory ?? null;
-        Object.freeze(this);
-    }
-}
 /**
  * 纯解析在任何异步操作前复制原始字节并独立验证期望字段，摘要匹配后仍逐项核目标与来源政策；返回深冻结配方只表示结构和独
  * 立来源绑定成立，所有引用正文留待真实核验。

@@ -120,6 +120,123 @@ test("inert import starts no command and creates no file", async () =>
         assert.deepEqual(await readdir(root), []);
     }));
 
+/**
+ * 每个冷启动子进程先以真实 tsx API 注册并导入指定根，六项顺序照录入口控制器，避免父测试已加载模块掩盖初始化环路。
+ * 成功后才补载公共入口并核错误身份；子进程不调用构建入口，临时当前目录必须保持为空，诊断也不回显继承环境的原值。
+ */
+test("cold payload imports preserve inert loading and public error compatibility", async (t) => {
+    const sourceRoot = fileURLToPath(new URL("../../../", import.meta.url));
+    const ciImport = `const [
+        { withEntryInputViews },
+        { ArchiveTransaction },
+        tree,
+        receipts,
+        graph,
+        { canonicalBytes },
+    ] = await Promise.all([
+        load("apps/runtime/scripts/runtime-payload-entries.ts"),
+        load("apps/runtime/scripts/runtime-payload-transaction.ts"),
+        load("apps/runtime/scripts/runtime-payload-tree.ts"),
+        load("apps/runtime/scripts/runtime-payload-receipts.ts"),
+        load("apps/runtime/scripts/runtime-payload-graph.ts"),
+        load("packages/contracts/src/index.ts"),
+    ]);
+    for (const fn of [withEntryInputViews, ArchiveTransaction, canonicalBytes,
+        tree.fail, receipts.verifyReceipts, graph.verifyGraph]) assert.equal(typeof fn, "function");`;
+    const roots = ["entries", "transaction", "tree", "receipts", "graph"];
+    const reverse = [
+        "packages/contracts/src/index.ts",
+        ...roots.map((name) => `apps/runtime/scripts/runtime-payload-${name}.ts`).reverse(),
+    ];
+    const cases = [
+        ...[1, 2, 3].map((attempt) => [`CI order ${attempt}`, ciImport]),
+        ["reverse CI order", `await Promise.all(${JSON.stringify(reverse)}.map(load));`],
+        ...["tree", "entries", "graph", "inputs"].map((name) => [
+            `${name} root`,
+            `await load("apps/runtime/scripts/runtime-payload-${name}.ts");`,
+        ]),
+    ];
+    for (const [name, initialImport] of cases)
+        await t.test(name, async () =>
+            fixture(async (root) => {
+                const script = `
+                import assert from "node:assert/strict";
+                import { join } from "node:path";
+                import { pathToFileURL } from "node:url";
+                const sourceRoot = ${JSON.stringify(sourceRoot)};
+                const tsxRoot = join(sourceRoot, "apps/runtime/node_modules/tsx");
+                const api = await import(pathToFileURL(join(tsxRoot, "dist/esm/api/index.mjs")).href);
+                const unregister = api.register();
+                const load = (path) => import(pathToFileURL(join(sourceRoot, path)).href);
+                try {
+                    ${initialImport}
+                    const treeModule = await load("apps/runtime/scripts/runtime-payload-tree.ts");
+                    const inputs = await load("apps/runtime/scripts/runtime-payload-inputs.ts");
+                    const ErrorType = inputs.RuntimePayloadError;
+                    assert.equal(treeModule.RuntimePayloadError, ErrorType);
+                    assert.equal(Object.isFrozen(treeModule.limits), true);
+                    assert.deepEqual(treeModule.limits, {
+                        json: 4194304, package: 1048576, javascript: 16777216,
+                        javascriptTotal: 67108864, file: 2147483648, entries: 40000,
+                        links: 1024, total: 17179869184, evidence: 67108864,
+                        instances: 4000, edges: 20000, bins: 2000,
+                    });
+                    const check = (error, code, causeCode = null, cleanup = "NOT_NEEDED",
+                        phase = "INPUTS", candidateDirectory = null) => {
+                        assert.equal(error.constructor, ErrorType);
+                        assert.equal(error instanceof ErrorType, true);
+                        assert.equal(error instanceof Error, true);
+                        assert.equal(error.name, "RuntimePayloadError");
+                        assert.equal(error.message, code);
+                        assert.equal(error.code, code);
+                        assert.equal(error.causeCode, causeCode);
+                        assert.equal(error.cleanup, cleanup);
+                        assert.equal(error.phase, phase);
+                        assert.equal(error.candidateDirectory, candidateDirectory);
+                        assert.equal(Object.hasOwn(error, "cause"), false);
+                        assert.equal(Object.isFrozen(error), true);
+                        return true;
+                    };
+                    check(new ErrorType("PAYLOAD_INPUT_INVALID"), "PAYLOAD_INPUT_INVALID");
+                    check(new ErrorType("PAYLOAD_IO", "EIO"), "PAYLOAD_IO", "EIO");
+                    check(new ErrorType("PAYLOAD_IO", "EACCES", "CONFIRMED"),
+                        "PAYLOAD_IO", "EACCES", "CONFIRMED");
+                    const context = { phase: "COPY", candidateDirectory: "/candidate" };
+                    const contextual = new ErrorType("PAYLOAD_CANCELLED", null, "INCOMPLETE", context);
+                    context.phase = "PUBLISH";
+                    context.candidateDirectory = "/changed";
+                    check(contextual, "PAYLOAD_CANCELLED", null, "INCOMPLETE", "COPY", "/candidate");
+                    assert.throws(() => treeModule.fail("PAYLOAD_LIMIT"),
+                        (error) => check(error, "PAYLOAD_LIMIT"));
+                    assert.throws(() => treeModule.io({ code: "ENOENT" }),
+                        (error) => check(error, "PAYLOAD_IO", "ENOENT"));
+                    assert.throws(() => treeModule.io(contextual), (error) => error === contextual);
+                    assert.throws(() => inputs.parseRuntimePayloadInputs(null, {}),
+                        (error) => check(error, "PAYLOAD_INPUT_INVALID"));
+                    assert.equal(typeof inputs.admitRuntimePayloadInputs, "function");
+                    assert.equal(typeof inputs.verifyRuntimePayloadInputs, "function");
+                    console.log("COLD_IMPORT_PASS");
+                } finally {
+                    await unregister();
+                }
+            `;
+                const result = await runBoundedAssetCli({
+                    executable: process.execPath,
+                    args: ["--input-type=module", "-e", script],
+                    cwd: root,
+                    timeoutMs: 8000,
+                });
+                assert.equal(result.closeConfirmed, true);
+                assert.equal(result.timedOut, false);
+                assert.equal(result.truncated, false);
+                assert.equal(result.exit, 0, "Cold payload import must finish successfully");
+                assert.equal(result.stderr.length, 0, "Cold payload import must remain silent");
+                assert.equal(result.stdout.equals(Buffer.from("COLD_IMPORT_PASS\n")), true);
+                assert.deepEqual(await readdir(root), []);
+            }),
+        );
+});
+
 test("native admission accepts only the full reviewed manual dual Mac input", () => {
     assert.equal(admitEntryRun(admitted).arch, "arm64");
     assert.equal(admitEntryRun({ ...admitted, arch: "x64", expectedArch: "x64" }).arch, "x64");
