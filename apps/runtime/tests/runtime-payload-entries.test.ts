@@ -10,6 +10,7 @@ import {
     readFile,
     readdir,
     realpath,
+    rename,
     rm,
     symlink,
     writeFile,
@@ -475,8 +476,45 @@ test("caller metadata and action are snapshotted before first await", async () =
     }));
 
 /**
- * 后置篡改用例保留真实 Vite 构建和真实关闭，只在观察前改变磁盘输出，缺 chunk、额外文件、链接与大小写冲突都不能进入已审
- * 计的事务；隐藏导入使用真实额外资产和对应内部观察。
+ * 经由确认不存在的中间名进行两次真实重命名，使大小写不敏感卷也留下与构建观察不同的实际目录拼写，原始观察字节保持不变。
+ */
+async function mismatchEntryCase(root: string) {
+    const tracePath = join(root, ".veriq-entry-trace.json"),
+        traceBytes = await readFile(tracePath, "utf8"),
+        trace = JSON.parse(traceBytes),
+        intermediate = "case-fixture-intermediate.js",
+        before = await readdir(root);
+    assert.deepEqual(
+        trace.outputs
+            .filter((output: { path: string }) => output.path.toLowerCase() === "agent.js")
+            .map((output: { path: string }) => output.path),
+        ["agent.js"],
+    );
+    assert.deepEqual(
+        before.filter((name) => name.toLowerCase() === "agent.js"),
+        ["agent.js"],
+    );
+    assert.equal(before.includes(intermediate), false);
+    await rename(join(root, "agent.js"), join(root, intermediate));
+    const between = await readdir(root);
+    assert.equal(between.includes(intermediate), true);
+    assert.deepEqual(
+        between.filter((name) => name.toLowerCase() === "agent.js"),
+        [],
+    );
+    await rename(join(root, intermediate), join(root, "Agent.js"));
+    const after = await readdir(root);
+    assert.deepEqual(
+        after.filter((name) => name.toLowerCase() === "agent.js"),
+        ["Agent.js"],
+    );
+    assert.equal(after.includes(intermediate), false);
+    assert.equal(await readFile(tracePath, "utf8"), traceBytes);
+}
+
+/**
+ * 后置篡改用例保留真实 Vite 构建和真实关闭，只在观察前改变磁盘输出或内部观察，缺 chunk、额外文件、链接与大小写冲突均拒
+ * 绝消费；隐藏导入使用真实额外资产和对应内部观察。
  */
 for (const mutation of [
     "missing-entry",
@@ -484,6 +522,8 @@ for (const mutation of [
     "extra",
     "link",
     "case",
+    "case-mismatch",
+    "trace-case-collision",
     "hidden-asset",
     "asset-import",
     "modified-entry",
@@ -495,6 +535,7 @@ for (const mutation of [
         fixture(async ({ options, work }) => {
             const original = options.hostBuild.run;
             let mutated = false;
+            let expectedCaseCode = mutation === "case-mismatch" ? "PAYLOAD_TREE_MISMATCH" : "PAYLOAD_COLLISION";
             const modified = {
                 ...options,
                 hostBuild: {
@@ -513,7 +554,49 @@ for (const mutation of [
                             await rm(join(root, "agent.js"));
                             await symlink("cli.js", join(root, "agent.js"));
                         }
-                        if (mutation === "case") await copyFile(join(root, "agent.js"), join(root, "Agent.js"));
+                        if (mutation === "case") {
+                            const trace = JSON.parse(await readFile(join(root, ".veriq-entry-trace.json"), "utf8"));
+                            assert.deepEqual(
+                                trace.outputs
+                                    .filter((output: { path: string }) => output.path.toLowerCase() === "agent.js")
+                                    .map((output: { path: string }) => output.path),
+                                ["agent.js"],
+                            );
+                            await copyFile(join(root, "agent.js"), join(root, "Agent.js"));
+                            const pair = (await readdir(root)).filter((name) => name.toLowerCase() === "agent.js"),
+                                lower = await lstat(join(root, "agent.js"), { bigint: true }),
+                                upper = await lstat(join(root, "Agent.js"), { bigint: true });
+                            // 目录拼写和文件身份共同决定碰撞或别名，测试分支只采用磁盘事实，不读取产品拒绝结果。
+                            if (pair.length === 2) {
+                                assert.deepEqual(pair.sort(), ["Agent.js", "agent.js"]);
+                                assert.notDeepEqual([lower.dev, lower.ino], [upper.dev, upper.ino]);
+                            } else {
+                                assert.deepEqual(pair, ["agent.js"]);
+                                assert.deepEqual([lower.dev, lower.ino], [upper.dev, upper.ino]);
+                                await mismatchEntryCase(root);
+                                expectedCaseCode = "PAYLOAD_TREE_MISMATCH";
+                            }
+                        }
+                        if (mutation === "case-mismatch") await mismatchEntryCase(root);
+                        if (mutation === "trace-case-collision") {
+                            const tracePath = join(root, ".veriq-entry-trace.json"),
+                                trace = JSON.parse(await readFile(tracePath, "utf8")),
+                                agent = trace.outputs.find((output: { path: string }) => output.path === "agent.js");
+                            assert.ok(agent);
+                            assert.deepEqual(
+                                (await readdir(root)).filter((name) => name.toLowerCase() === "agent.js"),
+                                ["agent.js"],
+                            );
+                            trace.outputs.push({ ...agent, path: "Agent.js" });
+                            assert.deepEqual(
+                                trace.outputs
+                                    .filter((output: { path: string }) => output.path.toLowerCase() === "agent.js")
+                                    .map((output: { path: string }) => output.path)
+                                    .sort(),
+                                ["Agent.js", "agent.js"],
+                            );
+                            await writeFile(tracePath, JSON.stringify(trace));
+                        }
                         if (mutation === "modified-entry")
                             await writeFile(join(root, "agent.js"), "console.log('changed');");
                         if (mutation === "empty-directory") await mkdir(join(root, "empty"));
@@ -552,11 +635,16 @@ for (const mutation of [
                 },
             };
             let consumed = false;
-            await assert.rejects(
-                withEntryInputViews(work, modified, async () => {
-                    consumed = true;
-                }),
-            );
+            const pending = withEntryInputViews(work, modified, async () => {
+                consumed = true;
+            });
+            if (["case", "case-mismatch", "trace-case-collision"].includes(mutation))
+                await assert.rejects(
+                    pending,
+                    (error: unknown) =>
+                        !!error && typeof error === "object" && "code" in error && error.code === expectedCaseCode,
+                );
+            else await assert.rejects(pending);
             assert.equal(consumed, false);
             assert.equal(mutated, true);
         }));
