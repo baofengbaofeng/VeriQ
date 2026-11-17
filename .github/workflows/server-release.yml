@@ -189,7 +189,7 @@ jobs:
                   const sha256 = (name) => createHash("sha256").update(readFileSync(join(root, name))).digest("hex");
                   const head = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
                   if (head !== process.env.GITHUB_SHA) throw new Error("SOURCE_IDENTITY_MISMATCH");
-                  const files = execFileSync("git", ["ls-files", "-z"], { encoding: "utf8" })
+                  const files = execFileSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8" })
                       .split("\0").filter(Boolean);
                   const playwright = JSON.parse(readFileSync(join(root, "apps/web/package.json"), "utf8"));
                   if (playwright.devDependencies["@playwright/test"] !== "1.65.0") {
@@ -299,7 +299,7 @@ jobs:
                   const sha256 = (name) => createHash("sha256").update(readFileSync(join(root, name))).digest("hex");
                   const head = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
                   if (head !== process.env.GITHUB_SHA) throw new Error("SOURCE_IDENTITY_MISMATCH");
-                  const files = execFileSync("git", ["ls-files", "-z"], { encoding: "utf8" })
+                  const files = execFileSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8" })
                       .split("\0").filter(Boolean);
                   const playwright = JSON.parse(readFileSync(join(root, "apps/web/package.json"), "utf8"));
                   if (playwright.devDependencies["@playwright/test"] !== "1.65.0") {
