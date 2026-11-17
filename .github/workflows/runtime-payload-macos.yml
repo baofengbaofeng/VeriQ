@@ -1162,6 +1162,85 @@ jobs:
               timeout-minutes: 2
               with:
                   node-version: 24.22.1
+            # 两种 env 工具只接收固定无凭据环境并运行有界内建模块探针，输出布尔与计数而不输出路径或环境值。
+            - name: Compare bounded clean-environment launch probes
+              timeout-minutes: 1
+              continue-on-error: true
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  NODE_EXE="$(command -v node)"
+                  ENV_EXE="$(command -v env)"
+                  "$NODE_EXE" --input-type=module - "$ENV_EXE" <<'NODE'
+                  import { spawnSync } from "node:child_process";
+                  import { isAbsolute } from "node:path";
+                  const pinnedNode = process.version === "v24.22.1";
+                  const resolvedUtilityAbsolute = isAbsolute(process.argv[2] ?? "");
+                  console.log(JSON.stringify({ pinnedNode, resolvedUtilityAbsolute }));
+                  if (!pinnedNode || !resolvedUtilityAbsolute) process.exit(1);
+                  const minimal = Object.freeze({
+                      LANG: "C.UTF-8",
+                      CI: "true",
+                      NODE_ENV: "production",
+                      NODE_DISABLE_COMPILE_CACHE: "1",
+                  });
+                  const flags = Object.entries(minimal).map(([key, value]) => `${key}=${value}`);
+                  const reportProgram = String.raw`
+                  const keys = Object.keys(process.env);
+                  const allowed = new Set(["LANG", "CI", "NODE_ENV", "NODE_DISABLE_COMPILE_CACHE"]);
+                  process.stdout.write(JSON.stringify({
+                      cfPresent: Object.hasOwn(process.env, "__CF_USER_TEXT_ENCODING"),
+                      localeMatch: process.env.LANG === "C.UTF-8",
+                      ciMatch: process.env.CI === "true",
+                      productionModeMatch: process.env.NODE_ENV === "production",
+                      compileCacheDisabled: process.env.NODE_DISABLE_COMPILE_CACHE === "1",
+                      keyCount: keys.length,
+                      unexpectedNameCount: keys.filter((key) => !allowed.has(key)).length,
+                  }));`;
+                  const modules = [
+                      "node:assert/strict", "node:crypto", "node:fs", "node:fs/promises",
+                      "node:path", "node:os", "node:url", "node:child_process",
+                  ];
+                  const imports = modules.map((name) => `await import(${JSON.stringify(name)});`).join("\n");
+                  const entryImport = 'await import("./.github/scripts/runtime-entries.mjs");';
+                  const booleanKeys = [
+                      "cfPresent", "localeMatch", "ciMatch", "productionModeMatch", "compileCacheDisabled",
+                  ];
+                  const countKeys = ["keyCount", "unexpectedNameCount"];
+                  for (const [utility, executable] of [
+                      ["path-resolved", process.argv[2]], ["system", "/usr/bin/env"],
+                  ]) {
+                      for (const [probe, prefix] of [
+                          ["plain", ""], ["imports", imports], ["entry-import", entryImport],
+                      ]) {
+                          const result = spawnSync(executable, [
+                              "-i", ...flags, process.execPath, "--input-type=module", "-e",
+                              `${prefix}\n${reportProgram}`,
+                          ], {
+                              env: minimal, encoding: "utf8", timeout: 5000,
+                              killSignal: "SIGKILL", maxBuffer: 4096, stdio: ["ignore", "pipe", "pipe"],
+                          });
+                          let parsed;
+                          try { parsed = JSON.parse(result.stdout ?? ""); } catch {}
+                          const outputValid = parsed !== null && typeof parsed === "object" &&
+                              !Array.isArray(parsed) && Object.keys(parsed).length === 7 &&
+                              booleanKeys.every((key) => typeof parsed[key] === "boolean") &&
+                              countKeys.every((key) => Number.isSafeInteger(parsed[key]) &&
+                                  parsed[key] >= 0 && parsed[key] <= 64);
+                          const observed = outputValid ? Object.fromEntries(
+                              [...booleanKeys, ...countKeys].map((key) => [key, parsed[key]]),
+                          ) : null;
+                          const exit = Number.isInteger(result.status) && result.status >= 0 &&
+                              result.status <= 255 ? result.status : null;
+                          const signal = result.signal === null ? null :
+                              ["SIGKILL", "SIGTERM"].includes(result.signal) ? result.signal : "OTHER";
+                          console.log(JSON.stringify({
+                              utility, probe, exit, signal, processError: Boolean(result.error),
+                              timedOut: result.error?.code === "ETIMEDOUT", outputValid, observed,
+                          }));
+                      }
+                  }
+                  NODE
             # 启动 Node 之前先丢弃全部继承环境，只保留原生工具路径与明确的本次运行标识；生产模式和浏览器下载抑制在此固定，宿主构建继承同一白名单而不依赖后续修改全局环境补救。
             - name: Materialize real project entry inputs and retain bounded metadata
               id: entry
