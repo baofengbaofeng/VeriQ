@@ -31,7 +31,7 @@ async def test_published_selection_exports_secret_free_archive(
         "ELEMENT_CATALOG",
         {
             "schemaVersion": "1.0",
-            "elements": [{"key": "save", "locator": {"by": "testId", "value": "save"}}],
+            "elements": [{"key": "save", "locator": {"by": "veriqId", "value": "save"}}],
         },
     )
     case = await published(
@@ -292,7 +292,7 @@ async def test_no_runtime_debug_dsl_only_requires_explicit_status_and_editor(sit
         "ELEMENT_CATALOG",
         {
             "schemaVersion": "1.0",
-            "elements": [{"key": "save", "locator": {"by": "testId", "value": "save"}}],
+            "elements": [{"key": "save", "locator": {"by": "veriqId", "value": "save"}}],
         },
     )
     path = await create(
@@ -432,7 +432,7 @@ async def test_bundle_selection_and_download_require_current_workspace_authority
         "ELEMENT_CATALOG",
         {
             "schemaVersion": "1.0",
-            "elements": [{"key": "save", "locator": {"by": "testId", "value": "save"}}],
+            "elements": [{"key": "save", "locator": {"by": "veriqId", "value": "save"}}],
         },
     )
     path = await create(

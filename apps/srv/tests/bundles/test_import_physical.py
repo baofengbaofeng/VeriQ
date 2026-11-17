@@ -79,7 +79,7 @@ async def test_actual_offline_browser_result_uploads_to_enrolled_mysql_import(
                 observed["page"] += 1
                 self.finish(
                     (
-                        "<div data-testid='text'>Visible offline business</div><a data-testid='download' download "
+                        "<div veriq-id='text'>Visible offline business</div><a veriq-id='download' download "
                         "href='/download'>Download</a>"
                     )
                 )
@@ -163,7 +163,7 @@ async def test_actual_offline_browser_result_uploads_to_enrolled_mysql_import(
             {
                 "schemaVersion": "1.0",
                 "elements": [
-                    {"key": key, "locator": {"by": "testId", "value": key}}
+                    {"key": key, "locator": {"by": "veriqId", "value": key}}
                     for key in ["text", "download"]
                 ],
             },

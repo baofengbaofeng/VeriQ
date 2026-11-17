@@ -23,7 +23,7 @@ async def test_upgrade_preserves_0005_queued_validate_and_source(site):
                     "kind": "ELEMENT_CATALOG",
                     "document": {
                         "schemaVersion": "1.0",
-                        "elements": [{"key": "save", "locator": {"by": "testId", "value": "save"}}],
+                        "elements": [{"key": "save", "locator": {"by": "veriqId", "value": "save"}}],
                     },
                 },
             },

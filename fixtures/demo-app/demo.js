@@ -7,7 +7,7 @@ const params = new URL(location.href).searchParams;
 const owner = params.has("namespace")
     ? { namespace: params.get("namespace") }
     : { code: params.get("code") };
-const status = document.querySelector("[data-testid=result]");
+const status = document.querySelector("[veriq-id=result]");
 const form = document.querySelector("form");
 const button = document.querySelector("button");
 
@@ -24,10 +24,10 @@ async function refresh() {
     body.replaceChildren();
     for (const employee of data.items) {
         const row = document.createElement("tr");
-        row.dataset.testid = "employee.row";
+        row.setAttribute("veriq-id", "employee.row");
         row.dataset.recordKey = employee.id;
         const cell = document.createElement("td");
-        cell.dataset.testid = "employee.name";
+        cell.setAttribute("veriq-id", "employee.name");
         cell.textContent = employee.name;
         row.append(cell);
         body.append(row);

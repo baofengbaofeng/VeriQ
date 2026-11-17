@@ -541,7 +541,7 @@ test(
 async function offlineReportScenario(failing: boolean, connectFailure = false) {
     const server = createServer((request, response) => {
         response.setHeader("Content-Type", request.url === "/me" ? "application/json" : "text/html");
-        response.end(request.url === "/me" ? JSON.stringify({ id: "reader" }) : '<div data-testid="name">Ready</div>');
+        response.end(request.url === "/me" ? JSON.stringify({ id: "reader" }) : '<div veriq-id="name">Ready</div>');
     });
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
@@ -1326,7 +1326,7 @@ test(
                 return;
             }
             response.setHeader("Content-Type", "text/html");
-            response.end('<div data-testid="name">Ready</div>');
+            response.end('<div veriq-id="name">Ready</div>');
         });
         await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
         const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`,

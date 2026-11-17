@@ -30,7 +30,7 @@ async def test_real_agent_report_compiler_diagnostics_credentials_and_trust(site
                 self.finish({"id": "reader"})
             else:
                 self.set_cookie("session", secret)
-                self.finish("<div data-testid='text'>Visible " + secret + "</div>")
+                self.finish("<div veriq-id='text'>Visible " + secret + "</div>")
 
     sockets = bind_sockets(0, "127.0.0.1")
     server = HTTPServer(Application([(r"/(.*)", Business)]))
@@ -132,7 +132,7 @@ async def test_real_agent_report_compiler_diagnostics_credentials_and_trust(site
             "catalog",
             {
                 "schemaVersion": "1.0",
-                "elements": [{"key": "text", "locator": {"by": "testId", "value": "text"}}],
+                "elements": [{"key": "text", "locator": {"by": "veriqId", "value": "text"}}],
             },
         )
         pin = (

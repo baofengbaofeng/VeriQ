@@ -26,13 +26,13 @@ function Row({ item, pending }: { item: OrderItem; pending: boolean }) {
     const drag = useDraggable({ id: item.id, disabled: pending });
     const drop = useDroppable({ id: item.id });
     return (
-        <li ref={drop.setNodeRef} data-testid="order.row" data-record-key={item.id}>
+        <li ref={drop.setNodeRef} veriq-id="order.row" data-record-key={item.id}>
             <button
                 type="button"
                 ref={drag.setNodeRef}
                 {...drag.listeners}
                 {...drag.attributes}
-                data-testid="order.handle"
+                veriq-id="order.handle"
                 disabled={pending}
                 aria-label={`Move ${item.title}`}
                 style={{
@@ -85,12 +85,12 @@ export function KeyboardOrder({
     return (
         <>
             {failed && (
-                <p role="alert" data-testid="order.error">
+                <p role="alert" veriq-id="order.error">
                     Order save failed
                 </p>
             )}
             <DndContext sensors={sensors} onDragEnd={end}>
-                <ul data-testid="order.list" aria-busy={pending}>
+                <ul veriq-id="order.list" aria-busy={pending}>
                     {items.map((item) => (
                         <Row key={item.id} item={item} pending={pending} />
                     ))}

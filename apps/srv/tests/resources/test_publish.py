@@ -16,7 +16,7 @@ CATALOG = {
     "kind": "ELEMENT_CATALOG",
     "document": {
         "schemaVersion": "1.0",
-        "elements": [{"key": "save", "locator": {"by": "testId", "value": "save"}}],
+        "elements": [{"key": "save", "locator": {"by": "veriqId", "value": "save"}}],
     },
 }
 

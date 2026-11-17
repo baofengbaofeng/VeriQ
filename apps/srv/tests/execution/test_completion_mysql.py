@@ -79,7 +79,7 @@ async def test_managed_real_compilation_finishes_once_and_can_publish(site, tmp_
             "ELEMENT_CATALOG",
             {
                 "schemaVersion": "1.0",
-                "elements": [{"key": "save", "locator": {"by": "testId", "value": "save"}}],
+                "elements": [{"key": "save", "locator": {"by": "veriqId", "value": "save"}}],
             },
         )
         document = {
@@ -94,7 +94,7 @@ async def test_managed_real_compilation_finishes_once_and_can_publish(site, tmp_
     else:
         document = {
             "schemaVersion": "1.0",
-            "elements": [{"key": "save", "locator": {"by": "testId", "value": "save"}}],
+            "elements": [{"key": "save", "locator": {"by": "veriqId", "value": "save"}}],
         }
     if compiler_error:
         document["steps"] = [{"id": "missing", "action": "click", "target": "not_in_catalog"}]

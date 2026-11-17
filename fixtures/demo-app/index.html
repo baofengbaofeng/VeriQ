@@ -3,15 +3,15 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>VeriQ employee demo</title>
-    <main data-testid="employee.page">
+    <main veriq-id="employee.page">
         <h1>Employees</h1>
-        <form data-testid="employee.form">
+        <form veriq-id="employee.form">
             <label for="name">Name</label>
-            <input id="name" name="name" data-testid="name" maxlength="160" required>
-            <button type="submit" data-testid="save">Save</button>
+            <input id="name" name="name" veriq-id="name" maxlength="160" required>
+            <button type="submit" veriq-id="save">Save</button>
         </form>
-        <p role="status" data-testid="result" aria-live="polite"></p>
-        <table data-testid="employee.table">
+        <p role="status" veriq-id="result" aria-live="polite"></p>
+        <table veriq-id="employee.table">
             <caption>Persisted employees</caption>
             <thead><tr><th>Name</th></tr></thead>
             <tbody></tbody>

@@ -22,7 +22,7 @@ async def test_disabled_and_exhausted_provider_do_not_affect_actual_run(site, tm
             if path == "me":
                 self.write({"id": "reader"})
             else:
-                self.write('<h1 data-testid="ready">Ready</h1>')
+                self.write('<h1 veriq-id="ready">Ready</h1>')
 
     sockets = bind_sockets(0, "127.0.0.1")
     origin = f"http://127.0.0.1:{sockets[0].getsockname()[1]}"
@@ -43,7 +43,7 @@ async def test_disabled_and_exhausted_provider_do_not_affect_actual_run(site, tm
                 "ELEMENT_CATALOG",
                 {
                     "schemaVersion": "1.0",
-                    "elements": [{"key": "ready", "locator": {"by": "testId", "value": "ready"}}],
+                    "elements": [{"key": "ready", "locator": {"by": "veriqId", "value": "ready"}}],
                 },
             )
             secret = (

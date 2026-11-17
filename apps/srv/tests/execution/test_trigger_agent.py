@@ -104,7 +104,7 @@ async def test_real_service_plan_agent_ci_is_independent_of_creator_login(site, 
             "catalog",
             {
                 "schemaVersion": "1.0",
-                "elements": [{"key": "name", "locator": {"by": "testId", "value": "name"}}],
+                "elements": [{"key": "name", "locator": {"by": "veriqId", "value": "name"}}],
             },
         )
         case = await publish(
