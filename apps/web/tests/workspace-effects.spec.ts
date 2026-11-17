@@ -188,12 +188,13 @@ test("actual Provider preserves scopes and releases the latest committed scope",
 });
 
 /**
- * 页面入口均使用真实登录、空间创建和服务查询，先收到后端完成的旧列表再通过可见选择器切换，最后释放原响应并验证当前空间
- * 的表单没有被默认首项或引用变化重置。
+ * 四个入口先完成导航与真实列表查询，再用合成可见性事件触发现有焦点刷新；持有当前入口的新响应后切换空间并保留草稿，
+ * 此处不把入口交接时淘汰的请求误认为稳定页面的刷新，也不声明操作系统焦点验收。
  */
 test("four GUI entry selectors retain manual selection across real list refetch", async ({ page }, testInfo) => {
     const protocolEvents: WorkspaceOwnershipEvent[] = [];
     const requestIds = new WeakMap<Request, number>();
+    const pendingLists = new Set<Request>();
     let requestSequence = 0;
     let protocolOverflow = 0;
     let phase = "setup";
@@ -205,6 +206,8 @@ test("four GUI entry selectors retain manual selection across real list refetch"
             url.pathname !== "/api/v1/workspaces"
         )
             return;
+        if (kind === "request") pendingLists.add(original);
+        if (kind === "requestfinished" || kind === "requestfailed") pendingLists.delete(original);
         if (!requestIds.has(original)) requestIds.set(original, ++requestSequence);
         if (protocolEvents.length >= 40) {
             protocolOverflow++;
@@ -397,7 +400,9 @@ test("four GUI entry selectors retain manual selection across real list refetch"
             for (const entry of [
                 {
                     link: "Workspaces",
-                    selector: page.getByLabel("Current Workspace"),
+                    pathname: "/workspaces",
+                    heading: "Workspaces",
+                    picker: "Current Workspace",
                     input: page
                         .locator("form")
                         .filter({
@@ -407,26 +412,63 @@ test("four GUI entry selectors retain manual selection across real list refetch"
                 },
                 {
                     link: "Runtimes",
-                    selector: page.getByLabel("Workspace"),
+                    pathname: "/runtimes",
+                    heading: "Runtimes",
+                    picker: "Workspace",
                     input: page.getByLabel("Approval code"),
                 },
                 {
                     link: "Plans",
-                    selector: page.getByLabel("Plan Workspace"),
+                    pathname: "/execution-plans",
+                    heading: "Execution plans",
+                    picker: "Plan Workspace",
                     input: page.getByLabel("Plan name"),
                 },
                 {
                     link: "Bundles",
-                    selector: page.getByLabel("Bundle Workspace"),
+                    pathname: "/bundles",
+                    heading: "Offline bundles",
+                    picker: "Bundle Workspace",
                     input: page.getByLabel("Selection"),
                 },
             ]) {
-                await markPhase(`${entry.link}:prepare entry`);
+                const path = "http://127.0.0.1:5173/api/v1/workspaces";
+                await expect.poll(() => pendingLists.size).toBe(0);
+                const navigationList =
+                    new URL(page.url()).pathname !== entry.pathname
+                        ? page.waitForResponse(
+                              (response) => response.request().method() === "GET" && response.url() === path,
+                          )
+                        : undefined;
+                await markPhase(`${entry.link}:navigate before barrier`);
                 await page.getByRole("link", { name: entry.link, exact: true }).click();
-                const selector = entry.selector;
+                const heading = page.getByRole("heading", { level: 1, name: entry.heading, exact: true });
+                await expect(heading).toBeVisible();
+                if (navigationList) expect(await (await navigationList).finished()).toBeNull();
+                const panel = page.locator("section.panel").filter({ has: heading });
+                const selector = panel.getByRole("combobox", { name: entry.picker, exact: true });
+                const input = entry.input.and(panel.locator("input, select"));
                 await expect(selector.locator(`option[value="${alpha}"]`)).toHaveText("W2B Alpha");
+                await expect(selector.locator(`option[value="${beta}"]`)).toHaveText("W2B Beta");
                 await markPhase(`${entry.link}:prepare Alpha`);
                 await selector.selectOption(alpha);
+                await expect(selector).toHaveValue(alpha);
+                await expect(input).toBeVisible();
+                await expect.poll(() => pendingLists.size).toBe(0);
+                /**
+                 * 保存当前入口的选择器节点，持有响应期间只能操作这个仍连接的节点，不能让定位器在卸载后暗中重试新页；
+                 * 输入框允许随合法空间子视图重建，选择器和标题归属则必须保持。
+                 */
+                const ownedPicker = await selector.elementHandle();
+                if (!ownedPicker) throw new Error("Stable entry Workspace picker is missing");
+                const pickerIsCurrent = () =>
+                    ownedPicker.evaluate(
+                        (element, title) =>
+                            element.isConnected &&
+                            element.closest("section.panel")?.querySelector("h1")?.textContent?.trim() === title,
+                        entry.heading,
+                    );
+                expect(await pickerIsCurrent()).toBe(true);
                 let captured!: () => void;
                 let release!: () => void;
                 let completed!: () => void;
@@ -440,7 +482,7 @@ test("four GUI entry selectors retain manual selection across real list refetch"
                     completed = resolve;
                 });
                 let held = false;
-                const path = "http://127.0.0.1:5173/api/v1/workspaces";
+                let heldRequest: Request | undefined;
                 const aborted: string[] = [];
                 const failed = (request: import("@playwright/test").Request) => {
                     if (request.method() === "GET" && request.url() === path)
@@ -450,6 +492,7 @@ test("four GUI entry selectors retain manual selection across real list refetch"
                     if (held || route.request().method() !== "GET" || route.request().url() !== path)
                         return route.continue();
                     held = true;
+                    heldRequest = route.request();
                     observeRequest("held original request", route.request());
                     let response: import("@playwright/test").APIResponse | undefined;
                     try {
@@ -468,31 +511,54 @@ test("four GUI entry selectors retain manual selection across real list refetch"
                         }
                     }
                 };
-                const away = entry.link === "Workspaces" ? "Runtimes" : "Workspaces";
-                const staged = page.waitForResponse(
-                    (response) => response.request().method() === "GET" && response.url() === path,
-                );
-                await markPhase(`${entry.link}:stage away ${away}`);
-                await page.getByRole("link", { name: away, exact: true }).click();
-                await (await staged).finished();
-                page.on("requestfailed", failed);
-                await page.route(path, barrier);
                 await withCleanup(
                     async () => {
-                        await markPhase(`${entry.link}:enter held list`);
-                        await page.getByRole("link", { name: entry.link, exact: true }).click();
+                        page.on("requestfailed", failed);
+                        await page.route(path, barrier);
+                        await markPhase(`${entry.link}:synthetic visible refetch`);
+                        await page.evaluate(() => {
+                            if (document.visibilityState !== "visible")
+                                throw new Error("Visibility refetch requires a visible document");
+                            const probe = window.workspaceRequestOwnership;
+                            if (probe) {
+                                if (probe.events.length < 60) {
+                                    const at = performance.now();
+                                    probe.events.push({
+                                        kind: "synthetic visibilitychange",
+                                        at,
+                                        epoch: performance.timeOrigin + at,
+                                        phase: probe.phase,
+                                    });
+                                } else probe.overflow++;
+                            }
+                            window.dispatchEvent(new Event("visibilitychange"));
+                        });
+                        await expect
+                            .poll(() => held, {
+                                message: "Current entry visibility event must start a new Workspace list GET",
+                            })
+                            .toBe(true);
                         await backendCompleted;
+                        expect(heldRequest && pendingLists.has(heldRequest)).toBe(true);
+                        expect(await pickerIsCurrent()).toBe(true);
                         await markPhase(`${entry.link}:select Beta`);
-                        await selector.selectOption(beta);
+                        await ownedPicker.selectOption(beta);
+                        expect(await pickerIsCurrent()).toBe(true);
                         await markPhase(`${entry.link}:write unsaved value`);
-                        const input = entry.input;
                         if (entry.link === "Bundles") await input.selectOption("SUITE");
                         else
                             await input.fill(entry.link === "Runtimes" ? "ABCDEFGH2345" : "Beta unsaved " + entry.link);
                         await markPhase(`${entry.link}:release held list`);
                         release();
                         await finished;
+                        await expect
+                            .poll(() => heldRequest && !pendingLists.has(heldRequest), {
+                                message: "The original held list request must finish or fail in the page",
+                            })
+                            .toBe(true);
+                        expect(heldRequest?.failure()).toBeNull();
                         expect(aborted).toEqual([]);
+                        expect(await pickerIsCurrent()).toBe(true);
                         await expect(selector).toHaveValue(beta);
                         await expect(input).toHaveValue(
                             entry.link === "Bundles"
@@ -504,7 +570,7 @@ test("four GUI entry selectors retain manual selection across real list refetch"
                         if (entry.link === "Workspaces")
                             await expect(page.getByRole("article")).toContainText("W2B Beta");
                         await markPhase(`${entry.link}:select Alpha`);
-                        await selector.selectOption(alpha);
+                        await ownedPicker.selectOption(alpha);
                         if (entry.link === "Runtimes" || entry.link === "Plans") await expect(input).toHaveValue("");
                         if (entry.link === "Bundles") await expect(input).toHaveValue("CASE");
                     },
@@ -517,6 +583,7 @@ test("four GUI entry selectors retain manual selection across real list refetch"
                             },
                             async () => {
                                 page.off("requestfailed", failed);
+                                await ownedPicker.dispose();
                             },
                         );
                     },
