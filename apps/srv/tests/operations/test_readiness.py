@@ -5,7 +5,7 @@
 普通故障在应用启动后、首次就绪请求前注入，每轮从空缓存独立探测。
 缓存用例先取得健康结果，再移除 FILE 根并控制监视器时钟，验证两个别名在同一边界刷新。
 响应只允许稳定契约字段，另检查配置中的数据库地址、口令、密钥及本地路径均没有出现在 HTTP 正文。
-这些场景只证明有界就绪回归，不替代超时并发、备份恢复、密钥轮换或正式发行的验收。
+调度用例在真实应用中控制探针入口并测量等待预算；备份恢复、密钥轮换及正式发行仍需另行验收。
 
 database 与 mysqlVersion 分别代表连接可用和版本匹配，schema 还要求迁移头与安装单例同时存在。
 这里保留三个独立字段，因此迁移行错误不能被误报成数据库连接故障。
@@ -17,13 +17,18 @@ storage 检查的是 FILE 目录中的实际读写能力，不能用配置字符
 "健康"只用于已有有效库存的生产应用，开发模式跳过静态库存的路径不在这些用例中。
 """
 
+import asyncio
 from collections import abc
 import contextlib
+import dataclasses
 import hashlib
 import json
+import logging
 import os
 import pathlib
 import runpy
+import threading
+import time
 import typing
 from unittest import mock
 
@@ -31,6 +36,7 @@ import httpx
 import pydantic
 import pytest
 import sqlalchemy
+from sqlalchemy.ext import asyncio as sqlalchemy_asyncio
 from tornado import escape, httpserver, netutil, web
 
 from veriq_server import app, db, readiness, settings, validation
@@ -675,3 +681,320 @@ async def test_liveness_never_calls_dependency_monitor(readiness_site, monkeypat
 async def _unexpected_probe():
     """任何存活请求触及此边界都立刻使测试失败，固定英文消息不会带入真实数据库地址或文件系统路径。"""
     pytest.fail("Liveness called the dependency monitor")
+
+
+_SCHEDULING_WATCHDOG = 10.0
+_GATE_CEILING = 30.0
+_DATABASE_CHECKS = ("database", "mysqlVersion", "schema")
+_READINESS_CHECKS = (*_DATABASE_CHECKS, "static", "storage")
+_LOGGER = logging.getLogger(__name__)
+
+
+@dataclasses.dataclass
+class _GatedDatabaseProbe:
+    """记录真正进入数据库探针的监视器任务，等待测试主动释放后再查真实库，供取消和外层截止测试复用。"""
+
+    entered: asyncio.Event = dataclasses.field(default_factory=asyncio.Event)
+    release: asyncio.Event = dataclasses.field(default_factory=asyncio.Event)
+    workers: list[asyncio.Task[dict[str, bool]]] = dataclasses.field(default_factory=list)
+
+    def install(self, monitor: readiness.ReadinessMonitor, patch: pytest.MonkeyPatch) -> None:
+        """只在当前应用的数据库边界控制开始时序，释放后仍由原探针执行版本、迁移头与安装单例的查询。"""
+        method = "_database"
+        original: abc.Callable[[], abc.Awaitable[dict[str, bool]]] = getattr(monitor, method)
+
+        async def probe() -> dict[str, bool]:
+            """把监视器启动的任务交给测试观察，等待上限只防止异常挂起，正常路径由测试明确释放事件。"""
+            worker = asyncio.current_task()
+            assert worker is not None
+            self.workers.append(worker)
+            self.entered.set()
+            async with asyncio.timeout(_GATE_CEILING):
+                await self.release.wait()
+            return await original()
+
+        patch.setattr(monitor, method, probe)
+
+
+@dataclasses.dataclass
+class _GatedFileProbe:
+    """用线程事件阻塞真实存储探针的入口，通过循环事件分别报告工作线程的开始与退出并记录实际返回值。"""
+
+    release: threading.Event = dataclasses.field(default_factory=threading.Event)
+    returned: asyncio.Event = dataclasses.field(default_factory=asyncio.Event)
+    calls: int = 0
+    results: list[bool] = dataclasses.field(default_factory=list)
+
+    def install(self, monitor: readiness.ReadinessMonitor, patch: pytest.MonkeyPatch) -> None:
+        """保留监视器创建线程及等待结果的逻辑，线程获得测试发出的释放信号后仍执行真实文件读写和清理。"""
+        method = "_storage"
+        original: abc.Callable[[], bool] = getattr(monitor, method)
+        loop = asyncio.get_running_loop()
+
+        def enter() -> None:
+            """跨线程通知交给事件循环计数，实际工作线程每次到达探针边界时均登记，供响应和关闭阶段核对。"""
+            self.calls += 1
+
+        def probe() -> bool:
+            """线程等待达到安全上限将直接失败，只有测试发出释放信号才执行真实探针并记录它的返回值。"""
+            loop.call_soon_threadsafe(enter)
+            try:
+                if not self.release.wait(_GATE_CEILING):
+                    raise AssertionError("FILE worker reached its test safety ceiling")
+                result = original()
+                self.results.append(result)
+                return result
+            finally:
+                loop.call_soon_threadsafe(self.returned.set)
+
+        patch.setattr(monitor, method, probe)
+
+
+@dataclasses.dataclass
+class _GatedQueryProbe:
+    """只推迟指定引擎连接上的首条连通性语句，记录取消是否到达真正的数据库任务与借出的连接上下文。"""
+
+    release: asyncio.Event = dataclasses.field(default_factory=asyncio.Event)
+    cancelled: asyncio.Event = dataclasses.field(default_factory=asyncio.Event)
+    calls: list[tuple[sqlalchemy_asyncio.AsyncConnection, asyncio.Task[dict[str, bool]]]] = (
+        dataclasses.field(default_factory=list)
+    )
+
+    def install(self, engine: sqlalchemy_asyncio.AsyncEngine, patch: pytest.MonkeyPatch) -> None:
+        """正常借出和归还数据库连接，只在该引擎的精确连通性语句处等待，其他执行全部根据原参数转发。"""
+        original = sqlalchemy_asyncio.AsyncConnection.execute
+
+        async def execute(
+            connection: sqlalchemy_asyncio.AsyncConnection,
+            statement: sqlalchemy.sql.Executable,
+            parameters: (
+                abc.Mapping[str, object] | abc.Sequence[abc.Mapping[str, object]] | None
+            ) = None,
+            *,
+            execution_options: abc.Mapping[str, object] | None = None,
+        ) -> sqlalchemy.CursorResult[tuple[object, ...]]:
+            """测试只观察生产超时传来的取消，然后原样抛出，让数据库探针自行完成超时转换与连接回收。"""
+            if (
+                connection.engine is engine
+                and isinstance(statement, sqlalchemy.sql.elements.TextClause)
+                and statement.text == "SELECT 1"
+            ):
+                worker = asyncio.current_task()
+                assert worker is not None
+                self.calls.append((connection, worker))
+                try:
+                    await self.release.wait()
+                except asyncio.CancelledError:
+                    self.cancelled.set()
+                    raise
+            return await original(
+                connection, statement, parameters, execution_options=execution_options
+            )
+
+        patch.setattr(sqlalchemy_asyncio.AsyncConnection, "execute", execute)
+
+
+def _observe_static_probe(
+    monitor: readiness.ReadinessMonitor, patch: pytest.MonkeyPatch
+) -> mock.Mock:
+    """记录真实静态探针的入口以区分缓存命中和新一轮检查，检查仍重新读取同一份启动时已验证的静态库存。"""
+    method = "_static"
+    observer = mock.Mock(wraps=getattr(monitor, method))
+    patch.setattr(monitor, method, observer)
+    return observer
+
+
+def _assert_scheduling_degraded(
+    response: httpx.Response, config: settings.Settings, failed: tuple[str, ...]
+) -> None:
+    """任何多项降级都先经过共享隐私筛查，再核对全部五项布尔值与公开信封，避免其他依赖的意外失败。"""
+    payload = _health_payload(response, config)
+    assert response.status_code == 503
+    validation.validate_api("HealthDTOEnvelope", payload)
+    checks = {name: name not in failed for name in _READINESS_CHECKS}
+    assert payload == {
+        "data": {"status": "degraded", "checks": checks},
+        "requestId": response.headers["x-request-id"],
+    }
+
+
+async def _request_at_deadline(
+    client: httpx.AsyncClient, label: str, seconds: int
+) -> httpx.Response:
+    """独立单调时钟计时，留零点八秒调度余量，使两秒文件预算早于三秒外层兜底，十秒仅用于请求看门狗。"""
+    started = time.monotonic()
+    response = await client.get("/health/ready", timeout=_SCHEDULING_WATCHDOG)
+    elapsed = time.monotonic() - started
+    _LOGGER.info("Readiness %s deadline elapsed: %.3fs", label, elapsed)
+    assert seconds - 0.1 <= elapsed < seconds + 0.8
+    return response
+
+
+async def test_readiness_concurrent_waiters_share_probe(
+    readiness_site: _ReadinessSite, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """两条真实就绪请求在同一探针等待期间均可读存活接口，明确取消第三个直接调用后，两条请求仍成功。"""
+    monitor = readiness_site["application"].settings["readiness_monitor"]
+    assert isinstance(monitor, readiness.ReadinessMonitor)
+    probe = _GatedDatabaseProbe()
+    probe.install(monitor, monkeypatch)
+    static_probe = _observe_static_probe(monitor, monkeypatch)
+    original_check = monitor.check
+    aliases_entered = asyncio.Event()
+    direct_entered = asyncio.Event()
+    alias_calls = 0
+
+    async def observe_alias() -> dict[str, bool]:
+        """通知第二条请求已抵达后直接执行原检查，在让出循环前两条就绪路径均已进入实际的共享等待。"""
+        nonlocal alias_calls
+        alias_calls += 1
+        if alias_calls == 2:
+            aliases_entered.set()
+        return await original_check()
+
+    async def direct_check() -> dict[str, bool]:
+        """从测试协程直接进入实际监视器，通知后运行到真实等待点才让出控制权，避免推断断开引发取消。"""
+        direct_entered.set()
+        return await original_check()
+
+    monkeypatch.setattr(monitor, "check", observe_alias)
+    async with asyncio.timeout(_SCHEDULING_WATCHDOG), asyncio.TaskGroup() as group:
+        public = group.create_task(readiness_site["client"].get("/health/ready"))
+        legacy = group.create_task(_assert_legacy_ready(readiness_site, ready=True))
+        try:
+            await aliases_entered.wait()
+            await probe.entered.wait()
+            await _assert_live_aliases(readiness_site, ())
+            assert not public.done() and not legacy.done()
+            waiter = group.create_task(direct_check())
+            await direct_entered.wait()
+            assert not waiter.done()
+            waiter.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await waiter
+            assert len(probe.workers) == 1 and not probe.workers[0].done()
+        finally:
+            probe.release.set()
+    _assert_public_response(public.result(), readiness_site["config"])
+    assert alias_calls == 2 and len(probe.workers) == 1
+    static_probe.assert_called_once_with()
+
+
+async def test_readiness_blocking_timeout_keeps_one_worker(
+    readiness_site: _ReadinessSite, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """线程跨过真实两秒后仍由监视器持有，过期检查不得再次启动存储线程，关闭要等受控释放后才完成。"""
+    monitor = readiness_site["application"].settings["readiness_monitor"]
+    assert isinstance(monitor, readiness.ReadinessMonitor)
+    probe = _GatedFileProbe()
+    probe.install(monitor, monkeypatch)
+    static_probe = _observe_static_probe(monitor, monkeypatch)
+    now = 32.0
+    monkeypatch.setattr(readiness, "monotonic", lambda: now)
+    closing: asyncio.Task[None] | None = None
+    close_entered = asyncio.Event()
+
+    async def observe_close() -> None:
+        """先发出启动信号再执行原关闭方法，事件恢复时关闭任务已执行到真实等待点或已经过早结束。"""
+        close_entered.set()
+        await monitor.close()
+
+    try:
+        async with asyncio.timeout(_SCHEDULING_WATCHDOG):
+            response = await _request_at_deadline(readiness_site["client"], "FILE", 2)
+            _assert_public_response(response, readiness_site["config"], "storage")
+            assert probe.calls == 1 and not probe.returned.is_set()
+
+            now += 1.0
+            response = await readiness_site["client"].get("/health/ready")
+            _assert_public_response(response, readiness_site["config"], "storage")
+            assert static_probe.call_count == 2
+            assert probe.calls == 1 and not probe.returned.is_set()
+
+            closing = asyncio.create_task(observe_close())
+            await close_entered.wait()
+            assert not closing.done() and not probe.returned.is_set()
+    finally:
+        probe.release.set()
+        try:
+            if closing is not None:
+                await closing
+                assert probe.returned.is_set()
+        finally:
+            if probe.calls:
+                await asyncio.wait_for(probe.returned.wait(), _SCHEDULING_WATCHDOG)
+
+    assert probe.calls == 1 and probe.results == [True]
+    assert not any(readiness_site["artifacts"].iterdir())
+    response = await readiness_site["client"].get("/health/ready")
+    _assert_scheduling_degraded(response, readiness_site["config"], _READINESS_CHECKS)
+
+
+async def test_readiness_response_deadline_keeps_one_database_worker(
+    readiness_site: _ReadinessSite, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """数据库协程晚于外层三秒完成时保留唯一工作者，晚到成功不会改写降级缓存，过期后真实查询可恢复。"""
+    monitor = readiness_site["application"].settings["readiness_monitor"]
+    assert isinstance(monitor, readiness.ReadinessMonitor)
+    probe = _GatedDatabaseProbe()
+    probe.install(monitor, monkeypatch)
+    static_probe = _observe_static_probe(monitor, monkeypatch)
+    now = 32.0
+    monkeypatch.setattr(readiness, "monotonic", lambda: now)
+
+    async with asyncio.timeout(_SCHEDULING_WATCHDOG):
+        try:
+            response = await _request_at_deadline(readiness_site["client"], "outer database", 3)
+            _assert_scheduling_degraded(response, readiness_site["config"], _DATABASE_CHECKS)
+            assert len(probe.workers) == 1 and not probe.workers[0].done()
+            worker = probe.workers[0]
+            await _assert_legacy_ready(readiness_site, ready=False)
+            static_probe.assert_called_once_with()
+
+            now += 1.0
+            response = await readiness_site["client"].get("/health/ready")
+            _assert_scheduling_degraded(response, readiness_site["config"], _DATABASE_CHECKS)
+            assert static_probe.call_count == 2
+            assert probe.workers == [worker] and not worker.done()
+        finally:
+            probe.release.set()
+
+        assert await asyncio.shield(worker) == dict.fromkeys(_DATABASE_CHECKS, True)
+        response = await readiness_site["client"].get("/health/ready")
+        _assert_scheduling_degraded(response, readiness_site["config"], _DATABASE_CHECKS)
+        assert static_probe.call_count == 2 and probe.workers == [worker]
+
+        now += 1.0
+        response = await readiness_site["client"].get("/health/ready")
+        _assert_public_response(response, readiness_site["config"])
+        assert static_probe.call_count == 3 and len(probe.workers) == 2
+        assert probe.workers[1] is not worker and probe.workers[1].done()
+
+
+async def test_readiness_database_query_deadline(
+    readiness_site: _ReadinessSite, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """实际一秒数据库预算取消挂起的查询入口并归还连接，恢复原执行方法后下一次过期探测重新验证数据库。"""
+    engine = readiness_site["database"].engine
+    pool = engine.pool
+    assert isinstance(pool, sqlalchemy.pool.AsyncAdaptedQueuePool)
+    probe = _GatedQueryProbe()
+    now = 32.0
+    monkeypatch.setattr(readiness, "monotonic", lambda: now)
+
+    with monkeypatch.context() as patch:
+        probe.install(engine, patch)
+        try:
+            response = await _request_at_deadline(readiness_site["client"], "database query", 1)
+            _assert_scheduling_degraded(response, readiness_site["config"], _DATABASE_CHECKS)
+            assert probe.cancelled.is_set() and len(probe.calls) == 1
+            connection, worker = probe.calls[0]
+            assert worker.done() and not worker.cancelled()
+            assert connection.closed and pool.checkedout() == 0
+        finally:
+            probe.release.set()
+
+    now += 1.0
+    response = await readiness_site["client"].get("/health/ready")
+    _assert_public_response(response, readiness_site["config"])
+    assert pool.checkedout() == 0 and not any(readiness_site["artifacts"].iterdir())
