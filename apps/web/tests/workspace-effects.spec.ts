@@ -4,7 +4,42 @@
  */
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { test, expect, request } from "@playwright/test";
+import { test, expect, request, type Request } from "@playwright/test";
+import { withCleanup } from "./support/case-profile-cleanup";
+
+/**
+ * 请求观测仅保留本例列表请求的标识、阶段和时间，栈也必须截断并删除查询参数；字段不包含用户、凭据、请求头或响应正文，
+ * 供后续真实浏览器证据区分旧入口和当前入口的请求所有权。
+ */
+type WorkspaceOwnershipEvent = {
+    kind: string;
+    at: number;
+    epoch: number;
+    phase: string;
+    fetchId?: string;
+    requestId?: number;
+    requestEpoch?: number;
+    cursor?: boolean;
+    pathname?: string;
+    ownerPhase?: string;
+    stack?: string[];
+    signal?: string;
+    outcome?: string;
+};
+
+declare global {
+    /**
+     * 此全局只存在于本用例的新页面中，保存被动观测的有限记录和当前操作阶段；不向产品组件传入数据，也不改变查询控制器或
+     * 将任何敏感传输字段复制到最终测试附件。
+     */
+    interface Window {
+        workspaceRequestOwnership?: {
+            events: WorkspaceOwnershipEvent[];
+            overflow: number;
+            phase: string;
+        };
+    }
+}
 
 test("actual Provider preserves scopes and releases the latest committed scope", async ({ page }) => {
     await page.goto("/");
@@ -155,188 +190,381 @@ test("actual Provider preserves scopes and releases the latest committed scope",
  * 页面入口均使用真实登录、空间创建和服务查询，先收到后端完成的旧列表再通过可见选择器切换，最后释放原响应并验证当前空间
  * 的表单没有被默认首项或引用变化重置。
  */
-test("four GUI entry selectors retain manual selection across real list refetch", async ({ page }) => {
-    const setup = (await (await page.request.get("/api/v1/setup")).json()).data;
-    if (!setup.initialized) {
-        expect(
-            (
-                await page.request.post("/api/v1/setup", {
-                    headers: { Origin: "http://127.0.0.1:5173", "X-CSRF-Token": setup.csrfToken },
-                    data: {
-                        installationSecret: "browser-operator-secret",
-                        email: "browser-admin@example.com",
-                        displayName: "Browser Administrator",
-                        password: "Browser password 123!",
-                    },
-                })
-            ).status(),
-        ).toBe(201);
-    }
-    /**
-     * 站点已初始化不能证明本例操作者存在；独立管理员会话通过管理接口创建活跃系统管理员，页面仍须正常登录，并由该身份
-     * 在界面创建自己的两个空间，避免共享管理员列表污染四个入口。
-     */
-    const actorEmail = `w2b-${randomUUID()}@example.com`;
-    const administrator = await request.newContext({ baseURL: "http://127.0.0.1:5173" });
-    try {
-        const anonymous = (await (await administrator.get("/api/v1/setup")).json()).data;
-        const login = await administrator.post("/api/v1/auth/login", {
-            headers: { Origin: "http://127.0.0.1:5173", "X-CSRF-Token": anonymous.csrfToken },
-            data: { email: "browser-admin@example.com", password: "Browser password 123!" },
-        });
-        expect(login.status()).toBe(200);
-        const session = (await login.json()).data;
-        const created = await administrator.post("/api/v1/admin/users", {
-            headers: { Origin: "http://127.0.0.1:5173", "X-CSRF-Token": session.csrfToken },
-            data: {
-                email: actorEmail,
-                displayName: "Workspace operator",
-                password: "Workspace password 123!",
-                systemAdmin: true,
-            },
-        });
-        expect(created.status()).toBe(201);
-        const actor = (await created.json()).data;
-        expect(actor).toMatchObject({ email: actorEmail, disabled: false, systemAdmin: true });
-    } finally {
-        await administrator.dispose();
-    }
-    await page.goto("/login");
-    await page.getByRole("textbox", { name: "Email" }).fill(actorEmail);
-    await page.getByLabel("Password").fill("Workspace password 123!");
-    await page.getByRole("button", { name: "Sign in" }).click();
-    await expect(page.locator("dl")).toBeVisible();
-    await page.getByRole("link", { name: "Workspaces", exact: true }).click();
-    await expect(page.getByText("No Workspaces yet.", { exact: true })).toBeVisible();
-    const ids: string[] = [];
-    for (const name of ["Alpha", "Beta"]) {
-        await page.getByLabel("Key").fill("w2b-" + name.toLowerCase());
-        await page
-            .locator("form")
-            .filter({
-                has: page.getByRole("button", { name: "Create Workspace", exact: true }),
-            })
-            .getByLabel("Name", { exact: true })
-            .fill("W2B " + name);
-        await page.getByRole("button", { name: "Create Workspace" }).click();
-        await expect(page.getByRole("article")).toContainText("W2B " + name);
-        ids.push(await page.getByLabel("Current Workspace").inputValue());
-    }
-    const membership = (await (await page.request.get("/api/v1/workspaces")).json()).data;
-    expect(membership.items.map((workspace: { id: string }) => workspace.id).sort()).toEqual([...ids].sort());
-    expect(membership.items.map((workspace: { role: string }) => workspace.role)).toEqual(["OWNER", "OWNER"]);
-    expect(membership.nextCursor).toBeNull();
-    const [alpha, beta] = ids;
-    for (const entry of [
-        {
-            link: "Workspaces",
-            selector: page.getByLabel("Current Workspace"),
-            input: page
-                .locator("form")
-                .filter({
-                    has: page.getByRole("button", { name: "Create Workspace", exact: true }),
-                })
-                .getByLabel("Name", { exact: true }),
-        },
-        {
-            link: "Runtimes",
-            selector: page.getByLabel("Workspace"),
-            input: page.getByLabel("Approval code"),
-        },
-        {
-            link: "Plans",
-            selector: page.getByLabel("Plan Workspace"),
-            input: page.getByLabel("Plan name"),
-        },
-        {
-            link: "Bundles",
-            selector: page.getByLabel("Bundle Workspace"),
-            input: page.getByLabel("Selection"),
-        },
-    ]) {
-        await page.getByRole("link", { name: entry.link, exact: true }).click();
-        const selector = entry.selector;
-        await expect(selector.locator(`option[value="${alpha}"]`)).toHaveText("W2B Alpha");
-        await selector.selectOption(alpha);
-        let captured!: () => void;
-        let release!: () => void;
-        let completed!: () => void;
-        const backendCompleted = new Promise<void>((resolve) => {
-            captured = resolve;
-        });
-        const released = new Promise<void>((resolve) => {
-            release = resolve;
-        });
-        const finished = new Promise<void>((resolve) => {
-            completed = resolve;
-        });
-        let held = false;
-        const path = "http://127.0.0.1:5173/api/v1/workspaces";
-        const aborted: string[] = [];
-        const failed = (request: import("@playwright/test").Request) => {
-            if (request.method() === "GET" && request.url() === path)
-                aborted.push(request.failure()?.errorText ?? "Unknown request failure");
-        };
-        const barrier = async (route: import("@playwright/test").Route) => {
-            if (held || route.request().method() !== "GET" || route.request().url() !== path) return route.continue();
-            held = true;
-            let response: import("@playwright/test").APIResponse | undefined;
-            try {
-                response = await route.fetch();
-                expect(response.status()).toBe(200);
-                captured();
-                await released;
-                if (!route.request().failure()) await route.fulfill({ response });
-            } finally {
-                await response?.dispose();
-                completed();
-            }
-        };
-        const away = entry.link === "Workspaces" ? "Runtimes" : "Workspaces";
-        const staged = page.waitForResponse(
-            (response) => response.request().method() === "GET" && response.url() === path,
-        );
-        await page.getByRole("link", { name: away, exact: true }).click();
-        await (await staged).finished();
-        page.on("requestfailed", failed);
-        await page.route(path, barrier);
-        try {
-            await page.getByRole("link", { name: entry.link, exact: true }).click();
-            await backendCompleted;
-            await selector.selectOption(beta);
-            const input = entry.input;
-            if (entry.link === "Bundles") await input.selectOption("SUITE");
-            else await input.fill(entry.link === "Runtimes" ? "ABCDEFGH2345" : "Beta unsaved " + entry.link);
-            release();
-            await finished;
-            expect(aborted).toEqual([]);
-            await expect(selector).toHaveValue(beta);
-            await expect(input).toHaveValue(
-                entry.link === "Bundles"
-                    ? "SUITE"
-                    : entry.link === "Runtimes"
-                      ? "ABCDEFGH2345"
-                      : "Beta unsaved " + entry.link,
-            );
-            if (entry.link === "Workspaces") await expect(page.getByRole("article")).toContainText("W2B Beta");
-            await selector.selectOption(alpha);
-            if (entry.link === "Runtimes" || entry.link === "Plans") await expect(input).toHaveValue("");
-            if (entry.link === "Bundles") await expect(input).toHaveValue("CASE");
-        } finally {
-            release();
-            if (held) await finished;
-            await page.unroute(path, barrier);
-            page.off("requestfailed", failed);
+test("four GUI entry selectors retain manual selection across real list refetch", async ({ page }, testInfo) => {
+    const protocolEvents: WorkspaceOwnershipEvent[] = [];
+    const requestIds = new WeakMap<Request, number>();
+    let requestSequence = 0;
+    let protocolOverflow = 0;
+    let phase = "setup";
+    const observeRequest = (kind: string, original: Request) => {
+        const url = new URL(original.url());
+        if (
+            original.method() !== "GET" ||
+            url.origin !== "http://127.0.0.1:5173" ||
+            url.pathname !== "/api/v1/workspaces"
+        )
+            return;
+        if (!requestIds.has(original)) requestIds.set(original, ++requestSequence);
+        if (protocolEvents.length >= 40) {
+            protocolOverflow++;
+            return;
         }
-    }
-    await page.getByRole("combobox", { name: "Bundle Workspace" }).selectOption(beta);
-    await page.getByLabel("Selection").selectOption("SUITE");
-    await page.getByRole("button", { name: "Sign out", exact: true }).click();
-    await page.getByRole("textbox", { name: "Email" }).fill(actorEmail);
-    await page.getByLabel("Password").fill("Workspace password 123!");
-    await page.getByRole("button", { name: "Sign in" }).click();
-    await expect(page.locator("dl")).toBeVisible();
-    await page.getByRole("link", { name: "Bundles", exact: true }).click();
-    await expect(page.getByRole("combobox", { name: "Bundle Workspace" })).toHaveValue(alpha);
-    await expect(page.getByLabel("Selection")).toHaveValue("CASE");
+        protocolEvents.push({
+            kind,
+            phase,
+            at: performance.now(),
+            epoch: Date.now(),
+            requestId: requestIds.get(original),
+            requestEpoch: original.timing().startTime,
+            pathname: url.pathname,
+            cursor: url.searchParams.has("cursor"),
+            outcome:
+                kind === "requestfailed"
+                    ? original.failure()?.errorText === "net::ERR_ABORTED"
+                        ? "net::ERR_ABORTED"
+                        : "other request failure"
+                    : undefined,
+        });
+    };
+    const requestStarted = (original: Request) => observeRequest("request", original);
+    const requestFinished = (original: Request) => observeRequest("requestfinished", original);
+    const requestFailed = (original: Request) => observeRequest("requestfailed", original);
+    const markPhase = async (next: string) => {
+        phase = next;
+        await page.evaluate((value) => {
+            if (window.workspaceRequestOwnership) window.workspaceRequestOwnership.phase = value;
+        }, next);
+    };
+    await withCleanup(
+        async () => {
+            /**
+             * 仅检查列表调用使用的字符串地址及普通属性，不读取 signal 访问器；转发原始参数与 this 并原样返回原 fetch
+             * Promise，监听器只观察终止和结算，不接管取消、重试或网络响应。
+             */
+            await page.addInitScript(() => {
+                const probe = { events: [] as WorkspaceOwnershipEvent[], overflow: 0, phase: "initial document" };
+                window.workspaceRequestOwnership = probe;
+                const nativeFetch = window.fetch;
+                const stack = () =>
+                    (new Error().stack ?? "")
+                        .split("\n")
+                        .slice(1, 13)
+                        .map((frame) => frame.replace(/[?#][^)\s]*/g, "[query removed]").slice(0, 240));
+                const record = (event: Omit<WorkspaceOwnershipEvent, "at" | "epoch" | "phase">) => {
+                    if (probe.events.length >= 60) {
+                        probe.overflow++;
+                        return;
+                    }
+                    const at = performance.now();
+                    probe.events.push({ ...event, at, epoch: performance.timeOrigin + at, phase: probe.phase });
+                };
+                window.fetch = function (this: unknown, ...args: Parameters<typeof fetch>): ReturnType<typeof fetch> {
+                    const [input, init] = args;
+                    if (typeof input !== "string") return Reflect.apply(nativeFetch, this, args);
+                    let url: URL;
+                    try {
+                        url = new URL(input, location.href);
+                    } catch {
+                        return Reflect.apply(nativeFetch, this, args);
+                    }
+                    if (url.origin !== location.origin || url.pathname !== "/api/v1/workspaces")
+                        return Reflect.apply(nativeFetch, this, args);
+                    const method = init && Object.getOwnPropertyDescriptor(init, "method");
+                    if (!method || !("value" in method) || method.value !== "GET")
+                        return Reflect.apply(nativeFetch, this, args);
+                    const descriptor = init && Object.getOwnPropertyDescriptor(init, "signal");
+                    const signal: AbortSignal | undefined =
+                        descriptor && "value" in descriptor && descriptor.value instanceof AbortSignal
+                            ? descriptor.value
+                            : undefined;
+                    const fetchId = crypto.randomUUID();
+                    const ownerPhase = probe.phase;
+                    const identity = {
+                        fetchId,
+                        ownerPhase,
+                        pathname: url.pathname,
+                        cursor: url.searchParams.has("cursor"),
+                    };
+                    record({
+                        ...identity,
+                        kind: "fetch start",
+                        stack: stack(),
+                        signal: signal
+                            ? signal.aborted
+                                ? "already aborted"
+                                : "own data signal"
+                            : descriptor && !("value" in descriptor)
+                              ? "accessor not inspected"
+                              : "no AbortSignal data",
+                    });
+                    const aborted = () => record({ ...identity, kind: "signal abort", stack: stack() });
+                    signal?.addEventListener("abort", aborted, { once: true });
+                    let original: Promise<Response>;
+                    try {
+                        original = Reflect.apply(nativeFetch, this, args);
+                    } catch (error) {
+                        signal?.removeEventListener("abort", aborted);
+                        record({ ...identity, kind: "fetch synchronous throw" });
+                        throw error;
+                    }
+                    const settled = (outcome: string) => {
+                        signal?.removeEventListener("abort", aborted);
+                        record({ ...identity, kind: "fetch settled", outcome });
+                    };
+                    original.then(
+                        () => settled("fulfilled"),
+                        () => settled("rejected"),
+                    );
+                    return original;
+                };
+            });
+            page.on("request", requestStarted);
+            page.on("requestfinished", requestFinished);
+            page.on("requestfailed", requestFailed);
+            const setup = (await (await page.request.get("/api/v1/setup")).json()).data;
+            if (!setup.initialized) {
+                expect(
+                    (
+                        await page.request.post("/api/v1/setup", {
+                            headers: { Origin: "http://127.0.0.1:5173", "X-CSRF-Token": setup.csrfToken },
+                            data: {
+                                installationSecret: "browser-operator-secret",
+                                email: "browser-admin@example.com",
+                                displayName: "Browser Administrator",
+                                password: "Browser password 123!",
+                            },
+                        })
+                    ).status(),
+                ).toBe(201);
+            }
+            /**
+             * 站点已初始化不能证明本例操作者存在；独立管理员会话创建活跃系统管理员，页面仍须正常登录，并由该身份
+             * 在界面创建自己的两个空间，避免共享管理员列表污染四个入口。
+             */
+            const actorEmail = `w2b-${randomUUID()}@example.com`;
+            const administrator = await request.newContext({ baseURL: "http://127.0.0.1:5173" });
+            try {
+                const anonymous = (await (await administrator.get("/api/v1/setup")).json()).data;
+                const login = await administrator.post("/api/v1/auth/login", {
+                    headers: { Origin: "http://127.0.0.1:5173", "X-CSRF-Token": anonymous.csrfToken },
+                    data: { email: "browser-admin@example.com", password: "Browser password 123!" },
+                });
+                expect(login.status()).toBe(200);
+                const session = (await login.json()).data;
+                const created = await administrator.post("/api/v1/admin/users", {
+                    headers: { Origin: "http://127.0.0.1:5173", "X-CSRF-Token": session.csrfToken },
+                    data: {
+                        email: actorEmail,
+                        displayName: "Workspace operator",
+                        password: "Workspace password 123!",
+                        systemAdmin: true,
+                    },
+                });
+                expect(created.status()).toBe(201);
+                const actor = (await created.json()).data;
+                expect(actor).toMatchObject({ email: actorEmail, disabled: false, systemAdmin: true });
+            } finally {
+                await administrator.dispose();
+            }
+            await page.goto("/login");
+            await markPhase("actor login");
+            await page.getByRole("textbox", { name: "Email" }).fill(actorEmail);
+            await page.getByLabel("Password").fill("Workspace password 123!");
+            await page.getByRole("button", { name: "Sign in" }).click();
+            await expect(page.locator("dl")).toBeVisible();
+            await page.getByRole("link", { name: "Workspaces", exact: true }).click();
+            await expect(page.getByText("No Workspaces yet.", { exact: true })).toBeVisible();
+            const ids: string[] = [];
+            for (const name of ["Alpha", "Beta"]) {
+                await page.getByLabel("Key").fill("w2b-" + name.toLowerCase());
+                await page
+                    .locator("form")
+                    .filter({
+                        has: page.getByRole("button", { name: "Create Workspace", exact: true }),
+                    })
+                    .getByLabel("Name", { exact: true })
+                    .fill("W2B " + name);
+                await page.getByRole("button", { name: "Create Workspace" }).click();
+                await expect(page.getByRole("article")).toContainText("W2B " + name);
+                ids.push(await page.getByLabel("Current Workspace").inputValue());
+            }
+            const membership = (await (await page.request.get("/api/v1/workspaces")).json()).data;
+            expect(membership.items.map((workspace: { id: string }) => workspace.id).sort()).toEqual([...ids].sort());
+            expect(membership.items.map((workspace: { role: string }) => workspace.role)).toEqual(["OWNER", "OWNER"]);
+            expect(membership.nextCursor).toBeNull();
+            const [alpha, beta] = ids;
+            for (const entry of [
+                {
+                    link: "Workspaces",
+                    selector: page.getByLabel("Current Workspace"),
+                    input: page
+                        .locator("form")
+                        .filter({
+                            has: page.getByRole("button", { name: "Create Workspace", exact: true }),
+                        })
+                        .getByLabel("Name", { exact: true }),
+                },
+                {
+                    link: "Runtimes",
+                    selector: page.getByLabel("Workspace"),
+                    input: page.getByLabel("Approval code"),
+                },
+                {
+                    link: "Plans",
+                    selector: page.getByLabel("Plan Workspace"),
+                    input: page.getByLabel("Plan name"),
+                },
+                {
+                    link: "Bundles",
+                    selector: page.getByLabel("Bundle Workspace"),
+                    input: page.getByLabel("Selection"),
+                },
+            ]) {
+                await markPhase(`${entry.link}:prepare entry`);
+                await page.getByRole("link", { name: entry.link, exact: true }).click();
+                const selector = entry.selector;
+                await expect(selector.locator(`option[value="${alpha}"]`)).toHaveText("W2B Alpha");
+                await markPhase(`${entry.link}:prepare Alpha`);
+                await selector.selectOption(alpha);
+                let captured!: () => void;
+                let release!: () => void;
+                let completed!: () => void;
+                const backendCompleted = new Promise<void>((resolve) => {
+                    captured = resolve;
+                });
+                const released = new Promise<void>((resolve) => {
+                    release = resolve;
+                });
+                const finished = new Promise<void>((resolve) => {
+                    completed = resolve;
+                });
+                let held = false;
+                const path = "http://127.0.0.1:5173/api/v1/workspaces";
+                const aborted: string[] = [];
+                const failed = (request: import("@playwright/test").Request) => {
+                    if (request.method() === "GET" && request.url() === path)
+                        aborted.push(request.failure()?.errorText ?? "Unknown request failure");
+                };
+                const barrier = async (route: import("@playwright/test").Route) => {
+                    if (held || route.request().method() !== "GET" || route.request().url() !== path)
+                        return route.continue();
+                    held = true;
+                    observeRequest("held original request", route.request());
+                    let response: import("@playwright/test").APIResponse | undefined;
+                    try {
+                        response = await route.fetch();
+                        expect(response.status()).toBe(200);
+                        observeRequest("held upstream 200", route.request());
+                        captured();
+                        await released;
+                        observeRequest("held released", route.request());
+                        if (!route.request().failure()) await route.fulfill({ response });
+                    } finally {
+                        try {
+                            await response?.dispose();
+                        } finally {
+                            completed();
+                        }
+                    }
+                };
+                const away = entry.link === "Workspaces" ? "Runtimes" : "Workspaces";
+                const staged = page.waitForResponse(
+                    (response) => response.request().method() === "GET" && response.url() === path,
+                );
+                await markPhase(`${entry.link}:stage away ${away}`);
+                await page.getByRole("link", { name: away, exact: true }).click();
+                await (await staged).finished();
+                page.on("requestfailed", failed);
+                await page.route(path, barrier);
+                await withCleanup(
+                    async () => {
+                        await markPhase(`${entry.link}:enter held list`);
+                        await page.getByRole("link", { name: entry.link, exact: true }).click();
+                        await backendCompleted;
+                        await markPhase(`${entry.link}:select Beta`);
+                        await selector.selectOption(beta);
+                        await markPhase(`${entry.link}:write unsaved value`);
+                        const input = entry.input;
+                        if (entry.link === "Bundles") await input.selectOption("SUITE");
+                        else
+                            await input.fill(entry.link === "Runtimes" ? "ABCDEFGH2345" : "Beta unsaved " + entry.link);
+                        await markPhase(`${entry.link}:release held list`);
+                        release();
+                        await finished;
+                        expect(aborted).toEqual([]);
+                        await expect(selector).toHaveValue(beta);
+                        await expect(input).toHaveValue(
+                            entry.link === "Bundles"
+                                ? "SUITE"
+                                : entry.link === "Runtimes"
+                                  ? "ABCDEFGH2345"
+                                  : "Beta unsaved " + entry.link,
+                        );
+                        if (entry.link === "Workspaces")
+                            await expect(page.getByRole("article")).toContainText("W2B Beta");
+                        await markPhase(`${entry.link}:select Alpha`);
+                        await selector.selectOption(alpha);
+                        if (entry.link === "Runtimes" || entry.link === "Plans") await expect(input).toHaveValue("");
+                        if (entry.link === "Bundles") await expect(input).toHaveValue("CASE");
+                    },
+                    async () => {
+                        await withCleanup(
+                            async () => {
+                                release();
+                                if (held) await finished;
+                                await page.unroute(path, barrier);
+                            },
+                            async () => {
+                                page.off("requestfailed", failed);
+                            },
+                        );
+                    },
+                );
+            }
+            await markPhase("Bundles:session reset");
+            await page.getByRole("combobox", { name: "Bundle Workspace" }).selectOption(beta);
+            await page.getByLabel("Selection").selectOption("SUITE");
+            await page.getByRole("button", { name: "Sign out", exact: true }).click();
+            await page.getByRole("textbox", { name: "Email" }).fill(actorEmail);
+            await page.getByLabel("Password").fill("Workspace password 123!");
+            await page.getByRole("button", { name: "Sign in" }).click();
+            await expect(page.locator("dl")).toBeVisible();
+            await page.getByRole("link", { name: "Bundles", exact: true }).click();
+            await expect(page.getByRole("combobox", { name: "Bundle Workspace" })).toHaveValue(alpha);
+            await expect(page.getByLabel("Selection")).toHaveValue("CASE");
+        },
+        async () => {
+            let browser: { events: WorkspaceOwnershipEvent[]; overflow: number; phase: string } | null = null;
+            await withCleanup(
+                async () => {
+                    browser = await page.evaluate(() => window.workspaceRequestOwnership ?? null);
+                },
+                async () => {
+                    page.off("request", requestStarted);
+                    page.off("requestfinished", requestFinished);
+                    page.off("requestfailed", requestFailed);
+                    await testInfo.attach("workspace-request-ownership.json", {
+                        contentType: "application/json",
+                        body: Buffer.from(
+                            JSON.stringify(
+                                {
+                                    schema: "workspace-request-ownership-v1",
+                                    eventLimit: 100,
+                                    browserLimit: 60,
+                                    protocolLimit: 40,
+                                    browser,
+                                    protocolEvents,
+                                    protocolOverflow,
+                                    correlation:
+                                        "requestId is exact protocol identity; fetchId joins require timing review.",
+                                },
+                                null,
+                                2,
+                            ),
+                        ),
+                    });
+                },
+            );
+        },
+    );
 });

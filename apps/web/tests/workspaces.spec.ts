@@ -107,8 +107,13 @@ test("real Workspace selection, invitation acceptance and member permissions", a
     await expect(viewer.getByRole("button", { name: "Create invitation" })).toHaveCount(0);
     await expect(viewer.getByRole("button", { name: "Rename Workspace" })).toHaveCount(0);
     await page.getByRole("button", { name: "Refresh Workspace" }).click();
-    const member = page.getByRole("listitem").filter({ hasText: "workspace-viewer@example.com" });
+    const member = page
+        .getByRole("listitem")
+        .filter({ has: page.getByRole("button", { name: "Save member", exact: true }) })
+        .filter({ hasText: "workspace-viewer@example.com" });
+    await expect(member).toHaveCount(1);
     await expect(member).toContainText("Workspace Viewer");
+    await expect(member.getByRole("combobox", { name: "Role" })).toHaveValue("VIEWER");
     await member.getByRole("combobox", { name: "Role" }).selectOption("EDITOR");
     await member.getByRole("button", { name: "Save member" }).click();
     await expect(page.getByRole("status")).toContainText("Member updated");
