@@ -118,12 +118,13 @@ test("nested cancel preserves the count and the sheet", async ({ page }) => {
 });
 
 /**
- * 嵌套退出应只影响最上层确认框，键盘可以绕过现有指针遮挡，因而该用例同时保留当前已经成立的控制行为。
+ * 嵌套退出只应影响最上层确认框，等待确认面板出现后再发送退出按键，避免将尚未打开的面板误作关闭结果。
  * 显式检查外层输入可编辑及计数不变，不能把所有旧操作一律写成预期失败。
  */
 test("Escape dismisses only the nested confirmation", async ({ page }) => {
     await page.getByRole("button", { name: "Edit synthetic resource", exact: true }).click();
     await page.getByRole("button", { name: "Archive synthetic resource", exact: true }).click();
+    await expect(page.getByRole("dialog", { name: "Archive synthetic resource?", exact: true })).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog", { name: "Archive synthetic resource?", exact: true })).toBeHidden();
     await expect(page.getByRole("dialog", { name: "Synthetic resource", exact: true })).toBeVisible();
@@ -156,14 +157,20 @@ for (const openerName of ["Edit synthetic resource", "Create synthetic resource"
 
 /**
  * 模拟列表刷新移除原入口，关闭后只要求焦点仍属于活文档且其它入口可继续使用，不强加尚未选定的回退目标。
- * 删除真实节点只发生在浏览器测试中，生产组件和夹具均没有为该场景增加特殊分支。
+ * 模态面板会隐藏背景的可访问角色，因此先捕获原节点，面板打开后只操作该句柄并在结束时释放。
  */
 test("a detached opener allows safe close and another live opener", async ({ page }) => {
     const opener = page.getByRole("button", { name: "Edit synthetic resource", exact: true });
-    await opener.focus();
-    await page.keyboard.press("Enter");
-    await expect(page.getByRole("dialog", { name: "Synthetic resource", exact: true })).toBeVisible();
-    await opener.evaluate((element) => element.remove());
+    const openerNode = await opener.elementHandle();
+    if (!openerNode) throw new Error("DETACHED_OPENER_NODE_MISSING");
+    try {
+        await opener.focus();
+        await page.keyboard.press("Enter");
+        await expect(page.getByRole("dialog", { name: "Synthetic resource", exact: true })).toBeVisible();
+        await openerNode.evaluate((element) => element.remove());
+    } finally {
+        await openerNode.dispose();
+    }
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog", { name: "Synthetic resource", exact: true })).toBeHidden();
     expect(await page.evaluate(() => document.activeElement?.isConnected)).toBe(true);
