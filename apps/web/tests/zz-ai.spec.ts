@@ -26,8 +26,8 @@ test.beforeAll(async ({ request }) => {
 test("AI configuration is a real workspace page and explains no-provider execution", async ({ page }) => {
     await editorScope(page, "ai-browser");
     await page.getByRole("link", { name: "AI", exact: true }).click();
-    await expect(page.getByTestId("ai-empty")).toBeVisible();
-    await expect(page.getByTestId("ai-execution-independent")).toBeVisible();
+    await expect(page.getByText("No providers configured")).toBeVisible();
+    await expect(page.getByText("Deterministic execution works without a model")).toBeVisible();
 });
 
 import { createServer, type Server } from "node:http";
@@ -104,67 +104,85 @@ test("real UI config, paid-call preview, review, genuine compiler, cancel and sc
         await createResource(page, "ELEMENT_CATALOG", "catalog");
         catalogId = (await compiler.publish()).id;
         await page.getByRole("link", { name: "AI", exact: true }).click();
-        await page.getByTestId("ai-workspace").selectOption(scope.workspaceId);
-        await page.getByTestId("app-language").selectOption("en");
-        await page.getByTestId("ai-name").fill("Local HTTP protocol emulator");
-        await page.getByTestId("ai-baseURL").fill("http://127.0.0.1:18890/v1");
-        await page.getByTestId("ai-model").fill("emulator");
-        await page.getByTestId("ai-key").fill("synthetic-browser-provider-key");
-        await page.getByTestId("ai-enabled").check();
-        await page.getByTestId("ai-save").click();
-        await expect(page.getByTestId("ai-key")).toHaveValue("");
-        await expect(page.getByTestId("ai-budget")).toContainText("Available");
-        await page.getByTestId("ai-test").click();
-        await expect(page.getByTestId("ai-history")).toContainText("CONNECTION_TEST · SUCCEEDED");
+        await page.getByLabel("Workspace").selectOption(scope.workspaceId);
+        await page.getByLabel("Language").selectOption("en");
+        await page.getByLabel("Name").fill("Local HTTP protocol emulator");
+        await page.getByLabel("Base URL").fill("http://127.0.0.1:18890/v1");
+        await page.getByLabel("Model").fill("emulator");
+        await page.getByLabel("Write-only API key").fill("synthetic-browser-provider-key");
+        await page.getByLabel("Enabled").check();
+        await page.getByRole("button", { name: "Save provider" }).click();
+        await expect(page.getByLabel("Write-only API key")).toHaveValue("");
+        await expect(page.getByText("Budget USD").locator("..")).toContainText("Available");
+        await page.getByRole("button", { name: "Test connection (uses budget)" }).click();
+        await expect(page.getByRole("heading", { name: "Call history" }).locator("..").getByRole("list")).toContainText(
+            "CONNECTION_TEST · SUCCEEDED",
+        );
         const prior = calls;
         await page
-            .getByTestId("ai-prompt")
+            .getByLabel("Requirement / expected-result basis")
             .fill("REQ-LOGIN: open the login page. Expected results must cite this requirement.");
-        await page.getByTestId("ai-versions").fill(catalogId);
-        await page.getByTestId("ai-data").fill('{"password":"do-not-send","username":"test-user"}');
-        await page.getByTestId("ai-preview").click();
-        await expect(page.getByTestId("ai-context")).toContainText("[REDACTED]");
-        await expect(page.getByTestId("ai-context")).not.toContainText("do-not-send");
+        await page.getByLabel("Selected immutable version IDs (comma separated)").fill(catalogId);
+        await page
+            .getByLabel("Supplied nonsecret test data JSON")
+            .fill('{"password":"do-not-send","username":"test-user"}');
+        await page.getByRole("button", { name: "Review selected context and estimate" }).click();
+        await expect(page.getByRole("heading", { name: "Exact sanitized context" }).locator("..")).toContainText(
+            "[REDACTED]",
+        );
+        await expect(page.getByRole("heading", { name: "Exact sanitized context" }).locator("..")).not.toContainText(
+            "do-not-send",
+        );
         expect(calls).toBe(prior);
-        await page.getByTestId("ai-generate").click();
-        await expect(page.getByTestId("ai-review")).toContainText("SUCCEEDED");
-        await expect(page.getByTestId("ai-output")).toContainText("Requirement-backed draft");
+        await page.getByRole("button", { name: "Generate with reviewed context" }).click();
+        await expect(page.getByRole("heading", { name: "Proposed output", level: 3 }).locator("..")).toContainText(
+            "SUCCEEDED",
+        );
+        await expect(
+            page.getByRole("heading", { name: "Proposed output", level: 4 }).locator("..").locator("pre"),
+        ).toContainText("Requirement-backed draft");
         const caseList = await page.request.get("/api/v1/workspaces/" + scope.workspaceId + "/resources?kind=CASE");
         expect((await caseList.json()).data.items).toHaveLength(0);
-        await expect(page.getByTestId("ai-accept")).toBeDisabled();
-        await page.getByTestId("ai-resource-name").fill("Reviewed AI case");
-        await page.getByTestId("ai-resource-key").fill("invalid/key");
-        await expect(page.getByTestId("ai-accept")).toBeDisabled();
-        await page.getByTestId("ai-resource-key").fill("reviewed-ai-case");
-        await expect(page.getByTestId("ai-accept")).toBeEnabled();
-        await page.getByTestId("ai-accept").click();
-        await expect(page.getByTestId("ai-review")).toContainText("REVIEWED");
+        await expect(page.getByRole("button", { name: "Accept as DRAFT" })).toBeDisabled();
+        await page.getByLabel("New resource name").fill("Reviewed AI case");
+        await page.getByLabel("New resource key").fill("invalid/key");
+        await expect(page.getByRole("button", { name: "Accept as DRAFT" })).toBeDisabled();
+        await page.getByLabel("New resource key").fill("reviewed-ai-case");
+        await expect(page.getByRole("button", { name: "Accept as DRAFT" })).toBeEnabled();
+        await page.getByRole("button", { name: "Accept as DRAFT" }).click();
+        await expect(page.getByRole("heading", { name: "Proposed output", level: 3 }).locator("..")).toContainText(
+            "REVIEWED",
+        );
         await page.screenshot({
             path: "../../.superpowers/sdd/veriq-1/evidence/t13/ai-reviewed.png",
             fullPage: true,
         });
-        await page.getByTestId("ai-open-editor").click();
-        await expect(page.getByTestId("resource-editor")).toBeVisible();
+        await page.getByRole("button", { name: "Open draft editor: validate, debug, publish" }).click();
+        await expect(page.getByRole("article")).toBeVisible();
         const beforeCompile = calls;
         await compiler.publish();
         expect(calls).toBe(beforeCompile);
-        await page.getByTestId("ai-purpose").selectOption("BOUNDARY_SUGGESTION");
-        await page.getByTestId("ai-preview").click();
-        await expect(page.getByTestId("ai-generate")).toBeEnabled();
+        await page.getByLabel("Purpose").selectOption("BOUNDARY_SUGGESTION");
+        await page.getByRole("button", { name: "Review selected context and estimate" }).click();
+        await expect(page.getByRole("button", { name: "Generate with reviewed context" })).toBeEnabled();
         hold = true;
-        await page.getByTestId("ai-generate").click();
+        await page.getByRole("button", { name: "Generate with reviewed context" }).click();
         await expect.poll(() => !!release).toBe(true);
-        await page.getByTestId("ai-refresh").click();
-        await expect(page.getByTestId("ai-cancel")).toBeVisible();
-        await page.getByTestId("ai-cancel").click();
-        await expect(page.getByTestId("ai-history")).toContainText("CANCELLED");
+        await page.getByRole("button", { name: "Refresh" }).click();
+        await expect(page.getByRole("button", { name: "Cancel local result" })).toBeVisible();
+        await page.getByRole("button", { name: "Cancel local result" }).click();
+        await expect(page.getByRole("heading", { name: "Call history" }).locator("..").getByRole("list")).toContainText(
+            "CANCELLED",
+        );
         release?.();
         hold = false;
-        await expect(page.getByTestId("ai-review")).toContainText("CANCELLED");
-        await page.getByTestId("ai-edit-provider").click();
-        await page.getByTestId("ai-enabled").uncheck();
-        await page.getByTestId("ai-save").click();
-        await expect(page.getByTestId("ai-preview")).toBeDisabled();
+        await expect(page.getByRole("heading", { name: "Proposed output", level: 3 }).locator("..")).toContainText(
+            "CANCELLED",
+        );
+        await page.getByRole("button", { name: /Provider / }).click();
+        await page.getByLabel("Enabled").uncheck();
+        await page.getByRole("button", { name: "Save provider" }).click();
+        await expect(page.getByRole("button", { name: "Review selected context and estimate" })).toBeDisabled();
         await expect(page.locator("body")).not.toContainText("synthetic-browser-provider-key");
         const other = await page.request.post("/api/v1/workspaces", {
             headers: scope.headers,
@@ -172,9 +190,9 @@ test("real UI config, paid-call preview, review, genuine compiler, cancel and sc
         });
         expect(other.status()).toBe(201);
         await page.reload();
-        await page.getByTestId("ai-workspace").selectOption((await other.json()).data.id);
-        await expect(page.getByTestId("ai-empty")).toBeVisible();
-        await expect(page.getByTestId("ai-review")).toHaveCount(0);
+        await page.getByLabel("Workspace").selectOption((await other.json()).data.id);
+        await expect(page.getByText("No providers configured")).toBeVisible();
+        await expect(page.getByRole("heading", { name: "Proposed output", level: 3 }).locator("..")).toHaveCount(0);
     } finally {
         release?.();
         hold = false;
@@ -231,34 +249,38 @@ test("fix1 existing CASE review increments only its draft and rejects a stale re
         });
         expect(configured.status(), await configured.text()).toBe(201);
         await page.getByRole("link", { name: "AI", exact: true }).click();
-        await page.getByTestId("ai-workspace").selectOption(scope.workspaceId);
-        await page.getByTestId("app-language").selectOption("en");
-        await page.getByTestId("ai-resource").fill(resourceId);
+        await page.getByLabel("Workspace").selectOption(scope.workspaceId);
+        await page.getByLabel("Language").selectOption("en");
+        await page.getByLabel("Existing CASE resource ID (optional)").fill(resourceId);
         await page
-            .getByTestId("ai-prompt")
+            .getByLabel("Requirement / expected-result basis")
             .fill("REQ-1: revise the existing CASE title based on this reviewed requirement.");
         const generate = async () => {
-            await page.getByTestId("ai-preview").click();
-            await expect(page.getByTestId("ai-generate")).toBeEnabled();
+            await page.getByRole("button", { name: "Review selected context and estimate" }).click();
+            await expect(page.getByRole("button", { name: "Generate with reviewed context" })).toBeEnabled();
             const response = page.waitForResponse(
                 (r) => r.url().endsWith("/ai/generations") && r.request().method() === "POST",
             );
-            await page.getByTestId("ai-generate").click();
+            await page.getByRole("button", { name: "Generate with reviewed context" }).click();
             expect((await response).status()).toBe(201);
-            await expect(page.getByTestId("ai-review")).toContainText("SUCCEEDED");
+            await expect(page.getByRole("heading", { name: "Proposed output", level: 3 }).locator("..")).toContainText(
+                "SUCCEEDED",
+            );
         };
         await generate();
         // 现有 CASE 的人工接受只依赖当前草稿修订号，因此这里保持新资源名称与键字段为空，以真实验证更新既有草稿的分支而
         // 不意外创建第二份资源或绕过并发修订检查。
         const acceptance = page.waitForResponse((r) => r.url().endsWith("/review") && r.request().method() === "POST");
-        await page.getByTestId("ai-accept").click();
+        await page.getByRole("button", { name: "Accept as DRAFT" }).click();
         const accepted = await acceptance;
         expect(accepted.status(), await accepted.text()).toBe(200);
         expect(accepted.request().postDataJSON()).toEqual({
             decision: "ACCEPT_DRAFT",
             revision: 1,
         });
-        await expect(page.getByTestId("ai-review")).toContainText("REVIEWED");
+        await expect(page.getByRole("heading", { name: "Proposed output", level: 3 }).locator("..")).toContainText(
+            "REVIEWED",
+        );
         let draft = (await (await page.request.get(base + "/resources/" + resourceId + "/draft")).json()).data;
         expect(draft.revision).toBe(2);
         expect(draft.content.document.title).toBe("Requirement-backed draft");
@@ -268,8 +290,8 @@ test("fix1 existing CASE review increments only its draft and rejects a stale re
             ),
         ).toEqual([resourceId]);
         await generate();
-        await expect(page.getByTestId("ai-resource-key")).toHaveCount(0);
-        await expect(page.getByTestId("ai-resource-name")).toHaveCount(0);
+        await expect(page.getByLabel("New resource key")).toHaveCount(0);
+        await expect(page.getByLabel("New resource name")).toHaveCount(0);
         const concurrent = {
             ...draft.content,
             document: {
@@ -283,7 +305,7 @@ test("fix1 existing CASE review increments only its draft and rejects a stale re
         });
         expect(updated.status(), await updated.text()).toBe(200);
         const stale = page.waitForResponse((r) => r.url().endsWith("/review") && r.request().method() === "POST");
-        await page.getByTestId("ai-accept").click();
+        await page.getByRole("button", { name: "Accept as DRAFT" }).click();
         const rejected = await stale;
         expect(rejected.status(), await rejected.text()).toBe(409);
         expect((await rejected.json()).code).toBe("STALE_REVISION");
@@ -320,10 +342,10 @@ function aiEffectItem<T>(items: readonly T[] | undefined, index = 0): T {
  */
 async function aiEffectScope(page: Page) {
     await page.goto("/login");
-    await page.getByTestId("email").fill("browser-admin@example.com");
-    await page.getByTestId("password").fill("Browser password 123!");
-    await page.getByTestId("login-submit").click();
-    await expect(page.getByTestId("account-info")).toBeVisible();
+    await page.getByRole("textbox", { name: "Email" }).fill("browser-admin@example.com");
+    await page.getByLabel("Password").fill("Browser password 123!");
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect(page.locator("dl")).toBeVisible();
     const session = (await (await page.request.get("/api/v1/auth/session")).json()).data;
     const headers = { Origin: "http://127.0.0.1:5173", "X-CSRF-Token": session.csrfToken };
     const workspaces: string[] = [];
@@ -399,35 +421,35 @@ test("AI request inputs invalidate reviewed context and preserve manual scope", 
     const initial = aiEffectLists(page, firstWorkspaceId);
     await page.getByRole("link", { name: "AI", exact: true }).click();
     const [firstProviders] = await initial;
-    await expect(page.getByTestId("ai-workspace")).toHaveValue(firstWorkspaceId);
-    await expect(page.getByTestId("ai-provider")).toHaveValue(aiEffectItem(firstProviders).id);
-    await expect(page.getByTestId("ai-budget")).toBeVisible();
+    await expect(page.getByLabel("Workspace")).toHaveValue(firstWorkspaceId);
+    await expect(page.getByLabel("Provider")).toHaveValue(aiEffectItem(firstProviders).id);
+    await expect(page.getByText("Budget USD").locator("..")).toBeVisible();
     const firstProvider = aiEffectItem(firstProviders) as PlatformComponents["schemas"]["ProviderDTO"];
-    await expect(page.getByTestId("ai-budget")).toContainText(String(firstProvider.monthlyBudgetUsd));
+    await expect(page.getByText("Budget USD").locator("..")).toContainText(String(firstProvider.monthlyBudgetUsd));
     const manualWorkspace = aiEffectItem(listed.filter((w) => w.id !== firstWorkspaceId)).id;
     const switched = aiEffectLists(page, manualWorkspace);
-    await page.getByTestId("ai-workspace").selectOption(manualWorkspace);
+    await page.getByLabel("Workspace").selectOption(manualWorkspace);
     const [providers] = await switched;
     const providerRows = (await (await page.request.get(`/api/v1/workspaces/${manualWorkspace}/ai/providers`)).json())
         .data.items as PlatformComponents["schemas"]["ProviderDTO"][];
     expect(providers?.map((p) => p.id)).toEqual(providerRows.map((p) => p.id));
     const selected = aiEffectItem(providerRows, 1);
-    await page.getByTestId("ai-provider").selectOption(selected.id);
-    await page.getByTestId("app-language").selectOption("en");
-    await expect(page.getByTestId("ai-budget")).toContainText(`Available: ${selected.monthlyBudgetUsd}`);
+    await page.getByLabel("Provider").selectOption(selected.id);
+    await page.getByLabel("Language").selectOption("en");
+    await expect(page.getByText("Budget USD").locator("..")).toContainText(`Available: ${selected.monthlyBudgetUsd}`);
     const refreshed = page.waitForResponse(
         (r) => r.url().endsWith(`/workspaces/${manualWorkspace}/ai/providers`) && r.request().method() === "GET",
     );
-    await page.getByTestId("ai-refresh").click();
+    await page.getByRole("button", { name: "Refresh" }).click();
     expect((await refreshed).status()).toBe(200);
-    await expect(page.getByTestId("ai-provider")).toHaveValue(selected.id);
-    await expect(page.getByTestId("ai-workspace")).toHaveValue(manualWorkspace);
+    await expect(page.getByLabel("Provider")).toHaveValue(selected.id);
+    await expect(page.getByLabel("Workspace")).toHaveValue(manualWorkspace);
     await page.getByRole("link", { name: "Resources", exact: true }).click();
-    await expect(page.getByTestId("resource-workspace")).toHaveValue(manualWorkspace);
+    await expect(page.getByLabel("Workspace")).toHaveValue(manualWorkspace);
     await page.getByRole("link", { name: "AI", exact: true }).click();
-    await expect(page.getByTestId("ai-workspace")).toHaveValue(manualWorkspace);
-    await page.getByTestId("ai-provider").selectOption(selected.id);
-    await page.getByTestId("ai-prompt").fill("REQ-EFFECTS: reject empty passwords.");
+    await expect(page.getByLabel("Workspace")).toHaveValue(manualWorkspace);
+    await page.getByLabel("Provider").selectOption(selected.id);
+    await page.getByLabel("Requirement / expected-result basis").fill("REQ-EFFECTS: reject empty passwords.");
     const priorCalls = calls;
     let generationPosts = 0;
     page.on("request", (request) => {
@@ -437,43 +459,53 @@ test("AI request inputs invalidate reviewed context and preserve manual scope", 
         const response = page.waitForResponse(
             (r) => r.url().endsWith("/ai/context") && r.request().method() === "POST",
         );
-        await page.getByTestId("ai-preview").click();
+        await page.getByRole("button", { name: "Review selected context and estimate" }).click();
         const context = await response;
         expect(context.status()).toBe(200);
         const dto = (await context.json()).data as PlatformComponents["schemas"]["AiContextDTO"];
         expect(dto.contextHash).toMatch(/^[a-f0-9]{64}$/);
         expect(dto.provenance).toEqual([]);
-        await expect(page.getByTestId("ai-context")).toContainText("REQ-EFFECTS");
-        await expect(page.getByTestId("ai-context")).toContainText("[]");
-        await expect(page.getByTestId("ai-generate")).toBeEnabled();
+        await expect(page.getByRole("heading", { name: "Exact sanitized context" }).locator("..")).toContainText(
+            "REQ-EFFECTS",
+        );
+        await expect(page.getByRole("heading", { name: "Exact sanitized context" }).locator("..")).toContainText("[]");
+        await expect(page.getByRole("button", { name: "Generate with reviewed context" })).toBeEnabled();
         return { dto, request: context.request().postDataJSON() };
     };
     const invalidated = async () => {
-        await expect(page.getByTestId("ai-context")).toHaveCount(0);
-        await expect(page.getByTestId("ai-generate")).toHaveCount(0);
+        await expect(page.getByRole("heading", { name: "Exact sanitized context" }).locator("..")).toHaveCount(0);
+        await expect(page.getByRole("button", { name: "Generate with reviewed context" })).toHaveCount(0);
         expect(generationPosts).toBe(0);
         expect(calls).toBe(priorCalls);
     };
     await preview();
-    await page.getByTestId("ai-edit-provider").click();
-    await expect(page.getByTestId("ai-generate")).toBeEnabled();
+    await page.getByRole("button", { name: /Provider / }).click();
+    await expect(page.getByRole("button", { name: "Generate with reviewed context" })).toBeEnabled();
     const saved = page.waitForResponse(
         (r) => r.url().endsWith(`/ai/providers/${selected.id}`) && r.request().method() === "PUT",
     );
-    await page.getByTestId("ai-save").click();
+    await page.getByRole("button", { name: "Save provider" }).click();
     expect((await saved).status()).toBe(200);
-    await expect(page.getByTestId("ai-generate")).toBeEnabled();
-    await page.getByTestId("ai-name").fill("Unsaved provider editor survives request edits");
-    await page.getByTestId("ai-provider").selectOption(aiEffectItem(providerRows).id);
+    await expect(page.getByRole("button", { name: "Generate with reviewed context" })).toBeEnabled();
+    await page.getByLabel("Name").fill("Unsaved provider editor survives request edits");
+    await page.getByLabel("Provider").selectOption(aiEffectItem(providerRows).id);
     await invalidated();
-    await page.getByTestId("ai-provider").selectOption(selected.id);
+    await page.getByLabel("Provider").selectOption(selected.id);
     await preview();
-    await page.getByTestId("ai-purpose").selectOption("BOUNDARY_SUGGESTION");
+    await page.getByLabel("Purpose").selectOption("BOUNDARY_SUGGESTION");
     await invalidated();
-    await page.getByTestId("ai-purpose").selectOption("CASE_DRAFT");
+    await page.getByLabel("Purpose").selectOption("CASE_DRAFT");
     await preview();
     // 八个请求字段分别触发审核失效，版本、资源及运行标识仅编辑后立即恢复再预览，避免把虚构引用提交服务端；每次恢复仍需
     // 重新预览，证明编辑再撤销不会复活旧审核结果。
+    const fieldLabels: Record<string, string> = {
+        prompt: "Requirement / expected-result basis",
+        versions: "Selected immutable version IDs (comma separated)",
+        openapi: "Supplied OpenAPI JSON",
+        data: "Supplied nonsecret test data JSON",
+        resource: "Existing CASE resource ID (optional)",
+        run: "Run ID for sanitized failure analysis",
+    };
     for (const [field, changed, original] of [
         ["prompt", "REQ-EFFECTS: changed requirement", "REQ-EFFECTS: reject empty passwords."],
         ["versions", "unsubmitted-version-reference", ""],
@@ -482,21 +514,23 @@ test("AI request inputs invalidate reviewed context and preserve manual scope", 
         ["resource", "unsubmitted-resource-reference", ""],
         ["run", "unsubmitted-run-reference", ""],
     ] as const) {
-        await page.getByTestId(`ai-${field}`).fill(changed);
+        await page.getByLabel(fieldLabels[field]).fill(changed);
         await invalidated();
-        await page.getByTestId(`ai-${field}`).fill(original);
+        await page.getByLabel(fieldLabels[field]).fill(original);
         await invalidated();
         await preview();
     }
-    await expect(page.getByTestId("ai-name")).toHaveValue("Unsaved provider editor survives request edits");
-    await page.getByTestId("ai-purpose").selectOption("BOUNDARY_SUGGESTION");
-    await page.getByTestId("ai-prompt").fill("REQ-EFFECTS: current reviewed boundary requirement.");
-    await page.getByTestId("ai-data").fill('{"scenario":"current-reviewed"}');
+    await expect(page.getByLabel("Name")).toHaveValue("Unsaved provider editor survives request edits");
+    await page.getByLabel("Purpose").selectOption("BOUNDARY_SUGGESTION");
+    await page
+        .getByLabel("Requirement / expected-result basis")
+        .fill("REQ-EFFECTS: current reviewed boundary requirement.");
+    await page.getByLabel("Supplied nonsecret test data JSON").fill('{"scenario":"current-reviewed"}');
     const reviewed = await preview();
     const response = page.waitForResponse(
         (r) => r.url().endsWith("/ai/generations") && r.request().method() === "POST",
     );
-    await page.getByTestId("ai-generate").click();
+    await page.getByRole("button", { name: "Generate with reviewed context" }).click();
     const generated = await response;
     expect(generated.status()).toBe(201);
     expect(generated.request().postDataJSON()).toEqual({
@@ -512,16 +546,28 @@ test("AI request inputs invalidate reviewed context and preserve manual scope", 
     expect(generationPosts).toBe(1);
     expect(calls).toBe(priorCalls + 1);
     expect(modelContexts.at(-1)).toEqual(reviewed.dto.context);
-    await expect(page.getByTestId("ai-review")).toContainText("SUCCEEDED");
-    await expect(page.getByTestId("ai-output")).toContainText("An empty password should be rejected.");
-    await expect(page.getByTestId("ai-history")).toContainText("BOUNDARY_SUGGESTION · SUCCEEDED");
-    await expect(page.getByTestId("ai-context")).toBeVisible();
-    await expect(page.getByTestId("ai-generate")).toBeDisabled();
-    await page.getByTestId("ai-prompt").fill("REQ-EFFECTS: later invalidation retains completed output.");
-    await expect(page.getByTestId("ai-context")).toHaveCount(0);
-    await expect(page.getByTestId("ai-review")).toContainText("SUCCEEDED");
-    await expect(page.getByTestId("ai-history")).toContainText("BOUNDARY_SUGGESTION · SUCCEEDED");
-    await expect(page.getByTestId("ai-name")).toHaveValue("Unsaved provider editor survives request edits");
+    await expect(page.getByRole("heading", { name: "Proposed output", level: 3 }).locator("..")).toContainText(
+        "SUCCEEDED",
+    );
+    await expect(
+        page.getByRole("heading", { name: "Proposed output", level: 4 }).locator("..").locator("pre"),
+    ).toContainText("An empty password should be rejected.");
+    await expect(page.getByRole("heading", { name: "Call history" }).locator("..").getByRole("list")).toContainText(
+        "BOUNDARY_SUGGESTION · SUCCEEDED",
+    );
+    await expect(page.getByRole("heading", { name: "Exact sanitized context" }).locator("..")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Generate with reviewed context" })).toBeDisabled();
+    await page
+        .getByLabel("Requirement / expected-result basis")
+        .fill("REQ-EFFECTS: later invalidation retains completed output.");
+    await expect(page.getByRole("heading", { name: "Exact sanitized context" }).locator("..")).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Proposed output", level: 3 }).locator("..")).toContainText(
+        "SUCCEEDED",
+    );
+    await expect(page.getByRole("heading", { name: "Call history" }).locator("..").getByRole("list")).toContainText(
+        "BOUNDARY_SUGGESTION · SUCCEEDED",
+    );
+    await expect(page.getByLabel("Name")).toHaveValue("Unsaved provider editor survives request edits");
     expect(calls).toBe(priorCalls + 1);
     expect(generationPosts).toBe(1);
 });
@@ -531,23 +577,23 @@ test("AI generation completion stays in its owning workspace", async ({ page }) 
     const scope = await aiEffectScope(page);
     const provider = await aiEffectProvider(page, scope.headers, scope.alpha, 11);
     await page.getByRole("link", { name: "AI", exact: true }).click();
-    await page.getByTestId("ai-workspace").selectOption(scope.alpha);
-    await expect(page.getByTestId("ai-provider")).toHaveValue(provider.id);
-    await page.getByTestId("app-language").selectOption("en");
-    await page.getByTestId("ai-purpose").selectOption("BOUNDARY_SUGGESTION");
-    await page.getByTestId("ai-prompt").fill("REQ-ALPHA: delayed Alpha requirement.");
-    await page.getByTestId("ai-preview").click();
-    await expect(page.getByTestId("ai-generate")).toBeEnabled();
+    await page.getByLabel("Workspace").selectOption(scope.alpha);
+    await expect(page.getByLabel("Provider")).toHaveValue(provider.id);
+    await page.getByLabel("Language").selectOption("en");
+    await page.getByLabel("Purpose").selectOption("BOUNDARY_SUGGESTION");
+    await page.getByLabel("Requirement / expected-result basis").fill("REQ-ALPHA: delayed Alpha requirement.");
+    await page.getByRole("button", { name: "Review selected context and estimate" }).click();
+    await expect(page.getByRole("button", { name: "Generate with reviewed context" })).toBeEnabled();
     const priorCalls = calls;
     try {
         hold = true;
-        await page.getByTestId("ai-generate").click();
+        await page.getByRole("button", { name: "Generate with reviewed context" }).click();
         await expect.poll(() => calls).toBe(priorCalls + 1);
         await expect.poll(() => typeof release).toBe("function");
         const betaLists = aiEffectLists(page, scope.beta);
-        await page.getByTestId("ai-workspace").selectOption(scope.beta);
+        await page.getByLabel("Workspace").selectOption(scope.beta);
         expect(await betaLists).toEqual([[], [], []]);
-        await expect(page.getByTestId("ai-empty")).toBeVisible();
+        await expect(page.getByText("No providers configured")).toBeVisible();
         release?.();
         hold = false;
         const alphaHistory = async () => {
@@ -565,13 +611,15 @@ test("AI generation completion stays in its owning workspace", async ({ page }) 
             status: "SUCCEEDED",
             purpose: "BOUNDARY_SUGGESTION",
         });
-        await expect(page.getByTestId("ai-workspace")).toHaveValue(scope.beta);
-        await expect(page.getByTestId("ai-provider")).toHaveValue("");
-        await expect(page.getByTestId("ai-prompt")).toHaveValue("");
-        await expect(page.getByTestId("ai-context")).toHaveCount(0);
-        await expect(page.getByTestId("ai-generate")).toHaveCount(0);
-        await expect(page.getByTestId("ai-review")).toHaveCount(0);
-        await expect(page.getByTestId("ai-history").getByRole("button")).toHaveCount(0);
+        await expect(page.getByLabel("Workspace")).toHaveValue(scope.beta);
+        await expect(page.getByLabel("Provider")).toHaveValue("");
+        await expect(page.getByLabel("Requirement / expected-result basis")).toHaveValue("");
+        await expect(page.getByRole("heading", { name: "Exact sanitized context" }).locator("..")).toHaveCount(0);
+        await expect(page.getByRole("button", { name: "Generate with reviewed context" })).toHaveCount(0);
+        await expect(page.getByRole("heading", { name: "Proposed output", level: 3 }).locator("..")).toHaveCount(0);
+        await expect(
+            page.getByRole("heading", { name: "Call history" }).locator("..").getByRole("list").getByRole("button"),
+        ).toHaveCount(0);
         await expect(page.getByRole("alert")).toHaveCount(0);
         expect(calls).toBe(priorCalls + 1);
     } finally {

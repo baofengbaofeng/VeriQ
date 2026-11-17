@@ -32,7 +32,7 @@ async def test_cleanup_uses_same_queue_scoped_actor_and_waits_for_unknown_proces
         "ELEMENT_CATALOG",
         {
             "schemaVersion": "1.0",
-            "elements": [{"key": "save", "locator": {"by": "testId", "value": "save"}}],
+            "elements": [{"key": "save", "locator": {"by": "veriqId", "value": "save"}}],
         },
     )
     fixture = await published(

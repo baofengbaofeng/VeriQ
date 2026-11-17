@@ -185,7 +185,6 @@ function StepFields({
             <label>
                 {tx("动作 / Action")}
                 <select
-                    data-testid={`${path}.action`}
                     value={step.action}
                     onChange={(e) => {
                         const { action: _action, ...rest } = step;
@@ -349,7 +348,6 @@ function ObserverFields({ path }: { path: string }) {
             <label>
                 {tx("监听类型 / Observer kind")}
                 <select
-                    data-testid={`${path}.kind`}
                     value={kind}
                     onChange={(e) =>
                         set(path, {
@@ -390,7 +388,6 @@ function ObserverFields({ path }: { path: string }) {
                     <label>
                         {tx("观测窗口 / Window")}
                         <select
-                            data-testid={`${path}.window.mode`}
                             value={window?.mode ?? ""}
                             onChange={(e) => {
                                 set(
@@ -436,7 +433,6 @@ function ObserverFields({ path }: { path: string }) {
                     <label>
                         {tx("对话框类型 / Dialog type")}
                         <select
-                            data-testid={`${path}.dialogType`}
                             value={dialog!.dialogType}
                             onChange={(e) => {
                                 set(`${path}.dialogType`, e.target.value);
@@ -452,7 +448,6 @@ function ObserverFields({ path }: { path: string }) {
                     <label>
                         {tx("处理方式 / Handling")}
                         <select
-                            data-testid={`${path}.handling`}
                             value={dialog!.handling}
                             onChange={(e) => {
                                 set(`${path}.handling`, e.target.value);

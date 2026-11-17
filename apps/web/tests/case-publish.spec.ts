@@ -3,11 +3,13 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdtemp, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
-import { test, expect } from "@playwright/test";
+import { chromium, test, expect } from "@playwright/test";
 import type { ResourceDocumentV1 } from "@veriq/contracts";
 import { cleanupCaseProfile, withCleanup } from "./support/case-profile-cleanup";
 import {
     editorScope,
+    closeResourceEditor,
+    resourceCreateForm,
     createResource,
     saveDraft,
     applyDocument,
@@ -55,10 +57,10 @@ test("resource forms save a canonical case and publish only after real Agent val
         expect(initialized.status()).toBe(201);
     }
     await page.goto("/login");
-    await page.getByTestId("email").fill("browser-admin@example.com");
-    await page.getByTestId("password").fill("Browser password 123!");
-    await page.getByTestId("login-submit").click();
-    await expect(page.getByTestId("account-info")).toBeVisible();
+    await page.getByRole("textbox", { name: "Email" }).fill("browser-admin@example.com");
+    await page.getByLabel("Password").fill("Browser password 123!");
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect(page.locator("dl")).toBeVisible();
     const session = (await (await page.request.get("/api/v1/auth/session")).json()).data;
     const response = await page.request.post("/api/v1/workspaces", {
         headers: { Origin: origin, "X-CSRF-Token": session.csrfToken },
@@ -108,7 +110,7 @@ test("resource forms save a canonical case and publish only after real Agent val
                     "Editor managed compiler",
                     "--share-workspace",
                     "--browser-executable",
-                    "/usr/bin/chromium",
+                    chromium.executablePath(),
                 ],
                 enrollment.token,
             );
@@ -129,7 +131,7 @@ test("resource forms save a canonical case and publish only after real Agent val
                     "--release-dir",
                     fileURLToPath(new URL("../../../.superpowers/cache/t11/release/", import.meta.url)),
                     "--browser-executable",
-                    "/usr/bin/chromium",
+                    chromium.executablePath(),
                     "--once",
                 ]);
                 expect(result.code, result.output).toBe(0);
@@ -138,13 +140,15 @@ test("resource forms save a canonical case and publish only after real Agent val
                 const queuedResponse = page.waitForResponse(
                     (r) => r.url().endsWith("/validate") && r.request().method() === "POST",
                 );
-                await page.getByTestId("case.validate").click();
+                await page.getByRole("button", { name: "Compile and validate" }).click();
                 const queued = await queuedResponse;
                 expect(queued.status(), await queued.text()).toBe(202);
                 const job = (await queued.json()).data;
-                await expect(page.getByTestId("case.publish")).toBeDisabled();
+                await expect(page.getByRole("button", { name: "Publish version" })).toBeDisabled();
                 await compile();
-                await expect(page.getByTestId("case.validation-receipt")).toBeVisible({
+                await expect(
+                    page.getByText(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12} · /),
+                ).toBeVisible({
                     timeout: 20_000,
                 });
                 const status = (
@@ -154,23 +158,25 @@ test("resource forms save a canonical case and publish only after real Agent val
                 const publishing = page.waitForResponse(
                     (r) => r.url().endsWith("/publish") && r.request().method() === "POST",
                 );
-                await page.getByTestId("case.publish").click();
+                await page.getByRole("button", { name: "Publish version" }).click();
                 const published = await publishing;
                 expect(published.status(), await published.text()).toBe(201);
-                await expect(page.getByTestId("case.published-version")).toBeVisible();
+                await expect(page.getByText(/^v\d+ · .+ · .+$/)).toBeVisible();
                 return (await published.json()).data;
             };
             await page.goto("/resources");
             await expect(page.getByRole("heading", { name: "Resources", exact: true })).toBeVisible();
-            await page.getByTestId("resource-workspace").selectOption(workspace.id);
-            await expect(page.getByTestId("resource-empty")).toBeVisible();
-            await page.getByTestId("resource-kind").selectOption("ELEMENT_CATALOG");
-            await page.getByTestId("resource-key").fill("catalog");
-            await page.getByTestId("resource-name").fill("Browser catalog");
-            await page.getByTestId("resource-create").click();
-            await expect(page.getByTestId("resource-editor")).toBeVisible();
-            await page.getByTestId("resource-save").click();
-            await expect(page.getByTestId("resource-status")).toContainText("Saved");
+            await page.getByLabel("Workspace").selectOption(workspace.id);
+            await expect(page.getByText("No resources in this Workspace.")).toBeVisible();
+            await resourceCreateForm(page)
+                .getByRole("combobox", { name: "Kind", exact: true })
+                .selectOption("ELEMENT_CATALOG");
+            await resourceCreateForm(page).getByLabel("Key", { exact: true }).fill("catalog");
+            await resourceCreateForm(page).getByLabel("Name", { exact: true }).fill("Browser catalog");
+            await page.getByRole("button", { name: "Create resource" }).click();
+            await expect(page.getByRole("article")).toBeVisible();
+            await page.getByRole("button", { name: "Save draft" }).click();
+            await expect(page.getByText("Saved")).toContainText("Saved");
             const catalog = await publish();
             const metadataResponse = await page.request.get(
                 `/api/v1/workspaces/${workspace.id}/resources/${catalog.resourceId}/versions/${catalog.id}` +
@@ -195,20 +201,28 @@ test("resource forms save a canonical case and publish only after real Agent val
             for (const path of ["package.json", "../../secrets", "trace.zip", "source/asset-snapshot.json"])
                 expect((await page.request.get(sourceBase, { params: { path } })).status()).toBe(404);
 
-            await expect(page.getByTestId("case.generated-file")).toBeVisible();
-            await page.getByTestId("case.generated-file").selectOption(file.path);
-            await expect(page.getByTestId("case.generated-source")).toBeVisible();
-            await page.getByTestId("resource-kind").selectOption("CASE");
-            await page.getByTestId("resource-key").fill("smoke");
-            await page.getByTestId("resource-name").fill("Smoke case");
-            await page.getByTestId("resource-create").click();
-            await expect(page.getByTestId("content.document.catalogVersionId")).toBeVisible();
-            await page.getByTestId("content.document.catalogVersionId").selectOption(catalog.id);
-            await page.getByTestId("content.document.steps.0.afterAssertions.add").click();
-            await expect(page.getByTestId("content.document.steps.0.afterAssertions.0.type")).toHaveValue("ui");
-            await page.getByTestId("resource-save").click();
-            await expect(page.getByTestId("resource-status")).toContainText("Saved");
-            expect(await page.getByTestId("case.validation-errors").count()).toBe(0);
+            await expect(page.getByLabel("Retained file")).toBeVisible();
+            await page.getByLabel("Retained file").selectOption(file.path);
+            await expect(
+                page
+                    .getByRole("heading", { name: "Actual generated TypeScript (read only)" })
+                    .locator("..")
+                    .locator(".vq-monaco"),
+            ).toBeVisible();
+            await closeResourceEditor(page);
+            await resourceCreateForm(page).getByRole("combobox", { name: "Kind", exact: true }).selectOption("CASE");
+            await resourceCreateForm(page).getByLabel("Key", { exact: true }).fill("smoke");
+            await resourceCreateForm(page).getByLabel("Name", { exact: true }).fill("Smoke case");
+            await page.getByRole("button", { name: "Create resource" }).click();
+            await expect(page.getByLabel("Catalog version")).toBeVisible();
+            await page.getByLabel("Catalog version").selectOption(catalog.id);
+            await page.getByRole("button", { name: "Add After assertions" }).click();
+            await expect(
+                page.getByRole("heading", { name: "After assertions" }).locator("..").getByLabel("Assertion type"),
+            ).toHaveValue("ui");
+            await page.getByRole("button", { name: "Save draft" }).click();
+            await expect(page.getByText("Saved")).toContainText("Saved");
+            expect(await page.locator('ul[role="alert"]').count()).toBe(0);
             const version = await publish();
             const files = (
                 await (
@@ -219,9 +233,14 @@ test("resource forms save a canonical case and publish only after real Agent val
                 ).json()
             ).data;
             const generated = files.files.find((f: { path: string }) => f.path.startsWith("cases/"));
-            await expect(page.getByTestId("case.generated-file")).toBeVisible();
-            await page.getByTestId("case.generated-file").selectOption(generated.path);
-            await expect(page.getByTestId("case.generated-source")).toContainText("registerCase");
+            await expect(page.getByLabel("Retained file")).toBeVisible();
+            await page.getByLabel("Retained file").selectOption(generated.path);
+            await expect(
+                page
+                    .getByRole("heading", { name: "Actual generated TypeScript (read only)" })
+                    .locator("..")
+                    .locator(".vq-monaco"),
+            ).toContainText("registerCase");
             await page.setViewportSize({ width: 1280, height: 1000 });
             await page.screenshot({
                 path: testInfo.outputPath("editor-1280.png"),
@@ -237,29 +256,42 @@ test("resource forms save a canonical case and publish only after real Agent val
 test("environment manager creates immutable auth and credential versions without echoing secrets", async ({ page }) => {
     const alpha = await editorScope(page, `identity-immutable-${randomUUID()}`);
     await page.goto("/environments");
-    await page.getByTestId("resource-workspace").selectOption(alpha.workspaceId);
-    await expect(page.getByTestId("identity-manager")).toBeVisible();
-    await page.getByTestId("adapter-identity-path").fill("/identity");
-    await page.getByTestId("adapter-identity-pointer").fill("/id");
-    await page.getByTestId("adapter-create").click();
-    await expect(page.getByTestId("adapter-list")).toContainText("HTTP_BEARER");
-    await page.getByTestId("credential-ref").fill("browser_business");
-    await page.getByTestId("credential-identities").fill("reader");
-    await page.getByTestId("credential-token").fill("browser-secret-only-once");
-    await page.getByTestId("credential-create").click();
-    await expect(page.getByTestId("credential-list")).toContainText("browser_business");
-    await expect(page.getByTestId("credential-token")).toHaveValue("");
+    await page.getByLabel("Workspace").selectOption(alpha.workspaceId);
+    await expect(
+        page.getByRole("heading", { name: "Environment identities and credentials" }).locator(".."),
+    ).toBeVisible();
+    await page.getByLabel("Identity path").fill("/identity");
+    await page.getByLabel("Identity pointer").fill("/id");
+    await page.getByRole("button", { name: "Create adapter version" }).click();
+    await expect(
+        page.getByRole("heading", { name: "Authentication adapters" }).locator("..").getByRole("article"),
+    ).toContainText("HTTP_BEARER");
+    await page.getByLabel("Secret ref").fill("browser_business");
+    await page.getByLabel("Allowed identities").fill("reader");
+    await page.getByLabel("Bearer token").fill("browser-secret-only-once");
+    await page.getByRole("button", { name: "Save credential version" }).click();
+    await expect(page.getByRole("heading", { name: "Credential versions" }).locator("..")).toContainText(
+        "browser_business",
+    );
+    await expect(page.getByLabel("Bearer token")).toHaveValue("");
     await expect(page.locator("body")).not.toContainText("browser-secret-only-once");
-    await page.getByTestId("credential-ref").fill("browser_business");
-    await page.getByTestId("credential-identities").fill("reader");
-    await page.getByTestId("credential-token").fill("browser-rotated-only-once");
-    await page.getByTestId("credential-mode").selectOption("rotate");
-    await page.getByTestId("credential-create").click();
-    await expect(page.getByTestId("credential-list").getByRole("article")).toHaveCount(2);
-    await expect(page.getByTestId("credential-token")).toHaveValue("");
+    await page.getByLabel("Secret ref").fill("browser_business");
+    await page.getByLabel("Allowed identities").fill("reader");
+    await page.getByLabel("Bearer token").fill("browser-rotated-only-once");
+    await page.getByLabel("Operation").selectOption("rotate");
+    await page.getByRole("button", { name: "Save credential version" }).click();
+    await expect(
+        page.getByRole("heading", { name: "Credential versions" }).locator("..").getByRole("article"),
+    ).toHaveCount(2);
+    await expect(page.getByLabel("Bearer token")).toHaveValue("");
     await expect(page.locator("body")).not.toContainText("browser-rotated-only-once");
-    await page.getByTestId("credential-list").getByRole("button", { name: "Revoke" }).first().click();
-    await expect(page.getByTestId("credential-list")).toContainText("REVOKED");
+    await page
+        .getByRole("heading", { name: "Credential versions" })
+        .locator("..")
+        .getByRole("button", { name: "Revoke" })
+        .first()
+        .click();
+    await expect(page.getByRole("heading", { name: "Credential versions" }).locator("..")).toContainText("REVOKED");
 });
 
 /**
@@ -276,20 +308,20 @@ test("identity manager retains scope across rerenders and late credential respon
     expect(betaResponse.status()).toBe(201);
     const betaId: string = (await betaResponse.json()).data.id;
     await page.goto("/environments");
-    const selector = page.getByTestId("resource-workspace");
+    const selector = page.getByLabel("Workspace");
     await selector.selectOption(alpha.workspaceId);
-    const manager = page.getByTestId("identity-manager");
+    const manager = page.getByRole("heading", { name: "Environment identities and credentials" }).locator("..");
     await expect(manager).toBeVisible();
     const secretRef = "identity_late";
     const secret = "identity-lifetime-private-value";
-    await page.getByTestId("credential-ref").fill(secretRef);
-    await page.getByTestId("credential-identities").fill("reader\nauditor");
-    await page.getByTestId("credential-token").fill(secret);
+    await page.getByLabel("Secret ref").fill(secretRef);
+    await page.getByLabel("Allowed identities").fill("reader\nauditor");
+    await page.getByLabel("Bearer token").fill(secret);
     await manager.getByRole("combobox", { name: "Type", exact: true }).selectOption("HTTP_SESSION");
     await expect(manager.getByRole("textbox", { name: "Login path" })).toBeVisible();
-    await expect(page.getByTestId("credential-ref")).toHaveValue(secretRef);
-    await expect(page.getByTestId("credential-identities")).toHaveValue("reader\nauditor");
-    await expect(page.getByTestId("credential-token")).toHaveValue(secret);
+    await expect(page.getByLabel("Secret ref")).toHaveValue(secretRef);
+    await expect(page.getByLabel("Allowed identities")).toHaveValue("reader\nauditor");
+    await expect(page.getByLabel("Bearer token")).toHaveValue(secret);
     await manager.getByRole("combobox", { name: "Type", exact: true }).selectOption("HTTP_BEARER");
     await expect(manager.getByRole("textbox", { name: "Login path" })).toHaveCount(0);
 
@@ -327,7 +359,7 @@ test("identity manager retains scope across rerenders and late credential respon
         const aborted = page.waitForEvent("requestfailed", {
             predicate: (request) => request.url() === credentialUrl && request.method() === "POST",
         });
-        await page.getByTestId("credential-create").click();
+        await page.getByRole("button", { name: "Save credential version" }).click();
         versionId = await backendCommitted;
         await selector.selectOption(betaId);
         expect((await aborted).failure()?.errorText).toContain("ERR_ABORTED");
@@ -340,21 +372,23 @@ test("identity manager retains scope across rerenders and late credential respon
         }
     }
     await expect(selector).toHaveValue(betaId);
-    await expect(page.getByTestId("credential-list")).not.toContainText(secretRef);
+    await expect(page.getByRole("heading", { name: "Credential versions" }).locator("..")).not.toContainText(secretRef);
     await expect(manager).not.toContainText(versionId);
     await expect(manager).not.toContainText("Credential saved:");
     await expect(manager).not.toContainText(secret);
-    await expect(page.getByTestId("credential-ref")).toHaveValue("");
-    await expect(page.getByTestId("credential-identities")).toHaveValue("");
-    await expect(page.getByTestId("credential-token")).toHaveValue("");
-    await expect(page.getByTestId("credential-create")).toBeEnabled();
+    await expect(page.getByLabel("Secret ref")).toHaveValue("");
+    await expect(page.getByLabel("Allowed identities")).toHaveValue("");
+    await expect(page.getByLabel("Bearer token")).toHaveValue("");
+    await expect(page.getByRole("button", { name: "Save credential version" })).toBeEnabled();
     await selector.selectOption(alpha.workspaceId);
-    await expect(page.getByTestId("credential-list")).toContainText(secretRef);
-    await expect(page.getByTestId("credential-list")).toContainText(versionId);
-    await expect(page.getByTestId("credential-list")).toContainText("reader, auditor");
-    await expect(page.getByTestId("credential-ref")).toHaveValue("");
-    await expect(page.getByTestId("credential-identities")).toHaveValue("");
-    await expect(page.getByTestId("credential-token")).toHaveValue("");
+    await expect(page.getByRole("heading", { name: "Credential versions" }).locator("..")).toContainText(secretRef);
+    await expect(page.getByRole("heading", { name: "Credential versions" }).locator("..")).toContainText(versionId);
+    await expect(page.getByRole("heading", { name: "Credential versions" }).locator("..")).toContainText(
+        "reader, auditor",
+    );
+    await expect(page.getByLabel("Secret ref")).toHaveValue("");
+    await expect(page.getByLabel("Allowed identities")).toHaveValue("");
+    await expect(page.getByLabel("Bearer token")).toHaveValue("");
     await expect(manager).not.toContainText("Credential saved:");
     await expect(manager).not.toContainText(secret);
 });
@@ -362,10 +396,10 @@ test("identity manager retains scope across rerenders and late credential respon
 test("all eight kinds expose usable typed controls and preserve literal business values", async ({ page }) => {
     test.setTimeout(120_000);
     await page.goto("/login");
-    await page.getByTestId("email").fill("browser-admin@example.com");
-    await page.getByTestId("password").fill("Browser password 123!");
-    await page.getByTestId("login-submit").click();
-    await expect(page.getByTestId("account-info")).toBeVisible();
+    await page.getByRole("textbox", { name: "Email" }).fill("browser-admin@example.com");
+    await page.getByLabel("Password").fill("Browser password 123!");
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect(page.locator("dl")).toBeVisible();
     const session = (await (await page.request.get("/api/v1/auth/session")).json()).data;
     const workspaceResponse = await page.request.post("/api/v1/workspaces", {
         headers: {
@@ -377,7 +411,7 @@ test("all eight kinds expose usable typed controls and preserve literal business
     expect(workspaceResponse.status()).toBe(201);
     const workspace = (await workspaceResponse.json()).data;
     await page.goto("/resources");
-    await page.getByTestId("resource-workspace").selectOption(workspace.id);
+    await page.getByLabel("Workspace").selectOption(workspace.id);
     const kinds = [
         "CASE",
         "ELEMENT_CATALOG",
@@ -389,60 +423,97 @@ test("all eight kinds expose usable typed controls and preserve literal business
         "ENVIRONMENT",
     ];
     for (const kind of kinds) {
-        await page.getByTestId("resource-kind").selectOption(kind);
-        await page.getByTestId("resource-key").fill("typed_" + kind.toLowerCase());
-        await page.getByTestId("resource-name").fill("Typed " + kind);
+        await closeResourceEditor(page);
+        await resourceCreateForm(page).getByRole("combobox", { name: "Kind", exact: true }).selectOption(kind);
+        await resourceCreateForm(page)
+            .getByLabel("Key", { exact: true })
+            .fill("typed_" + kind.toLowerCase());
+        await resourceCreateForm(page)
+            .getByLabel("Name", { exact: true })
+            .fill("Typed " + kind);
         const response = page.waitForResponse((r) => r.url().endsWith("/resources") && r.request().method() === "POST");
-        await page.getByTestId("resource-create").click();
+        await page.getByRole("button", { name: "Create resource" }).click();
         const created = await response;
         expect(created.status(), await created.text()).toBe(201);
         await expect(
-            page.getByTestId("resource-editor").getByRole("heading", { name: "Typed " + kind + " · " + kind }),
+            page.getByRole("article").getByRole("heading", { name: "Typed " + kind + " · " + kind }),
         ).toBeVisible();
         if (kind === "CASE" || kind === "FLOW") {
-            await page.getByTestId("content.document.steps.0.action").selectOption("fill");
-            await page.getByTestId("content.document.steps.0.value").fill("{{data.name}}");
-            await page.getByTestId("content.document.steps.0.observers.add").click();
-            const observer = "content.document.steps.0.observers.0";
-            await page.getByTestId(observer + ".kind").selectOption("dialog");
-            await page.getByTestId(observer + ".dialogType").selectOption("prompt");
-            await page.getByTestId(observer + ".handling").selectOption("accept");
-            await page.getByTestId(observer + ".promptText").fill("{{vars.answer}}");
-            await page.getByTestId(observer + ".kind").selectOption("newPage");
-            await page.getByTestId(observer + ".pageKey").fill("detail");
-            await page.getByTestId("content.document.steps.0.afterAssertions.add").click();
-            const assertionPage = page.getByTestId("content.document.steps.0.afterAssertions.0.pageKey");
+            await page.getByRole("combobox", { name: "Action", exact: true }).selectOption("fill");
+            await page.getByLabel("Value (bindings allowed)", { exact: true }).fill("{{data.name}}");
+            await page.getByRole("button", { name: "Add Observers" }).click();
+            await page.getByLabel("Observer kind").selectOption("dialog");
+            await page.getByLabel("Dialog type").selectOption("prompt");
+            await page.getByLabel("Handling").selectOption("accept");
+            await page.getByLabel("Prompt text").fill("{{vars.answer}}");
+            await page.getByLabel("Observer kind").selectOption("newPage");
+            await page.getByLabel("Captured page key").fill("detail");
+            await page.getByRole("button", { name: "Add After assertions" }).click();
+            const assertionPage = page
+                .getByRole("heading", { name: "After assertions" })
+                .locator("..")
+                .getByLabel("Page (omit for original page)");
             if (kind === "FLOW") await assertionPage.fill("detail");
             else await assertionPage.selectOption("detail");
             await expect(assertionPage).toHaveValue("detail");
-            await page.getByTestId("content.document.steps.0.afterAssertions.0.type").selectOption("eventually");
-            await page.getByTestId("content.document.steps.0.afterAssertions.0.query.path").fill("/status");
-            await page.getByTestId("content.document.steps.0.afterAssertions.0.pointer").fill("/ok");
-            await page.getByTestId(observer + ".kind").selectOption("download");
+            await page
+                .getByRole("heading", { name: "After assertions" })
+                .locator("..")
+                .getByLabel("Assertion type")
+                .selectOption("eventually");
+            await page
+                .getByRole("heading", { name: "After assertions" })
+                .locator("..")
+                .getByLabel("Read-only query path")
+                .fill("/status");
+            await page
+                .getByRole("heading", { name: "After assertions" })
+                .locator("..")
+                .getByLabel("JSON Pointer (RFC6901)")
+                .fill("/ok");
+            await page.getByLabel("Observer kind").selectOption("download");
             // 事件观察器不能提供网络响应的正文或请求头，所以提取来源列表必须排除该类观察器；这里使用真实编辑控件核对来
             // 源选项，防止不可执行的引用被保存进用例。
-            await page.getByTestId("content.document.steps.0.extract.add").click();
-            await expect(page.getByTestId("content.document.steps.0.extract.0.source").locator("option")).toHaveCount(
-                0,
-            );
-            await page.getByTestId("content.document.steps.0.extract.0.remove").click();
-            await page.getByTestId("content.document.steps.add").click();
-            await page.getByTestId("content.document.steps.1.id").fill("last");
-            await page.getByTestId("content.document.steps.1.remove").click();
+            await page.getByRole("button", { name: "Add Extractions" }).click();
+            await expect(
+                page
+                    .getByRole("heading", { name: "Extractions" })
+                    .locator("..")
+                    .getByLabel("Network source")
+                    .locator("option"),
+            ).toHaveCount(0);
+            await page
+                .getByRole("heading", { name: "Extractions" })
+                .locator("..")
+                .getByRole("button", { name: "Move row 1 up" })
+                .locator("..")
+                .getByRole("button", { name: "Remove" })
+                .click();
+            await page.getByRole("button", { name: "Add Steps" }).click();
+            const steps = page.getByRole("heading", { name: "Steps", exact: true }).locator("..");
+            const lastStep = steps.locator(".vq-item").filter({
+                has: page.getByRole("button", { name: "Move row 2 up", exact: true }),
+            });
+            await lastStep.getByLabel("Step ID", { exact: true }).fill("last");
+            await lastStep.getByRole("button", { name: "Remove", exact: true }).click();
         }
         if (kind === "ELEMENT_CATALOG") {
-            await page.getByTestId("content.document.elements.0.locator.by").selectOption("role");
-            await page.getByTestId("content.document.elements.0.locator.role").fill("button");
-            await page.getByTestId("content.document.elements.0.locator.name").fill("保存");
-            await page.getByTestId("content.document.elements.0.locator.exact").check();
+            await page.getByLabel("Locator").selectOption("role");
+            await page.getByLabel("ARIA role").fill("button");
+            await page.getByLabel("Accessible name").fill("保存");
+            await page.getByLabel("Exact").check();
         }
         if (kind === "ASSERTION_TEMPLATE") {
-            await page.getByTestId("content.document.parameters.key").fill("expectedName");
-            await page.getByTestId("content.document.parameters.add").click();
-            await page.getByTestId("content.document.assertions.0.operator").selectOption("textEquals");
-            await page.getByTestId("content.document.assertions.0.expected").fill("{{data.expectedName}}");
-            await page.getByTestId("content.document.assertions.0.type").selectOption("responseField");
-            await page.getByTestId("content.document.assertions.0.source").fill("response:save");
+            await page
+                .getByRole("heading", { name: "Template parameter types" })
+                .locator("..")
+                .getByLabel("Name")
+                .fill("expectedName");
+            await page.getByRole("button", { name: "Add Template parameter types" }).click();
+            await page.getByRole("combobox", { name: "Operator", exact: true }).selectOption("textEquals");
+            await page.getByLabel("Expected", { exact: true }).fill("{{data.expectedName}}");
+            await page.getByRole("combobox", { name: "Assertion type", exact: true }).selectOption("responseField");
+            await page.getByLabel("Network source").fill("response:save");
             const expectedType = page.getByRole("combobox", {
                 name: "Expected value 类型 / Type",
                 exact: true,
@@ -452,30 +523,42 @@ test("all eight kinds expose usable typed controls and preserve literal business
         }
         if (kind === "DATASET") {
             await page.getByLabel("name", { exact: true }).fill("{{literal.notEvaluated()}}");
-            await page.getByTestId("content.document.rows.add").click();
-            await page.getByTestId("content.document.rows.1.key").fill("second");
+            await page.getByRole("button", { name: "Add Dataset rows" }).click();
+            await page
+                .getByRole("heading", { name: "Dataset rows", exact: true })
+                .locator("..")
+                .locator(".vq-item")
+                .filter({
+                    has: page.getByRole("button", { name: "Move row 2 up", exact: true }),
+                })
+                .getByLabel("Row key", { exact: true })
+                .fill("second");
             await page.getByRole("button", { name: "Set name", exact: true }).click();
         }
         if (kind === "FIXTURE") {
-            await page.getByTestId("content.document.cleanup.method").selectOption("DELETE");
-            await page.getByTestId("content.document.ttlSeconds").fill("600");
-            await page.getByRole("button", { name: "Add schema property" }).first().click();
+            await page.getByLabel("Cleanup method").selectOption("DELETE");
+            await page.getByLabel("TTL seconds").fill("600");
+            await page
+                .getByRole("heading", { name: "Input schema", exact: true })
+                .locator("..")
+                .getByRole("button", { name: "Add schema property", exact: true })
+                .click();
         }
         if (kind === "SUITE") {
             await page.getByLabel("firefox", { exact: true }).check();
-            await page.getByTestId("content.document.cases.0.roleKeys.add").click();
+            await page.getByRole("button", { name: "Add Roles" }).click();
             await page.getByRole("textbox", { name: "Roles 1", exact: true }).fill("reader");
         }
         if (kind === "ENVIRONMENT") {
-            await page.getByTestId("content.document.baseURL").fill("https://example.com");
-            await page.getByTestId("content.document.allowedOrigins.add").click();
+            await page.getByLabel("Frontend URL").fill("https://example.com");
+            await page.getByRole("button", { name: "Add Allowed origins" }).click();
             await page
                 .getByRole("textbox", {
                     name: "Allowed origins 2",
                     exact: true,
                 })
                 .fill("https://example.com");
-            await page.getByTestId("content.document.roles.0.allowedIdentityIds.add").click();
+            await page.getByRole("button", { name: "Add Allowed identity IDs" }).click();
             await page
                 .getByRole("textbox", {
                     name: "Allowed identity IDs 1",
@@ -483,9 +566,9 @@ test("all eight kinds expose usable typed controls and preserve literal business
                 })
                 .fill("reader");
         }
-        expect(await page.getByTestId("case.validation-errors").count()).toBe(0);
+        expect(await page.locator('ul[role="alert"]').count()).toBe(0);
         const saved = page.waitForResponse((r) => r.url().endsWith("/draft") && r.request().method() === "PUT");
-        await page.getByTestId("resource-save").click();
+        await page.getByRole("button", { name: "Save draft" }).click();
         const result = await saved;
         expect(result.status(), await result.text()).toBe(200);
         const document = (await result.json()).data.content.document;
@@ -501,19 +584,19 @@ test("all eight kinds expose usable typed controls and preserve literal business
             expect(document.steps[0].observers[0]).toMatchObject({
                 kind: "download",
             });
-        await page.getByTestId("resource-json-tab").click();
-        await expect(page.getByTestId("resource-json")).toBeVisible();
-        await page.getByTestId("resource-form-tab").click();
+        await page.getByRole("button", { name: "JSON source" }).click();
+        await expect(page.getByRole("dialog").getByRole("textbox", { name: "JSON source", exact: true })).toBeVisible();
+        await page.getByRole("button", { name: "Visual form" }).click();
     }
 });
 
 test("JSON Apply is lossless, blocks unapplied writes, and revision recovery retains local edits", async ({ page }) => {
     test.setTimeout(60_000);
     await page.goto("/login");
-    await page.getByTestId("email").fill("browser-admin@example.com");
-    await page.getByTestId("password").fill("Browser password 123!");
-    await page.getByTestId("login-submit").click();
-    await expect(page.getByTestId("account-info")).toBeVisible();
+    await page.getByRole("textbox", { name: "Email" }).fill("browser-admin@example.com");
+    await page.getByLabel("Password").fill("Browser password 123!");
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect(page.locator("dl")).toBeVisible();
     const scopeSession = (await (await page.request.get("/api/v1/auth/session")).json()).data;
     const ownWorkspaceResponse = await page.request.post("/api/v1/workspaces", {
         headers: {
@@ -525,14 +608,14 @@ test("JSON Apply is lossless, blocks unapplied writes, and revision recovery ret
     expect(ownWorkspaceResponse.status()).toBe(201);
     const ownWorkspace = (await ownWorkspaceResponse.json()).data;
     await page.goto("/resources");
-    await page.getByTestId("resource-workspace").selectOption(ownWorkspace.id);
-    await page.getByTestId("resource-kind").selectOption("ELEMENT_CATALOG");
-    await page.getByTestId("resource-key").fill("conflict_catalog");
-    await page.getByTestId("resource-name").fill("Conflict catalog");
+    await page.getByLabel("Workspace").selectOption(ownWorkspace.id);
+    await resourceCreateForm(page).getByRole("combobox", { name: "Kind", exact: true }).selectOption("ELEMENT_CATALOG");
+    await resourceCreateForm(page).getByLabel("Key", { exact: true }).fill("conflict_catalog");
+    await resourceCreateForm(page).getByLabel("Name", { exact: true }).fill("Conflict catalog");
     const creation = page.waitForResponse((r) => r.url().endsWith("/resources") && r.request().method() === "POST");
-    await page.getByTestId("resource-create").click();
+    await page.getByRole("button", { name: "Create resource" }).click();
     const resource = (await (await creation).json()).data;
-    await expect(page.getByTestId("content.document.elements.0.key")).toBeVisible();
+    await expect(page.getByLabel("Element key")).toBeVisible();
     const source = {
         kind: "ELEMENT_CATALOG",
         document: {
@@ -549,31 +632,31 @@ test("JSON Apply is lossless, blocks unapplied writes, and revision recovery ret
                     scope: "scope",
                     recordKey: "{{vars.record}}",
                 },
-                { key: "scope", locator: { by: "testId", value: "scope" } },
+                { key: "scope", locator: { by: "veriqId", value: "scope" } },
             ],
         },
     };
-    await page.getByTestId("resource-json-tab").click();
+    await page.getByRole("button", { name: "JSON source" }).click();
     const replaceJson = async (text: string) => {
         await replaceEditorJson(page, text);
     };
     await replaceJson(JSON.stringify(source, null, 2));
-    await expect(page.getByTestId("resource-json-pending")).toBeVisible();
+    await expect(page.getByText("Unapplied JSON changes")).toBeVisible();
     let writes = 0;
     const record = (request: import("@playwright/test").Request) => {
         if (request.method() === "PUT" && request.url().endsWith("/draft")) writes++;
     };
     page.on("request", record);
-    await page.getByTestId("resource-save").click();
-    await expect(page.getByTestId("resource-error")).toContainText("尚未应用");
+    await page.getByRole("button", { name: "Save draft" }).click();
+    await expect(page.locator('div[role="alert"]')).toContainText("尚未应用");
     expect(writes).toBe(0);
-    await page.getByTestId("resource-json-apply").click();
-    await expect(page.getByTestId("resource-json-pending")).toHaveCount(0);
-    await page.getByTestId("resource-form-tab").click();
-    await expect(page.getByTestId("content.document.elements.0.locator.name")).toHaveValue("{{data.label}}");
-    await expect(page.getByTestId("content.document.elements.0.locator.exact")).not.toBeChecked();
+    await page.getByRole("button", { name: "Apply JSON" }).click();
+    await expect(page.getByText("Unapplied JSON changes")).toHaveCount(0);
+    await page.getByRole("button", { name: "Visual form" }).click();
+    await expect(page.getByLabel("Accessible name")).toHaveValue("{{data.label}}");
+    await expect(page.getByLabel("Exact")).not.toBeChecked();
     const saving = page.waitForResponse((r) => r.request().method() === "PUT" && r.url().endsWith("/draft"));
-    await page.getByTestId("resource-save").click();
+    await page.getByRole("button", { name: "Save draft" }).click();
     const draft = (await (await saving).json()).data;
     expect(draft.content).toEqual(source);
     const session = (await (await page.request.get("/api/v1/auth/session")).json()).data;
@@ -595,13 +678,19 @@ test("JSON Apply is lossless, blocks unapplied writes, and revision recovery ret
         },
     });
     expect(changed.status()).toBe(200);
-    await page.getByTestId("content.document.elements.0.recordKey").fill("local");
-    await page.getByTestId("resource-save").click();
-    await expect(page.getByTestId("resource-conflict")).toBeVisible();
-    await expect(page.getByTestId("content.document.elements.0.recordKey")).toHaveValue("local");
-    await page.getByTestId("resource-rebase").click();
-    await page.getByTestId("resource-save").click();
-    await expect(page.getByTestId("resource-status")).toContainText("Saved");
+    const saveElement = page.locator(".vq-item").filter({
+        has: page
+            .getByRole("textbox", { name: "Element key", exact: true })
+            .and(page.locator('input[value="literal"]')),
+    });
+    await expect(saveElement).toHaveCount(1);
+    await saveElement.getByLabel("Record key", { exact: true }).fill("local");
+    await page.getByRole("button", { name: "Save draft" }).click();
+    await expect(page.getByRole("heading", { name: "The remote draft changed" }).locator("..")).toBeVisible();
+    await expect(saveElement.getByLabel("Record key", { exact: true })).toHaveValue("local");
+    await page.getByRole("button", { name: "Keep local content with remote revision" }).click();
+    await page.getByRole("button", { name: "Save draft" }).click();
+    await expect(page.getByText("Saved")).toContainText("Saved");
     const retained = (await (await page.request.get(base + "/draft")).json()).data;
     expect(retained.content.document.elements[0].recordKey).toBe("local");
     expect(retained.revision).toBe(draft.revision + 2);
@@ -616,27 +705,28 @@ test("JSON Apply is lossless, blocks unapplied writes, and revision recovery ret
     expect(second.status()).toBe(201);
     await page.goto("/resources");
     const secondWorkspace = (await second.json()).data;
-    await expect(page.getByTestId("resource-workspace").locator(`option[value="${secondWorkspace.id}"]`)).toHaveText(
+    await expect(page.getByLabel("Workspace").locator(`option[value="${secondWorkspace.id}"]`)).toHaveText(
         "Editor isolation",
     );
-    await page.getByTestId("resource-workspace").selectOption(ownWorkspace.id);
-    await page.getByTestId("resource-open-conflict_catalog").click();
-    await page.getByTestId("resource-json-tab").click();
+    await page.getByLabel("Workspace").selectOption(ownWorkspace.id);
+    await page.getByRole("button", { name: "conflict_catalog" }).click();
+    await page.getByRole("button", { name: "JSON source" }).click();
     await replaceJson("{ invalid");
-    await page.getByTestId("resource-json-apply").click();
-    await expect(page.getByTestId("resource-error")).toBeVisible();
-    await page.getByTestId("resource-workspace").selectOption(secondWorkspace.id);
-    await expect(page.getByTestId("resource-editor")).toHaveCount(0);
-    await expect(page.getByTestId("resource-json-pending")).toHaveCount(0);
-    await expect(page.getByTestId("resource-empty")).toBeVisible();
+    await page.getByRole("button", { name: "Apply JSON" }).click();
+    await expect(page.locator('div[role="alert"]')).toBeVisible();
+    await closeResourceEditor(page);
+    await page.getByLabel("Workspace").selectOption(secondWorkspace.id);
+    await expect(page.getByRole("article")).toHaveCount(0);
+    await expect(page.getByText("Unapplied JSON changes")).toHaveCount(0);
+    await expect(page.getByText("No resources in this Workspace.")).toBeVisible();
 });
 
 test("fixture binding picker exposes declared initial variables without future outputs", async ({ page }) => {
     await page.goto("/login");
-    await page.getByTestId("email").fill("browser-admin@example.com");
-    await page.getByTestId("password").fill("Browser password 123!");
-    await page.getByTestId("login-submit").click();
-    await expect(page.getByTestId("account-info")).toBeVisible();
+    await page.getByRole("textbox", { name: "Email" }).fill("browser-admin@example.com");
+    await page.getByLabel("Password").fill("Browser password 123!");
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect(page.locator("dl")).toBeVisible();
     const session = (await (await page.request.get("/api/v1/auth/session")).json()).data;
     const response = await page.request.post("/api/v1/workspaces", {
         headers: {
@@ -648,20 +738,30 @@ test("fixture binding picker exposes declared initial variables without future o
     expect(response.status()).toBe(201);
     const workspace = (await response.json()).data;
     await page.goto("/resources");
-    await page.getByTestId("resource-workspace").selectOption(workspace.id);
-    await page.getByTestId("resource-kind").selectOption("CASE");
-    await page.getByTestId("resource-key").fill("bindings");
-    await page.getByTestId("resource-name").fill("Binding source");
-    await page.getByTestId("resource-create").click();
-    await page.getByTestId("content.document.initialVariables.key").fill("initialAnswer");
-    await page.getByTestId("content.document.initialVariables.add").click();
+    await page.getByLabel("Workspace").selectOption(workspace.id);
+    await resourceCreateForm(page).getByRole("combobox", { name: "Kind", exact: true }).selectOption("CASE");
+    await resourceCreateForm(page).getByLabel("Key", { exact: true }).fill("bindings");
+    await resourceCreateForm(page).getByLabel("Name", { exact: true }).fill("Binding source");
+    await page.getByRole("button", { name: "Create resource" }).click();
+    await page
+        .getByRole("heading", { name: "Initial variable declarations" })
+        .locator("..")
+        .getByLabel("Name")
+        .fill("initialAnswer");
+    await page.getByRole("button", { name: "Add Initial variable declarations" }).click();
     await page
         .getByRole("textbox", {
             name: "Fixture input bindings 字段名 / Field name",
             exact: true,
         })
         .fill("answer");
-    await page.getByTestId("resource-editor").getByRole("button", { name: "Add field", exact: true }).first().click();
+    await page
+        .locator(".vq-value")
+        .filter({
+            has: page.getByRole("textbox", { name: "Fixture input bindings 字段名 / Field name", exact: true }),
+        })
+        .getByRole("button", { name: "Add field", exact: true })
+        .click();
     const picker = page.getByRole("combobox", {
         name: "Fixture input bindings.answer 插入绑定 / Insert binding",
         exact: true,
@@ -751,14 +851,17 @@ test("T11-R2 BEFORE and AFTER observer choices match actual compiler phases", as
         await saveDraft(page);
         const catalog = await compiler.publish();
         await createResource(page, "CASE", "phase-case");
-        await page.getByTestId("content.document.catalogVersionId").selectOption(catalog.id);
-        await page.getByTestId("content.document.steps.0.action").selectOption("apiRequest");
-        await page.getByTestId("content.document.steps.0.path").fill("/status");
-        await page.getByTestId("content.document.steps.0.observers.add").click();
-        await page.getByTestId("content.document.steps.0.observers.0.id").fill("save");
-        await page.getByTestId("content.document.steps.0.observers.0.path").fill("/status");
-        await page.getByTestId("content.document.steps.0.beforeAssertions.add").click();
-        const before = page.getByTestId("content.document.steps.0.beforeAssertions.0.type");
+        await page.getByLabel("Catalog version").selectOption(catalog.id);
+        await page.getByRole("combobox", { name: "Action", exact: true }).selectOption("apiRequest");
+        await page.getByLabel("Origin-relative path", { exact: true }).fill("/status");
+        await page.getByRole("button", { name: "Add Observers" }).click();
+        await page.getByLabel("Observer ID").fill("save");
+        await page.getByLabel("Exact path").fill("/status");
+        await page.getByRole("button", { name: "Add Before assertions" }).click();
+        const before = page
+            .getByRole("heading", { name: "Before assertions" })
+            .locator("..")
+            .getByLabel("Assertion type");
         const types = await before
             .locator("option")
             .evaluateAll((options) => options.map((option) => (option as HTMLOptionElement).value));
@@ -766,12 +869,24 @@ test("T11-R2 BEFORE and AFTER observer choices match actual compiler phases", as
         expect(types).not.toContain("responseField");
         expect(types).not.toContain("requestCount");
         await before.selectOption("url");
-        await page.getByTestId("content.document.steps.0.afterAssertions.add").click();
-        await page.getByTestId("content.document.steps.0.afterAssertions.0.type").selectOption("httpStatus");
+        await page.getByRole("button", { name: "Add After assertions" }).click();
+        await page
+            .getByRole("heading", { name: "After assertions" })
+            .locator("..")
+            .getByLabel("Assertion type")
+            .selectOption("httpStatus");
         await expect(
-            page.getByTestId("content.document.steps.0.afterAssertions.0.source").locator("option"),
+            page
+                .getByRole("heading", { name: "After assertions" })
+                .locator("..")
+                .getByLabel("Network source")
+                .locator("option"),
         ).toHaveText(["response:save"]);
-        await page.getByTestId("content.document.steps.0.afterAssertions.0.source").selectOption("response:save");
+        await page
+            .getByRole("heading", { name: "After assertions" })
+            .locator("..")
+            .getByLabel("Network source")
+            .selectOption("response:save");
         await saveDraft(page);
         const version = await compiler.publish();
         expect(version.content.kind).toBe("CASE");
@@ -789,8 +904,8 @@ test("T11-R3 reusable flow/template page keys round-trip and resolve only in cal
         await saveDraft(page);
         const catalog = await compiler.publish();
         await createResource(page, "FLOW", "caller-flow");
-        await page.getByTestId("content.document.steps.0.action").selectOption("click");
-        await page.getByTestId("content.document.steps.0.pageKey").fill("detail");
+        await page.getByRole("combobox", { name: "Action", exact: true }).selectOption("click");
+        await page.getByLabel("Action page").fill("detail");
         const flowSource: ResourceDocumentV1 = {
             kind: "FLOW",
             document: {
@@ -814,12 +929,19 @@ test("T11-R3 reusable flow/template page keys round-trip and resolve only in cal
             },
         };
         await applyDocument(page, flowSource);
-        await expect(page.getByTestId("content.document.steps.0.pageKey")).toHaveValue("detail");
+        await expect(
+            page
+                .locator(".vq-item")
+                .filter({
+                    has: page.getByLabel("Step ID", { exact: true }).and(page.locator('input[value="caller"]')),
+                })
+                .getByLabel("Action page"),
+        ).toHaveValue("detail");
         const flowDraft = await saveDraft(page);
         expect(flowDraft.content).toEqual(flowSource);
         const flow = await compiler.publish();
         await createResource(page, "ASSERTION_TEMPLATE", "caller-template");
-        await page.getByTestId("content.document.assertions.0.pageKey").fill("detail");
+        await page.getByLabel("Page (omit for original page)").fill("detail");
         const templateSource: ResourceDocumentV1 = {
             kind: "ASSERTION_TEMPLATE",
             document: {
@@ -839,7 +961,7 @@ test("T11-R3 reusable flow/template page keys round-trip and resolve only in cal
             },
         };
         await applyDocument(page, templateSource);
-        await expect(page.getByTestId("content.document.assertions.0.pageKey")).toHaveValue("detail");
+        await expect(page.getByLabel("Page (omit for original page)")).toHaveValue("detail");
         expect((await saveDraft(page)).content).toEqual(templateSource);
         const template = await compiler.publish();
         await createResource(page, "CASE", "caller-case");
@@ -883,7 +1005,12 @@ test("T11-R3 reusable flow/template page keys round-trip and resolve only in cal
             },
         };
         await applyDocument(page, callerSource);
-        const callerPages = page.getByTestId("content.document.steps.2.pageKey");
+        const callerPages = page
+            .locator(".vq-item")
+            .filter({
+                has: page.getByLabel("Step ID", { exact: true }).and(page.locator('input[value="after-flow"]')),
+            })
+            .getByLabel("Action page");
         await expect(callerPages).toHaveValue("detail");
         expect(
             await callerPages
@@ -911,10 +1038,8 @@ test("T11-R3 reusable flow/template page keys round-trip and resolve only in cal
             },
         };
         await applyDocument(page, invalid);
-        await expect(page.getByTestId("content.document.steps.2.pageKey")).toHaveValue("inside");
-        await expect(page.getByTestId("content.document.steps.2.pageKey").locator("option:checked")).toContainText(
-            "inside",
-        );
+        await expect(callerPages).toHaveValue("inside");
+        await expect(callerPages.locator("option:checked")).toContainText("inside");
         await saveDraft(page);
         const failed = await queueValidation(page);
         await compiler.compile();
@@ -930,7 +1055,7 @@ test("T11-R3 reusable flow/template page keys round-trip and resolve only in cal
                 await page.request.get(`/api/v1/workspaces/${scope.workspaceId}/jobs/${failed.id}/validation-receipt`)
             ).status(),
         ).toBe(409);
-        await expect(page.getByTestId("case.publish")).toBeDisabled();
+        await expect(page.getByRole("button", { name: "Publish version" })).toBeDisabled();
     } finally {
         await compiler.close();
     }
@@ -965,7 +1090,7 @@ test("T11-R4 delayed real J1 receipt cannot validate a saved candidate or queued
         heldJob = j1.id;
         await compiler.compile();
         await holding;
-        await page.getByTestId("content.document.elements.0.locator.value").fill("next-revision");
+        await page.getByLabel("veriqId").fill("next-revision");
         const next = await saveDraft(page);
         expect(next.revision).toBe(firstDraft.revision + 1);
         const j2 = await queueValidation(page);
@@ -975,11 +1100,11 @@ test("T11-R4 delayed real J1 receipt cannot validate a saved candidate or queued
         // 等待下一次真实 J2 状态轮询返回后再核对界面，使旧请求的回调已经获得完整的浏览器与渲染调度机会，避免仅凭切换后
         // 立即出现的新内容误判迟到响应已被隔离。
         await page.waitForResponse((response) => response.url().endsWith(`/jobs/${j2.id}`));
-        await expect(page.getByTestId("case.validation-receipt")).toHaveCount(0);
-        await expect(page.getByTestId("case.publish")).toBeDisabled();
+        await expect(page.getByText(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12} · /)).toHaveCount(0);
+        await expect(page.getByRole("button", { name: "Publish version" })).toBeDisabled();
         await page.unroute(receiptPath);
         await compiler.compile();
-        await expect(page.getByTestId("case.validation-receipt")).toBeVisible({
+        await expect(page.getByText(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12} · /)).toBeVisible({
             timeout: 20_000,
         });
         const receipt = (
@@ -988,18 +1113,20 @@ test("T11-R4 delayed real J1 receipt cannot validate a saved candidate or queued
             ).json()
         ).data;
         expect(receipt.revision).toBe(next.revision);
-        await expect(page.getByTestId("case.validation-receipt")).toContainText(receipt.id);
-        await expect(page.getByTestId("case.publish")).toBeEnabled();
+        await expect(page.getByText(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12} · /)).toContainText(
+            receipt.id,
+        );
+        await expect(page.getByRole("button", { name: "Publish version" })).toBeEnabled();
         if (next.content.kind !== "ELEMENT_CATALOG") throw new Error("Expected catalog");
         await applyDocument(page, {
             ...next.content,
             document: {
                 ...next.content.document,
-                elements: [{ key: "name", locator: { by: "testId", value: "applied-only" } }],
+                elements: [{ key: "name", locator: { by: "veriqId", value: "applied-only" } }],
             },
         });
-        await expect(page.getByTestId("case.validation-receipt")).toHaveCount(0);
-        await expect(page.getByTestId("case.publish")).toBeDisabled();
+        await expect(page.getByText(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12} · /)).toHaveCount(0);
+        await expect(page.getByRole("button", { name: "Publish version" })).toBeDisabled();
     } finally {
         release?.();
         await page.unroute(receiptPath);
@@ -1099,9 +1226,9 @@ test("primitive rows preserve focused survivors and persist only business values
     const remaining = group.getByRole("textbox", { name: "Allowed origins 2", exact: true });
     expect(await remaining.evaluate((node, retained) => node === retained, stringSurvivor)).toBe(true);
     expect(await stringSurvivor.evaluate((node) => node === document.activeElement)).toBe(true);
-    await group.getByTestId("content.document.allowedOrigins.add").click();
+    await group.getByRole("button", { name: "Add Allowed origins" }).click();
     await group.getByRole("button", { name: "Remove", exact: true }).last().click();
-    await group.getByTestId("content.document.allowedOrigins.add").click();
+    await group.getByRole("button", { name: "Add Allowed origins" }).click();
     await group.getByRole("textbox", { name: "Allowed origins 3", exact: true }).fill("http://three.example");
     expect((await saveDraft(page)).content).toEqual({
         ...environment,
@@ -1113,17 +1240,13 @@ test("primitive rows preserve focused survivors and persist only business values
     await createResource(page, "CASE", `field-labels-${randomUUID()}`);
     // 关联检查跨越文本、枚举、数字、复选框及版本下拉分支，并保留原有测试标识与 RHF 输入；只检查真实
     // input.labels/htmlFor/id，不把可见文字或 aria-label 当作标签关联的替代品。
-    for (const name of [
-        "content.document.title",
-        "content.document.kind",
-        "content.document.steps.0.timeoutMs",
-        "content.document.steps.0.critical",
-        "content.document.catalogVersionId",
-    ]) {
+    for (const label of ["Title", "Case kind", "Timeout", "Critical", "Catalog version"]) {
         expect(
-            await page.getByTestId(name).evaluate((element) => {
+            await page.getByLabel(label).evaluate((element) => {
                 const control = element as HTMLInputElement | HTMLSelectElement;
-                return !!control.id && [...(control.labels ?? [])].some((label) => label.htmlFor === control.id);
+                return (
+                    !!control.id && [...(control.labels ?? [])].some((fieldLabel) => fieldLabel.htmlFor === control.id)
+                );
             }),
         ).toBe(true);
     }

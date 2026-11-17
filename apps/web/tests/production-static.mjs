@@ -22,14 +22,14 @@ try {
     const context = await browser.newContext({ ignoreHTTPSErrors: true });
     const page = await context.newPage();
     // 直接访问登记登录路径验证服务器深链接入口，之后等待实际前端与会话探测完成再填写表单；不向页面注入假用户、模拟路由
-    // 或拦截 API 响应。表单动作使用现有稳定 testId。自动等待来自 Playwright 的可见性断言，
+    // 或拦截 API 响应。表单动作使用现有稳定的可访问名定位。自动等待来自 Playwright 的可见性断言，
     // 不添加固定延时。
     await page.goto(`${origin}/login`);
     await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
-    await page.getByTestId("email").fill("admin@example.com");
-    await page.getByTestId("password").fill("Long password 123!");
-    await page.getByTestId("login-submit").click();
-    await expect(page.getByTestId("account-info")).toBeVisible();
+    await page.getByRole("textbox", { name: "Email" }).fill("admin@example.com");
+    await page.getByLabel("Password").fill("Long password 123!");
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect(page.locator("dl")).toBeVisible();
     // 登录成功后核对浏览器实际保存的会话 Cookie，Secure、HttpOnly 和 Strict 必须同时保留；仅从 HTTP 响应字符串读取标志
     // 不足以证明真实页面能够使用该会话。
     // 不输出 Cookie 值或完整 Cookie 对象。

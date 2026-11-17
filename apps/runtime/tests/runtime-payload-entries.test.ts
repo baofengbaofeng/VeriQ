@@ -70,6 +70,7 @@ async function fixture(
     }) => Promise<void>,
     entry = "",
     emitAsset = false,
+    extraSources: Record<string, string> = {},
 ) {
     const root = await mkdtemp(join(tmpdir(), "veriq-entry-"));
     await chmod(root, 0o700);
@@ -97,6 +98,7 @@ async function fixture(
         "packages/contracts/src/transitive.ts",
         "packages/contracts/schemas/test.json",
         ...names.map((name) => `apps/runtime/src/execution/${name}`),
+        ...Object.keys(extraSources),
     ];
     await put(producer, await readFile(join(repository, producer)));
     const configBytes = await readFile(join(repository, config), "utf8");
@@ -150,6 +152,7 @@ async function fixture(
             `apps/runtime/src/execution/${name}`,
             await readFile(join(repository, "apps/runtime/src/execution", name)),
         );
+    for (const [path, bytes] of Object.entries(extraSources)) await put(path, bytes);
     await mkdir(join(sourceRoot, "node_modules/@veriq"), { recursive: true });
     await symlink("../../packages/contracts", join(sourceRoot, "node_modules/@veriq/contracts"));
     await mkdir(join(sourceRoot, "apps/desktop/node_modules"), { recursive: true });
@@ -215,6 +218,74 @@ async function privateVite(root: string, sourceRoot: string, mode: number) {
     const fixed = await realpath(owned);
     return paths.map((path) => join(fixed, path));
 }
+
+/**
+ * 真实局部懒加载触发 Vite 预加载改写，编译器声明摘要必须与命令关闭后的独立磁盘读取一致，随后仍由原严格生产器复制核验。
+ * 变量导入同时保留运行时动态边；测试只构建并检查产物，不执行入口或借用宿主目标平台资格。
+ */
+test("real host Vite observes final local dynamic import bytes before strict intake", async () =>
+    fixture(
+        async ({ work, options }) => {
+            const original = options.hostBuild.run;
+            let declared: { sources: string[]; outputs: (Ref & { kind: string })[] } | undefined;
+            const modified = {
+                ...options,
+                hostBuild: {
+                    ...options.hostBuild,
+                    run: async (invocation: Parameters<typeof original>[0]) => {
+                        const result = await original(invocation);
+                        assert.equal(result.admitted, true);
+                        assert.equal(result.closeConfirmed, true);
+                        assert.equal(result.exit, 0);
+                        declared = JSON.parse(
+                            await readFile(join(options.buildRoot, ".veriq-entry-trace.json"), "utf8"),
+                        );
+                        assert(declared);
+                        assert(declared.sources.includes("apps/desktop/src/agent/lazy.ts"));
+                        assert(declared.outputs.some((output) => output.kind === "chunk" && /lazy-/.test(output.path)));
+                        for (const output of declared.outputs) {
+                            const bytes = await readFile(join(options.buildRoot, output.path));
+                            assert.equal(bytes.includes(Buffer.from("__VITE_PRELOAD__")), false);
+                            assert.deepEqual(
+                                { sizeBytes: output.sizeBytes, sha256: output.sha256 },
+                                { sizeBytes: bytes.length, sha256: sha(bytes) },
+                                output.path,
+                            );
+                        }
+                        return result;
+                    },
+                },
+            };
+            let consumed = false;
+            await withEntryInputViews(work, modified, async (inputRoot, trees) => {
+                assert(declared);
+                const reader = new InputReader(inputRoot, undefined, ["entries", "execution"]);
+                await reader.initialize();
+                const receipt = await document<EntriesReceipt>(reader, trees.entries.buildReceipt, schemas.entries),
+                    inventory = await document<TreeInventory>(reader, trees.entries.inventory, schemas.inventory);
+                await reader.tree(trees.entries, inventory, "entries");
+                for (const output of declared.outputs) {
+                    const file = inventory.files.find((file) => file.path === output.path);
+                    assert(file);
+                    assert.equal(file.sizeBytes, output.sizeBytes);
+                    assert.equal(file.sha256, output.sha256);
+                    assert.equal(receipt.outputs.find((file) => file.path === output.path)?.kind, output.kind);
+                }
+                await reader.finish();
+                await work.audit();
+                consumed = true;
+            });
+            assert.equal(consumed, true);
+            // 消费及最终审计成功后才请求事务清理，同时核实暂存根已消失，避免把回调返回误当成描述符关闭与目录回收证明。
+            assert.equal(await work.cleanup(), "CONFIRMED");
+            await assert.rejects(lstat(work.scratch), { code: "ENOENT" });
+        },
+        'import { shared } from "@veriq/contracts"; console.log(shared("agent")); ' +
+            'async function load(name: string) { return [await import("./lazy.js"), await import(name)]; } ' +
+            'console.log(load("fixture-external"));',
+        false,
+        { "apps/desktop/src/agent/lazy.ts": 'export const lazy: string = "local-lazy";' },
+    ));
 
 test("real host tool qualification preserves private executable mode", async () =>
     fixture(async ({ root, sourceRoot, work, options }) => {

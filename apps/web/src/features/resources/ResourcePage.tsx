@@ -109,11 +109,7 @@ export function ResourcePage({
                 {!!items.length && (
                     <label>
                         {tx("Workspace")}
-                        <select
-                            data-testid="resource-workspace"
-                            value={selected}
-                            onChange={(e) => select(e.target.value)}
-                        >
+                        <select value={selected} onChange={(e) => select(e.target.value)}>
                             {items.map((w) => (
                                 <option key={w.id} value={w.id}>
                                     {w.name}
@@ -207,11 +203,7 @@ export function ResourceWorkspaceView({
                 header: t("columnKey"),
                 accessorKey: "key",
                 cell: (info) => (
-                    <Button
-                        tone="secondary"
-                        data-testid={`resource-open-${info.row.original.key}`}
-                        onClick={() => setSelected(info.row.original)}
-                    >
+                    <Button tone="secondary" onClick={() => setSelected(info.row.original)}>
                         {String(info.getValue())}
                     </Button>
                 ),
@@ -232,11 +224,7 @@ export function ResourceWorkspaceView({
             <Section title={tx("资源列表 / Resource library")}>
                 <label>
                     {tx("筛选类型 / Filter kind")}
-                    <select
-                        data-testid="resource-filter"
-                        value={kind}
-                        onChange={(e) => setKind(e.target.value as ResourceKind | "")}
-                    >
+                    <select value={kind} onChange={(e) => setKind(e.target.value as ResourceKind | "")}>
                         <option value="">{tx("全部 / All")}</option>
                         {resourceKinds.map((k) => (
                             <option key={k}>{k}</option>
@@ -245,10 +233,10 @@ export function ResourceWorkspaceView({
                 </label>
                 {resources.isPending && <p role="status">{t("loading")}</p>}
                 {resources.error && <ErrorState error={resources.error} retry={() => void resources.refetch()} />}
-                {resources.isSuccess && !items.length && <p data-testid="resource-empty">{t("empty")}</p>}
+                {resources.isSuccess && !items.length && <p>{t("empty")}</p>}
                 {!!items.length && (
                     <div className="table-scroll">
-                        <table data-testid="resource-table">
+                        <table>
                             <thead>
                                 {table.getHeaderGroups().map((group) => (
                                     <tr key={group.id}>
@@ -313,11 +301,7 @@ export function ResourceWorkspaceView({
                     >
                         <label>
                             {tx("类型 / Kind")}
-                            <select
-                                data-testid="resource-kind"
-                                value={createKind}
-                                onChange={(e) => setCreateKind(e.target.value as ResourceKind)}
-                            >
+                            <select value={createKind} onChange={(e) => setCreateKind(e.target.value as ResourceKind)}>
                                 {resourceKinds.map((k) => (
                                     <option key={k}>{k}</option>
                                 ))}
@@ -326,7 +310,6 @@ export function ResourceWorkspaceView({
                         <label>
                             {tx("Key")}
                             <input
-                                data-testid="resource-key"
                                 required
                                 pattern="[A-Za-z_][A-Za-z0-9_-]*"
                                 value={key}
@@ -335,18 +318,9 @@ export function ResourceWorkspaceView({
                         </label>
                         <label>
                             {tx("名称 / Name")}
-                            <input
-                                data-testid="resource-name"
-                                required
-                                value={name}
-                                onChange={(e) => setName(e.target.value)}
-                            />
+                            <input required value={name} onChange={(e) => setName(e.target.value)} />
                         </label>
-                        <Button
-                            type="submit"
-                            data-testid="resource-create"
-                            disabled={busy || !editableRole(workspace, createKind)}
-                        >
+                        <Button type="submit" disabled={busy || !editableRole(workspace, createKind)}>
                             {t("create")}
                         </Button>
                     </form>
@@ -578,7 +552,7 @@ export function ResourceEditorView({
         setConflict(null);
     };
     return (
-        <article data-testid="resource-editor">
+        <article>
             <div className="vq-actions">
                 <h2>
                     {resource.name} · {resource.kind}
@@ -588,20 +562,12 @@ export function ResourceEditorView({
                 </span>
             </div>
             {!writable && <p>{t("readonly")}</p>}
-            {status && (
-                <p role="status" data-testid="resource-status">
-                    {tx(status)}
-                </p>
-            )}
+            {status && <p role="status">{tx(status)}</p>}
             {error && <ErrorState error={error} />}
             {allVersions.error && <ErrorState error={allVersions.error} retry={() => void allVersions.refetch()} />}
-            {jsonDirty && (
-                <p role="alert" data-testid="resource-json-pending">
-                    {t("pendingJson")}
-                </p>
-            )}
+            {jsonDirty && <p role="alert">{t("pendingJson")}</p>}
             {issues.length > 0 && (
-                <ul role="alert" data-testid="case.validation-errors">
+                <ul role="alert">
                     {diagnosticRows(issues).map(({ issue, key }) => (
                         <li key={key}>
                             {issue.path || "/"} · {issue.code}: {issue.message}
@@ -610,13 +576,12 @@ export function ResourceEditorView({
                 </ul>
             )}
             {conflict && (
-                <Section title={t("conflict")} testId="resource-conflict">
+                <Section title={t("conflict")}>
                     <MonacoDiff original={pretty(conflict.content)} modified={serialized} />
                     <ConfirmDialog title={t("reload")} trigger={t("reload")} onConfirm={() => restore(conflict)}>
                         <p>{tx("远端内容将替换本地草稿 / Replace local content with the remote draft.")}</p>
                     </ConfirmDialog>
                     <Button
-                        data-testid="resource-rebase"
                         onClick={() => {
                             invalidateValidation();
                             setSaved(conflict);
@@ -628,12 +593,11 @@ export function ResourceEditorView({
                 </Section>
             )}
             <div className="vq-actions">
-                <Button tone="secondary" data-testid="resource-form-tab" onClick={() => setMode("form")}>
+                <Button tone="secondary" onClick={() => setMode("form")}>
                     {t("form")}
                 </Button>
                 <Button
                     tone="secondary"
-                    data-testid="resource-json-tab"
                     onClick={() => {
                         if (!jsonDirty) discardBuffer();
                         setMode("json");
@@ -648,16 +612,9 @@ export function ResourceEditorView({
                         <ResourceForms key={formLifetime} kind={resource.kind} versions={allVersions.data ?? []} />
                     ) : (
                         <>
-                            <Monaco
-                                value={buffer}
-                                onChange={setBuffer}
-                                readOnly={!writable}
-                                label="JSON source"
-                                testId="resource-json"
-                            />
+                            <Monaco value={buffer} onChange={setBuffer} readOnly={!writable} label="JSON source" />
                             <div className="vq-actions">
                                 <Button
-                                    data-testid="resource-json-apply"
                                     onClick={() => {
                                         try {
                                             const next: unknown = JSON.parse(buffer);
@@ -690,7 +647,6 @@ export function ResourceEditorView({
             </FormProvider>
             <div className="vq-actions">
                 <Button
-                    data-testid="resource-save"
                     disabled={!writable || busy}
                     onClick={() =>
                         run(async () => {
@@ -711,7 +667,6 @@ export function ResourceEditorView({
                     {t("save")}
                 </Button>
                 <Button
-                    data-testid="case.validate"
                     disabled={!writable || busy}
                     onClick={() =>
                         run(async () => {
@@ -745,7 +700,6 @@ export function ResourceEditorView({
                     {t("validate")}
                 </Button>
                 <Button
-                    data-testid="case.publish"
                     disabled={!writable || busy || !["OWNER", "ADMIN"].includes(workspace.role) || !currentReceipt}
                     onClick={() =>
                         run(async () => {
@@ -777,7 +731,7 @@ export function ResourceEditorView({
             {job.data && <ValidationState job={job.data} receipt={currentReceipt} />}
             {job.error && <ErrorState error={job.error} retry={() => void job.refetch()} />}
             {published && (
-                <p role="status" data-testid="case.published-version">
+                <p role="status">
                     v{published.versionNo} · {published.id} · {published.sha256}
                 </p>
             )}
@@ -838,7 +792,7 @@ export function ResourceEditorView({
 function ValidationState({ job, receipt }: { job: Job; receipt: Receipt | null }) {
     useAppLocale();
     return (
-        <section data-testid="case.validation-state">
+        <section>
             <p>
                 {job.state} · {job.outcome ?? ""} · {job.waitReason ?? ""} · {job.errorCode ?? ""}
             </p>
@@ -864,7 +818,7 @@ function ValidationState({ job, receipt }: { job: Job; receipt: Receipt | null }
                 <p>{tx("尚无成功校验回执 / No successful validation receipt.")}</p>
             )}
             {receipt && (
-                <p data-testid="case.validation-receipt">
+                <p>
                     {receipt.id} · {receipt.engineVersion} · {receipt.sourceHash}
                 </p>
             )}
@@ -923,7 +877,6 @@ function VersionHistory({
                         <label>
                             {tx("基础版本 / Base version")}
                             <select
-                                data-testid="resource-version"
                                 value={versionId}
                                 onChange={(e) => {
                                     setVersionId(e.target.value);
@@ -940,11 +893,7 @@ function VersionHistory({
                         </label>
                         <label>
                             {tx("比较版本 / Compare with")}
-                            <select
-                                data-testid="resource-compare"
-                                value={other}
-                                onChange={(e) => setOther(e.target.value)}
-                            >
+                            <select value={other} onChange={(e) => setOther(e.target.value)}>
                                 <option value="draft">{tx("当前草稿 / Current draft")}</option>
                                 {items.map((v) => (
                                     <option value={v.id} key={v.id}>
@@ -974,11 +923,7 @@ function VersionHistory({
                         </p>
                         <label>
                             {tx("保留文件 / Retained file")}
-                            <select
-                                data-testid="case.generated-file"
-                                value={path}
-                                onChange={(e) => setPath(e.target.value)}
-                            >
+                            <select value={path} onChange={(e) => setPath(e.target.value)}>
                                 <option value="">{tx("选择 / Select")}</option>
                                 {files.data.files.map((f) => (
                                     <option key={f.path} value={f.path}>
@@ -1002,7 +947,6 @@ function VersionHistory({
                             language="typescript"
                             readOnly
                             label="Generated TypeScript read only"
-                            testId="case.generated-source"
                         />
                     </>
                 )}
@@ -1031,7 +975,7 @@ function Impact({
     });
     const items = dependents.data?.pages.flatMap((p) => p.items) ?? [];
     return (
-        <Section title={tx("引用影响 / Reference impact")} testId="resource-impact">
+        <Section title={tx("引用影响 / Reference impact")}>
             {dependents.isPending && <p role="status">{tx("正在加载 / Loading…")}</p>}
             {dependents.error && <ErrorState error={dependents.error} retry={() => void dependents.refetch()} />}
             {dependents.isSuccess && !items.length && (
@@ -1057,7 +1001,7 @@ function Impact({
 export function ErrorState({ error, retry }: { error: Error; retry?: () => void }) {
     useAppLocale();
     return (
-        <div role="alert" data-testid="resource-error">
+        <div role="alert">
             {error instanceof ApiError
                 ? tx("{{value0}} · {{value1}} · Request {{value2}}", {
                       value0: error.code,

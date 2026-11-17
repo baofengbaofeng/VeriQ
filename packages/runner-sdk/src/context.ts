@@ -188,8 +188,8 @@ export function locator(key: string, ctx: StepContext, seen = new Set<string>())
     if (!e) throw new Error("TARGET_NOT_FOUND");
     const root = e.scope ? locator(e.scope, ctx, seen) : ctx.page;
     let result =
-        e.locator.by === "testId"
-            ? root.getByTestId(e.locator.value)
+        e.locator.by === "veriqId"
+            ? root.locator(`[veriq-id=${JSON.stringify(e.locator.value)}]`)
             : root.getByRole(e.locator.role as Parameters<Page["getByRole"]>[0], {
                   ...(e.locator.name === undefined ? {} : { name: stringBinding(e.locator.name, ctx) }),
                   ...(e.locator.exact === undefined ? {} : { exact: e.locator.exact }),

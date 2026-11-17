@@ -56,7 +56,7 @@ async def business():
             else:
                 facts["cookies"].append(self.request.headers.get("Cookie", ""))
                 self.set_cookie("attempt", str(len(facts["prepare"])))
-                self.finish("<div data-testid='name'>Ready</div>")
+                self.finish("<div veriq-id='name'>Ready</div>")
 
         async def post(self, path):
             if path == "write":
@@ -180,7 +180,7 @@ async def test_agent_actual_compiler_completion_and_sanitized_no_bundle_failure(
         "ELEMENT_CATALOG",
         {
             "schemaVersion": "1.0",
-            "elements": [{"key": "name", "locator": {"by": "testId", "value": "name"}}],
+            "elements": [{"key": "name", "locator": {"by": "veriqId", "value": "name"}}],
         },
     )
     fixture_id = await published(

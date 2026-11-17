@@ -36,7 +36,7 @@
 
 Mac 优先 macOS15+ Intel x64 / Apple Silicon arm64，使用宿主原生 Chrome；Windows11 x64、Ubuntu24.04 x64 仍需各自验收。控制服务无需 Node/Chrome；桌面 Electron 的内嵌 Node 不代替独立 Node24 引擎。具体安装/打包与已知失败见[发行](../release.md)、[桌面规格](../specs/desktop.md)、[Runtime 凭据](../runtime-credentials.md)。
 
-业务凭据由环境管理界面安全创建，使用 secretRef 与不可变 secretVersionId，allowedIdentityIds 必须匹配真实 `/me`。普通包不包含密码、Cookie、storageState、设备 token 或 cleanupToken。不要把 token/tokenId/secretVersionId 放进业务表单 label、testId、recordKey、title、query string 或报告业务名称。tokenId 仅在具有管理权的令牌元数据视图显示；它不是再次授权依据。
+业务凭据由环境管理界面安全创建，使用 secretRef 与不可变 secretVersionId，allowedIdentityIds 必须匹配真实 `/me`。普通包不包含密码、Cookie、storageState、设备 token 或 cleanupToken。不要把 token/tokenId/secretVersionId 放进业务表单 label、veriqId、recordKey、title、query string 或报告业务名称。tokenId 仅在具有管理权的令牌元数据视图显示；它不是再次授权依据。
 
 轮换先建立新版本、更新并发布环境、在受控 Run 验证，再按授权撤销旧版本；历史快照仍引用旧版本，不能无痕改写。已下发长期密码不能保证从不可信设备远程擦除，应使用短期业务会话和明确设备授权。下载 Trace/截图前确认当前原始证据权限；共享故障时优先导出安全摘要，检查业务正文、DOM label 和 URL 是否包含凭据标识。
 

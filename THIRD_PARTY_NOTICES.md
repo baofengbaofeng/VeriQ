@@ -2,6 +2,14 @@
 
 VeriQ retains its existing AGPL-3.0 project license. Third-party code retains its own licenses.
 
+The Web refresh selects @radix-ui/react-dropdown-menu 2.2.1, @radix-ui/react-select 2.4.1 and
+@radix-ui/react-tooltip 1.4.1 (MIT), alongside existing @radix-ui/react-dialog 1.3.1 (MIT) and
+class-variance-authority 0.7.1 (Apache-2.0). The 19-package installed delta, including the three
+new direct controls, declares MIT. Preserve their upstream copyright/license texts and any supplied
+NOTICE files in distributions. [ADR 0024](docs/decisions/0024-web-ui-dependencies.md) records purpose,
+attribution, the retained metadata evidence and the dated 2026-11-17 production advisory audit;
+that audit does not provide a permanent security guarantee or replace release SBOM checks.
+
 The T01 dependency choices, exact versions, declared direct licenses, replacement boundaries and validation limits are recorded in [ADR 0003](docs/decisions/0003-engineering-baseline.md). Machine-readable inventories contain the installed [npm](docs/dependencies/npm-licenses.json) and [Python](docs/dependencies/python-licenses.json) dependency metadata, including development dependencies. Full resolved dependency versions and hashes are in the lockfiles.
 
 For dual-licensed direct dependencies, the selected alternatives are Apache-2.0 for DOMPurify, BSD-3-Clause for cryptography and MIT for structlog. These choices do not replace upstream copyright notices or license text. Upstream package license files remain authoritative.

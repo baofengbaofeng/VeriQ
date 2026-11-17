@@ -3,8 +3,8 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 // CVA 只负责展示变体，原生 button 继续承担焦点、disabled、键盘和点击语义，所有 data 与 aria 属性必须透传，才能让 Radix
 // asChild 和 VeriQ 目录定位同一个真实 DOM 元素。组合后的
-// className 不参与测试身份，不把颜色、布局或翻译文案编码到 testId。测试可以切换 intent，但关键交互的可访问名称和行为必
-// 须保持一致。组件不自行添加随机标识，业务页面负责提供稳定的语义锚点。
+// className 不参与测试身份，不把颜色、布局或翻译文案编码到 veriq-id。测试可以切换 intent，
+// 但关键交互的可访问名称和行为必须保持一致。组件不自行添加随机标识，业务页面负责提供稳定的语义锚点。
 const styles = cva("rounded px-3 py-2 focus-visible:outline disabled:opacity-50", {
     variants: { intent: { primary: "bg-blue-700 text-white", quiet: "border" } },
     defaultVariants: { intent: "primary" },

@@ -1861,7 +1861,7 @@
                     {
                         "key": "employee.form.name",
                         "locator": {
-                            "by": "testId",
+                            "by": "veriqId",
                             "value": "employee-name"
                         }
                     }
@@ -1881,7 +1881,7 @@
                     {
                         "key": "employee.form.name",
                         "locator": {
-                            "by": "testId",
+                            "by": "veriqId",
                             "value": "employee-name"
                         }
                     }

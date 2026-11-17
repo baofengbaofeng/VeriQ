@@ -21,7 +21,7 @@ export function asset(n: number, kind: AssetVersionV1["kind"], document: unknown
 export const catalog = () =>
     asset(2, "ELEMENT_CATALOG", {
         schemaVersion: "1.0",
-        elements: [{ key: "name", locator: { by: "testId", value: "name" } }],
+        elements: [{ key: "name", locator: { by: "veriqId", value: "name" } }],
     });
 export function snapshot(
     steps: StepV1[] = [{ id: "open", action: "goto", path: "/" }],

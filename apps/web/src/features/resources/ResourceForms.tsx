@@ -61,7 +61,7 @@ export function newDocument(kind: ResourceKind, key: string, name: string): Reso
                 kind,
                 document: {
                     ...base,
-                    elements: [{ key: "name", locator: { by: "testId", value: "name" } }],
+                    elements: [{ key: "name", locator: { by: "veriqId", value: "name" } }],
                 },
             };
         case "ASSERTION_TEMPLATE":
@@ -154,7 +154,7 @@ export function ResourceForms({ kind, versions }: { kind: ResourceKind; versions
                 title={tx("页面元素 / Elements")}
                 initial={() => ({
                     key: "element_" + crypto.randomUUID().slice(0, 8),
-                    locator: { by: "testId", value: "" },
+                    locator: { by: "veriqId", value: "" },
                 })}
             >
                 {(path) => <ElementFields path={path} />}
@@ -241,18 +241,17 @@ function ElementFields({ path }: { path: string }) {
             <label>
                 {tx("定位方式 / Locator")}
                 <select
-                    data-testid={`${path}.locator.by`}
-                    value={element?.locator.by ?? "testId"}
+                    value={element?.locator.by ?? "veriqId"}
                     onChange={(e) =>
                         set(
                             `${path}.locator`,
-                            e.target.value === "testId"
-                                ? { by: "testId", value: "" }
+                            e.target.value === "veriqId"
+                                ? { by: "veriqId", value: "" }
                                 : { by: "role", role: "button", exact: true },
                         )
                     }
                 >
-                    <option>testId</option>
+                    <option>veriqId</option>
                     <option>role</option>
                 </select>
             </label>
@@ -263,7 +262,7 @@ function ElementFields({ path }: { path: string }) {
                     <Field name={`${path}.locator.exact`} label={tx("精确匹配 / Exact")} check />
                 </>
             ) : (
-                <Field name={`${path}.locator.value`} label="testId" />
+                <Field name={`${path}.locator.value`} label="veriqId" />
             )}
         </>
     );

@@ -11,17 +11,17 @@
 
 页面需要同时可观察：加载、空数据、提交中、提交失败、查询失败、成功提示、持久化列表。示例保存禁用按钮，mutation `retry:false`；成功后等待精确 query key 的真实 GET。若产品采用乐观更新，应提供保存中的可见状态，并在失败时撤销临时行、恢复原值和显示错误。乐观渲染和 toast 不能用于持久化通过结论。
 
-## testId、记录与目录
+## veriqId、记录与目录
 
-锚点代表业务语义，例如 `employee.form`、`employee.row`，不使用类名、随机值、数组下标、翻译文字或请求时间戳。Key/testId 采用 `^[A-Za-z_][A-Za-z0-9_.-]*$` 且最多160字符。React `key={employee.id}` 只控制渲染协调，DOM 必须另加 `data-record-key={employee.id}`。
+锚点代表业务语义，例如 `employee.form`、`employee.row`，不使用类名、随机值、数组下标、翻译文字或请求时间戳。Key/veriqId 采用 `^[A-Za-z_][A-Za-z0-9_.-]*$` 且最多160字符。React `key={employee.id}` 只控制渲染协调，DOM 必须另加 `data-record-key={employee.id}`。
 
 ```tsx
-<tr key={employee.id} data-testid="employee.row" data-record-key={employee.id}>
-    <td data-testid="employee.name">{employee.name}</td>
+<tr key={employee.id} veriq-id="employee.row" data-record-key={employee.id}>
+    <td veriq-id="employee.name">{employee.name}</td>
 </tr>
 ```
 
-行键使用非秘密业务 id；不要放 token、tokenId、secretRef、密码、邮箱、原始业务姓名或个人数据。即便 tokenId 不是明文 token，也不应充当公开 testId、可访问 label 或截图业务标题；授权元数据页按原角色规则显示它，普通业务界面不扩散凭据标识。
+行键使用非秘密业务 id；不要放 token、tokenId、secretRef、密码、邮箱、原始业务姓名或个人数据。即便 tokenId 不是明文 token，也不应充当公开 veriqId、可访问 label 或截图业务标题；授权元数据页按原角色规则显示它，普通业务界面不扩散凭据标识。
 
 [实际示例目录](../../fixtures/sample-workspace/assets/catalog.json)依次定义 page→form→input/button、page→table→row→name；row 自身匹配 `recordKey: "{{vars.employeeId}}"`，name 使用 row scope。SDK 匹配当前 DOM 的 `data-record-key`，不会自动滚动到尚未挂载的虚拟行。先通过真实搜索、分页或滚动渲染目标，再断言唯一性；禁止 `nth(0)` 掩盖重复匹配。目录作用域不能成环。
 
@@ -31,7 +31,7 @@
 | 分页 / 虚拟列表 | scope 指向当前真实挂载容器 | 搜索/翻页后再定位，离屏不假装存在 |
 | 页面重构 | 锚点语义稳定，DOM scope 更新后新发版本 | 旧 Run 保持冻结目录，新依赖重新编译 |
 | 多个同类控件 | 用具体业务区域 scope | 未指定区域出现歧义时应失败 |
-| 翻译 | testId 不变，role name 按环境语言固定 | en-US / zh-CN 各自受控预期 |
+| 翻译 | veriqId 不变，role name 按环境语言固定 | en-US / zh-CN 各自受控预期 |
 
 ## Radix、CVA、asChild 和 Portal
 
@@ -43,8 +43,8 @@ Portal 的视觉位置不等于 DOM 位置。示例 `employee.dialog` 挂到 bod
 {
     "schemaVersion": "1.0",
     "elements": [
-        {"key":"employee.dialog","locator":{"by":"testId","value":"employee.dialog"}},
-        {"key":"employee.dialog.close","scope":"employee.dialog","locator":{"by":"testId","value":"employee.dialog.close"}}
+        {"key":"employee.dialog","locator":{"by":"veriqId","value":"employee.dialog"}},
+        {"key":"employee.dialog.close","scope":"employee.dialog","locator":{"by":"veriqId","value":"employee.dialog.close"}}
     ]
 }
 ```
@@ -73,9 +73,9 @@ Query key 包含业务范围（示例是 fixture code）；不同 Workspace、�
 
 ## DOMPurify 和不可信内容
 
-`EmployeePanel` 把清洗后的富文本放在可信外层 `employee.description` 内，只允许明确展示标签和 href，并禁止富文本自带 data 属性，避免注入假 testId/recordKey 误导定位。不可为了测试保留 script、事件处理器或危险 URL；不要在清洗完成后重新拼接不可信 HTML。
+`EmployeePanel` 把清洗后的富文本放在可信外层 `employee.description` 内，只允许明确展示标签和 href，并禁止富文本自带 data 属性，避免注入假 veriqId/recordKey 误导定位。不可为了测试保留 script、事件处理器或危险 URL；不要在清洗完成后重新拼接不可信 HTML。
 
-验收需同时检查：允许的粗体/链接可见、script/onerror/javascript URL 被移除、注入的 data-testid 不参与可信目录、键盘能访问合法链接。截图、Trace 可能包含业务输入，保留其受限证据权限和保留期；不要在 Console、DOM label 或页面 title 输出认证头。
+验收需同时检查：允许的粗体/链接可见、script/onerror/javascript URL 被移除、注入的 veriq-id 不参与可信目录、键盘能访问合法链接。截图、Trace 可能包含业务输入，保留其受限证据权限和保留期；不要在 Console、DOM label 或页面 title 输出认证头。
 
 ## 变更交付
 

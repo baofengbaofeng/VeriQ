@@ -77,12 +77,12 @@ export async function fixture() {
         if (req.url === "/") {
             res.setHeader("content-type", "text/html");
             res.end(
-                `<input data-testid="name"><input data-testid="check" type="checkbox"><select data-testid="select">` +
-                    `<option value="a">A</option><option value="b">B</option></select><input data-testid="upload" t` +
-                    `ype="file"><button data-testid="save" onclick="fetch('/save',{method:'POST',body:JSON.stringif` +
-                    `y({code:document.querySelector('input').value})})">Save</button><button data-testid="disabled"` +
-                    ` disabled>Disabled</button><div data-testid="text">Ready</div><div data-testid="row" data-reco` +
-                    `rd-key="x"><button>Scoped</button></div><div data-testid="duplicate">1</div><div data-testid="` +
+                `<input veriq-id="name"><input veriq-id="check" type="checkbox"><select veriq-id="select">` +
+                    `<option value="a">A</option><option value="b">B</option></select><input veriq-id="upload" t` +
+                    `ype="file"><button veriq-id="save" onclick="fetch('/save',{method:'POST',body:JSON.stringif` +
+                    `y({code:document.querySelector('input').value})})">Save</button><button veriq-id="disabled"` +
+                    ` disabled>Disabled</button><div veriq-id="text">Ready</div><div veriq-id="row" data-reco` +
+                    `rd-key="x"><button>Scoped</button></div><div veriq-id="duplicate">1</div><div veriq-id="` +
                     `duplicate">2</div>`,
             );
         } else if (req.url === "/empty") {
@@ -158,7 +158,7 @@ export async function fixture() {
                 elements: ["name", "check", "select", "upload", "save", "disabled", "text", "duplicate", "row"].map(
                     (key) => ({
                         key,
-                        locator: { by: "testId" as const, value: key },
+                        locator: { by: "veriqId" as const, value: key },
                     }),
                 ) as [CatalogElementV1, ...CatalogElementV1[]],
             },

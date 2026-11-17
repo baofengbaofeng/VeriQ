@@ -42,7 +42,7 @@ async def imported_fixture(approved_metadata, site):
         "ELEMENT_CATALOG",
         {
             "schemaVersion": "1.0",
-            "elements": [{"key": "save", "locator": {"by": "testId", "value": "save"}}],
+            "elements": [{"key": "save", "locator": {"by": "veriqId", "value": "save"}}],
         },
     )
     case = await published(

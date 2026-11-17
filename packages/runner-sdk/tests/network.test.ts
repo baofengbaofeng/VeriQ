@@ -16,7 +16,7 @@ beforeAll(async () => {
         if (req.url === "/") {
             res.setHeader("content-type", "text/html");
             res.end(
-                `<button data-testid="save" onclick="fetch('/save',{method:'POST',body:JSON.stringify({code:'backgr` +
+                `<button veriq-id="save" onclick="fetch('/save',{method:'POST',body:JSON.stringify({code:'backgr` +
                     `ound'})});fetch('/save',{method:'POST',body:JSON.stringify({code:'attempt-1'})})">Save</button>`,
             );
         } else {
@@ -58,7 +58,7 @@ it("prearms fast responses and correlates the attempt body rather than same-path
         },
         { page, apiBaseURL: origin, allowedOrigins: [origin], registry },
     );
-    await page.getByTestId("save").click();
+    await page.locator('[veriq-id="save"]').click();
     const saved = await handle.waitFirst();
     expect(saved.request.body).toEqual({ code: "attempt-1" });
     expect(saved.response.body).toEqual({ code: 0, id: "saved-1" });

@@ -249,7 +249,7 @@ it("emits a canonical-schema-valid source sidecar for every asset kind", () => {
             "ELEMENT_CATALOG",
             {
                 schemaVersion: "1.0",
-                elements: [{ key: "button", locator: { by: "testId", value: "button" } }],
+                elements: [{ key: "button", locator: { by: "veriqId", value: "button" } }],
             },
         ],
         [
@@ -628,7 +628,7 @@ it("I2 emits the locator-dependent assertion in the post-extraction plan", () =>
             {
                 key: "name",
                 recordKey: "{{vars.id}}",
-                locator: { by: "testId", value: "name" },
+                locator: { by: "veriqId", value: "name" },
             },
         ],
     });

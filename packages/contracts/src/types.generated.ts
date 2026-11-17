@@ -766,7 +766,7 @@ export type StepV1 =
  */
 export type LocatorV1 =
   | {
-      by: "testId";
+      by: "veriqId";
       value: Key;
     }
   | {

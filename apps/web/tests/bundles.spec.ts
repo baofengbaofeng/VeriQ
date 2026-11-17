@@ -107,7 +107,7 @@ test("real Agent publications export through keyboard GUI and verify offline wit
         });
         const catalog = await publish("ELEMENT_CATALOG", "bundle-catalog", {
             schemaVersion: "1.0",
-            elements: [{ key: "ready", locator: { by: "testId", value: "ready" } }],
+            elements: [{ key: "ready", locator: { by: "veriqId", value: "ready" } }],
         });
         const testcase = await publish("CASE", "bundle-case", {
             schemaVersion: "1.0",
@@ -158,43 +158,43 @@ test("real Agent publications export through keyboard GUI and verify offline wit
         }
         await page.getByRole("link", { name: "Bundles", exact: true }).click();
         await page.getByLabel("Bundle Workspace").selectOption(scope.workspaceId);
-        await page.getByTestId("bundle-resource").selectOption(testcase.resource.id);
-        await expect(page.getByTestId("bundle-version").locator(`option[value="${testcase.version.id}"]`)).toHaveCount(
-            0,
-        );
+        await page.getByLabel("Resource").selectOption(testcase.resource.id);
+        await expect(
+            page.getByLabel("Published version").locator(`option[value="${testcase.version.id}"]`),
+        ).toHaveCount(0);
         const casePage = page.waitForResponse((r) =>
             r.url().includes(`/resources/${testcase.resource.id}/versions?cursor=`),
         );
-        await page.getByTestId("bundle-more-versions").click();
+        await page.getByRole("button", { name: "More versions" }).click();
         expect((await casePage).status()).toBe(200);
         await expect(
-            page.getByTestId("bundle-version").locator(`option[value="${testcase.version.id}"]`),
+            page.getByLabel("Published version").locator(`option[value="${testcase.version.id}"]`),
         ).toContainText("v31");
-        await page.getByTestId("bundle-version").selectOption(testcase.version.id);
-        await page.getByTestId("bundle-add-case").click();
-        await page.getByTestId("bundle-resource").selectOption(second.resource.id);
-        await page.getByTestId("bundle-version").selectOption(second.version.id);
-        await page.getByTestId("bundle-add-case").click();
-        await expect(page.getByTestId("bundle-selected-case")).toHaveCount(2);
-        await page.getByTestId("bundle-environment").selectOption(env.resource.id);
-        await expect(
-            page.getByTestId("bundle-environment-version").locator(`option[value="${env.version.id}"]`),
-        ).toHaveCount(0);
+        await page.getByLabel("Published version").selectOption(testcase.version.id);
+        await page.getByRole("button", { name: "Add case versions" }).click();
+        await page.getByLabel("Resource").selectOption(second.resource.id);
+        await page.getByLabel("Published version").selectOption(second.version.id);
+        await page.getByRole("button", { name: "Add case versions" }).click();
+        await expect(page.getByRole("list", { name: "Selected case versions" }).getByRole("listitem")).toHaveCount(2);
+        await page.getByLabel("Environment").selectOption(env.resource.id);
+        await expect(page.getByLabel("Environment version").locator(`option[value="${env.version.id}"]`)).toHaveCount(
+            0,
+        );
         const envPage = page.waitForResponse((r) => r.url().includes(`/resources/${env.resource.id}/versions?cursor=`));
-        await page.getByTestId("bundle-more-environments").click();
+        await page.getByRole("button", { name: "More environment versions" }).click();
         expect((await envPage).status()).toBe(200);
-        await expect(
-            page.getByTestId("bundle-environment-version").locator(`option[value="${env.version.id}"]`),
-        ).toContainText("v31");
-        await page.getByTestId("bundle-environment-version").selectOption(env.version.id);
+        await expect(page.getByLabel("Environment version").locator(`option[value="${env.version.id}"]`)).toContainText(
+            "v31",
+        );
+        await page.getByLabel("Environment version").selectOption(env.version.id);
         const exported = page.waitForResponse((r) => r.url().endsWith("/bundles") && r.request().method() === "POST");
-        await page.getByTestId("bundle-export").focus();
+        await page.getByRole("button", { name: "Export signed bundle" }).focus();
         await page.keyboard.press("Enter");
         const response = await exported;
         expect(response.status(), await response.text()).toBe(201);
-        await expect(page.getByTestId("bundle-item")).toHaveCount(1);
+        await expect(page.getByRole("article")).toHaveCount(1);
         const downloading = page.waitForEvent("download");
-        await page.getByTestId("bundle-download").click();
+        await page.getByRole("button", { name: "Download" }).click();
         const download = await downloading,
             archive = join(temp, "bundle.zip");
         await download.saveAs(archive);
@@ -268,8 +268,8 @@ test("real Agent publications export through keyboard GUI and verify offline wit
         expect(another.status()).toBe(201);
         await page.reload();
         await page.getByLabel("Bundle Workspace").selectOption((await another.json()).data.id);
-        await expect(page.getByTestId("bundle-item")).toHaveCount(0);
-        await expect(page.getByTestId("bundle-export")).toBeDisabled();
+        await expect(page.getByRole("article")).toHaveCount(0);
+        await expect(page.getByRole("button", { name: "Export signed bundle" })).toBeDisabled();
     } finally {
         await compiler.close();
         async function writable(path: string) {

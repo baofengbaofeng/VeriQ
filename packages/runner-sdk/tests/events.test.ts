@@ -11,15 +11,15 @@ beforeAll(async () => {
     await f.page.evaluate(() => {
         document.body.insertAdjacentHTML(
             "beforeend",
-            `<button data-testid="prompt" onclick="document.querySelector('[data-testid=text]').textContent=prompt(` +
-                `'Name?')">Prompt</button><button data-testid="popup" onclick="window.open('/','_blank')">Popup</bu` +
-                `tton><a data-testid="download" download="../../untrusted.txt" href="/text">Download</a>`,
+            `<button veriq-id="prompt" onclick="document.querySelector('[veriq-id=text]').textContent=prompt(` +
+                `'Name?')">Prompt</button><button veriq-id="popup" onclick="window.open('/','_blank')">Popup</bu` +
+                `tton><a veriq-id="download" download="../../untrusted.txt" href="/text">Download</a>`,
         );
     });
     f.options.catalog.elements.push(
         ...["prompt", "popup", "download"].map((key) => ({
             key,
-            locator: { by: "testId" as const, value: key },
+            locator: { by: "veriqId" as const, value: key },
         })),
     );
 });
@@ -99,7 +99,7 @@ it("captures popup into explicit pageKey without changing original page", async 
         ],
     );
     expect((await executeStep(p, ctx)).status).toBe("PASSED");
-    expect(await f.page.getByTestId("name").inputValue()).toBe("");
+    expect(await f.page.locator('[veriq-id="name"]').inputValue()).toBe("");
     ctx.dispose();
 });
 it("stores a bounded download under an engine-generated filename and cleans oversized output", async () => {
@@ -175,8 +175,8 @@ it("makes wrapper popup available to children and keeps omitted pageKey on the o
     const r = await executeStep(wrapper, ctx);
     expect(r.status).toBe("PASSED");
     expect(ctx.pages.has("wrapper")).toBe(true);
-    expect(await (await ctx.pages.get("wrapper")!).getByTestId("name").inputValue()).toBe("wrapper-value");
-    expect(await ctx.page.getByTestId("name").inputValue()).toBe("");
+    expect(await (await ctx.pages.get("wrapper")!).locator('[veriq-id="name"]').inputValue()).toBe("wrapper-value");
+    expect(await ctx.page.locator('[veriq-id="name"]').inputValue()).toBe("");
     ctx.dispose();
 });
 it("flow-local popup keys do not leak to the caller", async () => {
@@ -375,7 +375,7 @@ it("cancels an unfinished browser download when acquisition times out and leaves
         });
     });
     await f.page.evaluate(() => {
-        document.querySelector("[data-testid=download]")!.setAttribute("href", "/slow-download");
+        document.querySelector("[veriq-id=download]")!.setAttribute("href", "/slow-download");
     });
     try {
         const r = await executeStep(
@@ -394,7 +394,7 @@ it("cancels an unfinished browser download when acquisition times out and leaves
         expect(ctx.registry.activeCount()).toBe(0);
     } finally {
         await f.page.evaluate(() => {
-            document.querySelector("[data-testid=download]")!.setAttribute("href", "/text");
+            document.querySelector("[veriq-id=download]")!.setAttribute("href", "/text");
         });
         ctx.dispose();
     }

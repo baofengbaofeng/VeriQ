@@ -30,7 +30,7 @@ async def test_published_source_exact_bytes_integrity_scope_and_current_membersh
                 "kind": "ELEMENT_CATALOG",
                 "document": {
                     "schemaVersion": "1.0",
-                    "elements": [{"key": "name", "locator": {"by": "testId", "value": "name"}}],
+                    "elements": [{"key": "name", "locator": {"by": "veriqId", "value": "name"}}],
                 },
             },
         },

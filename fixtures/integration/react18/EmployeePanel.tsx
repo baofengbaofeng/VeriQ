@@ -76,26 +76,26 @@ export function EmployeePanel({
         ALLOW_DATA_ATTR: false,
     });
     return (
-        <main data-testid="employee.page">
+        <main veriq-id="employee.page">
             <div
-                data-testid="employee.description"
+                veriq-id="employee.description"
                 dangerouslySetInnerHTML={{ __html: safeHtml }}
             />
-            <form data-testid="employee.form" onSubmit={submit}>
+            <form veriq-id="employee.form" onSubmit={submit}>
                 <label htmlFor="employee-name">{t("employee.name")}</label>
                 <input
                     id="employee-name"
-                    data-testid="name"
+                    veriq-id="name"
                     value={name}
                     onChange={(event) => setName(event.target.value)}
                     required
                     maxLength={160}
                 />
-                <VeriqButton type="submit" data-testid="save" disabled={save.isPending}>
+                <VeriqButton type="submit" veriq-id="save" disabled={save.isPending}>
                     {t("employee.save")}
                 </VeriqButton>
             </form>
-            <p role="status" data-testid="result">
+            <p role="status" veriq-id="result">
                 {save.isPending
                     ? t("employee.saving")
                     : save.isError
@@ -104,40 +104,40 @@ export function EmployeePanel({
                         ? t("employee.saved")
                         : ""}
             </p>
-            {list.isPending && <p data-testid="employee.loading">{t("employee.loading")}</p>}
+            {list.isPending && <p veriq-id="employee.loading">{t("employee.loading")}</p>}
             {list.isError && (
-                <p role="alert" data-testid="employee.queryError">
+                <p role="alert" veriq-id="employee.queryError">
                     {t("employee.queryError")}
                 </p>
             )}
-            <table data-testid="employee.table" aria-busy={list.isFetching}>
+            <table veriq-id="employee.table" aria-busy={list.isFetching}>
                 <caption>{t("employee.persisted")}</caption>
                 <tbody>
                     {list.data?.map((employee) => (
                         <tr
                             key={employee.id}
-                            data-testid="employee.row"
+                            veriq-id="employee.row"
                             data-record-key={employee.id}
                         >
-                            <td data-testid="employee.name">{employee.name}</td>
+                            <td veriq-id="employee.name">{employee.name}</td>
                         </tr>
                     ))}
                 </tbody>
             </table>
             <Dialog.Root>
                 <Dialog.Trigger asChild>
-                    <VeriqButton data-testid="employee.help">{t("employee.help")}</VeriqButton>
+                    <VeriqButton veriq-id="employee.help">{t("employee.help")}</VeriqButton>
                 </Dialog.Trigger>
                 <Dialog.Portal>
                     <Dialog.Overlay className="fixed inset-0 bg-black/40" />
                     <Dialog.Content
-                        data-testid="employee.dialog"
+                        veriq-id="employee.dialog"
                         className="fixed left-1/4 top-1/4 rounded bg-white p-4"
                     >
                         <Dialog.Title>{t("employee.help")}</Dialog.Title>
                         <Dialog.Description>{t("employee.helpDescription")}</Dialog.Description>
                         <Dialog.Close asChild>
-                            <VeriqButton data-testid="employee.dialog.close">
+                            <VeriqButton veriq-id="employee.dialog.close">
                                 {t("common.close")}
                             </VeriqButton>
                         </Dialog.Close>

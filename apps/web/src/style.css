@@ -408,6 +408,21 @@ a {
 }
 
 /*
+ * 字段帮助按钮保留可读名称但不挤占标签布局；文字仍参与无障碍名称，完整建议由聚焦后出现的气泡描述。
+ */
+.vq-visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/*
  * Radix Select：触发器、弹层与选项的视觉样式。
  */
 .vq-select-trigger {
@@ -454,13 +469,13 @@ a {
 }
 
 /*
- * 右推窗（Sheet）：右侧滑出的抽屉面板，承载大空间编辑交互。
+ * 右推窗保留右侧大空间编辑交互，遮罩与内容必须低于共享确认框；提示气泡继续高于抽屉以展示完整建议。
  */
 .vq-sheet-overlay {
     position: fixed;
     inset: 0;
     background: #12343877;
-    z-index: 4000;
+    z-index: 900;
 }
 
 .vq-sheet {
@@ -471,7 +486,7 @@ a {
     width: min(560px, 92vw);
     background: #ffffff;
     box-shadow: -20px 0 60px #12343833;
-    z-index: 4001;
+    z-index: 901;
     display: flex;
     flex-direction: column;
 }

@@ -79,7 +79,6 @@ export function Field({
     options,
     number,
     optional,
-    testId,
     hint,
     check,
     password,
@@ -90,7 +89,6 @@ export function Field({
     options?: readonly string[];
     number?: boolean;
     optional?: boolean;
-    testId?: string;
     hint?: string;
     check?: boolean;
     password?: boolean;
@@ -115,7 +113,6 @@ export function Field({
                             checked={(field.value as unknown) === true}
                             onBlur={field.onBlur}
                             onChange={(e) => field.onChange(e.target.checked)}
-                            data-testid={testId ?? name}
                         />
                     ) : options ? (
                         <select
@@ -125,7 +122,6 @@ export function Field({
                             onBlur={field.onBlur}
                             value={typeof field.value === "string" ? field.value : ""}
                             onChange={(e) => field.onChange(optional && !e.target.value ? undefined : e.target.value)}
-                            data-testid={testId ?? name}
                         >
                             {optional && <option value="">—</option>}
                             {showUnlistedValue &&
@@ -163,7 +159,6 @@ export function Field({
                                           : e.target.value,
                                 )
                             }
-                            data-testid={testId ?? name}
                         />
                     )
                 }
@@ -214,7 +209,6 @@ export function VersionField({
                     <select
                         id={id}
                         name={field.name}
-                        data-testid={name}
                         value={typeof field.value === "string" ? field.value : ""}
                         onBlur={field.onBlur}
                         ref={field.ref}
@@ -284,12 +278,8 @@ export function List(props: {
         { t } = useTranslation(undefined, useEditorTranslationOptions);
     if (!Array.isArray(value))
         return (
-            <Section title={props.title} testId={props.name}>
-                <Button
-                    tone="secondary"
-                    data-testid={`${props.name}.add`}
-                    onClick={() => set(props.name, [props.initial()])}
-                >
+            <Section title={props.title}>
+                <Button tone="secondary" onClick={() => set(props.name, [props.initial()])}>
                     {t("add")} {props.title}
                 </Button>
             </Section>
@@ -320,7 +310,7 @@ function FieldArrayList({
         useSensor(KeyboardSensor),
     );
     return (
-        <Section title={title} testId={name}>
+        <Section title={title}>
             <p>{tx("Use Move up and Move down to reorder rows with the keyboard.")}</p>
             <DndContext
                 sensors={sensors}
@@ -374,11 +364,7 @@ function FieldArrayList({
                             >
                                 {t("down")}
                             </Button>
-                            <Button
-                                tone="danger"
-                                onClick={() => array.remove(index)}
-                                data-testid={`${name}.${index}.remove`}
-                            >
+                            <Button tone="danger" onClick={() => array.remove(index)}>
                                 {t("remove")}
                             </Button>
                         </div>
@@ -386,7 +372,7 @@ function FieldArrayList({
                     </DragRow>
                 ))}
             </DndContext>
-            <Button tone="secondary" data-testid={`${name}.add`} onClick={() => array.append(initial() as never)}>
+            <Button tone="secondary" onClick={() => array.append(initial() as never)}>
                 {t("add")} {title}
             </Button>
         </Section>
@@ -710,7 +696,6 @@ function FreeStringRows({ name, label, value }: { name: string; label: string; v
             ))}
             <Button
                 tone="secondary"
-                data-testid={`${name}.add`}
                 onClick={() => {
                     rows.append();
                     set(name, [...value, ""]);
@@ -756,11 +741,10 @@ export function TypeMap({ name, label }: { name: string; label: string }) {
             <div className="vq-actions">
                 <label>
                     {tx("名称 / Name")}
-                    <input data-testid={`${name}.key`} value={key} onChange={(e) => keySet(e.target.value)} />
+                    <input value={key} onChange={(e) => keySet(e.target.value)} />
                 </label>
                 <Button
                     tone="secondary"
-                    data-testid={`${name}.add`}
                     disabled={!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key) || Object.hasOwn(value, key)}
                     onClick={() => {
                         set(name, { ...value, [key]: "string" });

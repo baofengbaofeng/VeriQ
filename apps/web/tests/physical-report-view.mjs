@@ -22,25 +22,26 @@ const server = await createServer({
 });
 await server.listen();
 const browser = await chromium.launch({
-    executablePath: process.env.VERIQ_TEST_CHROMIUM ?? "/usr/bin/chromium",
+    executablePath: chromium.executablePath(),
     headless: true,
     args: ["--no-sandbox"],
 });
 try {
     const page = await browser.newPage({
         viewport: { width: 1280, height: 900 },
+        locale: "en-US",
     });
     const failures = [];
     page.on("pageerror", (error) => failures.push(error.message));
     await page.goto("http://127.0.0.1:5174/login");
-    await page.getByTestId("email").fill("admin@example.com");
-    await page.getByTestId("password").fill("Long password 123!");
-    await page.getByTestId("login-submit").click();
-    await expect(page.getByTestId("account-info")).toBeVisible();
+    await page.getByRole("textbox", { name: "Email" }).fill("admin@example.com");
+    await page.getByLabel("Password").fill("Long password 123!");
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect(page.locator("dl")).toBeVisible();
     await page.getByRole("link", { name: "Reports", exact: true }).click();
-    await page.getByLabel("语言 / Language").selectOption("en");
+    await page.getByRole("combobox", { name: "Language", exact: true }).selectOption("en");
     await page.getByRole("button", { name: /MANAGED_CLOUD|CONNECTED_LOCAL/ }).click();
-    await expect(page.getByTestId("report-gates")).toBeVisible();
+    await expect(page.getByText("Gate at execution")).toBeVisible();
     await page.getByRole("button", { name: "Attempt 1 · PASSED", exact: true }).click();
     await expect(page.getByRole("region", { name: "Attempt details" })).toContainText("open · goto · PASSED");
     await expect(

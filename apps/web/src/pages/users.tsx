@@ -102,23 +102,23 @@ export function AdminUsers() {
                     minLength={12}
                 />
                 <label className="check">
-                    <input type="checkbox" name="systemAdmin" data-testid="systemAdmin" />
+                    <input type="checkbox" name="systemAdmin" />
                     {tx("System administrator")}
                 </label>
-                <button type="submit" data-testid="create-user" disabled={a.busy}>
+                <button type="submit" disabled={a.busy}>
                     {a.busy ? tx("Working…") : tx("Create user")}
                 </button>
             </form>
             <Notice error={a.error} message={a.message} />
             {link && (
-                <aside data-testid="reset-link">
+                <aside>
                     <h2>{tx("One-time reset link")}</h2>
                     <p>
                         {tx("Expires ")}
                         {new Date(link.expiresAt).toLocaleString()}
                         {tx(". Share privately with this user.")}
                     </p>
-                    <input aria-label={tx("Reset link")} data-testid="reset-url" readOnly value={link.url} />
+                    <input aria-label={tx("Reset link")} readOnly value={link.url} />
                     <button
                         type="button"
                         onClick={() =>
@@ -137,7 +137,6 @@ export function AdminUsers() {
             )}
             <h2>{tx("All users")}</h2>
             <form
-                data-testid="users-filters"
                 onSubmit={(event) => {
                     const input = values(event);
                     setFilters({
@@ -150,11 +149,11 @@ export function AdminUsers() {
             >
                 <label>
                     {tx("Search email or display name")}
-                    <input name="q" data-testid="users-search" type="search" maxLength={254} />
+                    <input name="q" type="search" maxLength={254} />
                 </label>
                 <label>
                     {tx("Account status")}
-                    <select name="disabled" data-testid="users-disabled">
+                    <select name="disabled">
                         <option value="">{tx("All statuses")}</option>
                         <option value="false">{tx("Enabled")}</option>
                         <option value="true">{tx("Disabled")}</option>
@@ -162,7 +161,7 @@ export function AdminUsers() {
                 </label>
                 <label>
                     {tx("Permission")}
-                    <select name="systemAdmin" data-testid="users-admin">
+                    <select name="systemAdmin">
                         <option value="">{tx("All users")}</option>
                         <option value="true">{tx("System administrators")}</option>
                         <option value="false">{tx("Users without system administration")}</option>
@@ -170,7 +169,7 @@ export function AdminUsers() {
                 </label>
                 <label>
                     {tx("Users per page")}
-                    <select name="limit" defaultValue="25" data-testid="users-limit">
+                    <select name="limit" defaultValue="25">
                         {[1, 10, 25, 50, 100].map((value) => (
                             <option key={value} value={value}>
                                 {value}
@@ -178,7 +177,7 @@ export function AdminUsers() {
                         ))}
                     </select>
                 </label>
-                <button type="submit" data-testid="users-filter-submit" disabled={a.busy}>
+                <button type="submit" disabled={a.busy}>
                     {tx("Apply filters")}
                 </button>
             </form>
@@ -197,7 +196,7 @@ export function AdminUsers() {
                 <p>{tx("No users found.")}</p>
             ) : (
                 <div className="table-scroll">
-                    <table data-testid="users">
+                    <table>
                         <thead>
                             <tr>
                                 <th>{tx("User")}</th>
@@ -207,7 +206,7 @@ export function AdminUsers() {
                         </thead>
                         <tbody>
                             {users.map((u) => (
-                                <tr key={u.id} data-testid={`user-${u.email}`}>
+                                <tr key={u.id}>
                                     <td>
                                         {u.displayName}
                                         <small>{u.email}</small>
@@ -288,12 +287,7 @@ export function AdminUsers() {
                 </div>
             )}
             {nextCursor && (
-                <button
-                    type="button"
-                    data-testid="users-more"
-                    disabled={a.busy}
-                    onClick={() => void a.run(() => load(nextCursor))}
-                >
+                <button type="button" disabled={a.busy} onClick={() => void a.run(() => load(nextCursor))}>
                     {a.busy ? tx("Loading users…") : tx("Load more users")}
                 </button>
             )}

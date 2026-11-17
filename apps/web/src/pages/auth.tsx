@@ -31,7 +31,7 @@ export function SignIn() {
             >
                 <Field name="email" label={tx("Email")} type="email" />
                 <Field name="password" label={tx("Password")} type="password" />
-                <button type="submit" data-testid="login-submit" disabled={a.busy}>
+                <button type="submit" disabled={a.busy}>
                     {a.busy ? tx("Signing in…") : tx("Sign in")}
                 </button>
             </form>
@@ -76,7 +76,7 @@ export function Setup() {
                 <Field name="email" label={tx("Administrator email")} type="email" />
                 <Field name="displayName" label={tx("Display name")} />
                 <Field name="password" label={tx("Password (at least 12 characters)")} type="password" minLength={12} />
-                <button type="submit" data-testid="setup-submit" disabled={a.busy}>
+                <button type="submit" disabled={a.busy}>
                     {a.busy ? tx("Creating administrator…") : tx("Create administrator")}
                 </button>
             </form>
@@ -109,7 +109,7 @@ export function ResetRequest() {
                 }}
             >
                 <Field name="email" label={tx("Email")} type="email" />
-                <button type="submit" data-testid="reset-request-submit" disabled={a.busy}>
+                <button type="submit" disabled={a.busy}>
                     {a.busy ? tx("Requesting…") : tx("Request password reset")}
                 </button>
             </form>
@@ -154,7 +154,7 @@ export function ResetConfirm() {
                         type="password"
                         minLength={12}
                     />
-                    <button type="submit" data-testid="reset-confirm-submit" disabled={a.busy || !!a.message}>
+                    <button type="submit" disabled={a.busy || !!a.message}>
                         {a.busy ? tx("Updating…") : tx("Update password")}
                     </button>
                 </form>

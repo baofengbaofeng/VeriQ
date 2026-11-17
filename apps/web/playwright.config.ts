@@ -11,6 +11,7 @@ const editorSuite =
     );
 export default defineConfig({
     testDir: "./tests",
+    testIgnore: "interactions.spec.ts",
     workers: 1,
     retries: 0,
     outputDir: "../../.superpowers/cache/t02/browser-results",

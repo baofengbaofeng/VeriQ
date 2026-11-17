@@ -5,6 +5,7 @@
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { test, expect } from "@playwright/test";
+import { resourceCreateForm } from "./editor-fixture";
 import type { editor } from "monaco-editor/editor";
 
 /**
@@ -51,10 +52,10 @@ test("resources retain manual workspace and unsaved values across list refresh",
             ).status(),
         ).toBe(201);
     await page.goto("/login");
-    await page.getByTestId("email").fill("browser-admin@example.com");
-    await page.getByTestId("password").fill("Browser password 123!");
-    await page.getByTestId("login-submit").click();
-    await expect(page.getByTestId("account-info")).toBeVisible();
+    await page.getByRole("textbox", { name: "Email" }).fill("browser-admin@example.com");
+    await page.getByLabel("Password").fill("Browser password 123!");
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect(page.locator("dl")).toBeVisible();
     const session = (await (await page.request.get("/api/v1/auth/session")).json()).data;
     const ids: string[] = [];
     for (const name of ["Alpha", "Beta"]) {
@@ -77,9 +78,9 @@ test("resources retain manual workspace and unsaved values across list refresh",
     });
     await page.goto("/resources");
     const first = (await (await listing).json()).data.items[0].id as string;
-    const selector = page.getByTestId("resource-workspace");
+    const selector = page.getByLabel("Workspace");
     await expect(selector).toHaveValue(first);
-    await expect(page.getByTestId("resource-empty")).toBeVisible();
+    await expect(page.getByText("No resources in this Workspace.")).toBeVisible();
     expect(queried.some((url) => new URL(url).pathname === `/api/v1/workspaces/${first}/resources`)).toBe(true);
 
     /**
@@ -127,10 +128,10 @@ test("resources retain manual workspace and unsaved values across list refresh",
         await page.getByRole("link", { name: "Resources", exact: true }).click();
         await backendCompleted;
         await selector.selectOption(beta);
-        await expect(page.getByTestId("resource-empty")).toBeVisible();
-        await page.getByTestId("resource-kind").selectOption("DATASET");
-        await page.getByTestId("resource-key").fill("unsaved_beta");
-        await page.getByTestId("resource-name").fill("Unsaved Beta resource");
+        await expect(page.getByText("No resources in this Workspace.")).toBeVisible();
+        await resourceCreateForm(page).getByRole("combobox", { name: "Kind", exact: true }).selectOption("DATASET");
+        await page.getByLabel("Key").fill("unsaved_beta");
+        await page.getByLabel("Name").fill("Unsaved Beta resource");
         const refreshed = page.waitForResponse(
             (response) => response.request().method() === "GET" && response.url() === path,
         );
@@ -139,15 +140,17 @@ test("resources retain manual workspace and unsaved values across list refresh",
         await (await refreshed).finished();
         await expect(selector.locator(`option[value="${beta}"]`)).toHaveText("Resource Beta refreshed");
         await expect(selector).toHaveValue(beta);
-        await expect(page.getByTestId("resource-kind")).toHaveValue("DATASET");
-        await expect(page.getByTestId("resource-key")).toHaveValue("unsaved_beta");
-        await expect(page.getByTestId("resource-name")).toHaveValue("Unsaved Beta resource");
+        await expect(resourceCreateForm(page).getByRole("combobox", { name: "Kind", exact: true })).toHaveValue(
+            "DATASET",
+        );
+        await expect(page.getByLabel("Key")).toHaveValue("unsaved_beta");
+        await expect(page.getByLabel("Name")).toHaveValue("Unsaved Beta resource");
         expect(queried.some((url) => new URL(url).pathname === `/api/v1/workspaces/${beta}/resources`)).toBe(true);
         await selector.selectOption(alpha);
-        await expect(page.getByTestId("resource-key")).toHaveValue("");
-        await expect(page.getByTestId("resource-name")).toHaveValue("");
-        await expect(page.getByTestId("resource-kind")).toHaveValue("CASE");
-        await expect(page.getByTestId("resource-empty")).toBeVisible();
+        await expect(page.getByLabel("Key")).toHaveValue("");
+        await expect(page.getByLabel("Name")).toHaveValue("");
+        await expect(resourceCreateForm(page).getByRole("combobox", { name: "Kind", exact: true })).toHaveValue("CASE");
+        await expect(page.getByText("No resources in this Workspace.")).toBeVisible();
     } finally {
         release();
         if (held) await finished;
@@ -266,7 +269,7 @@ test("actual Monaco preserves controlled edits and model lifetime", async ({ pag
     });
     const input = page.getByRole("textbox", { name: "Lifecycle source", exact: true });
     await page
-        .getByTestId("monaco")
+        .locator(".vq-monaco")
         .locator(".view-lines")
         .click({ position: { x: 30, y: 10 } });
     await input.press("Control+End");
@@ -313,18 +316,18 @@ test("actual Monaco preserves controlled edits and model lifetime", async ({ pag
         }),
     ).toEqual({ oldDisposed: true, models: 1 });
     await expect(page.getByRole("textbox", { name: "Recreated source", exact: true })).toBeVisible();
-    await expect(page.getByTestId("monaco")).toContainText("latest controlled replacement");
+    await expect(page.locator(".vq-monaco")).toContainText("latest controlled replacement");
     const previousEvents = await page.evaluate(() => {
         const probe = window.resourceEditor;
         probe.unmount();
         if (probe.models() !== probe.baselineModels) throw new Error("Owned model survived unmount");
         return probe.events.filter((event) => event.generation !== 3).length;
     });
-    await expect(page.getByTestId("component-editor-host")).toHaveCount(0);
+    await expect(page.getByRole("textbox", { name: "Recreated source", exact: true })).toHaveCount(0);
     await page.evaluate(() => window.resourceEditor.remount());
     const remounted = page.getByRole("textbox", { name: "Remounted source", exact: true });
     await page
-        .getByTestId("monaco")
+        .locator(".vq-monaco")
         .locator(".view-lines")
         .click({ position: { x: 30, y: 10 } });
     await remounted.press("Control+End");
@@ -344,5 +347,5 @@ test("actual Monaco preserves controlled edits and model lifetime", async ({ pag
         if (!probe.model.isDisposed() || probe.editor.getModel() !== null || probe.models() !== probe.baselineModels)
             throw new Error("Remounted editor survived unmount");
     });
-    await expect(page.getByTestId("component-editor-host")).toHaveCount(0);
+    await expect(page.getByRole("textbox", { name: "Remounted source", exact: true })).toHaveCount(0);
 });

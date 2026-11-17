@@ -110,7 +110,7 @@ it(
             if (catalog.kind === "ELEMENT_CATALOG")
                 catalog.document.elements.push({
                     key: "save",
-                    locator: { by: "testId", value: "save" },
+                    locator: { by: "veriqId", value: "save" },
                 });
             rehash(source);
             const output = compileFiles(source, actualDistribution(root));

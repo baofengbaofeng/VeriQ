@@ -88,7 +88,7 @@ python fixtures/integration/python/lifecycle.py \
 | 3 Java完整链路 | 独立Java环境和身份，同DSL+UI/标准库生命周期；服务重启后幂等和关闭墓碑保留 | 未执行 | 未执行 | 未执行 | 未执行 | 未执行 |
 | 4 角色/空间/凭据拒绝 | Viewer写操作、业务editor调用准备阶段、fixture写业务、跨空间嵌套引用、旧/撤销secret与未授权设备均拒绝 | 未执行 | 未执行 | 未执行 | 未执行 | 未执行 |
 | 5 Query/Portal/键盘 | 消费React组件；乐观失败回滚/后台GET不误捕；asChild/ref真实DOM；Portal独立scope；Escape焦点恢复；键盘排序后GET+reload | 未执行 | 未执行 | 未执行 | 未执行 | 未执行 |
-| 6 locale/记录/HTML | en-US/UTC与zh-CN/Asia-Shanghai；改排序/分页仍命中同id；DOMPurify过滤脚本/危险URL/伪testId，合法富文本可见 | 未执行 | 未执行 | 未执行 | 未执行 | 未执行 |
+| 6 locale/记录/HTML | en-US/UTC与zh-CN/Asia-Shanghai；改排序/分页仍命中同id；DOMPurify过滤脚本/危险URL/伪veriqId，合法富文本可见 | 未执行 | 未执行 | 未执行 | 未执行 | 未执行 |
 | 7 HTTP计划与门禁 | 同键重放同Run、改正文409；QUEUE/SKIP/REJECT；受限read/cancel；PASSED双gate/真实用例才CI0，UNSTABLE/空/跳过不通过 | 未执行 | 未执行 | 未执行 | 未执行 | 未执行 |
 | 8 失败/取消/补偿 | 写响应丢失先查询不重发；准备阶段丢失仍精确cleanup；实际Worker退出/取消；晚到写在清理后拒绝；外部TTL清到归属零且不碰邻命名空间 | 未执行 | 未执行 | 未执行 | 未执行 | 未执行 |
 
@@ -100,11 +100,11 @@ python fixtures/integration/python/lifecycle.py \
 
 | 检查 | 预期 | 当前结果 |
 | --- | --- | --- |
-| 普通业务DOM | textContent、label、aria-label、title、data-testid、data-record-key均无token/cleanupToken/tokenId/secretVersionId标记 | 未执行 |
+| 普通业务DOM | textContent、label、aria-label、title、veriq-id、data-record-key均无token/cleanupToken/tokenId/secretVersionId标记 | 未执行 |
 | URL/日志 | path/query/hash、Console、结构化事件、requestId诊断、HTTP客户端错误无秘密；业务key不冒充凭据id | 未执行 |
-| 管理令牌视图 | 授权Owner/Admin只在元数据区域看到tokenId；明文token只签发一次，不成为行公开testId/aria-label；Viewer不可访问管理内容 | 未执行 |
+| 管理令牌视图 | 授权Owner/Admin只在元数据区域看到tokenId；明文token只签发一次，不成为行公开veriqId/aria-label；Viewer不可访问管理内容 | 未执行 |
 | 报告/CI | 普通报告与安全CI/JUnit无标记；原始Trace/HTML/截图保持独立证据权限，EXECUTION 令牌不能下载原始证据 | 未执行 |
-| 注入/重名 | 富文本恶意data-testid/recordKey被清洗，不遮盖可信scope；业务姓名不能注入HTML或覆盖诊断label | 未执行 |
+| 注入/重名 | 富文本恶意veriq-id/recordKey被清洗，不遮盖可信scope；业务姓名不能注入HTML或覆盖诊断label | 未执行 |
 | 包/进度 | DSL、导入状态、签名离线包无密码/Cookie/storageState/设备token/cleanupToken；元数据UUID仅按授权读取 | 未执行 |
 
 只记录“命中/未命中、字段/路径及受限证据引用”，不要把搜索到的秘密复制到交接。若发现泄漏立即保留失败、撤销合成令牌、修源码再重跑；不能通过删断言或省略证据通过。
@@ -148,7 +148,7 @@ root确认现有Hatch包选择 `packages=["src/veriq_server"]` 且仅排除stati
 | GUI新旧凭据 | 分别选择允许身份的既有版本与创建新版本；中途重新读取；尝试撤销/错误身份/引用 | token仅请求短命内存，字段提交清空；新旧版本均被真实注册表校验；错误拒绝 | 未执行 |
 | GUI恢复/未知写 | 编译等待时停止；刷新页面重新填相同公开参数；模拟响应丢失后从元数据明确选择；编辑草稿/计划/环境参数再恢复 | 重用服务端校验键和已发布内容；不重复伪造版本；变化拒绝覆盖；不声称远端Job已取消 | 未执行 |
 | 作用域与语言 | 切员工/Workspace、退出、关闭；同时让旧请求晚到；全局en/zh切换 | 旧组件卸载并取消，秘密不进入新会话/空间；词条同步appI18n；machineIDs原样但不当测试label | 未执行 |
-| 恢复存储与label检查 | 检查sessionStorage、Query缓存、DOM label/aria/testId/recordKey、URL、事件、错误 | 只有员工空间绑定的公开指纹/版本UUID；无token/cleanupToken；元数据选项label不展开tokenId/secretVersionId | 未执行 |
+| 恢复存储与label检查 | 检查sessionStorage、Query缓存、DOM label/aria/veriqId/recordKey、URL、事件、错误 | 只有员工空间绑定的公开指纹/版本UUID；无token/cleanupToken；元数据选项label不展开tokenId/secretVersionId | 未执行 |
 | 实际权限与设备 | Viewer访问向导写路径、跨空间引用、未共享/未MANAGED/无投递Runtime、撤销会话 | 服务端拒绝；清单读取不授予空间编辑；向导不自动批准信任/引擎/投递 | 未执行 |
 
 安装后真实命令示例（后续执行，本轮未运行）：

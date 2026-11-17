@@ -21,10 +21,10 @@ test("reports show real Workspace history and clear scope on switch", async ({ p
             ).status(),
         ).toBe(201);
     await page.goto("/login");
-    await page.getByTestId("email").fill("browser-admin@example.com");
-    await page.getByTestId("password").fill("Browser password 123!");
-    await page.getByTestId("login-submit").click();
-    await expect(page.getByTestId("account-info")).toBeVisible();
+    await page.getByRole("textbox", { name: "Email" }).fill("browser-admin@example.com");
+    await page.getByLabel("Password").fill("Browser password 123!");
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect(page.locator("dl")).toBeVisible();
     const session = (await (await page.request.get("/api/v1/auth/session")).json()).data;
     const headers = {
         Origin: "http://127.0.0.1:5173",
@@ -41,11 +41,11 @@ test("reports show real Workspace history and clear scope on switch", async ({ p
     expect(a.status()).toBe(201);
     expect(b.status()).toBe(201);
     await page.getByRole("link", { name: "Reports", exact: true }).click();
-    await page.getByTestId("app-language").selectOption("en");
+    await page.getByLabel("Language").selectOption("en");
     await expect(page.getByRole("heading", { name: "Reports", exact: true })).toBeVisible();
-    await page.getByTestId("report-workspace").selectOption((await a.json()).data.id);
+    await page.getByLabel("Report Workspace").selectOption((await a.json()).data.id);
     await expect(page.getByText("No runs in this Workspace.", { exact: true })).toBeVisible();
-    await page.getByTestId("report-workspace").selectOption((await b.json()).data.id);
+    await page.getByLabel("Report Workspace").selectOption((await b.json()).data.id);
     await expect(page.getByText("No runs in this Workspace.", { exact: true })).toBeVisible();
     await expect(page.getByText("Select a run to inspect its report.", { exact: true })).toBeVisible();
 });
@@ -69,10 +69,10 @@ async function reportSession(page: Page) {
         expect(response.status()).toBe(201);
     }
     await page.goto("/login");
-    await page.getByTestId("email").fill("browser-admin@example.com");
-    await page.getByTestId("password").fill("Browser password 123!");
-    await page.getByTestId("login-submit").click();
-    await expect(page.getByTestId("account-info")).toBeVisible();
+    await page.getByRole("textbox", { name: "Email" }).fill("browser-admin@example.com");
+    await page.getByLabel("Password").fill("Browser password 123!");
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect(page.locator("dl")).toBeVisible();
     const session = (await (await page.request.get("/api/v1/auth/session")).json()).data;
     return { Origin: "http://127.0.0.1:5173", "X-CSRF-Token": session.csrfToken };
 }
@@ -101,12 +101,12 @@ test("reports discover URL workspace on a later genuine page and retain manual c
     const fallback = first.items[0];
     if (!target || !fallback) throw new Error("Expected two populated workspace pages");
     await page.goto(`/reports?workspaceId=${target.id}`);
-    const selector = page.getByTestId("report-workspace");
+    const selector = page.getByLabel("Report Workspace");
     await expect(selector).toHaveValue(fallback.id);
     await page.getByRole("button", { name: "More Workspaces", exact: true }).click();
     await expect(selector).toHaveValue(target.id);
     await selector.selectOption(fallback.id);
-    await page.getByTestId("app-language").selectOption("en");
+    await page.getByLabel("Language").selectOption("en");
     await expect(page.getByRole("heading", { name: "Reports", exact: true })).toBeVisible();
     await expect(selector).toHaveValue(fallback.id);
     // 同一个真实列表还覆盖首屏可见目标和缺失目标，页面导航新建选择生命周期；不能假设创建顺序就是服务端排序，所有目标与
@@ -116,8 +116,9 @@ test("reports discover URL workspace on a later genuine page and retain manual c
     const other = first.items.find((item) => item.id !== fallback.id);
     if (!other) throw new Error("Expected a manual alternative workspace");
     await selector.selectOption(other.id);
-    await page.getByTestId("app-language").selectOption("zh");
-    await expect(selector).toHaveValue(other.id);
+    await page.getByLabel("Language").selectOption("zh");
+    const localizedSelector = page.getByLabel("报告工作区", { exact: true });
+    await expect(localizedSelector).toHaveValue(other.id);
     await page.goto(`/reports?workspaceId=${randomUUID()}`);
-    await expect(selector).toHaveValue(fallback.id);
+    await expect(localizedSelector).toHaveValue(fallback.id);
 });

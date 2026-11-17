@@ -91,7 +91,7 @@ async def test_suite_matrix_preserves_dataset_row_provenance_and_frozen_variable
         "ELEMENT_CATALOG",
         {
             "schemaVersion": "1.0",
-            "elements": [{"key": "name", "locator": {"by": "testId", "value": "name"}}],
+            "elements": [{"key": "name", "locator": {"by": "veriqId", "value": "name"}}],
         },
     )
     case = await published(
@@ -216,7 +216,7 @@ async def test_debug_candidate_waits_for_validation_without_fabricating_publishe
         "ELEMENT_CATALOG",
         {
             "schemaVersion": "1.0",
-            "elements": [{"key": "save", "locator": {"by": "testId", "value": "save"}}],
+            "elements": [{"key": "save", "locator": {"by": "veriqId", "value": "save"}}],
         },
     )
     path = await create(

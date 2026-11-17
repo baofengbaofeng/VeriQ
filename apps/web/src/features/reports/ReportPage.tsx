@@ -65,12 +65,7 @@ export function ReportPage() {
         <Panel title={t("reports")}>
             <label>
                 {t("workspace")}
-                <select
-                    aria-label={tx("Report Workspace")}
-                    data-testid="report-workspace"
-                    value={selected}
-                    onChange={(e) => select(e.target.value)}
-                >
+                <select aria-label={tx("Report Workspace")} value={selected} onChange={(e) => select(e.target.value)}>
                     {items.map((w) => (
                         <option key={w.id} value={w.id}>
                             {w.name}
@@ -256,7 +251,7 @@ export function ReportView({
                 <h2>
                     {report.run.outcome ?? report.run.state} · {report.run.source}
                 </h2>
-                <p data-testid="report-gates">
+                <p>
                     {t("gateAt")}: <strong>{report.gateAtExecution.passed ? "PASS" : "BLOCKED"}</strong> ·{" "}
                     {t("gateNow")}: <strong>{report.gateNow.passed ? "PASS" : "BLOCKED"}</strong>
                 </p>

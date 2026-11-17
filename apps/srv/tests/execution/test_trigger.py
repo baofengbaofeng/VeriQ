@@ -28,7 +28,7 @@ async def plan_fixture(site, policy="QUEUE"):
         "ELEMENT_CATALOG",
         {
             "schemaVersion": "1.0",
-            "elements": [{"key": "name", "locator": {"by": "testId", "value": "name"}}],
+            "elements": [{"key": "name", "locator": {"by": "veriqId", "value": "name"}}],
         },
     )
     case = await published(

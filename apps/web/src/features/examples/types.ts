@@ -76,8 +76,8 @@ export interface ImportProgress {
 }
 
 /**
- * 导入事件只包含固定阶段、样例资产键和真实作业状态，机器标识不参与翻译或成为testId；UI按这些事实显示进度，不从请求接受
- * 推导编译或发布成功。
+ * 导入事件只包含固定阶段、样例资产键和真实作业状态，机器标识不参与翻译或成为 veriqId；UI按这些事实显示进
+ * 度，不从请求接受推导编译或发布成功。
  */
 export interface ImportEvent {
     phase: "identity" | "validating" | "published" | "plan";

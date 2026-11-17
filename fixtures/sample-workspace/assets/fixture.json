@@ -22,9 +22,7 @@
                     "minLength": 1
                 }
             },
-            "required": [
-                "name"
-            ],
+            "required": ["name"],
             "additionalProperties": false
         },
         "outputSchema": {
@@ -34,9 +32,7 @@
                     "type": "string"
                 }
             },
-            "required": [
-                "code"
-            ],
+            "required": ["code"],
             "additionalProperties": false
         },
         "ttlSeconds": 1800

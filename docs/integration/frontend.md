@@ -7,8 +7,8 @@
 
 | 交付物 | 前端要求 | 验证方式 |
 | --- | --- | --- |
-| 稳定锚点 | 关键输入、操作、结果、错误、加载和空态提供 `data-testid` | 使用 Playwright `getByTestId` 检查实际 DOM |
-| 重复记录 | 行使用稳定业务标识 `data-record-key`，行内按钮保留统一 testId | 改变排序、分页和筛选后仍定位同一记录 |
+| 稳定锚点 | 关键输入、操作、结果、错误、加载和空态提供 `veriq-id` | 使用 Playwright `locator('[veriq-id=...]')` 检查实际 DOM |
+| 重复记录 | 行使用稳定业务标识 `data-record-key`，行内按钮保留统一 veriqId | 改变排序、分页和筛选后仍定位同一记录 |
 | 目录 | 记录元素 key、定位方式、作用域及变更负责人 | 目录通过 Schema 和用例编译校验 |
 | 状态语义 | 正确使用 label、role、disabled、checked、aria 属性 | 同时验证可访问名称、键盘和真实行为 |
 | 确定性环境 | 固定 locale、时区、测试数据和应用 build SHA | 同一输入可重复断言日期、金额和状态 |
@@ -16,26 +16,26 @@
 | 登录和权限 | 使用真实业务认证与角色授权 | GUI 显示与后端权限分别验证 |
 | 测试环境 | 控制第三方依赖、动画和初始数据，通过配置记录差异 | Runtime 实际可访问被测地址及相关 API |
 
-## testId 与重复行
+## veriqId 与重复行
 
-统一使用 `data-testid` 属性。推荐采用 `employee.create`、`employee.name`、`employee.save`、`employee.error` 等业务语义名称；稳定的名称可跨文案、CSS 和组件重构复用。目录的 `key` 及 testId 值符合 `^[A-Za-z_][A-Za-z0-9_.-]*$`，最多 160 字符。
+统一使用 `veriq-id` 属性。推荐采用 `employee.create`、`employee.name`、`employee.save`、`employee.error` 等业务语义名称；稳定的名称可跨文案、CSS 和组件重构复用。目录的 `key` 及 veriqId 值符合 `^[A-Za-z_][A-Za-z0-9_.-]*$`，最多 160 字符。
 
 数组下标、随机数、翻译后的文案和 CSS 类名不能承担记录身份。React 的 `key` 用于协调渲染，仍需显式输出 `data-record-key` 到 DOM。该值使用非敏感、稳定的记录标识，不能携带 token、密码或个人敏感字段。
 
 ```tsx
-<table data-testid="employee.table">
+<table veriq-id="employee.table">
     <tbody>
         {employees.map((employee) => (
             <tr
                 key={employee.id}
-                data-testid="employee.row"
+                veriq-id="employee.row"
                 data-record-key={employee.id}
             >
-                <td data-testid="employee.name">{employee.name}</td>
+                <td veriq-id="employee.name">{employee.name}</td>
                 <td>
                     <button
                         type="button"
-                        data-testid="employee.edit"
+                        veriq-id="employee.edit"
                         onClick={() => editEmployee(employee.id)}
                     >
                         {t("employee.edit")}
@@ -55,24 +55,24 @@
     "elements": [
         {
             "key": "employee.table",
-            "locator": { "by": "testId", "value": "employee.table" }
+            "locator": { "by": "veriqId", "value": "employee.table" }
         },
         {
             "key": "employee.row",
-            "locator": { "by": "testId", "value": "employee.row" },
+            "locator": { "by": "veriqId", "value": "employee.row" },
             "scope": "employee.table",
             "recordKey": "{{vars.employeeId}}"
         },
         {
             "key": "employee.edit",
-            "locator": { "by": "testId", "value": "employee.edit" },
+            "locator": { "by": "veriqId", "value": "employee.edit" },
             "scope": "employee.row"
         }
     ]
 }
 ```
 
-当前 DSL 支持 `testId` 和 `role` 两种目录定位方式；role 名称可以配合 `name`、`exact`。平台动作要求目标唯一，重复匹配会失败。目录作用域不能形成环；已发布目录改动需创建新版本并检查依赖用例。移动到新版目录后重新编译和审核用例，既有 Run 继续使用其冻结版本。
+当前 DSL 支持 `veriqId` 和 `role` 两种目录定位方式；role 名称可以配合 `name`、`exact`。平台动作要求目标唯一，重复匹配会失败。目录作用域不能形成环；已发布目录改动需创建新版本并检查依赖用例。移动到新版目录后重新编译和审核用例，既有 Run 继续使用其冻结版本。
 
 ## 组件库要求
 
@@ -122,11 +122,11 @@ Playwright 自动等待用于正常可交互状态。最终一致由有限的只
 
 ## 前端变更与回归
 
-提交 UI 变更时，列出受影响的 testId、recordKey、Portal 结构、目录版本和用例。纯文案/样式变动仍应检查 role 名称与可见性断言；接口变更同步通知后端和测试资产负责人。
+提交 UI 变更时，列出受影响的 veriqId、recordKey、Portal 结构、目录版本和用例。纯文案/样式变动仍应检查 role 名称与可见性断言；接口变更同步通知后端和测试资产负责人。
 
 接入验收至少覆盖：稳定唯一定位、表单成功与失败、后台刷新关联、重复行排序、Portal、中文/英文、键盘、真实权限、乐观更新回滚，以及写入后的独立查询。企业业务系统需要用自己的环境和身份执行这些检查；仓库示例通过不能替代客户系统验收。
 
 <a id="implementation-references"></a>
 ## 实现参考
 
-当前契约支持稳定 testId、role 定位器、嵌套目录作用域及精确的 `data-record-key` 筛选。实现见[定位器解析](../../packages/runner-sdk/src/context.ts)、[动作执行](../../packages/runner-sdk/src/execute-step.ts)、[UI 断言](../../packages/runner-sdk/src/assertions/ui.ts)、[网络观察器](../../packages/runner-sdk/src/observers/network.ts)及[后端接入契约](backend.md)。上文示例描述接入方式；完整产品与已安装平台的最终验收仍以[里程碑台账](../plans/milestones.md)为准。
+当前契约支持稳定 veriqId、role 定位器、嵌套目录作用域及精确的 `data-record-key` 筛选。实现见[定位器解析](../../packages/runner-sdk/src/context.ts)、[动作执行](../../packages/runner-sdk/src/execute-step.ts)、[UI 断言](../../packages/runner-sdk/src/assertions/ui.ts)、[网络观察器](../../packages/runner-sdk/src/observers/network.ts)及[后端接入契约](backend.md)。上文示例描述接入方式；完整产品与已安装平台的最终验收仍以[里程碑台账](../plans/milestones.md)为准。

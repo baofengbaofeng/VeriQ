@@ -55,7 +55,7 @@ export function RuntimePage() {
             {!!items.length && (
                 <label>
                     {tx("Workspace")}
-                    <select data-testid="runtime-workspace" value={selected} onChange={(e) => select(e.target.value)}>
+                    <select value={selected} onChange={(e) => select(e.target.value)}>
                         {items.map((w) => (
                             <option key={w.id} value={w.id}>
                                 {w.name}
@@ -129,7 +129,6 @@ function RuntimeWorkspace({ workspace }: { workspace: Workspace }) {
                         <label>
                             {tx("Approval code")}
                             <input
-                                data-testid="enrollment-code"
                                 value={code}
                                 pattern="[A-Z2-7]{12}"
                                 required
@@ -142,13 +141,12 @@ function RuntimeWorkspace({ workspace }: { workspace: Workspace }) {
                                 autoComplete="off"
                             />
                         </label>
-                        <button type="submit" data-testid="enrollment-inspect" disabled={a.busy}>
+                        <button type="submit" disabled={a.busy}>
                             {tx("Inspect device")}
                         </button>
                     </form>
                     {preview && (
                         <form
-                            data-testid="enrollment-preview"
                             onSubmit={(e) => {
                                 e.preventDefault();
                                 void a.run(async () => {
@@ -188,11 +186,7 @@ function RuntimeWorkspace({ workspace }: { workspace: Workspace }) {
                             {sharing === "members" && (
                                 <MemberShares ws={workspace.id} selected={users} onChange={setUsers} />
                             )}
-                            <button
-                                type="submit"
-                                data-testid="enrollment-approve"
-                                disabled={a.busy || (sharing === "members" && !users.length)}
-                            >
+                            <button type="submit" disabled={a.busy || (sharing === "members" && !users.length)}>
                                 {tx("Approve device")}
                             </button>
                         </form>
@@ -314,13 +308,13 @@ function RuntimeCard({
         setDelivery(runtime.allowCredentialDelivery);
     }, [runtime]);
     return (
-        <article data-testid={`runtime-${runtime.id}`}>
+        <article>
             <h3>{runtime.name}</h3>
             <p>
                 {runtime.location} ·{" "}
                 {runtime.ownerType === "USER" ? tx("Personal device") : tx("Service account device")} · {runtime.status}
             </p>
-            <p data-testid="current-trust">
+            <p>
                 {tx("Current trust: ")}
                 {runtime.trustStatus}
             </p>
@@ -370,22 +364,16 @@ function RuntimeCard({
                         }}
                     >
                         <label>
-                            <input
-                                data-testid="share-workspace"
-                                type="checkbox"
-                                checked={shared}
-                                onChange={(e) => setShared(e.target.checked)}
-                            />
+                            <input type="checkbox" checked={shared} onChange={(e) => setShared(e.target.checked)} />
                             {tx("Share with the Workspace")}
                         </label>
                         <MemberShares ws={runtime.workspaceId} selected={users} onChange={setUsers} />
-                        <button type="submit" data-testid="save-grants" disabled={a.busy}>
+                        <button type="submit" disabled={a.busy}>
                             {tx("Save sharing")}
                         </button>
                     </form>
                     <button
                         type="button"
-                        data-testid="revoke-runtime"
                         disabled={a.busy}
                         onClick={() =>
                             void a.run(async () => {
@@ -421,7 +409,6 @@ function RuntimeCard({
                         <label>
                             {tx("Current trust")}
                             <select
-                                data-testid="trust-status"
                                 value={trust}
                                 onChange={(e) => {
                                     setTrust(e.target.value as "MANAGED" | "USER_REGISTERED");
@@ -432,7 +419,7 @@ function RuntimeCard({
                                 <option value="MANAGED">{tx("Managed")}</option>
                             </select>
                         </label>
-                        <button type="submit" data-testid="save-trust" disabled={a.busy}>
+                        <button type="submit" disabled={a.busy}>
                             {tx("Save trust")}
                         </button>
                     </form>
@@ -459,7 +446,6 @@ function RuntimeCard({
                         </p>
                         <label>
                             <input
-                                data-testid="credential-delivery"
                                 type="checkbox"
                                 checked={delivery}
                                 disabled={runtime.trustStatus !== "MANAGED"}
@@ -467,11 +453,7 @@ function RuntimeCard({
                             />
                             {tx("Allow platform credential delivery")}
                         </label>
-                        <button
-                            type="submit"
-                            data-testid="save-delivery"
-                            disabled={a.busy || runtime.trustStatus !== "MANAGED"}
-                        >
+                        <button type="submit" disabled={a.busy || runtime.trustStatus !== "MANAGED"}>
                             {tx("Save credential delivery")}
                         </button>
                     </form>

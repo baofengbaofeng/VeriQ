@@ -1039,13 +1039,13 @@ it.each(["recordKey", "roleName", "ancestor"] as const)(
                     ? [
                           {
                               key: "row",
-                              locator: { by: "testId", value: "row" },
+                              locator: { by: "veriqId", value: "row" },
                               recordKey: "{{vars.id}}",
                           },
                           {
                               key: "name",
                               scope: "row",
-                              locator: { by: "testId", value: "name" },
+                              locator: { by: "veriqId", value: "name" },
                           },
                       ]
                     : [
@@ -1054,7 +1054,7 @@ it.each(["recordKey", "roleName", "ancestor"] as const)(
                               locator:
                                   kind === "roleName"
                                       ? { by: "role", role: "button", name: "{{vars.id}}" }
-                                      : { by: "testId", value: "name" },
+                                      : { by: "veriqId", value: "name" },
                               ...(kind === "recordKey" ? { recordKey: "{{vars.id}}" } : {}),
                           },
                       ],
@@ -1119,7 +1119,7 @@ it("I2 includes template parameter scopes in a locator extraction dependency", (
             {
                 key: "name",
                 recordKey: "{{data.row}}",
-                locator: { by: "testId", value: "name" },
+                locator: { by: "veriqId", value: "name" },
             },
         ],
     });

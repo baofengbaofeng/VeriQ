@@ -698,7 +698,7 @@ export async function onlineBusiness(
         res.setHeader("Set-Cookie", `attempt=${run}; Path=/`);
         res.setHeader("Content-Type", "text/html");
         res.end(
-            '<div data-testid="name">Ready</div><script>navigator.serviceWorker.register("/sw.js").catch(()=>{});</s' +
+            '<div veriq-id="name">Ready</div><script>navigator.serviceWorker.register("/sw.js").catch(()=>{});</s' +
                 "cript>",
         );
     });

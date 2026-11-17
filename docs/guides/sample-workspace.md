@@ -60,7 +60,7 @@ python -m veriq_server.examples.bootstrap \
 | 顺序 | 创建内容 | 固定依赖 / 用途 |
 | --- | --- | --- |
 | 身份 | HTTP_BEARER `/me` 适配器；`demo_business` / `demo_fixture` 密钥版本 | editor 普通业务身份与 fixture-service 服务身份分离 |
-| 1 | ELEMENT_CATALOG | 表单作用域、稳定 testId、行 recordKey |
+| 1 | ELEMENT_CATALOG | 表单作用域、稳定 veriqId、行 recordKey |
 | 2 | DATASET | latin / unicode 两条合成姓名 |
 | 3 | FIXTURE | `/prepare`、`/query`、`/cleanup`、1800秒 TTL、严格输入/输出 |
 | 4 | FLOW | 带 name 参数的公共填写步骤 |
@@ -78,7 +78,7 @@ python -m veriq_server.examples.bootstrap \
 
 在 Workspaces 页打开“导入示例 Workspace”按钮。向导以当前员工和空间为作用域；没有空间时可先创建或打开空间，再去 Runtimes 完成实际授权。它通过已认证的 `GET /api/v1/examples/sample-workspace` 读取当前安装包中的 manifest、七类 assets 和实际 JSON 字节散列，响应沿用 `data/requestId` 信封，未登录不能读取。
 
-填写从实际 Runtime 可达的业务页面/API/fixture origins、真实目标 build、locale/timezone、业务 roleKey、两类允许身份及授权 Runtime。可选择已有 HTTP_BEARER 适配器和未撤销的凭据版本，或输入两份新令牌创建加密凭据；密码字段提交后清空，令牌不进入浏览器存储、查询缓存或日志。字段 label/testId 不包含 tokenId/secretVersionId。
+填写从实际 Runtime 可达的业务页面/API/fixture origins、真实目标 build、locale/timezone、业务 roleKey、两类允许身份及授权 Runtime。可选择已有 HTTP_BEARER 适配器和未撤销的凭据版本，或输入两份新令牌创建加密凭据；密码字段提交后清空，令牌不进入浏览器存储、查询缓存或日志。字段 label/veriqId 不包含 tokenId/secretVersionId。
 
 点击“开始或恢复导入”后，页面显示真实 Job 状态和等待原因，依次发布资产并创建固定套件/环境/设备的 QUEUE 计划。未完成编译、失败、取消或超时不会显示已发布成功。停止按钮只停止本地请求和轮询；已经接受的远端 VALIDATE 作业仍可能继续，界面不会声称远端进程已停止。
 

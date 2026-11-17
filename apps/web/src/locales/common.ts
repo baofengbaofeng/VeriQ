@@ -3,6 +3,8 @@
  * 请求参数、技术标识或用户创建的业务名称。
  */
 export const commonMessages: Record<string, readonly [string, string]> = {
+    Close: ["关闭", "Close"],
+    "Help for": ["字段帮助", "Help for"],
     Runtimes: ["运行时", "Runtimes"],
     Workspaces: ["工作区", "Workspaces"],
     "VeriQ unavailable": ["VeriQ 暂时不可用", "VeriQ unavailable"],

@@ -37,7 +37,7 @@ AI 是可选辅助：用于生成结构化草稿、边界建议与失败分析�
 | F01  | 安装与系统初始化 | 部署、数据库迁移、管理员创建、配置校验、健康检查、示例资源                        |
 | F02  | 自有用户         | 登录/退出、邀请或管理员创建、密码重置、禁用、会话撤销                             |
 | F03  | Workspace        | 一项目一空间、多空间成员、角色、切换、资源隔离与审计                              |
-| F04  | 页面与元素       | testId/role 定位、记录 key、作用域、目录版本与引用影响                            |
+| F04  | 页面与元素       | veriqId/role 定位、记录 key、作用域、目录版本与引用影响                            |
 | F05  | 用例             | 步骤与 JSON 编辑、数据驱动、变量、公共流程、草稿、校验、发布、差异与归档          |
 | F06  | 操作与断言       | UI、URL、请求/响应、JSON 字段/Schema、持久化、最终一致性、模板版本与预期依据      |
 | F07  | 环境与身份       | 前后端地址、域名约束、语言/时区、业务角色、凭证引用与构建版本                     |
@@ -121,7 +121,7 @@ pnpm check
 
 账户与 Workspace 模块可在开发环境运行：安全配置 MySQL、初始化管理员、分别启动 Tornado 与 Vite 的步骤见[开发指南](docs/development.md)。后端入口为 `veriq_server`；当前界面提供真实的安装、认证、用户管理、空间切换、成员与邀请功能，完整测试平台仍待后续模块交付。
 
-版本化资产 API 支持八类资源、草稿修订、依赖、校验预览与排队、不可变发布规则。服务端已实现受信编译完成回执和发布校验，要求当前 MANAGED 设备、有效租约/fencing、批准的引擎清单及真实上传文件；Linux 开发 Agent 已接入实际编译、浏览器执行与完成回执；生产引擎清单和原生发行包仍须由发布任务交付，不会把排队任务当作已验证发布。字段与哈希协议见[契约说明](docs/contracts.md)及[资产验证决策](docs/decisions/0005-immutable-asset-validation.md)。稳定 testId、重复记录、组件与操作断言关联见[前端接入](docs/integration/frontend.md)。fixture 示例、业务身份隔离、外部 TTL 补偿及受限 Trace 策略见[后端接入](docs/integration/backend.md)；当前 Attempt 凭证授权已接入真实设备、执行请求者和独立下发授权校验，原始制品与结构化报告已实施独立访问控制。AI 配置、预算、人工审核和实际 Provider 验收边界见 [AI 使用说明](docs/ai.md)。
+版本化资产 API 支持八类资源、草稿修订、依赖、校验预览与排队、不可变发布规则。服务端已实现受信编译完成回执和发布校验，要求当前 MANAGED 设备、有效租约/fencing、批准的引擎清单及真实上传文件；Linux 开发 Agent 已接入实际编译、浏览器执行与完成回执；生产引擎清单和原生发行包仍须由发布任务交付，不会把排队任务当作已验证发布。字段与哈希协议见[契约说明](docs/contracts.md)及[资产验证决策](docs/decisions/0005-immutable-asset-validation.md)。稳定 veriq-id、重复记录、组件与操作断言关联见[前端接入](docs/integration/frontend.md)。fixture 示例、业务身份隔离、外部 TTL 补偿及受限 Trace 策略见[后端接入](docs/integration/backend.md)；当前 Attempt 凭证授权已接入真实设备、执行请求者和独立下发授权校验，原始制品与结构化报告已实施独立访问控制。AI 配置、预算、人工审核和实际 Provider 验收边界见 [AI 使用说明](docs/ai.md)。
 
 Linux Agent 开发需先执行 `pnpm --filter @veriq/runtime build:launcher` 再 `runtime start`（Runtime 测试命令会自动构建）。该步骤仅在构建期使用 C 编译器。已安装 Agent 需要预编译的 `build/veriq_runner` 辅助进程，缺失则失败关闭。生产原生打包仍属后续发行任务；本地 Agent 运行时不要求 Python、MySQL、C 编译器、bwrap 或 unshare。
 
@@ -224,7 +224,7 @@ The first release targets all 14 modules below. Internal milestones are not a co
 | F01 | Install and system init   | Deploy, DB migration, admin bootstrap, config validation, health checks, sample resources                                         |
 | F02 | First-party users         | Login/logout, invite or admin create, password reset, disable, session revoke                                                     |
 | F03 | Workspace                 | One project per space, multi-space membership, roles, switch, isolation and audit                                                 |
-| F04 | Pages and elements        | testId/role locators, record keys, scopes, catalog versions and reference impact                                                  |
+| F04 | Pages and elements        | veriqId/role locators, record keys, scopes, catalog versions and reference impact                                                  |
 | F05 | Cases                     | Step and JSON editing, data-driven runs, variables, shared flows, draft, validate, publish, diff, archive                         |
 | F06 | Actions and assertions    | UI, URL, request/response, JSON field/Schema, persistence, eventual consistency, template versions and expected basis             |
 | F07 | Environments and identity | Front/back URLs, domain constraints, locale/timezone, business roles, credential refs and build versions                          |

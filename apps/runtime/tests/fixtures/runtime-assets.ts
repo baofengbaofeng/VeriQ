@@ -127,6 +127,201 @@ export function assetWorkflowSteps(cacheRoot: string): readonly Record<string, u
     return JSON.parse(result) as Record<string, unknown>[];
 }
 
+/**
+ * 收集器夹具明确标为合成输入，只描述失败分支所需的完整协议字节及来源引用，不执行工具或生成原生成功回执。
+ * 进程日志均带 SYNTHETIC 标记，源码引用绑定真实只读宿主字节，失败状态不能解释为官方资产或平台验收。
+ */
+export async function syntheticCollectorEvidence(root: string, observerFailed = false) {
+    const workspace = join(root, "synthetic-checkout");
+    const env = {
+        GITHUB_SHA: "a".repeat(40),
+        GITHUB_RUN_ID: "123",
+        GITHUB_RUN_ATTEMPT: "1",
+        GITHUB_WORKSPACE: workspace,
+        EXPECTED_ARCH: "x64",
+        UNIT_OUTCOME: "success",
+        UNIT_CONCLUSION: "success",
+        BOOTSTRAP_OUTCOME: observerFailed ? "success" : "failure",
+        BOOTSTRAP_CONCLUSION: "success",
+    };
+    const files: Record<string, Buffer> = {};
+    const json = (path: string, value: unknown) => {
+        files[path] = Buffer.from(JSON.stringify(value));
+    };
+    const processRefs: Ref[] = [];
+    // 两个被绑定文件沿用真实仓库原字节与摘要，夹具只增加收集输入，不能替换永久进程测试或扩大源码库存。
+    for (const [index, path] of [
+        "apps/runtime/scripts/runtime-assets-ci-process.mjs",
+        "apps/runtime/tests/runtime-assets-ci-process.test.mjs",
+    ].entries()) {
+        const bytes = await readFile(new URL(`../../../../${path}`, import.meta.url));
+        processRefs.push(fact(path, bytes));
+        files[`ci-process/${index ? "test" : "helper"}.mjs`] = bytes;
+    }
+    for (const stage of observerFailed ? ["unit", "observe"] : ["unit", "observe", "bootstrap"]) {
+        json(`ci-process/binding-${stage}.json`, {
+            kind: "ASSET_CI_PROCESS_SOURCE",
+            commit: env.GITHUB_SHA,
+            runId: env.GITHUB_RUN_ID,
+            runAttempt: 1,
+            arch: "x64",
+            ciProcessRefs: processRefs,
+        });
+    }
+    const completed = {
+        admitted: true,
+        closeConfirmed: true,
+        truncated: false,
+        timedOut: false,
+        exit: 0,
+        signal: null,
+        elapsedMs: 1,
+        error: null,
+    };
+    json("unit.json", {
+        ...completed,
+        step: "UNIT",
+        status: "PASS",
+        reason: null,
+        code: null,
+        phase: null,
+        cleanup: null,
+        argv: [process.execPath, "--test", "tests/runtime-assets-ci-process.test.mjs"],
+        cwd: join(workspace, "apps/runtime"),
+    });
+    files["unit.stdout.log"] = Buffer.from("SYNTHETIC collector unit input; no process executed\n");
+    files["unit.stderr.log"] = Buffer.alloc(0);
+    const acquire = {
+        ...completed,
+        exit: observerFailed ? 1 : 0,
+        argv: [
+            process.execPath,
+            "--import",
+            "tsx",
+            "scripts/acquire-macos-runtime-assets.mjs",
+            "--arch",
+            "x64",
+            "--source",
+            join(root, "source-observation.json"),
+            "--input-root",
+            join(root, "source"),
+            "--output-parent",
+            join(root, "acquisition"),
+            "--candidate",
+            "acquired",
+        ],
+        cwd: join(workspace, "apps/runtime"),
+    };
+    const observe = {
+        ...completed,
+        argv: [
+            process.execPath,
+            "--import",
+            "tsx",
+            "scripts/observe-macos-runtime-assets.mjs",
+            "--assets",
+            join(root, "acquisition/acquired/assets-input.json"),
+            "--input-root",
+            join(root, "acquisition/acquired"),
+            "--output-parent",
+            join(root, "observation"),
+            "--candidate",
+            "observed",
+        ],
+        cwd: join(workspace, "apps/runtime"),
+    };
+    json("ci-process/observe-executions.json", [acquire, observerFailed ? null : observe]);
+    if (observerFailed) {
+        // 已有失败步骤必须保留原始字节，后续阶段用明确未准入记录结束，不能将观察失败改写成成功执行结果。
+        json("bootstrap/execution.json", {
+            ...completed,
+            step: "BOOTSTRAP",
+            status: "NOT_RUN",
+            reason: "OBSERVER_FAILED",
+            admitted: false,
+            closeConfirmed: null,
+            exit: null,
+            elapsedMs: 0,
+            code: null,
+            phase: null,
+            cleanup: null,
+            argv: null,
+            cwd: null,
+        });
+    } else {
+        // 完整收集使用显式失败的 bootstrap 分支，故只需失败诊断，不制造成员树、成功回执或可执行布局证明。
+        const producerRefs: Ref[] = [];
+        for (const path of [
+            "apps/runtime/scripts/runtime-node-bootstrap.ts",
+            "apps/runtime/scripts/prepare-macos-node-bootstrap.mjs",
+        ]) {
+            producerRefs.push(fact(path, await readFile(new URL(`../../../../${path}`, import.meta.url))));
+        }
+        json("bootstrap/source-binding.json", {
+            kind: "NODE_BOOTSTRAP_CI_SOURCE",
+            commit: env.GITHUB_SHA,
+            runId: env.GITHUB_RUN_ID,
+            runAttempt: 1,
+            arch: "x64",
+            producer2Refs: producerRefs,
+        });
+        json("source.json", {
+            schemaVersion: 1,
+            kind: "ASSET_OBSERVER_SOURCE",
+            commit: env.GITHUB_SHA,
+            runId: env.GITHUB_RUN_ID,
+            runAttempt: 1,
+            arch: "x64",
+            osVersion: "15.7.1",
+            nodeVersion: "24.22.1",
+            nodeSha256: fact("node", Buffer.from("SYNTHETIC tool identity; no native execution")).sha256,
+            files: await Promise.all(
+                ASSET_SOURCES.map(async (source) => fact(source.path, await readFile(new URL(source.url)))),
+            ),
+        });
+        json("bootstrap/launch-space.json", {
+            availableBytes: "1073741824",
+            blockSize: "4096",
+            policy: "ACTUAL_REMAINING_TRANSACTION_PLAN",
+        });
+        files["bootstrap/result.stdout.json"] = Buffer.alloc(0);
+        files["bootstrap/prepare.log"] = Buffer.from(
+            "SYNTHETIC collector input; no bootstrap executed\nPAYLOAD_IO phase=INPUTS cleanup=NOT_NEEDED\n",
+        );
+        json("bootstrap/execution.json", {
+            ...completed,
+            step: "BOOTSTRAP",
+            status: "FAIL",
+            reason: null,
+            exit: 1,
+            code: "PAYLOAD_IO",
+            phase: "INPUTS",
+            cleanup: "NOT_NEEDED",
+            argv: [
+                process.execPath,
+                "--import",
+                "tsx",
+                "scripts/prepare-macos-node-bootstrap.mjs",
+                "--assets",
+                join(root, "acquisition/acquired/assets-input.json"),
+                "--input-root",
+                join(root, "acquisition/acquired"),
+                "--output-parent",
+                join(root, "bootstrap"),
+                "--candidate",
+                "prepared",
+            ],
+            cwd: join(workspace, "apps/runtime"),
+        });
+    }
+    for (const [path, bytes] of Object.entries(files)) {
+        const target = join(root, "metadata", path);
+        await mkdir(join(target, ".."), { recursive: true, mode: 0o700 });
+        await writeFile(target, bytes, { mode: 0o600 });
+    }
+    return { env, files };
+}
+
 const officialChecksumText =
     `f627b6d079829e648a4b800ffa889d37dbe23913507030030db85aa861591a26  node-v24.22.1-aix-ppc` +
     `64.tar.gz

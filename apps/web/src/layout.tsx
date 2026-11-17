@@ -108,7 +108,7 @@ function UserMenu() {
     if (!user) return null;
     return (
         <DropdownMenu.Root>
-            <DropdownMenu.Trigger className="vq-user-trigger" data-testid="user-menu">
+            <DropdownMenu.Trigger className="vq-user-trigger">
                 <Avatar name={user.displayName} />
                 <span className="vq-user-name">{user.displayName}</span>
             </DropdownMenu.Trigger>
@@ -143,12 +143,7 @@ function TopBar({ onLogout }: { onLogout: () => void }) {
                 {user ? (
                     <>
                         <UserMenu />
-                        <button
-                            type="button"
-                            className="vq-btn vq-btn-secondary"
-                            data-testid="logout"
-                            onClick={onLogout}
-                        >
+                        <button type="button" className="vq-btn vq-btn-secondary" onClick={onLogout}>
                             {tx("Sign out")}
                         </button>
                     </>
