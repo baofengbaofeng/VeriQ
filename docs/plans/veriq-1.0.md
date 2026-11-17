@@ -349,13 +349,13 @@ expect(firstAttempt.fixtureId).not.toBe(secondAttempt.fixtureId);
 - `apps/web/src/features/environments/EnvironmentPage.tsx`
 - `apps/web/tests/case-publish.spec.ts`
 
-**接口：** Web只提交CaseDslV1；observer/断言/变量面板共享同一表单状态，JSON编辑与表单可逆。
+**接口：** Web只提交CaseDslV1；observer/断言/变量面板共享同一表单状态，JSON编辑与表单可逆。VeriQ 自身界面按角色、名称和标签定位；`veriq-id` 仅属于被测系统，见 ADR 0023。
 
 - [x] **步骤 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
 
 ```ts
-expect(await page.locator('[veriq-id="case.validation-errors"]').count()).toBe(0);
-await expect(page.locator('[veriq-id="case.published-version"]')).toBeVisible();
+await expect(page.getByRole("dialog").locator('ul[role="alert"]')).toHaveCount(0);
+await expect(page.getByRole("dialog").getByText(/^v1 · /)).toBeVisible();
 ```
 
 - [x] **步骤 2：运行测试确认未实现时失败。** `pnpm --filter @veriq/web test:e2e case-publish.spec.ts`；失败必须来自缺失行为，而非测试环境拼写错误。
@@ -693,8 +693,8 @@ assert incompatible_rollback_is_rejected is True
 - [ ] **步骤 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
 
 ```ts
-await expect(page.locator('[veriq-id="workspace.demo"]')).toBeVisible();
-await expect(page.locator('[veriq-id="run.outcome"]')).toHaveText("PASSED");
+await expect(page.getByRole("article").filter({ hasText: "Demo Workspace" })).toBeVisible();
+await expect(page.getByRole("button", { name: "Attempt 1 · PASSED", exact: true })).toBeVisible();
 ```
 
 - [ ] **步骤 2：运行测试确认未实现时失败。** `pnpm e2e -- tests/e2e/full-product.spec.ts`；失败必须来自缺失行为，而非测试环境拼写错误。

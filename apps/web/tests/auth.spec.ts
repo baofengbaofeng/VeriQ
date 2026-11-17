@@ -96,13 +96,13 @@ test("real setup, login, account, administration and one-time reset", async ({ p
     test.setTimeout(30_000);
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "Set up VeriQ" })).toBeVisible();
-    await page.getByLabel("Installation secret").fill("wrong-secret");
+    await page.getByLabel(/^Installation secret/).fill("wrong-secret");
     await page.getByRole("textbox", { name: "Email" }).fill("browser-admin@example.com");
-    await page.getByLabel("Display name").fill("Browser Administrator");
+    await page.getByRole("textbox", { name: /^Display name/ }).fill("Browser Administrator");
     await page.getByLabel("Password").fill("Browser password 123!");
     await page.getByRole("button", { name: "Create administrator" }).click();
     await expect(page.getByRole("alert")).toContainText("Installation secret is invalid");
-    await page.getByLabel("Installation secret").fill("browser-operator-secret");
+    await page.getByLabel(/^Installation secret/).fill("browser-operator-secret");
     await page.getByRole("button", { name: "Create administrator" }).click();
     await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
     await page.getByRole("textbox", { name: "Email" }).fill("browser-admin@example.com");
@@ -144,7 +144,7 @@ test("real setup, login, account, administration and one-time reset", async ({ p
     await page.getByRole("link", { name: "Users", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Users", exact: true })).toBeVisible();
     await page.getByRole("textbox", { name: "Email" }).fill("browser-user@example.com");
-    await page.getByLabel("Display name").fill("Browser User");
+    await page.getByRole("textbox", { name: /^Display name/ }).fill("Browser User");
     await page.getByLabel("Password").fill("Initial password 123!");
     await page.getByRole("button", { name: "Create user" }).click();
     const row = page.getByRole("row", { name: "browser-user@example.com" });
@@ -192,7 +192,7 @@ test("real setup, login, account, administration and one-time reset", async ({ p
     await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
     await page.goto(link);
     await expect(page.getByRole("heading", { name: "Choose a new password" })).toBeVisible();
-    await page.getByLabel("New password (at least 12 characters)").fill("Changed password 123!");
+    await page.getByLabel(/^New password \(at least 12 characters\)/).fill("Changed password 123!");
     await page.getByRole("button", { name: "Update password" }).click();
     await expect(page.getByRole("status")).toContainText("Password updated");
     await page.getByRole("link", { name: "Sign in", exact: true }).last().click();
@@ -207,7 +207,7 @@ test("real setup, login, account, administration and one-time reset", async ({ p
     await page.goto("/account");
     await expect(page.getByRole("heading", { name: "Your account" })).toBeVisible();
     await page.getByLabel("Current password").fill("Changed password 123!");
-    await page.getByLabel("New password (at least 12 characters)").fill("Final password 123!");
+    await page.getByLabel(/^New password \(at least 12 characters\)/).fill("Final password 123!");
     const passwordNavigations: string[] = [];
     const recordPasswordNavigation = (frame: import("@playwright/test").Frame) => {
         if (frame === page.mainFrame()) passwordNavigations.push(new URL(frame.url()).pathname);
@@ -224,7 +224,7 @@ test("real setup, login, account, administration and one-time reset", async ({ p
     await expect(page.getByRole("status")).toContainText("If this account is eligible");
     await page.goto(link);
     await expect(page.getByRole("heading", { name: "Choose a new password" })).toBeVisible();
-    await page.getByLabel("New password (at least 12 characters)").fill("Rejected password 123!");
+    await page.getByLabel(/^New password \(at least 12 characters\)/).fill("Rejected password 123!");
     await page.getByRole("button", { name: "Update password" }).click();
     await expect(page.getByRole("alert")).toContainText("Reset link is invalid or expired");
     await page.goto("/login");
@@ -248,7 +248,7 @@ test("real setup, login, account, administration and one-time reset", async ({ p
     await expect(page.locator("dl")).toContainText("Browser Administrator");
     await page.getByRole("link", { name: "Users", exact: true }).click();
     await page.getByRole("textbox", { name: "Email" }).fill("browser-second-admin@example.com");
-    await page.getByLabel("Display name").fill("Second Administrator");
+    await page.getByRole("textbox", { name: /^Display name/ }).fill("Second Administrator");
     await page.getByLabel("Password").fill("Second password 123!");
     await page.getByLabel("System administrator").check();
     await page.getByRole("button", { name: "Create user" }).click();
@@ -472,7 +472,8 @@ test("real setup, login, account, administration and one-time reset", async ({ p
         (route) => (route.request().method() === "GET" ? route.abort("failed") : route.continue()),
         { times: 1 },
     );
-    await page.getByRole("link", { name: "Account", exact: true }).click();
+    await page.getByRole("button", { name: "Browser User", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Account", exact: true }).click();
     await expect(page.getByRole("button", { name: "Retry sessions" })).toBeVisible();
     await page.getByRole("button", { name: "Retry sessions" }).click();
     await expect(page.getByRole("list").getByRole("listitem")).toHaveCount(1);
@@ -512,7 +513,7 @@ test("real setup, login, account, administration and one-time reset", async ({ p
     await expect(page.getByLabel("Sessions per page")).toBeEnabled();
     page.on("request", recordIdle);
     await page.getByLabel("Current password").fill("Second password 123!");
-    await page.getByLabel("New password (at least 12 characters)").fill("Unsubmitted password 123!");
+    await page.getByLabel(/^New password \(at least 12 characters\)/).fill("Unsubmitted password 123!");
     expect(idleReads).toHaveLength(0);
     page.off("request", recordIdle);
     await page.getByRole("link", { name: "Users", exact: true }).click();

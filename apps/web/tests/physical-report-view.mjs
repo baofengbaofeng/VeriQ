@@ -22,13 +22,14 @@ const server = await createServer({
 });
 await server.listen();
 const browser = await chromium.launch({
-    executablePath: process.env.VERIQ_TEST_CHROMIUM ?? "/usr/bin/chromium",
+    executablePath: chromium.executablePath(),
     headless: true,
     args: ["--no-sandbox"],
 });
 try {
     const page = await browser.newPage({
         viewport: { width: 1280, height: 900 },
+        locale: "en-US",
     });
     const failures = [];
     page.on("pageerror", (error) => failures.push(error.message));
@@ -38,7 +39,7 @@ try {
     await page.getByRole("button", { name: "Sign in" }).click();
     await expect(page.locator("dl")).toBeVisible();
     await page.getByRole("link", { name: "Reports", exact: true }).click();
-    await page.getByLabel("语言 / Language").selectOption("en");
+    await page.getByRole("combobox", { name: "Language", exact: true }).selectOption("en");
     await page.getByRole("button", { name: /MANAGED_CLOUD|CONNECTED_LOCAL/ }).click();
     await expect(page.getByText("Gate at execution")).toBeVisible();
     await page.getByRole("button", { name: "Attempt 1 · PASSED", exact: true }).click();

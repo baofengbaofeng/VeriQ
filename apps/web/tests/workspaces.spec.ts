@@ -62,12 +62,20 @@ test("real Workspace selection, invitation acceptance and member permissions", a
     await page.getByRole("link", { name: "Workspaces", exact: true }).click();
     await expect(page.getByText("No Workspaces yet.", { exact: true })).toBeVisible();
     await page.getByLabel("Key").fill("browser-alpha");
-    await page.getByLabel("Name").first().fill("Browser Alpha");
+    await page
+        .locator("form")
+        .filter({ has: page.getByRole("button", { name: "Create Workspace", exact: true }) })
+        .getByLabel("Name", { exact: true })
+        .fill("Browser Alpha");
     await page.getByRole("button", { name: "Create Workspace" }).click();
     await expect(page.getByRole("article")).toContainText("Browser Alpha");
     const alpha = await page.getByLabel("Current Workspace").inputValue();
     await page.getByLabel("Key").fill("browser-beta");
-    await page.getByLabel("Name").first().fill("Browser Beta");
+    await page
+        .locator("form")
+        .filter({ has: page.getByRole("button", { name: "Create Workspace", exact: true }) })
+        .getByLabel("Name", { exact: true })
+        .fill("Browser Beta");
     await page.getByRole("button", { name: "Create Workspace" }).click();
     await expect(page.getByRole("article")).toContainText("Browser Beta");
     const beta = await page.getByLabel("Current Workspace").inputValue();
@@ -99,7 +107,7 @@ test("real Workspace selection, invitation acceptance and member permissions", a
     await expect(viewer.getByRole("button", { name: "Create invitation" })).toHaveCount(0);
     await expect(viewer.getByRole("button", { name: "Rename Workspace" })).toHaveCount(0);
     await page.getByRole("button", { name: "Refresh Workspace" }).click();
-    const member = page.getByRole("listitem", { name: "Workspace Viewer" });
+    const member = page.getByRole("listitem").filter({ hasText: "workspace-viewer@example.com" });
     await expect(member).toContainText("Workspace Viewer");
     await member.getByRole("combobox", { name: "Role" }).selectOption("EDITOR");
     await member.getByRole("button", { name: "Save member" }).click();

@@ -117,7 +117,8 @@ test("reports discover URL workspace on a later genuine page and retain manual c
     if (!other) throw new Error("Expected a manual alternative workspace");
     await selector.selectOption(other.id);
     await page.getByLabel("Language").selectOption("zh");
-    await expect(selector).toHaveValue(other.id);
+    const localizedSelector = page.getByLabel("报告工作区", { exact: true });
+    await expect(localizedSelector).toHaveValue(other.id);
     await page.goto(`/reports?workspaceId=${randomUUID()}`);
-    await expect(selector).toHaveValue(fallback.id);
+    await expect(localizedSelector).toHaveValue(fallback.id);
 });

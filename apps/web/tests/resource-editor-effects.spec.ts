@@ -5,6 +5,7 @@
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { test, expect } from "@playwright/test";
+import { resourceCreateForm } from "./editor-fixture";
 import type { editor } from "monaco-editor/editor";
 
 /**
@@ -128,7 +129,7 @@ test("resources retain manual workspace and unsaved values across list refresh",
         await backendCompleted;
         await selector.selectOption(beta);
         await expect(page.getByText("No resources in this Workspace.")).toBeVisible();
-        await page.getByLabel("Kind", { exact: true }).selectOption("DATASET");
+        await resourceCreateForm(page).getByRole("combobox", { name: "Kind", exact: true }).selectOption("DATASET");
         await page.getByLabel("Key").fill("unsaved_beta");
         await page.getByLabel("Name").fill("Unsaved Beta resource");
         const refreshed = page.waitForResponse(
@@ -139,14 +140,16 @@ test("resources retain manual workspace and unsaved values across list refresh",
         await (await refreshed).finished();
         await expect(selector.locator(`option[value="${beta}"]`)).toHaveText("Resource Beta refreshed");
         await expect(selector).toHaveValue(beta);
-        await expect(page.getByLabel("Kind", { exact: true })).toHaveValue("DATASET");
+        await expect(resourceCreateForm(page).getByRole("combobox", { name: "Kind", exact: true })).toHaveValue(
+            "DATASET",
+        );
         await expect(page.getByLabel("Key")).toHaveValue("unsaved_beta");
         await expect(page.getByLabel("Name")).toHaveValue("Unsaved Beta resource");
         expect(queried.some((url) => new URL(url).pathname === `/api/v1/workspaces/${beta}/resources`)).toBe(true);
         await selector.selectOption(alpha);
         await expect(page.getByLabel("Key")).toHaveValue("");
         await expect(page.getByLabel("Name")).toHaveValue("");
-        await expect(page.getByLabel("Kind", { exact: true })).toHaveValue("CASE");
+        await expect(resourceCreateForm(page).getByRole("combobox", { name: "Kind", exact: true })).toHaveValue("CASE");
         await expect(page.getByText("No resources in this Workspace.")).toBeVisible();
     } finally {
         release();

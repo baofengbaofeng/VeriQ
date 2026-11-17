@@ -5,7 +5,7 @@ import { spawn } from "node:child_process";
 import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { expect, type Page } from "@playwright/test";
+import { chromium, expect, type Page } from "@playwright/test";
 import type { PlatformComponents, ResourceDocumentV1, ResourceKind } from "@veriq/contracts";
 type S = PlatformComponents["schemas"];
 const origin = "http://127.0.0.1:5173";
@@ -33,9 +33,11 @@ export async function editorScope(page: Page, key: string): Promise<EditorScope>
     return { workspaceId, key, headers };
 }
 export async function createResource(page: Page, kind: ResourceKind, key: string): Promise<S["ResourceDTO"]> {
-    await page.getByLabel("Kind", { exact: true }).selectOption(kind);
-    await page.getByLabel("Key").fill(key);
-    await page.getByLabel("Name").fill(key);
+    await closeResourceEditor(page);
+    const form = resourceCreateForm(page);
+    await form.getByRole("combobox", { name: "Kind", exact: true }).selectOption(kind);
+    await form.getByLabel("Key", { exact: true }).fill(key);
+    await form.getByLabel("Name", { exact: true }).fill(key);
     const response = page.waitForResponse((r) => r.url().endsWith("/resources") && r.request().method() === "POST");
     await page.getByRole("button", { name: "Create resource" }).click();
     const created = await response;
@@ -44,6 +46,22 @@ export async function createResource(page: Page, kind: ResourceKind, key: string
         page.getByRole("article").getByRole("heading", { name: `${key} · ${kind}`, exact: true }),
     ).toBeVisible();
     return (await created.json()).data;
+}
+/**
+ * 创建表单通过自己的提交按钮确定范围，使目录中的元素名称和记录标识不会与后台创建字段发生严格匹配冲突。
+ */
+export function resourceCreateForm(page: Page) {
+    return page.locator("form").filter({ has: page.getByRole("button", { name: "Create resource", exact: true }) });
+}
+/**
+ * 仅关闭含资源文章的当前编辑抽屉并等待其消失，再访问背景控件；嵌套确认框必须由拥有该操作的用例明确处理。
+ */
+export async function closeResourceEditor(page: Page) {
+    const drawer = page.getByRole("dialog").filter({ has: page.getByRole("article") });
+    if ((await drawer.count()) === 0) return;
+    await expect(drawer).toHaveCount(1);
+    await drawer.getByRole("button", { name: "Close", exact: true }).click();
+    await expect(drawer).toBeHidden();
 }
 export async function saveDraft(page: Page): Promise<S["DraftDTO"]> {
     await expect(page.locator('ul[role="alert"]')).toHaveCount(0);
@@ -55,7 +73,12 @@ export async function saveDraft(page: Page): Promise<S["DraftDTO"]> {
     return (await saved.json()).data;
 }
 export async function replaceEditorJson(page: Page, text: string) {
-    const editor = page.locator(".vq-monaco").first();
+    const editor = page
+        .getByRole("dialog")
+        .locator(".vq-monaco")
+        .filter({
+            has: page.getByRole("textbox", { name: "JSON source", exact: true }),
+        });
     await editor.locator(".view-lines").click();
     await page.keyboard.press("Control+A");
     // Monaco0.57 mirrors selection into native EditContext at render time.
@@ -132,7 +155,7 @@ export async function managedCompiler(page: Page, scope: EditorScope, evidenceTa
             scope.key,
             "--share-workspace",
             "--browser-executable",
-            "/usr/bin/chromium",
+            chromium.executablePath(),
         ],
         token,
     );
@@ -153,7 +176,7 @@ export async function managedCompiler(page: Page, scope: EditorScope, evidenceTa
             "--release-dir",
             fileURLToPath(new URL("../../../.superpowers/cache/t11/release/", import.meta.url)),
             "--browser-executable",
-            "/usr/bin/chromium",
+            chromium.executablePath(),
             "--once",
         ]);
         expect(result.code, result.output).toBe(expectedCode);

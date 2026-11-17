@@ -1,4 +1,5 @@
 <a id="adr-0003-veriq-engineering-baseline-and-shared-contracts"></a>
+
 # 0003 Engineering Baseline
 
 - 状态：选定的 T01 工程基线；Tornado、品牌名称与 Router 分别受用户约束及 ADR 0001/0002/0004 管理。本 ADR 不宣告产品发行或目标平台验收通过。
@@ -6,6 +7,7 @@
 - 许可：保留项目既有 AGPL-3.0，技术标识仍为 `veriq`；不引入分叉应用代码或额外专有框架。
 
 <a id="toolchains-and-native-entry"></a>
+
 ## 工具链与原生入口
 
 使用 Python 3.12.14 与 uv 0.13.5、Node 24.22.1 与 pnpm 11.25.0、MySQL Community Server 8.4.13。协调者已核验运行数据库及镜像 `mysql@sha256:a81d043930e51745522bd5c430961cf8286f0a23f0a9a2a6e0108f7ea71b0902`。Python/Node 版本记录于 `.python-version` / `.node-version`，包管理器及引擎约束放在根 `package.json`。MySQL 经自身协议通信，控制服务不嵌入 MySQL 库。
@@ -17,6 +19,7 @@ Linux 概念验证：单独运行重命名的 Node 二进制，`/proc/self/comm`
 Node 使用 MIT 并附捆绑第三方声明；Electron/electron-builder 使用 MIT，Electron 中 Chromium 等组件保留各自声明。MySQL Community Server 有 GPL-2.0 分发义务。各平台最终二进制、SBOM 与许可核验属于发行组装，下方包元数据库存不能代替二进制许可声明。
 
 <a id="reproducible-dependency-policy"></a>
+
 ## 可复现依赖政策
 
 下方全部第三方直接依赖均使用精确版本；解析后的传递版本和完整性摘要记录于 `pnpm-lock.yaml` 与 `apps/srv/uv.lock`。内部包使用 workspace 引用，没有 `latest` 依赖。
@@ -26,6 +29,7 @@ pnpm 11 从 `pnpm-workspace.yaml` 读取项目设置。保留精确保存、严�
 Vite 6.4.6 在选型前发布不足 24 小时，未通过最短发布时间检查，因此选择 6.4.5。React 18、Vite 6、Tailwind 3、Router 7.18.5（ADR 0004）、Query 5、SQLAlchemy 2 及 Python/Node 主版本族仍为用户约束。这些受限主版本是有意的兼容选择，不代表上游无限期支持。已发布版本的可用性、引擎/peer 解析、真实安装及概念验证/测试构成 T01 的维护与兼容证据。未来更新必须审查公告、上游支持并测试；锁文件本身不是安全审计。
 
 <a id="python-direct-dependencies"></a>
+
 ## Python 直接依赖
 
 | 包 | 精确版本 | 声明许可 | 用途及替换边界 |
@@ -53,6 +57,7 @@ Vite 6.4.6 在选型前发布不足 24 小时，未通过最短发布时间检�
 控制服务依赖在 Python 3.12 下导入/安装；共享 Schema 测试、类型检查及隔离已安装 wheel 概念验证核对契约路径。数据库迁移、真实 MySQL 事务、认证/密码学流程及 HTTP 应用行为属于后续测试，不能由包安装推断通过。
 
 <a id="javascript-direct-dependencies"></a>
+
 ## JavaScript 直接依赖
 
 下表版本和许可声明来自实际安装的精确包元数据。完整已安装传递元数据（含开发依赖）见 [npm-licenses.json](../dependencies/npm-licenses.json)，Python 对应项见 [python-licenses.json](../dependencies/python-licenses.json)。即使未安装在当前 Linux 宿主，完整目标平台可选包仍被锁定。
@@ -62,7 +67,10 @@ Vite 6.4.6 在选型前发布不足 24 小时，未通过最短发布时间检�
 | @apidevtools/swagger-parser | 12.1.0 | MIT | contracts |
 | @dnd-kit/core | 6.3.1 | MIT | web |
 | @playwright/test | 1.65.0 | Apache-2.0 | runner-sdk |
-| @radix-ui/react-dialog | 1.3.1 | MIT | ui |
+| @radix-ui/react-dialog | 1.3.1 | MIT | ui, web |
+| @radix-ui/react-dropdown-menu | 2.2.1 | MIT | web |
+| @radix-ui/react-select | 2.4.1 | MIT | web |
+| @radix-ui/react-tooltip | 1.4.1 | MIT | web |
 | @tanstack/react-query | 5.107.1 | MIT | desktop, web |
 | @tanstack/react-table | 8.21.3 | MIT | web |
 | @types/node | 24.10.1 | MIT | compiler, contracts, desktop, runner-sdk, runtime, web |
@@ -72,7 +80,7 @@ Vite 6.4.6 在选型前发布不足 24 小时，未通过最短发布时间检�
 | @vitejs/plugin-react | 4.7.0 | MIT | desktop, web |
 | ajv | 8.18.0 | MIT | contracts |
 | ajv-formats | 3.0.1 | MIT | contracts |
-| class-variance-authority | 0.7.1 | Apache-2.0 | ui |
+| class-variance-authority | 0.7.1 | Apache-2.0 | ui, web |
 | commander | 14.0.3 | MIT | runtime |
 | dompurify | 3.4.17 | (MPL-2.0 OR Apache-2.0) | web |
 | electron | 45.2.3 | MIT | desktop |
@@ -109,9 +117,10 @@ DOMPurify 选择 Apache-2.0 分支。保留 TypeScript、Playwright 与 CVA 的 
 
 在 Node 24.22.1 上，严格 peer 安装成功。实际契约测试、生成 TypeScript 编译、OpenAPI 解析及 DTO 校验提供概念验证，不意味着应用构建或浏览器/桌面测试已通过。pnpm 报告传递依赖 boolean 3.2.0、glob 7.2.3、inflight 1.0.6、rimraf 2.6.3 已弃用；它们记录在锁/库存中，需按正常流程跟踪上游。
 
-AI Provider SDK、Midscene、Tenacity、boto3、Allure、ReportPortal、PyCasbin 及额外 Radix 控件仍为未选候选，须到任务存在具体需求并完成依赖/许可评估后再决定。不得将候选写成已批准或已实现。
+AI Provider SDK、Midscene、Tenacity、boto3、Allure、ReportPortal、PyCasbin 及未在 [ADR 0024](0024-web-ui-dependencies.md) 列出的其它 Radix 控件仍为未选候选，须到任务存在具体需求并完成依赖/许可评估后再决定。不得将候选写成已批准或已实现。
 
 <a id="contractsource-and-packaging-decision"></a>
+
 ## 契约源码与打包决策
 
 `packages/contracts/schemas/platform-v1.schema.json` 是规范 Schema 源，小型分契约 Schema 别名引用它。Python 与 Ajv 拒绝未知字段、非法判别/操作符/值组合、显式插值 DSL 字段中的不安全可执行绑定、非有限 JSON 和不安全整数。惰性 JSON、证据及诊断保留任意字面字符串，递归绑定 JSON 是独立规范类型。UUID 和 Timestamp 在 Python/Node 定义相同已记录的词法/日历范围。编译器及服务语义保持分离：Schema 校验成功不表示已验证引用所有权、变量/类型流、发布回执、Workspace 授权或源码摘要。
@@ -125,6 +134,7 @@ Python wheel 强制将规范 Schema 目录打入 `veriq_server/_schemas`；加�
 最终可分发 SBOM、各平台二进制和安装器完整许可原文/声明，以及安全/发行门禁仍属 T18 交付。[THIRD_PARTY_NOTICES.md](../../THIRD_PARTY_NOTICES.md) 如实记录当前库存范围。
 
 <a id="security-remediation-and-applicability"></a>
+
 ## 安全修复与适用性
 
 用户在 ADR 0004 批准 Router 7.18.5，保留 React 18/Vite 6；ADR 0001 批准 Tornado 6.6.1。上表最终直接版本还包括 asyncmy 0.2.18、cryptography 50.0.2、pytest 9.2.0、Vitest 4.1.12、tsx 4.23.15，Monaco 精确传递 DOMPurify 3.4.15 被修补到 3.4.17。这些更新替代初始审计基线，不会静默把有漏洞的初始版本视为已接受。

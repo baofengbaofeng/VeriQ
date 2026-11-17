@@ -3,11 +3,13 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdtemp, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
-import { test, expect } from "@playwright/test";
+import { chromium, test, expect } from "@playwright/test";
 import type { ResourceDocumentV1 } from "@veriq/contracts";
 import { cleanupCaseProfile, withCleanup } from "./support/case-profile-cleanup";
 import {
     editorScope,
+    closeResourceEditor,
+    resourceCreateForm,
     createResource,
     saveDraft,
     applyDocument,
@@ -108,7 +110,7 @@ test("resource forms save a canonical case and publish only after real Agent val
                     "Editor managed compiler",
                     "--share-workspace",
                     "--browser-executable",
-                    "/usr/bin/chromium",
+                    chromium.executablePath(),
                 ],
                 enrollment.token,
             );
@@ -129,7 +131,7 @@ test("resource forms save a canonical case and publish only after real Agent val
                     "--release-dir",
                     fileURLToPath(new URL("../../../.superpowers/cache/t11/release/", import.meta.url)),
                     "--browser-executable",
-                    "/usr/bin/chromium",
+                    chromium.executablePath(),
                     "--once",
                 ]);
                 expect(result.code, result.output).toBe(0);
@@ -166,9 +168,11 @@ test("resource forms save a canonical case and publish only after real Agent val
             await expect(page.getByRole("heading", { name: "Resources", exact: true })).toBeVisible();
             await page.getByLabel("Workspace").selectOption(workspace.id);
             await expect(page.getByText("No resources in this Workspace.")).toBeVisible();
-            await page.getByLabel("Kind", { exact: true }).selectOption("ELEMENT_CATALOG");
-            await page.getByLabel("Key").fill("catalog");
-            await page.getByLabel("Name").fill("Browser catalog");
+            await resourceCreateForm(page)
+                .getByRole("combobox", { name: "Kind", exact: true })
+                .selectOption("ELEMENT_CATALOG");
+            await resourceCreateForm(page).getByLabel("Key", { exact: true }).fill("catalog");
+            await resourceCreateForm(page).getByLabel("Name", { exact: true }).fill("Browser catalog");
             await page.getByRole("button", { name: "Create resource" }).click();
             await expect(page.getByRole("article")).toBeVisible();
             await page.getByRole("button", { name: "Save draft" }).click();
@@ -205,9 +209,10 @@ test("resource forms save a canonical case and publish only after real Agent val
                     .locator("..")
                     .locator(".vq-monaco"),
             ).toBeVisible();
-            await page.getByLabel("Kind", { exact: true }).selectOption("CASE");
-            await page.getByLabel("Key").fill("smoke");
-            await page.getByLabel("Name").fill("Smoke case");
+            await closeResourceEditor(page);
+            await resourceCreateForm(page).getByRole("combobox", { name: "Kind", exact: true }).selectOption("CASE");
+            await resourceCreateForm(page).getByLabel("Key", { exact: true }).fill("smoke");
+            await resourceCreateForm(page).getByLabel("Name", { exact: true }).fill("Smoke case");
             await page.getByRole("button", { name: "Create resource" }).click();
             await expect(page.getByLabel("Catalog version")).toBeVisible();
             await page.getByLabel("Catalog version").selectOption(catalog.id);
@@ -418,9 +423,14 @@ test("all eight kinds expose usable typed controls and preserve literal business
         "ENVIRONMENT",
     ];
     for (const kind of kinds) {
-        await page.getByLabel("Kind", { exact: true }).selectOption(kind);
-        await page.getByLabel("Key").fill("typed_" + kind.toLowerCase());
-        await page.getByLabel("Name").fill("Typed " + kind);
+        await closeResourceEditor(page);
+        await resourceCreateForm(page).getByRole("combobox", { name: "Kind", exact: true }).selectOption(kind);
+        await resourceCreateForm(page)
+            .getByLabel("Key", { exact: true })
+            .fill("typed_" + kind.toLowerCase());
+        await resourceCreateForm(page)
+            .getByLabel("Name", { exact: true })
+            .fill("Typed " + kind);
         const response = page.waitForResponse((r) => r.url().endsWith("/resources") && r.request().method() === "POST");
         await page.getByRole("button", { name: "Create resource" }).click();
         const created = await response;
@@ -429,8 +439,8 @@ test("all eight kinds expose usable typed controls and preserve literal business
             page.getByRole("article").getByRole("heading", { name: "Typed " + kind + " · " + kind }),
         ).toBeVisible();
         if (kind === "CASE" || kind === "FLOW") {
-            await page.getByLabel("Action").first().selectOption("fill");
-            await page.getByLabel("Value (bindings allowed)").first().fill("{{data.name}}");
+            await page.getByRole("combobox", { name: "Action", exact: true }).selectOption("fill");
+            await page.getByLabel("Value (bindings allowed)", { exact: true }).fill("{{data.name}}");
             await page.getByRole("button", { name: "Add Observers" }).click();
             await page.getByLabel("Observer kind").selectOption("dialog");
             await page.getByLabel("Dialog type").selectOption("prompt");
@@ -480,12 +490,12 @@ test("all eight kinds expose usable typed controls and preserve literal business
                 .getByRole("button", { name: "Remove" })
                 .click();
             await page.getByRole("button", { name: "Add Steps" }).click();
-            await page.getByLabel("Step ID").nth(1).fill("last");
-            await page
-                .getByRole("button", { name: "Move row 2 up" })
-                .locator("..")
-                .getByRole("button", { name: "Remove" })
-                .click();
+            const steps = page.getByRole("heading", { name: "Steps", exact: true }).locator("..");
+            const lastStep = steps.locator(".vq-item").filter({
+                has: page.getByRole("button", { name: "Move row 2 up", exact: true }),
+            });
+            await lastStep.getByLabel("Step ID", { exact: true }).fill("last");
+            await lastStep.getByRole("button", { name: "Remove", exact: true }).click();
         }
         if (kind === "ELEMENT_CATALOG") {
             await page.getByLabel("Locator").selectOption("role");
@@ -500,10 +510,10 @@ test("all eight kinds expose usable typed controls and preserve literal business
                 .getByLabel("Name")
                 .fill("expectedName");
             await page.getByRole("button", { name: "Add Template parameter types" }).click();
-            await page.getByLabel("Operator").first().selectOption("textEquals");
+            await page.getByRole("combobox", { name: "Operator", exact: true }).selectOption("textEquals");
             await page.getByLabel("Expected", { exact: true }).fill("{{data.expectedName}}");
-            await page.getByLabel("Assertion type").first().selectOption("responseField");
-            await page.getByLabel("Network source").first().fill("response:save");
+            await page.getByRole("combobox", { name: "Assertion type", exact: true }).selectOption("responseField");
+            await page.getByLabel("Network source").fill("response:save");
             const expectedType = page.getByRole("combobox", {
                 name: "Expected value 类型 / Type",
                 exact: true,
@@ -514,13 +524,25 @@ test("all eight kinds expose usable typed controls and preserve literal business
         if (kind === "DATASET") {
             await page.getByLabel("name", { exact: true }).fill("{{literal.notEvaluated()}}");
             await page.getByRole("button", { name: "Add Dataset rows" }).click();
-            await page.getByLabel("Row key").nth(1).fill("second");
+            await page
+                .getByRole("heading", { name: "Dataset rows", exact: true })
+                .locator("..")
+                .locator(".vq-item")
+                .filter({
+                    has: page.getByRole("button", { name: "Move row 2 up", exact: true }),
+                })
+                .getByLabel("Row key", { exact: true })
+                .fill("second");
             await page.getByRole("button", { name: "Set name", exact: true }).click();
         }
         if (kind === "FIXTURE") {
             await page.getByLabel("Cleanup method").selectOption("DELETE");
             await page.getByLabel("TTL seconds").fill("600");
-            await page.getByRole("button", { name: "Add schema property" }).first().click();
+            await page
+                .getByRole("heading", { name: "Input schema", exact: true })
+                .locator("..")
+                .getByRole("button", { name: "Add schema property", exact: true })
+                .click();
         }
         if (kind === "SUITE") {
             await page.getByLabel("firefox", { exact: true }).check();
@@ -563,7 +585,7 @@ test("all eight kinds expose usable typed controls and preserve literal business
                 kind: "download",
             });
         await page.getByRole("button", { name: "JSON source" }).click();
-        await expect(page.locator(".vq-monaco").first()).toBeVisible();
+        await expect(page.getByRole("dialog").getByRole("textbox", { name: "JSON source", exact: true })).toBeVisible();
         await page.getByRole("button", { name: "Visual form" }).click();
     }
 });
@@ -587,9 +609,9 @@ test("JSON Apply is lossless, blocks unapplied writes, and revision recovery ret
     const ownWorkspace = (await ownWorkspaceResponse.json()).data;
     await page.goto("/resources");
     await page.getByLabel("Workspace").selectOption(ownWorkspace.id);
-    await page.getByLabel("Kind", { exact: true }).selectOption("ELEMENT_CATALOG");
-    await page.getByLabel("Key").fill("conflict_catalog");
-    await page.getByLabel("Name").fill("Conflict catalog");
+    await resourceCreateForm(page).getByRole("combobox", { name: "Kind", exact: true }).selectOption("ELEMENT_CATALOG");
+    await resourceCreateForm(page).getByLabel("Key", { exact: true }).fill("conflict_catalog");
+    await resourceCreateForm(page).getByLabel("Name", { exact: true }).fill("Conflict catalog");
     const creation = page.waitForResponse((r) => r.url().endsWith("/resources") && r.request().method() === "POST");
     await page.getByRole("button", { name: "Create resource" }).click();
     const resource = (await (await creation).json()).data;
@@ -656,10 +678,16 @@ test("JSON Apply is lossless, blocks unapplied writes, and revision recovery ret
         },
     });
     expect(changed.status()).toBe(200);
-    await page.getByLabel("Record key").fill("local");
+    const saveElement = page.locator(".vq-item").filter({
+        has: page
+            .getByRole("textbox", { name: "Element key", exact: true })
+            .and(page.locator('input[value="literal"]')),
+    });
+    await expect(saveElement).toHaveCount(1);
+    await saveElement.getByLabel("Record key", { exact: true }).fill("local");
     await page.getByRole("button", { name: "Save draft" }).click();
     await expect(page.getByRole("heading", { name: "The remote draft changed" }).locator("..")).toBeVisible();
-    await expect(page.getByLabel("Record key")).toHaveValue("local");
+    await expect(saveElement.getByLabel("Record key", { exact: true })).toHaveValue("local");
     await page.getByRole("button", { name: "Keep local content with remote revision" }).click();
     await page.getByRole("button", { name: "Save draft" }).click();
     await expect(page.getByText("Saved")).toContainText("Saved");
@@ -686,6 +714,7 @@ test("JSON Apply is lossless, blocks unapplied writes, and revision recovery ret
     await replaceJson("{ invalid");
     await page.getByRole("button", { name: "Apply JSON" }).click();
     await expect(page.locator('div[role="alert"]')).toBeVisible();
+    await closeResourceEditor(page);
     await page.getByLabel("Workspace").selectOption(secondWorkspace.id);
     await expect(page.getByRole("article")).toHaveCount(0);
     await expect(page.getByText("Unapplied JSON changes")).toHaveCount(0);
@@ -710,9 +739,9 @@ test("fixture binding picker exposes declared initial variables without future o
     const workspace = (await response.json()).data;
     await page.goto("/resources");
     await page.getByLabel("Workspace").selectOption(workspace.id);
-    await page.getByLabel("Kind", { exact: true }).selectOption("CASE");
-    await page.getByLabel("Key").fill("bindings");
-    await page.getByLabel("Name").fill("Binding source");
+    await resourceCreateForm(page).getByRole("combobox", { name: "Kind", exact: true }).selectOption("CASE");
+    await resourceCreateForm(page).getByLabel("Key", { exact: true }).fill("bindings");
+    await resourceCreateForm(page).getByLabel("Name", { exact: true }).fill("Binding source");
     await page.getByRole("button", { name: "Create resource" }).click();
     await page
         .getByRole("heading", { name: "Initial variable declarations" })
@@ -726,7 +755,13 @@ test("fixture binding picker exposes declared initial variables without future o
             exact: true,
         })
         .fill("answer");
-    await page.getByRole("article").getByRole("button", { name: "Add field", exact: true }).first().click();
+    await page
+        .locator(".vq-value")
+        .filter({
+            has: page.getByRole("textbox", { name: "Fixture input bindings 字段名 / Field name", exact: true }),
+        })
+        .getByRole("button", { name: "Add field", exact: true })
+        .click();
     const picker = page.getByRole("combobox", {
         name: "Fixture input bindings.answer 插入绑定 / Insert binding",
         exact: true,
@@ -817,8 +852,8 @@ test("T11-R2 BEFORE and AFTER observer choices match actual compiler phases", as
         const catalog = await compiler.publish();
         await createResource(page, "CASE", "phase-case");
         await page.getByLabel("Catalog version").selectOption(catalog.id);
-        await page.getByLabel("Action").first().selectOption("apiRequest");
-        await page.getByLabel("Origin-relative path").first().fill("/status");
+        await page.getByRole("combobox", { name: "Action", exact: true }).selectOption("apiRequest");
+        await page.getByLabel("Origin-relative path", { exact: true }).fill("/status");
         await page.getByRole("button", { name: "Add Observers" }).click();
         await page.getByLabel("Observer ID").fill("save");
         await page.getByLabel("Exact path").fill("/status");
@@ -869,8 +904,8 @@ test("T11-R3 reusable flow/template page keys round-trip and resolve only in cal
         await saveDraft(page);
         const catalog = await compiler.publish();
         await createResource(page, "FLOW", "caller-flow");
-        await page.getByLabel("Action").first().selectOption("click");
-        await page.getByLabel("Action page").first().fill("detail");
+        await page.getByRole("combobox", { name: "Action", exact: true }).selectOption("click");
+        await page.getByLabel("Action page").fill("detail");
         const flowSource: ResourceDocumentV1 = {
             kind: "FLOW",
             document: {
@@ -894,12 +929,19 @@ test("T11-R3 reusable flow/template page keys round-trip and resolve only in cal
             },
         };
         await applyDocument(page, flowSource);
-        await expect(page.getByLabel("Action page").first()).toHaveValue("detail");
+        await expect(
+            page
+                .locator(".vq-item")
+                .filter({
+                    has: page.getByLabel("Step ID", { exact: true }).and(page.locator('input[value="caller"]')),
+                })
+                .getByLabel("Action page"),
+        ).toHaveValue("detail");
         const flowDraft = await saveDraft(page);
         expect(flowDraft.content).toEqual(flowSource);
         const flow = await compiler.publish();
         await createResource(page, "ASSERTION_TEMPLATE", "caller-template");
-        await page.getByLabel("Page (omit for original page)").first().fill("detail");
+        await page.getByLabel("Page (omit for original page)").fill("detail");
         const templateSource: ResourceDocumentV1 = {
             kind: "ASSERTION_TEMPLATE",
             document: {
@@ -919,7 +961,7 @@ test("T11-R3 reusable flow/template page keys round-trip and resolve only in cal
             },
         };
         await applyDocument(page, templateSource);
-        await expect(page.getByLabel("Page (omit for original page)").first()).toHaveValue("detail");
+        await expect(page.getByLabel("Page (omit for original page)")).toHaveValue("detail");
         expect((await saveDraft(page)).content).toEqual(templateSource);
         const template = await compiler.publish();
         await createResource(page, "CASE", "caller-case");
@@ -963,7 +1005,12 @@ test("T11-R3 reusable flow/template page keys round-trip and resolve only in cal
             },
         };
         await applyDocument(page, callerSource);
-        const callerPages = page.getByLabel("Action page").nth(2);
+        const callerPages = page
+            .locator(".vq-item")
+            .filter({
+                has: page.getByLabel("Step ID", { exact: true }).and(page.locator('input[value="after-flow"]')),
+            })
+            .getByLabel("Action page");
         await expect(callerPages).toHaveValue("detail");
         expect(
             await callerPages
@@ -991,8 +1038,8 @@ test("T11-R3 reusable flow/template page keys round-trip and resolve only in cal
             },
         };
         await applyDocument(page, invalid);
-        await expect(page.getByLabel("Action page").nth(2)).toHaveValue("inside");
-        await expect(page.getByLabel("Action page").nth(2).locator("option:checked")).toContainText("inside");
+        await expect(callerPages).toHaveValue("inside");
+        await expect(callerPages.locator("option:checked")).toContainText("inside");
         await saveDraft(page);
         const failed = await queueValidation(page);
         await compiler.compile();

@@ -181,8 +181,11 @@ test("four GUI entry selectors retain manual selection across real list refetch"
     for (const name of ["Alpha", "Beta"]) {
         await page.getByLabel("Key").fill("w2b-" + name.toLowerCase());
         await page
-            .getByLabel("Name")
-            .first()
+            .locator("form")
+            .filter({
+                has: page.getByRole("button", { name: "Create Workspace", exact: true }),
+            })
+            .getByLabel("Name", { exact: true })
             .fill("W2B " + name);
         await page.getByRole("button", { name: "Create Workspace" }).click();
         await expect(page.getByRole("article")).toContainText("W2B " + name);
@@ -193,7 +196,12 @@ test("four GUI entry selectors retain manual selection across real list refetch"
         {
             link: "Workspaces",
             selector: page.getByLabel("Current Workspace"),
-            input: page.getByLabel("Name").first(),
+            input: page
+                .locator("form")
+                .filter({
+                    has: page.getByRole("button", { name: "Create Workspace", exact: true }),
+                })
+                .getByLabel("Name", { exact: true }),
         },
         {
             link: "Runtimes",
