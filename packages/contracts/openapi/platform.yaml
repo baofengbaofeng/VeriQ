@@ -12657,9 +12657,8 @@
                         }
                     },
                     "finishedAt": {
-                        "type": "string",
+                        "type": ["string", "null"],
                         "format": "date-time",
-                        "nullable": true,
                         "description": "Server database UTC terminal time, independent of physical process-stop proof; null for historical unknown."
                     }
                 },
