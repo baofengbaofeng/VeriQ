@@ -7,42 +7,45 @@
 2026-11-17 接续：上述为历史代码交付状态；本轮已实际完成双架构 Mac 入口来源、工具、安装及守卫阶段（各 97/97、零跳过）。
 运行 `44012990245` 在构建前遇到模块循环初始化错误，F11 已本地修复并通过最终冻结版 39 项入口守卫，独立规格及质量复审未发现阻塞性或重要源码缺陷（`6525ec3`）；这不代表组装、原生存储、安装或发行验收通过。
 最新提交、证据与剩余事项以[当前验证计划](../../plans/2026-11-17-mvp-validation.md)为准。
-用户已要求提交后因额度暂停，扩展回归及双架构原生重验等待明确恢复指令。
+上述额度暂停已被用户随后明确恢复开发和 CI 的指令取代，不再作为等待理由。
+最新受限入口运行 44071296597 绑定 e1d0cda，两架构 source/tooling/install/guards/build/final/cleanup 均通过；
+两份 87 成员制品的摘要、86 项引用和源码/架构绑定已独立核验。
+这只证明该提交的入口材料生产；完整依赖、Runtime、原生存储、桌面与发行仍按下文分别验收。
 
 <a id="source_delivery"></a>
 
 ## 源码交付
 
-| 范围 | 本轮实际源码 | 未包含的结论或后续工作 |
-| --- | --- | --- |
-| 可执行编排 | `scripts/build_runtime.mts` 提供 `mac-inputs`、`mac-stage`、`v1-inputs`、`package`；实际命令接入原 `runBoundedAssetCli` | 尚未运行任何动作；没有自动晋升、签名、ready 或自生成 Expected |
-| Mac 五树 | `runtime-release.ts` 真实调用既有 entry/execution 生产器、C04 dependency 生产器、新 native/engine 生产器，独立事务及第三归档接收根组合 | 原 `Recipe`、`ExpectedPayloadInputs`、组装阶段和 v2 清单仍只支持 Darwin；审核者必须在真实材料形成后单独提供 Expected |
-| Node/npm 原始材料 | 可通过 `nodeBootstrapAssets` 调用既有 `prepareMacNodeBootstrap`；组装阶段再次独立消费原始归档、npm 图和审核布局 | 引导准备的 `UNREVIEWED_SOURCE`、pending 和原始权限边界保持；该结果不是可执行批准 |
-| Mac 正式原生 | 运行原 `build-darwin.mjs` 与无测试开关 `build-vault-darwin.mjs`，实际 xcrun SDK、lipo、otool、SDKSettings、vault 构建事实，生成完整 native 库存与正式 receipt；可选显式 nativeSigning 在封库存前真实签署新产物 | 本轮未运行编译、codesign、addon/helper；没有真实 Cookie、控制台、生产 Keychain 或签名安装结论 |
-| 引擎材料 | 调用原 `scripts/build_engine.mts` 真实编译 SDK/contracts、打包 compiler/vendor、生成 npm 离线锁；核 Schema、唯一版本、全部实际文件并生成 ENGINE_PAYLOAD receipt | 原生产器的依赖限制仍成立；没有调用签发或批准引擎装载流程 |
-| Linux/Windows v1 | `runtime-release-v1.ts` 按旧 manifest schemaVersion1 生成实际 Vite 入口、执行源码、独立 Node 角色、正式 native、版本化 engine 与完整清单、候选 receipt；新增 `runtime-release-v1-dependencies.ts` 实际准备生产依赖 | Node/npm/Chrome 与工具身份仍由调用者独立库存提供；依赖可选择内置真实准备或独立已有材料，不伪造 C04 Darwin receipt；全部目标运行尚未执行 |
-| 归档 | `runtime-release-package.ts` 固定排序/时间/portable tar，不跟随链接，前后复验库存，输出 `candidate.json`、`payload-receipt.json`、`checksums.json` | Mac 链接仍需独立 `{arch,layout}` 文档；校验和文档明确排除自身；归档不是发行批准 |
-| Mac 安装消费 | `loadMacRuntimeDistribution`、`loadInstalledRuntimeDistribution`、`bindDarwinDistribution`；原生和辅助进程只授予原始返回对象的私有 WeakMap 能力 | 可信描述信息需要由安装器/可信包外层认证，不能由待核 Runtime 自举；真实签名装载仍待 V03/V05 |
-| Mac 受控执行 | `createDarwinDistribution` 使用已核独立 Runner Node 及固定库存预加载脚本实际探针；CLI/桌面在线、离线与恢复可传同一私有品牌 token | 运行时才执行探针；Electron 不被当作 Node24；Mac 只承诺既有 CONTROLLED_WORKER_BROWSER 范围，不扩大任意后代停止保证 |
-| Mac 凭据 | 新 DarwinVaultBackend 接原有有限 V1 辅助进程传输，辅助进程必须由库存授予；原生 Keychain 辅助进程无修改 | 构造不访问系统 store；真实锁定/同值恢复/提交不确定/ACL/重启行为仍需独立运行 |
-| 真实 bin 修正 | held 字节的精确 Node 首行允许无扩展名 Node 命令；保留公开赢家、其余同名命令使用 `.bin/.veriq/<sha256(owner.id)>/<name>`；边归属 witness 可采用真实解析子路径 | 根绑定与 entry/execution 字面 specifier 仍精确匹配；不改包路径、不改正文、不伪造 native 检查记录或 Node 成功解析 |
-| Windows 在线持久化与本机保留期 | 交给协调者分配的 [V11](V11-local-durability.md)，本批未宣称完成 | Windows 旧 `ONLINE_JOURNAL_DURABILITY_UNSUPPORTED` 与缺少 active/unknown Attempt 安全保留期入口是具体源码缺口，由 V11 独立记录实际交付 |
-| Windows 历史目录接缝 | C05b 的 `stopped-history.ts` 使用 C07 `WindowsAttemptJournal.openExisting` 只读读取原始 Claim 行，复用原有状态/路径/停止回执与真实 Job 排空核验 | SQLite 提交只证明认领日志，不能替代 native process/drained 成员或完整后代树停止证明；未知旧 JSON/staging、孤立 sidecar/native 记录继续隔离 |
+| 范围                           | 本轮实际源码                                                                                                                                                                                                       | 未包含的结论或后续工作                                                                                                                     |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| 可执行编排                     | `scripts/build_runtime.mts` 提供 `mac-inputs`、`mac-stage`、`v1-inputs`、`package`；实际命令接入原 `runBoundedAssetCli`                                                                                            | 尚未运行任何动作；没有自动晋升、签名、ready 或自生成 Expected                                                                              |
+| Mac 五树                       | `runtime-release.ts` 真实调用既有 entry/execution 生产器、C04 dependency 生产器、新 native/engine 生产器，独立事务及第三归档接收根组合                                                                             | 原 `Recipe`、`ExpectedPayloadInputs`、组装阶段和 v2 清单仍只支持 Darwin；审核者必须在真实材料形成后单独提供 Expected                       |
+| Node/npm 原始材料              | 可通过 `nodeBootstrapAssets` 调用既有 `prepareMacNodeBootstrap`；组装阶段再次独立消费原始归档、npm 图和审核布局                                                                                                    | 引导准备的 `UNREVIEWED_SOURCE`、pending 和原始权限边界保持；该结果不是可执行批准                                                           |
+| Mac 正式原生                   | 运行原 `build-darwin.mjs` 与无测试开关 `build-vault-darwin.mjs`，实际 xcrun SDK、lipo、otool、SDKSettings、vault 构建事实，生成完整 native 库存与正式 receipt；可选显式 nativeSigning 在封库存前真实签署新产物     | 本轮未运行编译、codesign、addon/helper；没有真实 Cookie、控制台、生产 Keychain 或签名安装结论                                              |
+| 引擎材料                       | 调用原 `scripts/build_engine.mts` 真实编译 SDK/contracts、打包 compiler/vendor、生成 npm 离线锁；核 Schema、唯一版本、全部实际文件并生成 ENGINE_PAYLOAD receipt                                                    | 原生产器的依赖限制仍成立；没有调用签发或批准引擎装载流程                                                                                   |
+| Linux/Windows v1               | `runtime-release-v1.ts` 按旧 manifest schemaVersion1 生成实际 Vite 入口、执行源码、独立 Node 角色、正式 native、版本化 engine 与完整清单、候选 receipt；新增 `runtime-release-v1-dependencies.ts` 实际准备生产依赖 | Node/npm/Chrome 与工具身份仍由调用者独立库存提供；依赖可选择内置真实准备或独立已有材料，不伪造 C04 Darwin receipt；全部目标运行尚未执行    |
+| 归档                           | `runtime-release-package.ts` 固定排序/时间/portable tar，不跟随链接，前后复验库存，输出 `candidate.json`、`payload-receipt.json`、`checksums.json`                                                                 | Mac 链接仍需独立 `{arch,layout}` 文档；校验和文档明确排除自身；归档不是发行批准                                                            |
+| Mac 安装消费                   | `loadMacRuntimeDistribution`、`loadInstalledRuntimeDistribution`、`bindDarwinDistribution`；原生和辅助进程只授予原始返回对象的私有 WeakMap 能力                                                                    | 可信描述信息需要由安装器/可信包外层认证，不能由待核 Runtime 自举；真实签名装载仍待 V03/V05                                                 |
+| Mac 受控执行                   | `createDarwinDistribution` 使用已核独立 Runner Node 及固定库存预加载脚本实际探针；CLI/桌面在线、离线与恢复可传同一私有品牌 token                                                                                   | 运行时才执行探针；Electron 不被当作 Node24；Mac 只承诺既有 CONTROLLED_WORKER_BROWSER 范围，不扩大任意后代停止保证                          |
+| Mac 凭据                       | 新 DarwinVaultBackend 接原有有限 V1 辅助进程传输，辅助进程必须由库存授予；原生 Keychain 辅助进程无修改                                                                                                             | 构造不访问系统 store；真实锁定/同值恢复/提交不确定/ACL/重启行为仍需独立运行                                                                |
+| 真实 bin 修正                  | held 字节的精确 Node 首行允许无扩展名 Node 命令；保留公开赢家、其余同名命令使用 `.bin/.veriq/<sha256(owner.id)>/<name>`；边归属 witness 可采用真实解析子路径                                                       | 根绑定与 entry/execution 字面 specifier 仍精确匹配；不改包路径、不改正文、不伪造 native 检查记录或 Node 成功解析                           |
+| Windows 在线持久化与本机保留期 | 交给协调者分配的 [V11](V11-local-durability.md)，本批未宣称完成                                                                                                                                                    | Windows 旧 `ONLINE_JOURNAL_DURABILITY_UNSUPPORTED` 与缺少 active/unknown Attempt 安全保留期入口是具体源码缺口，由 V11 独立记录实际交付     |
+| Windows 历史目录接缝           | C05b 的 `stopped-history.ts` 使用 C07 `WindowsAttemptJournal.openExisting` 只读读取原始 Claim 行，复用原有状态/路径/停止回执与真实 Job 排空核验                                                                    | SQLite 提交只证明认领日志，不能替代 native process/drained 成员或完整后代树停止证明；未知旧 JSON/staging、孤立 sidecar/native 记录继续隔离 |
 
 ## 接口与材料
 
 所有路径必须绝对，源码与工作根由调用者独占。`MacRuntimeProductionJob` 定义于 `apps/runtime/scripts/runtime-release.ts`：
 
-| 字段 | 内容 |
-| --- | --- |
-| `sourceRoot` | 具有冻结依赖、实际 Vite/pnpm/node-gyp/TypeScript 与原源码的独占源码检出；不会把共享 node_modules 复制成来源绑定 |
-| `seedRoot` | 原始 Node/Chrome 归档、来源归档、原始绑定、锁、独立 Chrome 布局及全部 tool/archive receipt 的输入根 |
-| `workParent` | 与 sourceRoot/seedRoot 互不覆盖的真实已存在目录；本轮随机拥有的工作根始终返回/失败保留 |
-| `recipe` | 既有 Recipe 除五个 BoundTree 以外的原字段；仍为 `MAC_RUNTIME_PAYLOAD_INPUTS`、真实 Darwin 架构 |
-| `hostBuild` | `executable`、`viteCli`、`pnpmCli`、`pnpmStore`、`headerCache`、`engineOutput`、`timeoutMs`，全部为真实工具或目录；Node 必须是当前实际独立构建 Node 的规范物理路径且精确版本等于目标 |
-| `targetNode` | C04 的 `{executable,version,artifactSha256}`；SHA 指实际 Node 可执行字节，必须等于 `recipe.tools[name=node].artifactSha256`，原归档 SHA 单独由 `recipe.node.file` 绑定 |
-| `nodeBootstrapAssets?` | seedRoot 中原 assets 输入文档的独立 Ref；启用时只生产原始 Node/npm 材料并保留原未审标签 |
-| `nativeSigning?` | `{identity,entitlements?:Ref,timestamp?:"secure"\|"none"}`；identity 由操作员明确提供，entitlements 必须是原 SourceBinding 中精确 Ref；默认不签名 |
+| 字段                   | 内容                                                                                                                                                                                 |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `sourceRoot`           | 具有冻结依赖、实际 Vite/pnpm/node-gyp/TypeScript 与原源码的独占源码检出；不会把共享 node_modules 复制成来源绑定                                                                      |
+| `seedRoot`             | 原始 Node/Chrome 归档、来源归档、原始绑定、锁、独立 Chrome 布局及全部 tool/archive receipt 的输入根                                                                                  |
+| `workParent`           | 与 sourceRoot/seedRoot 互不覆盖的真实已存在目录；本轮随机拥有的工作根始终返回/失败保留                                                                                               |
+| `recipe`               | 既有 Recipe 除五个 BoundTree 以外的原字段；仍为 `MAC_RUNTIME_PAYLOAD_INPUTS`、真实 Darwin 架构                                                                                       |
+| `hostBuild`            | `executable`、`viteCli`、`pnpmCli`、`pnpmStore`、`headerCache`、`engineOutput`、`timeoutMs`，全部为真实工具或目录；Node 必须是当前实际独立构建 Node 的规范物理路径且精确版本等于目标 |
+| `targetNode`           | C04 的 `{executable,version,artifactSha256}`；SHA 指实际 Node 可执行字节，必须等于 `recipe.tools[name=node].artifactSha256`，原归档 SHA 单独由 `recipe.node.file` 绑定               |
+| `nodeBootstrapAssets?` | seedRoot 中原 assets 输入文档的独立 Ref；启用时只生产原始 Node/npm 材料并保留原未审标签                                                                                              |
+| `nativeSigning?`       | `{identity,entitlements?:Ref,timestamp?:"secure"\|"none"}`；identity 由操作员明确提供，entitlements 必须是原 SourceBinding 中精确 Ref；默认不签名                                    |
 
 source.binding 必须是规范 JCS 的现有 SourceBindingV1；caller 提供源文件集合，生产器不补写可信绑定。集合必须包含原 stage/generator 固定源码、完整 entry 输入、C04 requiredSources（包括新增 dependency/workspace/adapter/resolver 模块）、pnpm-workspace.yaml、原清单、LICENSE、完整 contracts/SDK 源码与 Schema、原 native 源码和三个正式原生脚本、scripts/build_engine.mts。遗漏会失败，不能以生产器生成的新 JS 冒充原 Git 文件。
 
@@ -56,12 +59,12 @@ entry 生产器回调只复制到第三归档接收，等待其全部 reader/lif
 
 内置 v1 依赖准备不要求操作者另写生产器。仍使用相同 `v1-inputs --job` 命令，job 去掉 `dependencies`，增加下列实际输入字段：
 
-| `dependencyPreparation` 字段 | 必须提供的真实材料 |
-| --- | --- |
-| `pnpmCli` | pnpm 工具包真实 `bin/pnpm.cjs` 的绝对物理路径；同一工具包必须包含 `dist/pnpm.cjs` |
-| `pnpmPackage` | `{root,files:FileFact[]}` 独立完整工具包库存；实际清单必须为 `pnpm@11.25.0`，所有实现文件原始摘要在动作前后匹配 |
-| `pnpmStore` | 已存在真实离线 store 绝对目录；仅消费原 pnpm 锁允许的 integrity，不执行在线获取或包安装脚本 |
-| `compilerImplementation` | 独立原始 Ref 数组，path 为实际 C04 发射器加载的 TypeScript `lib/typescript.js` 与该包 `package.json` 的绝对物理路径；实际长度/SHA 必须逐项完全匹配，版本仍为5.9.3 |
+| `dependencyPreparation` 字段 | 必须提供的真实材料                                                                                                                                                |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpmCli`                    | pnpm 工具包真实 `bin/pnpm.cjs` 的绝对物理路径；同一工具包必须包含 `dist/pnpm.cjs`                                                                                 |
+| `pnpmPackage`                | `{root,files:FileFact[]}` 独立完整工具包库存；实际清单必须为 `pnpm@11.25.0`，所有实现文件原始摘要在动作前后匹配                                                   |
+| `pnpmStore`                  | 已存在真实离线 store 绝对目录；仅消费原 pnpm 锁允许的 integrity，不执行在线获取或包安装脚本                                                                       |
+| `compilerImplementation`     | 独立原始 Ref 数组，path 为实际 C04 发射器加载的 TypeScript `lib/typescript.js` 与该包 `package.json` 的绝对物理路径；实际长度/SHA 必须逐项完全匹配，版本仍为5.9.3 |
 
 生产步骤在本次 candidate 外层 `dependency-build/` 内复制原始绑定源码，真实执行 `pnpm --filter @veriq/runtime... install --offline --frozen-lockfile --ignore-scripts --prod --node-linker=hoisted --package-import-method=copy --store-dir <store>`，逐字复核原始源码与锁。随后复用 C04 `materializeRuntimeWorkspacePackages` 实际发射 contracts/SDK 的 JS、声明、Schema 和全部 exports。新辅助进程、原 v1 构建器、共享文件/命令 helpers、C04 发射器/观察器适配器/resolver/closure 和原 `.github/scripts/production-layout.mjs` 都必须存在独立 SourceBinding，并匹配当前实际宿主源码。
 
@@ -83,11 +86,15 @@ C05b 的 Windows `requireStoppedHistory(root)` 必须使用 C07 非创建的 `op
 
 ## 独立执行命令
 
-以下命令本轮均未运行；应在独立工作目录记录实际提交、原锁、宿主、工具 SHA、退出状态、日志与失败现场。
+以下为各独立路径的命令参考；本轮已执行范围以当前验证计划为准，其余不计通过。
+应在独立工作目录记录实际提交、原锁、宿主、工具 SHA、退出状态、日志与失败现场。
+直接使用 node --import tsx 和 scripts/ 相对路径的命令须从 apps/runtime 启动，
+不能从仓库根照抄后将模块查找错误解释为产品缺陷；以下命令块统一以该包目录为工作目录。
 
 ```sh
-pnpm exec tsc --noEmit -p apps/runtime/scripts/tsconfig.json
-pnpm --filter @veriq/runtime check
+cd apps/runtime
+pnpm exec tsc --noEmit -p scripts/tsconfig.json
+pnpm check
 node --import tsx scripts/build_runtime.mts mac-inputs --job /absolute/mac-job.json
 node --import tsx scripts/build_runtime.mts mac-stage --recipe /absolute/input/runtime-inputs.json --expected /absolute/review/expected.json --input-root /absolute/input --output-parent /absolute/candidates --candidate veriq-runtime-mac-x64
 node --import tsx scripts/build_runtime.mts v1-inputs --job /absolute/native-v1-job.json
@@ -99,29 +106,29 @@ node --import tsx scripts/build_runtime.mts package --runtime-root /absolute/can
 既有定向测试与新增生产器应在后续环境运行：
 
 ```sh
-node --import tsx --test apps/runtime/tests/runtime-payload-*.test.ts apps/runtime/tests/runtime-assets-*.test.ts apps/runtime/tests/distribution-manifest-v2.test.ts
-node --import tsx --test apps/runtime/tests/controlled-*.test.ts apps/runtime/tests/guardian-browser.test.ts apps/runtime/tests/offline*.test.ts apps/runtime/tests/doctor-distribution.test.ts
+node --import tsx --test tests/runtime-payload-*.test.ts tests/runtime-assets-*.test.ts tests/distribution-manifest-v2.test.ts
+node --import tsx --test tests/controlled-*.test.ts tests/guardian-browser.test.ts tests/offline*.test.ts tests/doctor-distribution.test.ts
 ```
 
 随后按实际目标运行相关正式 native 行为用例及完整固定锁 Runtime 套件。Mac 必须真实 macOS15+ 原生 x64、arm64；Windows 必须真实 Windows11 x64；Linux 必须 Ubuntu24.04 x64。测试需要本机原生 Chrome、合法私有目录、真正工具/SDK/header/cache 和独立审阅后的资产材料，不能用 Linux 模拟 Mac。
 
 ## 必须覆盖的结果与拒绝边界
 
-| 检查 | 独立任务的预期与边界 |
-| --- | --- |
-| 真实来源/工具 | 修改源文件、原锁、工具可执行字节、原归档、layout 或 evidence 时失败；Node 可执行 SHA 和原归档 SHA 不混用；控制环境新增未知变量继续按原门禁拒绝 |
-| entry/dependency 生命周期 | 不能在活读取器原视图写入其他树；异步消费期间原字节、inode、目录变化拒绝；生产器返回前不能发布完整 candidate |
-| close/超时/截断 | 非零、信号、未准入、close 未确认、超时、日志截断均失败；保留真实首个错误和未知现场；不得把直接子进程关闭当任意后代停止证明 |
-| 原生正式目标 | lipo 唯一架构、otool minos15.0、实际 SDK；故障宏、测试目标、错误架构和旧产物不能进入正式原生回执；不运行真实 store |
-| 无扩展名的 Node 命令 | exact `#!/usr/bin/env node`、`#!/usr/bin/node` 的无扩展名目标保留真实路径；shell、MachO、带 flags、CR、截断/错误首行和其他扩展名均拒绝 |
-| 同层命令冲突 | 实际 alias 决定唯一公开赢家；保留其他 owner 的原正文与摘要，私有路径必须为完整 owner.id SHA；任意私有目录、截断摘要、错误赢家/目标/alias、丢失声明均拒绝；深层 shim 要能定位固定版本的 Runner 和真实 target |
-| 依赖边 witness | 真实 `alias/bin/esbuild` 或允许 `alias/package.json` 可证明边归属；alias 前缀混淆、错误 owner、不存在或被阻止的 exports 子路径均拒绝；entry/execution 根字面值改变一字仍拒绝 |
-| v1 依赖准备 | 分别在原生 Windows11/Ubuntu24.04 使用真实离线 store 执行；改 pnpm 包任何实现、TypeScript 实现、源码或原锁即拒绝；store 缺包不联网补齐，冻结的安装不能改锁；Windows junction 投影及嵌套 peer 域保留，不放宽凭据 owner；验证真实 pnpm shell alias、Windows `.cmd`、私有冲突 alias、optional os/cpu 和两套 Node 条件解析；支持外部材料与准备阶段恰选其一 |
-| 库存/归档 | 缺项、额外文件、硬链接、special、逃逸符号链接、危险权限、超预算、来源变化拒绝；Mac 只允许独立 Framework 布局；v1 完全拒绝链接；归档/sidecar 原字节校验和闭合 |
-| 安装能力 | 复制原对象字段、伪描述信息、自生成布局或错误宿主不获原生能力；实际角色路径与精确独立 Node 版本必须匹配；Electron 仅取得主进程有限 native 能力 |
-| 停止/恢复 | Mac 保留受控 Worker/Chrome 有界证明与未知隔离；Windows/Linux 保留完整后代树停止证明；日志未知或 owner 代际变化不能释放容量；V11 单独处理 Windows 持久 Claim 与保留期 |
-| Windows 历史目录 | 空历史只读检查不得创建 DB/目录；DB 缺失但有 WAL/SHM/journal、畸形 Claim/回执、旧 JSON/staging、错 Attempt/work、前置行混 native 成员、有行无排空证明或无行有 native 成员均拒绝；SQLite 行不能伪造 Job 空结果或自动退休旧历史 |
-| 凭据 | 原辅助进程的锁定、拒绝、同值恢复、冲突、mutation-unconfirmed 与取消后真实退出保持；实际 Keychain/Cookie/生产信任另需明确环境及授权，不在普通源码验证中调用 |
+| 检查                      | 独立任务的预期与边界                                                                                                                                                                                                                                                                                                                                  |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 真实来源/工具             | 修改源文件、原锁、工具可执行字节、原归档、layout 或 evidence 时失败；Node 可执行 SHA 和原归档 SHA 不混用；控制环境新增未知变量继续按原门禁拒绝                                                                                                                                                                                                        |
+| entry/dependency 生命周期 | 不能在活读取器原视图写入其他树；异步消费期间原字节、inode、目录变化拒绝；生产器返回前不能发布完整 candidate                                                                                                                                                                                                                                           |
+| close/超时/截断           | 非零、信号、未准入、close 未确认、超时、日志截断均失败；保留真实首个错误和未知现场；不得把直接子进程关闭当任意后代停止证明                                                                                                                                                                                                                            |
+| 原生正式目标              | lipo 唯一架构、otool minos15.0、实际 SDK；故障宏、测试目标、错误架构和旧产物不能进入正式原生回执；不运行真实 store                                                                                                                                                                                                                                    |
+| 无扩展名的 Node 命令      | exact `#!/usr/bin/env node`、`#!/usr/bin/node` 的无扩展名目标保留真实路径；shell、MachO、带 flags、CR、截断/错误首行和其他扩展名均拒绝                                                                                                                                                                                                                |
+| 同层命令冲突              | 实际 alias 决定唯一公开赢家；保留其他 owner 的原正文与摘要，私有路径必须为完整 owner.id SHA；任意私有目录、截断摘要、错误赢家/目标/alias、丢失声明均拒绝；深层 shim 要能定位固定版本的 Runner 和真实 target                                                                                                                                           |
+| 依赖边 witness            | 真实 `alias/bin/esbuild` 或允许 `alias/package.json` 可证明边归属；alias 前缀混淆、错误 owner、不存在或被阻止的 exports 子路径均拒绝；entry/execution 根字面值改变一字仍拒绝                                                                                                                                                                          |
+| v1 依赖准备               | 分别在原生 Windows11/Ubuntu24.04 使用真实离线 store 执行；改 pnpm 包任何实现、TypeScript 实现、源码或原锁即拒绝；store 缺包不联网补齐，冻结的安装不能改锁；Windows junction 投影及嵌套 peer 域保留，不放宽凭据 owner；验证真实 pnpm shell alias、Windows `.cmd`、私有冲突 alias、optional os/cpu 和两套 Node 条件解析；支持外部材料与准备阶段恰选其一 |
+| 库存/归档                 | 缺项、额外文件、硬链接、special、逃逸符号链接、危险权限、超预算、来源变化拒绝；Mac 只允许独立 Framework 布局；v1 完全拒绝链接；归档/sidecar 原字节校验和闭合                                                                                                                                                                                          |
+| 安装能力                  | 复制原对象字段、伪描述信息、自生成布局或错误宿主不获原生能力；实际角色路径与精确独立 Node 版本必须匹配；Electron 仅取得主进程有限 native 能力                                                                                                                                                                                                         |
+| 停止/恢复                 | Mac 保留受控 Worker/Chrome 有界证明与未知隔离；Windows/Linux 保留完整后代树停止证明；日志未知或 owner 代际变化不能释放容量；V11 单独处理 Windows 持久 Claim 与保留期                                                                                                                                                                                  |
+| Windows 历史目录          | 空历史只读检查不得创建 DB/目录；DB 缺失但有 WAL/SHM/journal、畸形 Claim/回执、旧 JSON/staging、错 Attempt/work、前置行混 native 成员、有行无排空证明或无行有 native 成员均拒绝；SQLite 行不能伪造 Job 空结果或自动退休旧历史                                                                                                                          |
+| 凭据                      | 原辅助进程的锁定、拒绝、同值恢复、冲突、mutation-unconfirmed 与取消后真实退出保持；实际 Keychain/Cookie/生产信任另需明确环境及授权，不在普通源码验证中调用                                                                                                                                                                                            |
 
 ## 已知失败与尚未闭合事项
 
