@@ -493,7 +493,9 @@ test("AI request inputs invalidate reviewed context and preserve manual scope", 
         expect(firstProviders).toEqual([]);
         await expect(page.getByLabel("Provider")).toHaveValue("");
         await expect(page.getByLabel("Provider").locator("option")).toHaveCount(1);
-        await expect(page.getByText("No providers configured", { exact: true })).toBeVisible();
+        await expect(
+            page.getByText("No providers configured. Add your own provider to generate drafts.", { exact: true }),
+        ).toBeVisible();
     }
     await aiEffectWorkspaces(page, await firstPage, [scope.alpha, scope.beta]);
     // 默认首项允许没有提供方；正向预算断言改用自有空间，并以创建返回且独立排序的标识核对真实列表和默认提供方。
