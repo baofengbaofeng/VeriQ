@@ -4,6 +4,10 @@
 
 本清单供后续 Agent 独立执行。用户已要求代码优先交付，因此“代码已提交”和“验证通过”是两个状态。本文件不是通过报告；不得据此跳过现有发行门禁。
 
+2026-11-17 更新：用户已恢复开发与验证，并指定在 `dev` 分支继续。
+下方历史“未执行”指代码交付阶段，最新执行、失败、修复与后续事项见
+[本轮验证计划](../plans/2026-11-17-mvp-validation.md)。源码与验证状态继续分开登记，不能据部分组件通过发布。
+
 需求定位见 [F01–F14 实现与验证映射](requirements-matrix.md)。
 
 ## 接手规则
@@ -18,18 +22,18 @@
 
 | ID | 任务 | 当前状态 | 详细交接 |
 | --- | --- | --- | --- |
-| V00 | 公共契约、新维护操作、运维指标与派生类型 | 仅源码生成，未执行验证 | [契约](tasks/V00-contracts.md) |
-| V01 | Web 类型、lint、真实 GUI、作用域和会话传输 | 未执行本轮代码验证 | [Web](tasks/V01-web.md) |
-| V02 | MySQL、部署、readiness、指标、保留期与恢复 | 未执行本轮代码验证 | [运维](tasks/V02-operations.md) |
+| V00 | 公共契约、新维护操作、运维指标与派生类型                         | 正常契约 288 项及生成检查通过；新增维护 HTTP 范围仍待补验          | [契约](tasks/V00-contracts.md)              |
+| V01 | Web 类型、lint、真实 GUI、作用域和会话传输                       | Web check 通过，19 个测试文件类型错误已修复；真实 GUI 待执行       | [Web](tasks/V01-web.md)                     |
+| V02 | MySQL、部署、readiness、指标、保留期与恢复                       | 既有子集 10 项、最后就绪模块 7 项通过并定向复审；完整运维未验收          | [运维](tasks/V02-operations.md)             |
 | V03 | macOS 15+ Intel / ARM、Windows 11 x64、Ubuntu 24.04 x64 桌面安装 | 未执行；Mac 两架构最高优先级 | [桌面](tasks/V03-desktop.md) |
 | V04 | 依赖闭包、生成包、条件解析、optional/peer/bin 与离网材料 | 未执行本轮代码验证 | [依赖](tasks/V04-dependencies.md) |
-| V05 | Runtime 组装、库存、原生能力、进程与停止 | 未执行本轮代码验证 | [Runtime](tasks/V05-runtime.md) |
+| V05 | Runtime 组装、库存、原生能力、进程与停止                         | 可移植入口 22 项通过；实际双架构 Mac 均因额外环境变量失败                  | [Runtime](tasks/V05-runtime.md)             |
 | V06 | 示例全流程、前后端接入和手册可复现性 | 未执行本轮代码验证 | [接入](tasks/V06-integration.md) |
 | V07 | 实际 AI Provider、预算、usage/cost、审核与无模型执行 | 阻塞：需独立提供 endpoint/model/密钥配置和预算授权 | [Provider](tasks/V07-provider.md) |
 | V08 | 正常前端→static/dist→Python wheel→离线安装→OCI 发行 | 未通过；不能以候选包替代正常成功包 | [发行](tasks/V08-release.md) |
-| V09 | 编码规范、全量测试、覆盖率、许可与 SBOM | 未通过；已知全仓注释规范债务保留 | [质量](tasks/V09-quality.md) |
+| V09 | 编码规范、全量测试、覆盖率、许可与 SBOM                          | 根 check 通过；全仓注释审计未通过，完整覆盖率/许可仍待执行         | [质量](tasks/V09-quality.md)                |
 | V10 | 最终需求追踪、并发/故障/篡改和整分支独立复审 | 待 V00–V09 及 V11 的适用条件满足 | [最终验收](tasks/V10-final-review.md) |
-| V11 | Windows SQLite Claim 日志、本地保留期和未知进程保护 | 源码实现中，未执行验证 | [本地持久化](tasks/V11-local-durability.md) |
+| V11 | Windows SQLite Claim 日志、本地保留期和未知进程保护              | Linux 既有回归 55 项、新增专项 12 项通过并复审；Windows 与完整 V11 未验收 | [本地持久化](tasks/V11-local-durability.md) |
 
 ## 已知失败与接续锚点
 

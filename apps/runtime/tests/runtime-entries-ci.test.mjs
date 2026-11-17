@@ -1,7 +1,19 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { chmod, link, lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import {
+    chmod,
+    link,
+    lstat,
+    mkdir,
+    mkdtemp,
+    readFile,
+    readdir,
+    realpath,
+    rm,
+    symlink,
+    writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
@@ -14,6 +26,7 @@ import {
     sealMetadata,
     verifyMetadata,
     runEntryOperation,
+    toolIdentity,
 } from "../../../.github/scripts/runtime-entries.mjs";
 import { runBoundedAssetCli } from "../scripts/runtime-assets-ci-process.mjs";
 
@@ -31,6 +44,24 @@ const admitted = {
     nodeVersion: "v24.22.1",
 };
 const gitRecord = (mode, path) => `${mode} blob ${"b".repeat(40)}\t${path}\0`;
+const macStartupHost = {
+    platform: "darwin",
+    arch: "arm64",
+    release: "24.6.0",
+    nodeVersion: "v24.22.1",
+    electron: undefined,
+    argumentCount: 2,
+};
+const macStartupEnvironment = () => ({
+    CI: "true",
+    NODE_ENV: "production",
+    NODE_DISABLE_COMPILE_CACHE: "1",
+    GITHUB_EVENT_NAME: "workflow_dispatch",
+    ENTRY_PURPOSE: "entry-inputs",
+    MANUAL_SOURCE: "a".repeat(40),
+    GITHUB_SHA: "a".repeat(40),
+    EXPECTED_ARCH: "arm64",
+});
 
 // 这些真实小目录只用于控制器的元数据和失败边界测试，外层授权包装器提供独占内存临时根；每个测试拥有自己的目录并在已等待
 // 直接子进程关闭后移除，不能据此声称原生项目构建或全局后代已通过验收。
@@ -42,6 +73,31 @@ async function fixture(consume) {
         await rm(root, { recursive: true });
     }
 }
+
+/**
+ * 私有安装产生的真实可执行文件必须按原权限和原字节绑定，测试逐项改变同一文件的模式并核实拒绝边界，避免用权限归一化掩盖
+ * 工具身份门禁与私有安装策略之间的不一致。
+ */
+test("qualified tool preserves private executable mode and rejects unsafe modes", async () =>
+    fixture(async (root) => {
+        const path = join(root, "pnpm.mjs"),
+            bytes = Buffer.from("export const tool = 1;\n");
+        await writeFile(path, bytes, { mode: 0o700 });
+        for (const mode of [0o700, 0o400, 0o600, 0o444, 0o644, 0o555, 0o755]) {
+            await chmod(path, mode);
+            const identity = await toolIdentity(path);
+            assert.equal(identity.mode, mode);
+            assert.equal(identity.sizeBytes, bytes.length);
+            assert.equal(identity.sha256, sha(bytes));
+            assert.equal(identity.path, await realpath(path));
+            assert.equal(identity.links, 1);
+            assert.equal(Number((await lstat(path)).mode & 0o7777), mode);
+        }
+        for (const mode of [0o500, 0o770, 0o777, 0o1700, 0o2700, 0o4700]) {
+            await chmod(path, mode);
+            await assert.rejects(toolIdentity(path), /ENTRY_TOOL/);
+        }
+    }));
 
 test("inert import starts no command and creates no file", async () =>
     fixture(async (root) => {
@@ -411,6 +467,237 @@ test("clean launch rejects ambient injection and pins production mode before loa
         assert.throws(() => checkCleanEnvironment({ ...env, ...patch }), /ENTRY_ENVIRONMENT/);
 });
 
+// 受控启动只丢弃批准的精确自有键，访问器故意抛出以证明该值既未读取也未复制；重复调用只能报告当前是否丢弃，
+// 不把模拟宿主事实描述为本机 Darwin 运行，更不推断底层框架或子进程状态。
+test("eligible Mac startup discards the exact own key without reading its value and is idempotent", async () => {
+    const { qualifyEntryStartup, checkCleanEnvironment } = await import("../../../.github/scripts/runtime-entries.mjs");
+    const env = macStartupEnvironment();
+    let reads = 0;
+    Object.defineProperty(env, "__CF_USER_TEXT_ENCODING", {
+        configurable: true,
+        enumerable: true,
+        get() {
+            reads++;
+            throw new Error("SYNTHETIC_VALUE_MUST_NOT_APPEAR");
+        },
+    });
+    assert.throws(() => checkCleanEnvironment(env), /ENTRY_ENVIRONMENT/);
+    const first = qualifyEntryStartup(env, macStartupHost);
+    assert.equal(Object.hasOwn(env, "__CF_USER_TEXT_ENCODING"), false);
+    assert.equal(reads, 0);
+    assert.equal(first.macTextEncodingDiscarded, true);
+    assert.equal(first.qualification.nodeEnv, "production");
+    assert.deepEqual(first.admission, admitted);
+    assert.equal(qualifyEntryStartup(env, macStartupHost).macTextEncodingDiscarded, false);
+    assert.equal(reads, 0);
+    const intel = { ...macStartupEnvironment(), EXPECTED_ARCH: "x64", __CF_USER_TEXT_ENCODING: "hidden" };
+    assert.equal(qualifyEntryStartup(intel, { ...macStartupHost, arch: "x64" }).macTextEncodingDiscarded, true);
+    assert.equal(Object.hasOwn(intel, "__CF_USER_TEXT_ENCODING"), false);
+});
+
+test("Mac startup refuses every ineligible invocation before mutating the metadata key", async () => {
+    const { qualifyEntryStartup } = await import("../../../.github/scripts/runtime-entries.mjs");
+    for (const [environment, host] of [
+        [{ CI: "false" }, {}],
+        [{ CI: undefined }, {}],
+        [{ GITHUB_EVENT_NAME: "push" }, {}],
+        [{ ENTRY_PURPOSE: "assets" }, {}],
+        [{ MANUAL_SOURCE: "a".repeat(7) }, {}],
+        [{ GITHUB_SHA: "b".repeat(40) }, {}],
+        [{ EXPECTED_ARCH: "x64" }, {}],
+        [{}, { platform: "linux" }],
+        [{}, { platform: "win32" }],
+        [{}, { arch: "ia32" }],
+        [{}, { release: "23.0.0" }],
+        [{}, { nodeVersion: "v24.1.0" }],
+        [{}, { electron: "40.0.0" }],
+        [{}, { argumentCount: 3 }],
+    ]) {
+        const env = { ...macStartupEnvironment(), ...environment };
+        let reads = 0;
+        Object.defineProperty(env, "__CF_USER_TEXT_ENCODING", {
+            configurable: true,
+            enumerable: true,
+            get() {
+                reads++;
+                throw new Error("SYNTHETIC_VALUE_MUST_NOT_APPEAR");
+            },
+        });
+        assert.throws(() => qualifyEntryStartup(env, { ...macStartupHost, ...host }), /ENTRY_(ADMISSION|ENVIRONMENT)/);
+        assert.equal(Object.hasOwn(env, "__CF_USER_TEXT_ENCODING"), true);
+        assert.equal(reads, 0);
+    }
+});
+
+test("authorized cleanup still applies the unchanged strict names and fixed flags", async () => {
+    const { qualifyEntryStartup } = await import("../../../.github/scripts/runtime-entries.mjs");
+    for (const patch of [
+        { __CF_USER_TEXT_ENCODING_EXTRA: "hidden" },
+        { __CF_OTHER: "hidden" },
+        { TOKEN: "hidden" },
+        { NODE_OPTIONS: "--import=hidden" },
+        { DYLD_INSERT_LIBRARIES: "hidden" },
+        { VITE_SECRET: "hidden" },
+        { npm_config_prefix: "hidden" },
+        { NODE_ENV: "development" },
+        { NODE_ENV: undefined },
+        { NODE_DISABLE_COMPILE_CACHE: "0" },
+        { NODE_DISABLE_COMPILE_CACHE: undefined },
+    ]) {
+        const env = { ...macStartupEnvironment(), __CF_USER_TEXT_ENCODING: "hidden", ...patch };
+        assert.throws(() => qualifyEntryStartup(env, macStartupHost), /ENTRY_ENVIRONMENT/);
+        assert.equal(Object.hasOwn(env, "__CF_USER_TEXT_ENCODING"), false);
+        for (const [key, value] of Object.entries(patch)) assert.equal(env[key], value);
+    }
+});
+
+test("ineligible startup keeps original environment diagnostics before admission rejection", async () => {
+    const { qualifyEntryStartup } = await import("../../../.github/scripts/runtime-entries.mjs");
+    for (const platform of ["darwin", "linux", "win32"]) {
+        const env = {
+            NODE_ENV: "production",
+            NODE_DISABLE_COMPILE_CACHE: "1",
+            VITE_SECRET: "SYNTHETIC_VALUE_MUST_NOT_APPEAR",
+            __CF_USER_TEXT_ENCODING: "SYNTHETIC_VALUE_MUST_NOT_APPEAR",
+        };
+        assert.throws(
+            () => qualifyEntryStartup(env, { ...macStartupHost, platform }),
+            (error) => {
+                assert.equal(error.message, "ENTRY_ENVIRONMENT");
+                assert.deepEqual(error.diagnostic, {
+                    phase: "INITIAL",
+                    unexpectedNamePresent: true,
+                    productionModeMatch: true,
+                    compileCacheDisabled: true,
+                    unexpectedNameCount: 2,
+                    unexpectedNames: ["VITE_SECRET", "__CF_USER_TEXT_ENCODING"],
+                });
+                return true;
+            },
+        );
+        assert.equal(Object.hasOwn(env, "__CF_USER_TEXT_ENCODING"), true);
+        delete env.VITE_SECRET;
+        delete env.__CF_USER_TEXT_ENCODING;
+        assert.throws(() => qualifyEntryStartup(env, { ...macStartupHost, platform }), /ENTRY_ADMISSION/);
+    }
+});
+
+// 不可删除、删除异常和同步重新注入分别使用属性描述符与代理呈现真实 JavaScript 失败语义；固定诊断不得传播异常正文，
+// 每个样本只允许一次删除尝试，避免循环清洗掩盖持续变化的环境。
+test("metadata deletion failure and observed reinjection fail closed with value-free diagnostics", async () => {
+    const { qualifyEntryStartup } = await import("../../../.github/scripts/runtime-entries.mjs");
+    for (const mode of ["locked", "throw", "reinject"]) {
+        const target = macStartupEnvironment();
+        Object.defineProperty(target, "__CF_USER_TEXT_ENCODING", {
+            configurable: mode !== "locked",
+            enumerable: true,
+            get() {
+                throw new Error("SYNTHETIC_VALUE_MUST_NOT_APPEAR");
+            },
+        });
+        let attempts = 0;
+        const env = new Proxy(target, {
+            deleteProperty(object, key) {
+                attempts++;
+                assert.equal(key, "__CF_USER_TEXT_ENCODING");
+                if (mode === "throw") throw new Error("SYNTHETIC_VALUE_MUST_NOT_APPEAR");
+                if (mode === "reinject") {
+                    const descriptor = Object.getOwnPropertyDescriptor(object, key);
+                    Reflect.deleteProperty(object, key);
+                    Object.defineProperty(object, key, descriptor);
+                    return true;
+                }
+                return Reflect.deleteProperty(object, key);
+            },
+        });
+        assert.throws(
+            () => qualifyEntryStartup(env, macStartupHost),
+            (error) => {
+                assert.equal(error.message, "ENTRY_ENVIRONMENT");
+                assert.deepEqual(error.diagnostic, { phase: "MAC_METADATA", invariant: "ABSENCE_UNCONFIRMED" });
+                assert.ok(!error.serializedDiagnostic.includes("SYNTHETIC_VALUE_MUST_NOT_APPEAR"));
+                assert.equal(error.cause, undefined);
+                return true;
+            },
+        );
+        assert.equal(attempts, 1);
+    }
+});
+
+test("cleanup leaves inherited metadata untouched and the strict predicate itself remains strict", async () => {
+    const { qualifyEntryStartup, checkCleanEnvironment } = await import("../../../.github/scripts/runtime-entries.mjs");
+    const inherited = { __CF_USER_TEXT_ENCODING: "hidden" };
+    const env = Object.assign(Object.create(inherited), macStartupEnvironment());
+    assert.equal(qualifyEntryStartup(env, macStartupHost).macTextEncodingDiscarded, false);
+    assert.equal(Object.hasOwn(inherited, "__CF_USER_TEXT_ENCODING"), true);
+    assert.throws(
+        () => checkCleanEnvironment({ ...macStartupEnvironment(), __CF_USER_TEXT_ENCODING: "hidden" }),
+        /ENTRY_ENVIRONMENT/,
+    );
+});
+
+// 独立进程在模拟资格清洗自己的真实环境后，经现有命令管理器启动真实直接子进程；非 ASCII 字节必须完整保留，
+// Linux 另核键未继承，Darwin 只记录子进程事实，因为操作系统可能在子进程独立重建该键。
+test("sanitized process environment reaches the real child manager while preserving UTF-8 bytes", async () =>
+    fixture(async (root) => {
+        const helper = pathToFileURL(join(process.cwd(), ".github/scripts/runtime-entries.mjs")).href;
+        const childProgram = `
+            process.stdout.write(JSON.stringify({
+                present: Object.hasOwn(process.env, "__CF_USER_TEXT_ENCODING"),
+                text: "中文 café Ω 😀",
+                platform: process.platform,
+            }));
+        `;
+        const program = `
+            const { qualifyEntryStartup, runEntryOperation } = await import(${JSON.stringify(helper)});
+            const startup = qualifyEntryStartup(process.env, ${JSON.stringify(macStartupHost)});
+            if (Object.hasOwn(process.env, "__CF_USER_TEXT_ENCODING")) throw new Error("KEY_RETAINED");
+            const journal = { commands: [] };
+            const result = await runEntryOperation({
+                journal,
+                produce: (command) => command({
+                    executable: process.execPath,
+                    args: ["-e", ${JSON.stringify(childProgram)}],
+                    cwd: process.cwd(),
+                    timeoutMs: 5000,
+                }),
+                verifyFinal: async () => {},
+                cleanup: async () => {},
+            });
+            if (result.status !== "PASS") throw new Error("CHILD_FAILED");
+            process.stdout.write(JSON.stringify({
+                discarded: startup.macTextEncodingDiscarded,
+                child: JSON.parse(journal.commands[0].stdout.toString("utf8")),
+                closed: journal.commands[0].observation.closeConfirmed,
+            }));
+        `;
+        const result = await runBoundedAssetCli({
+            executable: "/usr/bin/env",
+            args: [
+                "-i",
+                ...Object.entries(macStartupEnvironment()).map(([key, value]) => `${key}=${value}`),
+                "__CF_USER_TEXT_ENCODING=SYNTHETIC_VALUE_MUST_NOT_APPEAR",
+                process.execPath,
+                "--input-type=module",
+                "-e",
+                program,
+            ],
+            cwd: root,
+            timeoutMs: 10000,
+        });
+        assert.equal(result.exit, 0);
+        assert.equal(result.closeConfirmed, true);
+        assert.equal(result.stderr.length, 0);
+        const facts = JSON.parse(result.stdout.toString("utf8"));
+        assert.equal(facts.discarded, true);
+        assert.equal(facts.closed, true);
+        assert.equal(facts.child.text, "中文 café Ω 😀");
+        assert.equal(facts.child.platform, process.platform);
+        assert.equal(typeof facts.child.present, "boolean");
+        if (process.platform !== "darwin") assert.equal(facts.child.present, false);
+        assert.deepEqual(await readdir(root), []);
+    }));
+
 // 此例让生产回调故意忽略真实非零退出，控制器仍须从已持有观察拒绝升级最终成功；回归保护的是阶段组合边界，不允许一个已失
 // 败的直接子进程被后续普通回调返回值覆盖。
 test("ignored real child failure cannot reach final verification or PASS", async () =>
@@ -452,6 +739,7 @@ test("actual CLI refuses Linux before any source access installation or scratch 
                 `PATH=${process.env.PATH}`,
                 "NODE_ENV=production",
                 "NODE_DISABLE_COMPILE_CACHE=1",
+                "CI=true",
                 "GITHUB_EVENT_NAME=workflow_dispatch",
                 "ENTRY_PURPOSE=entry-inputs",
                 `GITHUB_SHA=${"a".repeat(40)}`,

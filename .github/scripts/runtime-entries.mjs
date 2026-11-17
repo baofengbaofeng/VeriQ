@@ -456,7 +456,8 @@ export function qualifyTypeScriptConfigs(root, refs, ts) {
     return { reads: [...reads.values()].sort((a, b) => a.path.localeCompare(b.path)) };
 }
 
-// 此私有错误只承载由两个固定门禁构造的有限诊断，仍保留原有 ENTRY_ENVIRONMENT 消息与失败退出；序列化在构造时固定且不接受
+// 此私有错误只承载由固定环境门禁构造的有限诊断，仍保留原有 ENTRY_ENVIRONMENT 消息与失败退出；
+// 序列化在构造时固定且不接受
 // 底层错误正文，CLI 只渲染这个类，避免任意异常伪造同名属性泄漏输入值。
 class EntryEnvironmentError extends Error {
     constructor(diagnostic) {
@@ -468,7 +469,7 @@ class EntryEnvironmentError extends Error {
 
 /**
  * 正式进程只接收工作流显式传入的最小环境，启动 Node 与注册 tsx 之前已由 env 清空继承值；这里再次验证键集合与生产模式，
- * 不打印环境值、凭据或配置正文，失败不会通过修改当前进程全局环境来补救。
+ * 不打印环境值、凭据或配置正文；此谓词始终严格，批准的 Mac 元数据删除只能在上游启动边界完成。
  */
 export function checkCleanEnvironment(env) {
     const allowed = new Set([
@@ -531,6 +532,42 @@ export function checkCleanEnvironment(env) {
 }
 
 /**
+ * 启动边界先核完整原生资格，再丢弃唯一批准的自有元数据键并执行原严格门禁；宿主样本仅供便携测试。
+ * 正式入口只传实际进程事实。不合格调用不修改环境，先保留原严格诊断再拒绝；丢弃结果只记录布尔值，
+ * 不声称框架内部状态或子进程环境已被重置。
+ */
+export function qualifyEntryStartup(env, host) {
+    let admission;
+    try {
+        admission = admitEntryRun({
+            event: env.GITHUB_EVENT_NAME,
+            purpose: env.ENTRY_PURPOSE,
+            source: env.MANUAL_SOURCE,
+            commit: env.GITHUB_SHA,
+            platform: host.platform,
+            arch: host.arch,
+            expectedArch: env.EXPECTED_ARCH,
+            release: host.release,
+            nodeVersion: host.nodeVersion,
+        });
+        if (env.CI !== "true" || host.electron || host.argumentCount !== 2) fail("ENTRY_ADMISSION");
+    } catch (error) {
+        checkCleanEnvironment(env);
+        throw error;
+    }
+    let macTextEncodingDiscarded = false;
+    try {
+        macTextEncodingDiscarded = Object.hasOwn(env, "__CF_USER_TEXT_ENCODING");
+        if (macTextEncodingDiscarded && !Reflect.deleteProperty(env, "__CF_USER_TEXT_ENCODING"))
+            fail("ENTRY_ENVIRONMENT");
+        if (Object.hasOwn(env, "__CF_USER_TEXT_ENCODING")) fail("ENTRY_ENVIRONMENT");
+    } catch {
+        throw new EntryEnvironmentError({ phase: "MAC_METADATA", invariant: "ABSENCE_UNCONFIRMED" });
+    }
+    return { admission, qualification: checkCleanEnvironment(env), macTextEncodingDiscarded };
+}
+
+/**
  * 后置环境检查保留原主函数的九项固定路径与下载标志比较，并在同一创建目录之后的位置调用；独立导出仅为逐项验证真实拒绝边
  * 界，不接受调用者提供期望映射，也不修改现有环境、命令顺序或允许集合。
  */
@@ -550,16 +587,19 @@ export function checkOwnedEnvironment(env, owned) {
             throw new EntryEnvironmentError({ phase: "OWNED_PATHS", invariant: key });
 }
 
-// 工具不属于来源树，允许 pnpm 安装的真实链接与工具执行权限，但固定真实路径并流式读取有界文件；只保留身份、模式、
-// 链接数和摘要，不把本机可执行内容或整份依赖包上传为所谓载荷证据。
-async function toolIdentity(path) {
+/**
+ * 工具不属于来源树，允许 pnpm 安装的真实链接与工具执行权限，但固定真实路径并流式读取有界文件；只保留身份、模式、
+ * 链接数和摘要，不把本机可执行内容或整份依赖包上传为所谓载荷证据。
+ * 私有安装已观察到的0700仅在此工具资格集合接纳，模式按实记录，不改变来源或输出文件的权限规则。
+ */
+export async function toolIdentity(path) {
     const fixed = await realpath(path),
         before = await lstat(fixed, { bigint: true });
     if (
         !before.isFile() ||
         before.nlink < 1n ||
         before.size > 256n * 1024n ** 2n ||
-        ![0o400, 0o600, 0o444, 0o644, 0o555, 0o755].includes(Number(before.mode & 0o7777n))
+        ![0o400, 0o600, 0o444, 0o644, 0o555, 0o700, 0o755].includes(Number(before.mode & 0o7777n))
     )
         fail("ENTRY_TOOL");
     const handle = await open(fixed, constants.O_RDONLY | constants.O_NOFOLLOW),
@@ -917,19 +957,14 @@ async function verifyLiveViews({
 // 为兄弟，最终来源、配置与工具复核成功后才把回调暂定结果升级为输入物化通过。
 async function main() {
     const env = process.env,
-        qualification = checkCleanEnvironment(env);
-    const admission = admitEntryRun({
-        event: env.GITHUB_EVENT_NAME,
-        purpose: env.ENTRY_PURPOSE,
-        source: env.MANUAL_SOURCE,
-        commit: env.GITHUB_SHA,
-        platform: process.platform,
-        arch: process.arch,
-        expectedArch: env.EXPECTED_ARCH,
-        release: release(),
-        nodeVersion: process.version,
-    });
-    if (process.versions.electron || process.argv.length !== 2) fail("ENTRY_ADMISSION");
+        { admission, qualification, macTextEncodingDiscarded } = qualifyEntryStartup(env, {
+            platform: process.platform,
+            arch: process.arch,
+            release: release(),
+            nodeVersion: process.version,
+            electron: process.versions.electron,
+            argumentCount: process.argv.length,
+        });
     const sourceRoot = await realpath(env.GITHUB_WORKSPACE),
         owned = resolve(env.ENTRY_OWNED_ROOT);
     if (
@@ -963,6 +998,7 @@ async function main() {
     const journal = {
         admission,
         environment: qualification,
+        macTextEncodingDiscarded,
         run: env.GITHUB_RUN_ID,
         attempt: env.GITHUB_RUN_ATTEMPT,
         started: now(),

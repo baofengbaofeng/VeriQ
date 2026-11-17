@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
     chmod,
+    cp,
     copyFile,
     lstat,
     mkdir,
@@ -195,6 +196,140 @@ async function fixture(
         await rm(root, { recursive: true, force: true });
     }
 }
+
+/**
+ * 工具权限回归复制真实 Vite 到夹具自有目录并只借用既有依赖解析，改变三个资格文件的权限不会触及宿主安装，后续仍运行真实
+ * CLI 并读取最终命令证据，确保测试经过实际文件身份门禁。
+ */
+async function privateVite(root: string, sourceRoot: string, mode: number) {
+    const installed = await realpath(join(repository, "apps/desktop/node_modules/vite")),
+        owned = join(root, "host-tools/vite"),
+        linked = join(sourceRoot, "apps/desktop/node_modules/vite"),
+        paths = ["bin/vite.js", "dist/node/index.js", "package.json"];
+    await cp(installed, owned, { recursive: true });
+    await symlink(dirname(installed), join(root, "host-tools/node_modules"));
+    await rm(linked);
+    await symlink(owned, linked);
+    for (const path of paths) await chmod(join(owned, path), mode);
+    const fixed = await realpath(owned);
+    return paths.map((path) => join(fixed, path));
+}
+
+test("real host tool qualification preserves private executable mode", async () =>
+    fixture(async ({ root, sourceRoot, work, options }) => {
+        const paths = await privateVite(root, sourceRoot, 0o700);
+        await withEntryInputViews(work, options, async (inputRoot, trees) => {
+            const reader = new InputReader(inputRoot, undefined, ["entries", "execution"]);
+            await reader.initialize();
+            const receipt = await document<EntriesReceipt>(reader, trees.entries.buildReceipt, schemas.entries);
+            const command = JSON.parse((await reader.ref(receipt.build.commandEvidence, true)).toString());
+            assert.equal(command.observation.exit, 0);
+            assert.equal(command.observation.closeConfirmed, true);
+            const files = command.tools.find((tool: { name: string }) => tool.name === "vite").files;
+            assert.equal(files.length, 3);
+            for (const path of paths) {
+                const file = files.find((file: { path: string }) => file.path === path);
+                assert.equal(file.mode, 0o700);
+                assert.equal(file.sha256, sha(await readFile(path)));
+                assert.equal(Number((await lstat(path)).mode & 0o7777), 0o700);
+            }
+            await reader.finish();
+        });
+    }));
+
+/**
+ * 工具文件新增的私有可执行模式不能扩大为通用执行权限掩码，危险写权限与特殊位仍须在真实宿主动作为零次时拒绝，未观察到需
+ * 要的只读私有执行模式也继续保持既有拒绝行为。
+ */
+for (const mode of [0o500, 0o770, 0o777, 0o1700, 0o2700, 0o4700])
+    test(`host tool rejects unapproved mode ${mode.toString(8)} before build`, async () =>
+        fixture(async ({ root, sourceRoot, work, options }) => {
+            await privateVite(root, sourceRoot, mode);
+            let invoked = false;
+            const modified = {
+                ...options,
+                hostBuild: {
+                    ...options.hostBuild,
+                    run: async () => {
+                        invoked = true;
+                        throw new Error("unexpected host build");
+                    },
+                },
+            };
+            await assert.rejects(
+                withEntryInputViews(work, modified, async () => assert.fail("consumer called")),
+                /PAYLOAD_LIMIT/,
+            );
+            assert.equal(invoked, false);
+        }));
+
+/**
+ * 私有执行权限只改变模式准入，工具包的名称与绑定版本仍必须真实匹配；这些用例在自有副本中写入错误元数据，确认宿主构建
+ * 没有开始且不会因通过文件权限检查而跳过工具角色校验。
+ */
+for (const patch of [{ name: "unexpected-tool" }, { version: "0.0.0" }])
+    test(`private host tool rejects wrong metadata ${JSON.stringify(patch)}`, async () =>
+        fixture(async ({ root, sourceRoot, work, options }) => {
+            const paths = await privateVite(root, sourceRoot, 0o700),
+                manifest = paths[2];
+            assert(manifest);
+            const pkg = JSON.parse(await readFile(manifest, "utf8"));
+            await writeFile(manifest, JSON.stringify({ ...pkg, ...patch }));
+            let invoked = false;
+            await assert.rejects(
+                withEntryInputViews(
+                    work,
+                    {
+                        ...options,
+                        hostBuild: {
+                            ...options.hostBuild,
+                            run: async () => {
+                                invoked = true;
+                                throw new Error("unexpected host build");
+                            },
+                        },
+                    },
+                    async () => assert.fail("consumer called"),
+                ),
+                /PAYLOAD_RECEIPT_MISMATCH/,
+            );
+            assert.equal(invoked, false);
+        }));
+
+/**
+ * 工具初读时通过私有执行模式并不豁免后置身份复验，真实构建关闭后将模式改为另一已允许值仍必须拒绝，防止只核最终模式集
+ * 合而遗失先前观察到的文件身份。
+ */
+test("private host tool rejects identity change after real build", async () =>
+    fixture(async ({ root, sourceRoot, work, options }) => {
+        const paths = await privateVite(root, sourceRoot, 0o700),
+            cli = paths[0],
+            original = options.hostBuild.run;
+        assert(cli);
+        let changed = false;
+        await assert.rejects(
+            withEntryInputViews(
+                work,
+                {
+                    ...options,
+                    hostBuild: {
+                        ...options.hostBuild,
+                        run: async (invocation) => {
+                            const result = await original(invocation);
+                            assert.equal(result.exit, 0);
+                            assert.equal(result.closeConfirmed, true);
+                            await chmod(cli, 0o600);
+                            changed = true;
+                            return result;
+                        },
+                    },
+                },
+                async () => undefined,
+            ),
+            /PAYLOAD_SOURCE_CHANGED/,
+        );
+        assert.equal(changed, true);
+    }));
 
 /**
  * 成功用例通过真实 Vite 共享 chunk 和 JSON 导入验证原路径快照、完整库存与严格模式，回调期间独立 reader 再读所有文档与
