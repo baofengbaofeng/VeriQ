@@ -14,11 +14,19 @@ Hatchling1.27.0与build1.4.0已锁定，不新增打包框架。editable仅映�
 
 | 能力 | 选择及许可 | 比较与理由 |
 | --- | --- | --- |
-| Python lint/格式/类型 | 已有Ruff0.15.1（MIT）、mypy1.19.1（MIT） | 保留现有成熟工具与锁，不引入第二套Python lint |
+| Python lint/格式/类型 | pylint4.1.4（GPL-2.0-or-later）、Black26.10.1（MIT），保留Ruff0.15.1与mypy1.19.1（均MIT） | V09 依用户及规范强制要求补齐 pylint/pylintrc 与 Black；原先不加第二套 lint 的选择由该要求取代，既有门禁全部保留 |
 | TS/JS lint | Biome2.6.7（选择MIT，另可选Apache-2.0） | ESLint9.39.1+typescript-eslint8.48.0均MIT，但新增数十个JS依赖；Biome使用单个当前平台二进制，仅执行 lint，Prettier保持唯一格式化工具 |
 | 格式 | 已有Prettier3.6.2（MIT） | 不使用Biome 格式化器改变既有格式规则 |
 | 覆盖率 | 已有pytest-cov7.0.0/coverage与Vitest4.1.12/V8 | 使用实际服务和核心TS测试，默认最低75%，不把tsc当测试覆盖率 |
 | SBOM | CycloneDX-bom8.0.1及cyclonedx-python-lib11.12.0（Apache-2.0） | 对比Syft外部二进制，Python工具可在唯一uv锁中冻结并直接探测干净venv；不手写通用SBOM格式/依赖求解器 |
+
+V09（2026-11-17）只向 Python dev 组加入上述两个精确直接版本及九包最小增量，不更改任何既有解析版本、生产依赖、解释器、Tornado 或引擎身份。七项新增传递依赖为 astroid4.3.4（LGPL-2.1-or-later）、dill0.4.1（BSD-3-Clause）、isort9.0.2（MIT）、mccabe0.7.0（Expat/MIT）、platformdirs4.14.5（MIT）、pytokens0.4.1（MIT）、tomlkit0.15.2（MIT）。共享 click、mypy-extensions、packaging、pathspec 和 Windows colorama 保持原锁版本。
+
+Black 和 Pyink 均满足规范允许的格式化器选择；Black 的稳定模式无需 Pyink 额外风格分叉，已有 Python3.12 分发物，因此选择 Black，不新增 Pyink。显式 target-version=py312、line-length=100，与服务 Ruff 目标一致；禁用 preview/unstable，四空格缩进由稳定格式规则提供。pylintrc 显式 Python3.12、四空格、字符行宽120，串行递归检查 apps/srv、scripts、tests，仅忽略依赖环境与缓存目录；不屏蔽消息或降低成功阈值。字符宽度参数不能替代中文占两列的物理120显示列检查。
+
+正常发行通过同一解释器、仓库根目录和显式配置执行具名 pylint 与 Black --check 阶段；任一非零立即停止，--skip-tests 不跳过它们。原 Ruff 检查和格式检查、两项 mypy、TS、注释、列宽、测试及覆盖率门禁保持。两个格式化器的只读基线必须在同一源码范围独立保留；既有格式冲突与 pylint 债务另行整改，不通过批量格式化、排除真实源码或抑制告警制造通过。
+
+已核对九项新增分发物的实际许可原文。pylint 与 astroid 作为独立开发工具分析源码，不链接或复制进生产 wheel、--no-dev wheelhouse 或 Runtime；项目 AGPL-3.0 不变。GPL/LGPL 不因 dev 分组消失：若分发开发环境、修改工具或今后捆绑工具，须保留许可并满足对应源码、修改及再分发义务，届时重新审查。完整原文、散列、精确依赖及生产闭包保持证据见 [V09 审计](../dependencies/v09-python-tools-audit.json)。2026-11-17 对十四项完整工具闭包的 OSV 查询未返回已知公告；这是即时数据库匹配，不是无漏洞保证或目标平台验收。
 
 CycloneDX7.2.1曾作预研比较，但其packaging<26会降级既有26.3，故未采用。8.0.1新增12个仅开发依赖：boolean-py5.0(BSD-2-Clause)、chardet7.7.0(0BSD)、cyclonedx-bom8.0.1、cyclonedx-python-lib11.12.0、defusedxml0.7.1(PSFL)、license-expression30.4.4(Apache-2.0)、lxml6.1.3(BSD-3-Clause)、packageurl-python0.17.6(MIT)、pip-requirements-parser32.0.1(MIT)、py-serializable2.2.0(Apache-2.0)、pyparsing3.3.3(MIT)、sortedcontainers2.4.0(Apache-2.0)。全部既有Python版本保持不变。Biome锁记录各目标可选二进制，本机仅安装Linux x64。
 

@@ -7,7 +7,9 @@
 import importlib.util
 from hashlib import sha256
 import json
+import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 
@@ -90,7 +92,6 @@ def test_build_cancellation_holds_lock_until_stage_descendants_stop(
 
     """
     import fcntl
-    import os
     import signal
     import time
 
@@ -268,7 +269,6 @@ def test_supervisor_loss_quarantines_build_before_another_tool_starts(tmp_path):
     录。
 
     """
-    import os
     import signal
     from build_release import BuildOptions, build_release
     from release_processes import process_scope
@@ -378,7 +378,6 @@ def test_release_probes_compatible_node_and_records_actual_tools(tmp_path, monke
     不能只改一个语言的规则。
 
     """
-    import os
 
     spec = importlib.util.spec_from_file_location(
         "veriq_node_policy_build", ROOT / "scripts/build_release.py"
@@ -412,3 +411,73 @@ def test_release_probes_compatible_node_and_records_actual_tools(tmp_path, monke
             module.build_release(module.BuildOptions(checkout))
         assert not list((checkout / "work").glob("release-*/tool-versions.json"))
     assert not (checkout / "output").exists()
+
+
+def _python_quality_checkout(tmp_path: Path, failed_tool: str) -> tuple[Path, Path]:
+    """创建只包含待检查源码与轻量外部工具的临时目录，隔离安装和前端阶段，使真实检查器的失败成为唯一验证目标。"""
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+    for directory in ["apps/srv", "scripts", "tests"]:
+        (checkout / directory).mkdir(parents=True, exist_ok=True)
+    for name in ["pyproject.toml", "pylintrc"]:
+        original = ROOT / "apps/srv" / name
+        if original.exists():
+            shutil.copy2(original, checkout / "apps/srv" / name)
+    documentation = "此模块提供发行门禁所需的最小有效源码，检查器发现错误后必须停止构建并保留原有输出产物。"
+    value = "missing_value" if failed_tool == "pylint" else '{"items":[1,2,3]}'
+    (checkout / "scripts/quality_fixture.py").write_text(
+        f'"""{documentation}"""\n\nVALUE = {value}\n', encoding="utf-8"
+    )
+    tools = tmp_path / "bin"
+    tools.mkdir()
+    versions = {"node": "v24.22.1", "pnpm": "11.25.0", "uv": "uv 0.13.5"}
+    for name, version in versions.items():
+        tool = tools / name
+        tool.write_text(f"#!{sys.executable}\nimport sys\nprint({version!r})\n")
+        tool.chmod(0o700)
+    git = tools / "git"
+    git.write_text(
+        f"#!{sys.executable}\nimport sys\n"
+        "if sys.argv[1] == 'rev-parse': print('fixture-source-identity')\n"
+    )
+    git.chmod(0o700)
+    return checkout, tools
+
+
+@pytest.mark.parametrize("failed_tool", ["pylint", "black"])
+@pytest.mark.parametrize("skip_tests", [False, True], ids=["normal", "skip-tests"])
+def test_python_quality_failure_stops_release_before_artifacts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failed_tool: str, skip_tests: bool
+) -> None:
+    """真实检查器发现临时源码错误时必须记录失败并阻断后续产物阶段，应急跳过测试也不能绕过这两项新增静态门禁。
+
+    外部安装和前端暂存使用轻量替身；检查器、进程监督、失败记录及输出目录均执行正式代码，不据此宣称完整发行通过。
+    """
+    spec = importlib.util.spec_from_file_location(
+        "veriq_quality_build", ROOT / "scripts/build_release.py"
+    )
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    checkout, tools = _python_quality_checkout(tmp_path, failed_tool)
+    monkeypatch.setenv("PATH", str(tools) + os.pathsep + os.environ["PATH"])
+    monkeypatch.setattr(module, "stage_web", lambda *arguments: {})
+    monkeypatch.setattr(module, "stage_examples", lambda *arguments: {})
+    with pytest.raises(RuntimeError, match=f"Release phase failed: {failed_tool};"):
+        module.build_release(
+            module.BuildOptions(checkout, skip_tests=skip_tests, reason="fixture validation")
+        )
+    runs = list((checkout / "work").glob("release-*"))
+    assert len(runs) == 1
+    records = json.loads((runs[0] / "commands.json").read_text())
+    assert records[-1]["name"] == failed_tool
+    assert records[-1]["exitCode"] != 0
+    assert all(record["cwd"] == str(checkout) for record in records)
+    assert all(record["exitCode"] == 0 for record in records[:-1])
+    assert records[-1]["argv"][:3] == [sys.executable, "-m", failed_tool]
+    diagnostic = (runs[0] / f"{failed_tool}.log").read_text()
+    assert ("undefined-variable" if failed_tool == "pylint" else "would reformat") in diagnostic
+    assert not (checkout / "output").exists()
+    assert not (checkout / "work/server-wheel").exists()
+    assert not list(runs[0].rglob("release.json"))

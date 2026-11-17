@@ -251,6 +251,33 @@ def build_release(options: BuildOptions) -> ReleaseManifest:
             command("lint", ["pnpm", "lint"])
             command("format", ["pnpm", "format:check"])
             command(
+                "pylint",
+                [
+                    sys.executable,
+                    "-m",
+                    "pylint",
+                    "--rcfile",
+                    "apps/srv/pylintrc",
+                    "apps/srv",
+                    "scripts",
+                    "tests",
+                ],
+            )
+            command(
+                "black",
+                [
+                    sys.executable,
+                    "-m",
+                    "black",
+                    "--config",
+                    "apps/srv/pyproject.toml",
+                    "--check",
+                    "apps/srv",
+                    "scripts",
+                    "tests",
+                ],
+            )
+            command(
                 "ruff",
                 [sys.executable, "-m", "ruff", "check", "apps/srv", "scripts", "tests"],
             )

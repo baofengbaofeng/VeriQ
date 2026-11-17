@@ -1,6 +1,59 @@
 {
-  "description": "已安装 Python 依赖的元数据清单，包含 T12 存储与模拟器、T13 AI 的依赖增量，以及开发和构建依赖组；不是操作系统或原生二进制发行 SBOM。",
+  "description": "已安装 Python 依赖的元数据清单，包含开发和构建依赖组及 V09 必需 pylint/Black 工具闭包；不是操作系统或原生二进制发行 SBOM。",
   "packages": [
+    {
+      "name": "Mako",
+      "version": "1.4.3",
+      "licenseExpression": "MIT",
+      "licenseMetadata": null,
+      "licenseClassifiers": [],
+      "licenseFiles": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "MarkupSafe",
+      "version": "3.0.4",
+      "licenseExpression": "BSD-3-Clause",
+      "licenseMetadata": null,
+      "licenseClassifiers": [],
+      "licenseFiles": [
+        "LICENSE.txt"
+      ]
+    },
+    {
+      "name": "PyYAML",
+      "version": "6.0.3",
+      "licenseExpression": null,
+      "licenseMetadata": "MIT",
+      "licenseClassifiers": [
+        "License :: OSI Approved :: MIT License"
+      ],
+      "licenseFiles": [
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "Pygments",
+      "version": "2.21.0",
+      "licenseExpression": "BSD-2-Clause",
+      "licenseMetadata": null,
+      "licenseClassifiers": [],
+      "licenseFiles": [
+        "AUTHORS",
+        "LICENSE"
+      ]
+    },
+    {
+      "name": "SQLAlchemy",
+      "version": "2.0.46",
+      "licenseExpression": null,
+      "licenseMetadata": "MIT",
+      "licenseClassifiers": [],
+      "licenseFiles": [
+        "LICENSE"
+      ]
+    },
     {
       "name": "alembic",
       "version": "1.18.4",
@@ -76,6 +129,17 @@
       ]
     },
     {
+      "name": "astroid",
+      "version": "4.3.4",
+      "licenseExpression": "LGPL-2.1-or-later",
+      "licenseMetadata": null,
+      "licenseClassifiers": [],
+      "licenseFiles": [
+        "LICENSE",
+        "CONTRIBUTORS.txt"
+      ]
+    },
+    {
       "name": "asyncmy",
       "version": "0.2.18",
       "licenseExpression": "Apache-2.0",
@@ -96,6 +160,16 @@
       ]
     },
     {
+      "name": "black",
+      "version": "26.10.1",
+      "licenseExpression": "MIT",
+      "licenseMetadata": null,
+      "licenseClassifiers": [],
+      "licenseFiles": [
+        "LICENSE"
+      ]
+    },
+    {
       "name": "blinker",
       "version": "1.9.0",
       "licenseExpression": null,
@@ -104,6 +178,12 @@
         "License :: OSI Approved :: MIT License"
       ],
       "licenseFiles": []
+    },
+    {
+      "name": "boolean-py",
+      "version": "5.0",
+      "license": "BSD-2-Clause",
+      "scope": "T18 仅用于开发阶段的构建工具"
     },
     {
       "name": "boto3",
@@ -160,6 +240,12 @@
       ]
     },
     {
+      "name": "chardet",
+      "version": "7.7.0",
+      "license": "0BSD",
+      "scope": "T18 仅用于开发阶段的构建工具"
+    },
+    {
       "name": "charset-normalizer",
       "version": "3.5.2",
       "licenseExpression": null,
@@ -200,6 +286,36 @@
         "LICENSE",
         "LICENSE.APACHE",
         "LICENSE.BSD"
+      ]
+    },
+    {
+      "name": "cyclonedx-bom",
+      "version": "8.0.1",
+      "license": "Apache-2.0",
+      "scope": "T18 仅用于开发阶段的构建工具"
+    },
+    {
+      "name": "cyclonedx-python-lib",
+      "version": "11.12.0",
+      "license": "Apache-2.0",
+      "scope": "T18 仅用于开发阶段的构建工具"
+    },
+    {
+      "name": "defusedxml",
+      "version": "0.7.1",
+      "license": "PSFL",
+      "scope": "T18 仅用于开发阶段的构建工具"
+    },
+    {
+      "name": "dill",
+      "version": "0.4.1",
+      "licenseExpression": null,
+      "licenseMetadata": "BSD-3-Clause",
+      "licenseClassifiers": [
+        "License :: OSI Approved :: BSD License"
+      ],
+      "licenseFiles": [
+        "LICENSE"
       ]
     },
     {
@@ -342,6 +458,18 @@
       "licenseFiles": []
     },
     {
+      "name": "isort",
+      "version": "9.0.2",
+      "licenseExpression": "MIT",
+      "licenseMetadata": null,
+      "licenseClassifiers": [
+        "License :: OSI Approved :: MIT License"
+      ],
+      "licenseFiles": [
+        "LICENSE"
+      ]
+    },
+    {
       "name": "itsdangerous",
       "version": "2.2.0",
       "licenseExpression": null,
@@ -441,23 +569,27 @@
       ]
     },
     {
-      "name": "Mako",
-      "version": "1.4.3",
-      "licenseExpression": "MIT",
-      "licenseMetadata": null,
-      "licenseClassifiers": [],
-      "licenseFiles": [
-        "LICENSE"
-      ]
+      "name": "license-expression",
+      "version": "30.4.4",
+      "license": "Apache-2.0",
+      "scope": "T18 仅用于开发阶段的构建工具"
     },
     {
-      "name": "MarkupSafe",
-      "version": "3.0.4",
-      "licenseExpression": "BSD-3-Clause",
-      "licenseMetadata": null,
-      "licenseClassifiers": [],
+      "name": "lxml",
+      "version": "6.1.3",
+      "license": "BSD-3-Clause",
+      "scope": "T18 仅用于开发阶段的构建工具"
+    },
+    {
+      "name": "mccabe",
+      "version": "0.7.0",
+      "licenseExpression": null,
+      "licenseMetadata": "Expat license",
+      "licenseClassifiers": [
+        "License :: OSI Approved :: MIT License"
+      ],
       "licenseFiles": [
-        "LICENSE.txt"
+        "LICENSE"
       ]
     },
     {
@@ -504,6 +636,12 @@
       "licenseFiles": []
     },
     {
+      "name": "packageurl-python",
+      "version": "0.17.6",
+      "license": "MIT",
+      "scope": "T18 仅用于开发阶段的构建工具"
+    },
+    {
       "name": "packaging",
       "version": "26.3",
       "licenseExpression": "Apache-2.0 OR BSD-2-Clause",
@@ -528,6 +666,22 @@
       ]
     },
     {
+      "name": "pip-requirements-parser",
+      "version": "32.0.1",
+      "license": "MIT",
+      "scope": "T18 仅用于开发阶段的构建工具"
+    },
+    {
+      "name": "platformdirs",
+      "version": "4.14.5",
+      "licenseExpression": "MIT",
+      "licenseMetadata": null,
+      "licenseClassifiers": [],
+      "licenseFiles": [
+        "LICENSE"
+      ]
+    },
+    {
       "name": "pluggy",
       "version": "1.7.0",
       "licenseExpression": null,
@@ -538,6 +692,12 @@
       "licenseFiles": [
         "LICENSE"
       ]
+    },
+    {
+      "name": "py-serializable",
+      "version": "2.2.0",
+      "license": "Apache-2.0",
+      "scope": "T18 仅用于开发阶段的构建工具"
     },
     {
       "name": "pycparser",
@@ -570,15 +730,21 @@
       ]
     },
     {
-      "name": "Pygments",
-      "version": "2.21.0",
-      "licenseExpression": "BSD-2-Clause",
+      "name": "pylint",
+      "version": "4.1.4",
+      "licenseExpression": "GPL-2.0-or-later",
       "licenseMetadata": null,
       "licenseClassifiers": [],
       "licenseFiles": [
-        "AUTHORS",
-        "LICENSE"
+        "LICENSE",
+        "CONTRIBUTORS.txt"
       ]
+    },
+    {
+      "name": "pyparsing",
+      "version": "3.3.3",
+      "license": "MIT",
+      "scope": "T18 仅用于开发阶段的构建工具"
     },
     {
       "name": "pyproject_hooks",
@@ -637,10 +803,10 @@
       ]
     },
     {
-      "name": "PyYAML",
-      "version": "6.0.3",
+      "name": "pytokens",
+      "version": "0.4.1",
       "licenseExpression": null,
-      "licenseMetadata": "MIT",
+      "licenseMetadata": "MIT License\n\nCopyright (c) 2024 Tushar Sadhwani\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n",
       "licenseClassifiers": [
         "License :: OSI Approved :: MIT License"
       ],
@@ -788,14 +954,10 @@
       ]
     },
     {
-      "name": "SQLAlchemy",
-      "version": "2.0.46",
-      "licenseExpression": null,
-      "licenseMetadata": "MIT",
-      "licenseClassifiers": [],
-      "licenseFiles": [
-        "LICENSE"
-      ]
+      "name": "sortedcontainers",
+      "version": "2.4.0",
+      "license": "Apache 2.0",
+      "scope": "T18 仅用于开发阶段的构建工具"
     },
     {
       "name": "structlog",
@@ -810,6 +972,16 @@
         "LICENSE-APACHE",
         "LICENSE-MIT",
         "NOTICE"
+      ]
+    },
+    {
+      "name": "tomlkit",
+      "version": "0.15.2",
+      "licenseExpression": "MIT",
+      "licenseMetadata": null,
+      "licenseClassifiers": [],
+      "licenseFiles": [
+        "LICENSE"
       ]
     },
     {
@@ -855,6 +1027,12 @@
       "licenseFiles": [
         "LICENSE"
       ]
+    },
+    {
+      "name": "typing-extensions",
+      "version": "4.16.0",
+      "license": "PSF-2.0",
+      "scope": "T18 仅用于开发阶段的构建工具"
     },
     {
       "name": "typing-inspection",
@@ -938,84 +1116,6 @@
       "licenseFiles": [
         "LICENSE"
       ]
-    },
-    {
-      "name": "boolean-py",
-      "version": "5.0",
-      "license": "BSD-2-Clause",
-      "scope": "T18 仅用于开发阶段的构建工具"
-    },
-    {
-      "name": "chardet",
-      "version": "7.7.0",
-      "license": "0BSD",
-      "scope": "T18 仅用于开发阶段的构建工具"
-    },
-    {
-      "name": "cyclonedx-bom",
-      "version": "8.0.1",
-      "license": "Apache-2.0",
-      "scope": "T18 仅用于开发阶段的构建工具"
-    },
-    {
-      "name": "cyclonedx-python-lib",
-      "version": "11.12.0",
-      "license": "Apache-2.0",
-      "scope": "T18 仅用于开发阶段的构建工具"
-    },
-    {
-      "name": "defusedxml",
-      "version": "0.7.1",
-      "license": "PSFL",
-      "scope": "T18 仅用于开发阶段的构建工具"
-    },
-    {
-      "name": "license-expression",
-      "version": "30.4.4",
-      "license": "Apache-2.0",
-      "scope": "T18 仅用于开发阶段的构建工具"
-    },
-    {
-      "name": "lxml",
-      "version": "6.1.3",
-      "license": "BSD-3-Clause",
-      "scope": "T18 仅用于开发阶段的构建工具"
-    },
-    {
-      "name": "packageurl-python",
-      "version": "0.17.6",
-      "license": "MIT",
-      "scope": "T18 仅用于开发阶段的构建工具"
-    },
-    {
-      "name": "pip-requirements-parser",
-      "version": "32.0.1",
-      "license": "MIT",
-      "scope": "T18 仅用于开发阶段的构建工具"
-    },
-    {
-      "name": "py-serializable",
-      "version": "2.2.0",
-      "license": "Apache-2.0",
-      "scope": "T18 仅用于开发阶段的构建工具"
-    },
-    {
-      "name": "pyparsing",
-      "version": "3.3.3",
-      "license": "MIT",
-      "scope": "T18 仅用于开发阶段的构建工具"
-    },
-    {
-      "name": "sortedcontainers",
-      "version": "2.4.0",
-      "license": "Apache 2.0",
-      "scope": "T18 仅用于开发阶段的构建工具"
-    },
-    {
-      "name": "typing-extensions",
-      "version": "4.16.0",
-      "license": "PSF-2.0",
-      "scope": "T18 仅用于开发阶段的构建工具"
     }
   ]
 }

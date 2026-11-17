@@ -47,12 +47,16 @@ Vite 6.4.6 在选型前发布不足 24 小时，未通过最短发布时间检�
 | pytest | 9.2.0 | MIT | Python 行为测试 |
 | pytest-asyncio | 1.3.0 | Apache-2.0 | 异步测试执行 |
 | pytest-cov | 7.0.0 | MIT | Python 覆盖率证据 |
-| ruff | 0.15.1 | MIT | lint/格式检查 |
+| ruff | 0.15.1 | MIT | 保留既有 lint/格式检查 |
+| pylint | 4.1.4 | GPL-2.0-or-later | 必需静态检查，显式 pylintrc；仅开发依赖 |
+| black | 26.10.1 | MIT | 必需稳定格式检查，Python 3.12、目标宽度 100；仅开发依赖 |
 | mypy | 1.19.1 | MIT | 严格 Python 类型检查 |
 | types-jsonschema | 4.26.0.20260202 | Apache-2.0 | jsonschema 类型定义 |
 | build | 1.4.0 | MIT | PEP 517 wheel 构建前端 |
 | hatchling | 1.27.0 | MIT | editable/wheel 后端及规范 Schema 打包 |
 | pyyaml | 6.0.3 | MIT | 契约/部署 YAML 工具 |
+
+V09 按用户与编码规范的既有强制项补齐 pylint 与 Black；保留 Ruff、mypy 和独立显示列宽、中文注释门禁。选择比较、GPL/LGPL 分发边界及当前公开公告核验见 [ADR 0020](0020-server-release-pipeline.md) 和 [精确工具闭包审计](../dependencies/v09-python-tools-audit.json)。
 
 控制服务依赖在 Python 3.12 下导入/安装；共享 Schema 测试、类型检查及隔离已安装 wheel 概念验证核对契约路径。数据库迁移、真实 MySQL 事务、认证/密码学流程及 HTTP 应用行为属于后续测试，不能由包安装推断通过。
 

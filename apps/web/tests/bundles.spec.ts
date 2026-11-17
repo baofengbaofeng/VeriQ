@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { editorScope, managedCompiler } from "./editor-fixture";
+import { withCleanup } from "./support/case-profile-cleanup";
 import { mkdtemp, readFile, rm, chmod, readdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { execFile } from "node:child_process";
@@ -61,7 +62,8 @@ test("real Agent publications export through keyboard GUI and verify offline wit
         expect(published.status(), await published.text()).toBe(201);
         return { resource, version: (await published.json()).data };
     }
-    try {
+    // 导出正文与两类清理分别结算，编译或业务断言失败不能被证据写入失败覆盖；所有原始错误都交回测试框架。
+    const verifyExport = async () => {
         const secret = (
             await (
                 await page.request.post(base + "/credentials", {
@@ -270,14 +272,19 @@ test("real Agent publications export through keyboard GUI and verify offline wit
         await page.getByLabel("Bundle Workspace").selectOption((await another.json()).data.id);
         await expect(page.getByRole("article")).toHaveCount(0);
         await expect(page.getByRole("button", { name: "Export signed bundle" })).toBeDisabled();
-    } finally {
-        await compiler.close();
-        async function writable(path: string) {
-            await chmod(path, 0o700);
-            for (const e of await readdir(path, { withFileTypes: true }))
-                if (e.isDirectory()) await writable(join(path, e.name));
-        }
-        await writable(temp);
-        await rm(temp, { recursive: true, force: true });
-    }
+    };
+    await withCleanup(verifyExport, async () => {
+        await withCleanup(
+            () => compiler.close(),
+            async () => {
+                async function writable(path: string) {
+                    await chmod(path, 0o700);
+                    for (const e of await readdir(path, { withFileTypes: true }))
+                        if (e.isDirectory()) await writable(join(path, e.name));
+                }
+                await writable(temp);
+                await rm(temp, { recursive: true, force: true });
+            },
+        );
+    });
 });

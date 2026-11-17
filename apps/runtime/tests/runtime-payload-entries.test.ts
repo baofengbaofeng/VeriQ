@@ -71,6 +71,7 @@ async function fixture(
     entry = "",
     emitAsset = false,
     extraSources: Record<string, string> = {},
+    clientConsumer = false,
 ) {
     const root = await mkdtemp(join(tmpdir(), "veriq-entry-"));
     await chmod(root, 0o700);
@@ -104,12 +105,16 @@ async function fixture(
     const configBytes = await readFile(join(repository, config), "utf8");
     await put(
         config,
-        emitAsset
+        emitAsset || clientConsumer
             ? configBytes.replace("export default {", "const fixtureConfig = {") +
-                  '\nfixtureConfig.plugins.unshift({name:"fixture-json-asset", async generateBundle(){this.emitFile(' +
-                  '{type:"asset",fileName:"assets/schema.json",source:await(await import("node:fs/promises")).re' +
-                  'adFile(resolve(sourceRoot,"packages/contracts/schemas/test.json"))});}});\nexport default fix' +
-                  "tureConfig;\n"
+                  (emitAsset
+                      ? '\nfixtureConfig.plugins.unshift({name:"fixture-json-asset", async generateBundle(){' +
+                        'this.emitFile({type:"asset",fileName:"assets/schema.json",source:await(await import(' +
+                        '"node:fs/promises")).readFile(resolve(sourceRoot,"packages/contracts/schemas/test.json"))});' +
+                        "}});\n"
+                      : "") +
+                  (clientConsumer ? "\nfixtureConfig.build.ssr = false;\n" : "") +
+                  "\nexport default fixtureConfig;\n"
             : configBytes,
     );
     await put("pnpm-lock.yaml", "lockfileVersion: '9.0'\n");
@@ -220,7 +225,102 @@ async function privateVite(root: string, sourceRoot: string, mode: number) {
 }
 
 /**
- * 真实局部懒加载触发 Vite 预加载改写，编译器声明摘要必须与命令关闭后的独立磁盘读取一致，随后仍由原严格生产器复制核验。
+ * 真实 Node 来源回退通过三个执行模块 URL 触发旧客户端资产转换，邻接导入同时验证普通模块闭包；独立执行树仍保留八份
+ * 原始源码，工作区嵌入、普通外部包、数据资产及最终观察摘要都必须经过原生产器核验后才能进入消费回调。
+ */
+test("real host Node consumer preserves execution URLs and strict independent trees", async () =>
+    fixture(
+        async ({ sourceRoot, work, options }) => {
+            const original = options.hostBuild.run;
+            let declared: { sources: string[]; outputs: (Ref & { kind: string })[] } | undefined;
+            const modified = {
+                ...options,
+                hostBuild: {
+                    ...options.hostBuild,
+                    run: async (invocation: Parameters<typeof original>[0]) => {
+                        const result = await original(invocation);
+                        assert.equal(result.admitted, true);
+                        assert.equal(result.closeConfirmed, true);
+                        assert.equal(result.exit, 0);
+                        declared = JSON.parse(
+                            await readFile(join(options.buildRoot, ".veriq-entry-trace.json"), "utf8"),
+                        );
+                        assert(declared);
+                        for (const output of declared.outputs) {
+                            const bytes = await readFile(join(options.buildRoot, output.path));
+                            assert.equal(bytes.length, output.sizeBytes, output.path);
+                            assert.equal(sha(bytes), output.sha256, output.path);
+                        }
+                        return result;
+                    },
+                },
+            };
+            let consumed = false;
+            await withEntryInputViews(work, modified, async (inputRoot, trees) => {
+                assert(declared);
+                for (const path of [
+                    "apps/runtime/src/execution/paths.ts",
+                    "apps/runtime/src/execution/fallback-label.ts",
+                    "packages/contracts/src/index.ts",
+                    "packages/contracts/src/transitive.ts",
+                    "packages/contracts/schemas/test.json",
+                ])
+                    assert(declared.sources.includes(path), path);
+                const reader = new InputReader(inputRoot, undefined, ["entries", "execution"]);
+                await reader.initialize();
+                const entries = await document<EntriesReceipt>(reader, trees.entries.buildReceipt, schemas.entries),
+                    execution = await document<ExecutionReceipt>(
+                        reader,
+                        trees.execution.buildReceipt,
+                        schemas.execution,
+                    );
+                assert.deepEqual(entries.entrypoints, { agent: "agent.js", cli: "cli.js" });
+                assert(entries.embeddedWorkspaces.some((workspace) => workspace.name === "@veriq/contracts"));
+                const imports = entries.outputs.flatMap((output) => output.imports);
+                assert(imports.some((edge) => edge.specifier === "fixture-external"));
+                assert(imports.every((edge) => !edge.specifier.startsWith("@veriq/")));
+                assert.deepEqual(
+                    entries.outputs.filter((output) => output.kind === "asset"),
+                    [{ path: "assets/schema.json", kind: "asset", imports: [] }],
+                );
+                assert.equal(
+                    await readFile(join(inputRoot, "entries/assets/schema.json"), "utf8"),
+                    '{"title":"bound-schema"}',
+                );
+                const agent = await readFile(join(inputRoot, "entries/agent.js"), "utf8");
+                for (const name of ["worker", "provider", "controlled-child-preload"])
+                    assert(agent.includes(`new URL("./${name}.mjs", import.meta.url)`), name);
+                assert.deepEqual(execution.members.map((member) => member.path).sort(), [...names].sort());
+                for (const member of execution.members) {
+                    const bytes = await readFile(join(sourceRoot, member.sourcePath));
+                    assert.equal(sha(bytes), member.sha256);
+                    assert.deepEqual(await readFile(join(inputRoot, "execution", member.path)), bytes);
+                }
+                for (const kind of ["entries", "execution"] as const) {
+                    const inventory = await document<TreeInventory>(reader, trees[kind].inventory, schemas.inventory);
+                    await reader.tree(trees[kind], inventory, kind);
+                }
+                await reader.finish();
+                await work.audit();
+                consumed = true;
+            });
+            assert.equal(consumed, true);
+        },
+        'import { shared } from "@veriq/contracts"; import external from "fixture-external"; ' +
+            'import { fallbacks } from "../../../runtime/src/execution/paths.js"; ' +
+            'console.log(shared("agent"), external, fallbacks);',
+        true,
+        {
+            "apps/runtime/src/execution/paths.ts":
+                'import { label } from "./fallback-label.js"; export const fallbacks = [label, ' +
+                'new URL("./worker.mjs", import.meta.url), new URL("./provider.mjs", import.meta.url), ' +
+                'new URL("./controlled-child-preload.mjs", import.meta.url)];',
+            "apps/runtime/src/execution/fallback-label.ts": 'export const label: string = "source-only";',
+        },
+    ));
+
+/**
+ * 仅此回归显式使用客户端消费者触发真实局部懒加载预加载改写，编译器声明摘要必须与关闭后的独立磁盘读取一致。
  * 变量导入同时保留运行时动态边；测试只构建并检查产物，不执行入口或借用宿主目标平台资格。
  */
 test("real host Vite observes final local dynamic import bytes before strict intake", async () =>
@@ -285,6 +385,7 @@ test("real host Vite observes final local dynamic import bytes before strict int
             'console.log(load("fixture-external"));',
         false,
         { "apps/desktop/src/agent/lazy.ts": 'export const lazy: string = "local-lazy";' },
+        true,
     ));
 
 test("real host tool qualification preserves private executable mode", async () =>
