@@ -288,6 +288,8 @@ def build_release(options: BuildOptions) -> ReleaseManifest:
                     "-m",
                     "ruff",
                     "format",
+                    "--config",
+                    "apps/srv/pyproject.toml",
                     "--check",
                     "apps/srv",
                     "scripts",
