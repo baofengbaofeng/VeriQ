@@ -82,15 +82,18 @@ automatic Playwright trace boundary, release-age evidence and the dated exact-ve
 Preserve each upstream LICENSE and copyright notice in distributions. These dependencies serve test
 recovery only and do not change the Runtime production closure or the locked execution engine.
 
-V09 adds development-only tree-sitter 0.26.1, tree-sitter-bash 0.25.1 and tree-sitter-css 0.25.0,
+V09 adds development-only tree-sitter 0.26.1, tree-sitter-bash 0.25.1, tree-sitter-css 0.25.0,
+and tree-sitter-java 0.23.5,
 each under the MIT license. Their original wheel license texts, exact source and wheel hashes,
 and the dated exact-version OSV responses are preserved in the
 [comment parser audit](docs/dependencies/v09-comment-parsers-audit.json).
 The upstream copyright notices are Copyright (c) 2019 Max Brunsfeld, GitHub (tree-sitter),
-Copyright (c) 2017 Max Brunsfeld (tree-sitter-bash), and Copyright (c) 2018 Max Brunsfeld (tree-sitter-css).
+Copyright (c) 2017 Max Brunsfeld (tree-sitter-bash), Copyright (c) 2018 Max Brunsfeld (tree-sitter-css), and Copyright (c) 2017 Ayman Nadeem (tree-sitter-java).
 Distributing a development environment or these tools requires retaining their full MIT copyright,
 permission and warranty notices. They are absent from the production service `--no-dev` wheelhouse;
 their code is not copied into the service wheel or Runtime. The retained OSV responses listed no
 advisories at the recorded evidence capture times; this is not a complete release security assessment.
 [ADR 0026](docs/decisions/0026-trusted-comment-parsers.md) records the limited source-comment purpose,
-ABI validation and the unchanged production dependency closure. No language adapter is delivered here.
+ABI validation and the unchanged production dependency closure. The adapters support qualified Shell, CSS and Java source only.
+The Java adapter rejects raw Unicode escape spellings and bare CR bytes, including in otherwise legal input. It accepts LF and CRLF.
+The pinned grammar can absorb code after a bare CR into a line comment despite the line boundaries defined by JLS §3.4 and §3.7.

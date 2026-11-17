@@ -32,12 +32,18 @@ uv run --project apps/srv --frozen --no-sync python scripts/comment_audit.py --o
 ```
 
 `lint:comments` 同样通过 `uv run --project apps/srv --frozen --no-sync` 使用服务解释器，不自动联网补装或执行源码。
-按需加载的 Shell / CSS parser 会核验精确版本及 ABI，缺包、坏语法、missing 节点或不可信范围直接失败。
+按需加载的 Shell / CSS / Java parser 会核验精确版本及 ABI，缺包、坏语法、missing 节点或不可信范围直接失败。
 Shell 只接入 `.sh` 与精确 preinstall 路径，并要求首行 `#!/usr/bin/env bash` 或 `#!/bin/sh`；
 shebang 保留代码计数，不能算说明。CSS 仅接受直接位于 stylesheet / block 且没有函数参数祖先的 comment，
 函数、声明等其他注释上下文会明确报 unsupported（包括未引号 URL 中被 grammar 误标的伪注释）。
 这些边界见 [ADR 0026](decisions/0026-trusted-comment-parsers.md)。库存与列宽枚举仍不依赖可选 parser。
-SCSS / LESS、HTML、Java、native 等未支持比例语言继续阻断；YAML / GYP 嵌入代码分类仍待研究。
+Java 原始 UTF8 中任何 ASCII 反斜杠紧跟小写 `u` 都在 parser 构造前整文件拒绝，不判断资格或转译。
+因此一些合法 escaped literal 也保守失败；不提供 Unicode normalizer 或完整 JLS 保证。
+未紧跟 LF 的原始 CR 也在 parser 构造前整文件拒绝，包括合法文本块中的裸 CR。LF 和完整 CRLF 继续支持。
+固定语法可能把裸 CR 后的代码并入行注释，而 JLS §3.4 / §3.7 将裸 CR 识别为行终止符，见上述 ADR。
+其余 `.java` 使用固定 tree-sitter-java 0.23.5 的真实行 / 块注释，Java ABI 14、Shell / CSS ABI 15。
+审计与排版共享成熟范围及原始坐标，坏输入不输出部分报告，也不从源码分母静默排除。
+SCSS / LESS、HTML、native 等未支持比例语言继续阻断；YAML / GYP 嵌入代码分类仍待研究。
 全仓比例必须严格大于 40%；`ratio=None` 时只有支持子集的 `observedRatio`，不代表全仓通过，也无逐文件配额。
 
 使用专用 MySQL 8.4 数据库、InnoDB 和 utf8mb4。在 VeriQ 外准备数据库及用户，并授予该库的 Schema 迁移与应用访问权限。随着运维能力完善，生产部署应分离迁移凭据和运行凭据。连接初始化使用 UTC 与 READ COMMITTED；迁移拒绝其他 MySQL 发行系列。开发测试不得使用共享生产数据库。

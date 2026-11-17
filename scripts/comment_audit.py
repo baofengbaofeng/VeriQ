@@ -31,13 +31,29 @@ def _is_shell(name: str) -> bool:
 
 def _comment_body(name: str, raw: str) -> str:
     """正文仅剥离所属语言的实际注释分隔符，脚本内字面的斜杠星号须保留，而旧脚本桥接继续使用既有剥离顺序。"""
+    if Path(name).suffix == ".java":
+        return _java_body(raw)
     if _is_shell(name):
         return raw.removeprefix("#").lstrip()
     return raw.removeprefix("//").removeprefix("/*").removesuffix("*/").lstrip("* ")
 
 
+def _java_body(raw: str) -> str:
+    """行说明只移除正式双斜杠以保留前导物理分行和原始行偏移，块说明逐行去装饰星号，其他正文标记保留为文字。"""
+    if raw.startswith("//"):
+        return raw[2:]
+    opening = 3 if raw.startswith(("/**", "/*!")) and len(raw) > 4 else 2
+    rows = raw[opening:-2].splitlines()
+    return "\n".join(
+        row.lstrip().removeprefix("*").lstrip() if index else row.lstrip()
+        for index, row in enumerate(rows)
+    )
+
+
 def _first_comment_line(name: str, content: str) -> str:
     """首行跳过纯空白分隔符但保留脚本正文的字面星号，块注释续行仍沿用原有星号前缀剥离和 Unicode 长度契约。"""
+    if Path(name).suffix == ".java":
+        return next((line.strip() for line in content.splitlines() if line.strip()), "")
     return next(
         (
             line.strip() if _is_shell(name) else line.strip().lstrip("* ")
@@ -51,12 +67,12 @@ def _first_comment_line(name: str, content: str) -> str:
 def _read_source(root: Path, name: str, ranges: dict[str, Any]) -> str:
     """读取源文时保留原始换行并为新增语言装入已验证区间，保证字节定位与后续码点遮罩来自同一份未经转换的文本。"""
     if (
-        Path(name).suffix == ".css"
+        Path(name).suffix in {".css", ".java"}
         or Path(name).suffix == ".sh"
         or name in source_inventory.SOURCE_PATHS
     ):
         raw = (root / name).read_bytes()
-        language = "css" if Path(name).suffix == ".css" else "shell"
+        language = Path(name).suffix[1:] if Path(name).suffix in {".css", ".java"} else "shell"
         ranges[name] = comment_syntax.comment_ranges(raw, language, name)
         return raw.decode("utf-8")
     with (root / name).open(encoding="utf-8", newline="") as source:
@@ -65,6 +81,8 @@ def _read_source(root: Path, name: str, ranges: dict[str, Any]) -> str:
 
 def _comment_lines(name: str, start: int, end: int, content: str, lines: list[str]) -> set[int]:
     """新增语言只累计真实范围中的非空正文，旧语言保留既有关闭行规则，防止空注释旁的代码在新增适配中被错误计为说明。"""
+    if Path(name).suffix == ".java":
+        return {start + offset for offset, line in enumerate(content.splitlines()) if line.strip()}
     if Path(name).suffix in {".sh", ".css"} or name in source_inventory.SOURCE_PATHS:
         return {
             start + offset
@@ -77,7 +95,7 @@ def _comment_lines(name: str, start: int, end: int, content: str, lines: list[st
 def _masked_source(name: str, text: str, spans: list[dict[str, Any]]) -> str:
     """新增语言遮罩保留既有物理分行定义的全部边界，防止注释空行错移后吞掉代码；旧类型脚本仍保持原有回车换行规则。"""
     line_breaks = "\r\n"
-    if _is_shell(name) or Path(name).suffix == ".css":
+    if _is_shell(name) or Path(name).suffix in {".css", ".java"}:
         line_breaks += "\v\f\x1c\x1d\x1e\x85\u2028\u2029"
     residual = list(text)
     for item in spans:

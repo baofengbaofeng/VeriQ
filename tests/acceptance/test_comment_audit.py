@@ -714,8 +714,10 @@ def test_css_literals_empty_separators_and_mixed_lines(repository: Path, newline
     assert report["violations"][0]["line"] == 2
 
 
-@pytest.mark.parametrize("syntax", [(".css", "/*", "*/"), (".sh", "#!/bin/sh\n#", "")])
-@pytest.mark.parametrize(("length", "valid"), [(40, True), (120, True), (121, False)])
+@pytest.mark.parametrize(
+    "syntax", [(".css", "/*", "*/"), (".sh", "#!/bin/sh\n#", ""), (".java", "/*", "*/")]
+)
+@pytest.mark.parametrize(("length", "valid"), [(39, False), (40, True), (120, True), (121, False)])
 def test_new_comment_bodies_use_unicode_limits_independent_of_width(
     repository: Path, syntax: tuple[str, str, str], length: int, valid: bool
 ) -> None:
@@ -831,3 +833,100 @@ def test_new_family_masks_preserve_physical_breaks_and_trailing_code(
     assert report["violations"] == []
     assert report["observedRatio"] == 1 / (1 + code_lines)
     assert report["passed"] is (language == "css")
+
+
+@pytest.mark.parametrize("prefix,suffix", [("//", ""), ("///*", "*/"), ("//#", ""), ("//*", "")])
+def test_java_line_body_preserves_nonformal_markers(
+    repository: Path, prefix: str, suffix: str
+) -> None:
+    """行注释只剥离正式双斜杠，正文中的井号星号和块标记都参与四十字符边界，不能沿用类型脚本的多次剥离顺序。"""
+    body = prefix[2:] + "中" * (40 - len(prefix[2:]) - len(suffix)) + suffix
+    _write(repository, "sample.java", "//" + body + "\nclass X {}\n")
+    report = _audit(repository)
+    assert report["files"] == [{"path": "sample.java", "commentLines": 1, "codeLines": 1}]
+    assert report["violations"] == []
+
+
+@pytest.mark.parametrize(
+    "boundary", ["\n", "\r\n", "\v", "\f", "\x1c", "\x1d", "\x1e", "\x85", "\u2028", "\u2029"]
+)
+def test_java_effective_body_and_masks_keep_all_physical_breaks(
+    repository: Path, boundary: str
+) -> None:
+    """已接纳 Java 块范围保留源码物理分行，空分隔符不制造注释分子且末尾同线代码不能在遮罩后丢失或错位。"""
+    _write(repository, "sample.java", "/*中" + boundary + boundary + "*/ class X {}")
+    report = _audit(repository)
+    assert report["files"] == [{"path": "sample.java", "commentLines": 1, "codeLines": 1}]
+
+
+@pytest.mark.parametrize(
+    "boundary",
+    ["\v", "\f", "\x1c", "\x1d", "\x1e", "\x85", "\u2028", "\u2029"],
+    ids=["vt", "ff", "fs", "gs", "rs", "nel", "ls", "ps"],
+)
+def test_java_line_comment_rows_stay_distinct(repository: Path, boundary: str) -> None:
+    """真实行注释内的起始物理分行必须保留，正文才能计在下一行且不会与前一条块说明合并或掩盖后续类声明。"""
+    body = "中" * 40
+    _write(repository, "sample.java", f"/*{body}*/ // {boundary}{body}\nclass X {{}}")
+    report = _audit(repository)
+    assert report["files"] == [{"path": "sample.java", "commentLines": 2, "codeLines": 1}]
+    assert report["violations"] == []
+    assert report["observedRatio"] == 2 / 3
+
+
+@pytest.mark.parametrize("source", ["/**/ class X {}", "/*\n *\n */ class X {}", "//\nclass X {}"])
+def test_java_empty_formal_delimiters_do_not_inflate_ratio(repository: Path, source: str) -> None:
+    """只有正式分隔符和装饰星号的空注释不能制造有效说明行，同线代码仍完整进入分母并使机械门禁保持失败。"""
+    _write(repository, "sample.java", source)
+    assert _audit(repository)["files"] == [
+        {"path": "sample.java", "commentLines": 0, "codeLines": 1}
+    ]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "//hidden_secret\\u000a class X {}",
+        "/*safe*/ /*hidden_secret",
+        'class X { String s = """\nhidden_secret',
+    ],
+)
+def test_java_audit_cli_fails_without_partial_json(repository: Path, source: str) -> None:
+    """原始转义守卫和成熟语法错误都必须从公开命令失败退出，不能泄露正文或创建含部分文件计数的 JSON 审计报告。"""
+    _write(repository, "sample.java", source)
+    output = repository / "report.json"
+    result = subprocess.run(
+        [sys.executable, str(repository / "scripts/comment_audit.py"), "--output", str(output)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 2
+    assert not output.exists()
+    assert "hidden_secret" not in result.stderr
+    assert result.stdout == ""
+
+
+def test_java_bare_cr_audit_cli_rejects_without_output(repository: Path) -> None:
+    """裸回车后的合法类声明不能被吞进行注释并从代码分母消失，命令即使已有有效输入也必须在写报告前失败。"""
+    _write(repository, "a.java", "class A {}\n")
+    _write(repository, "z.java", "// hidden_secret\rclass X {}")
+    output = repository / "report.json"
+    result = subprocess.run(
+        [sys.executable, str(repository / "scripts/comment_audit.py"), "--output", str(output)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 2
+    assert not output.exists()
+    assert result.stdout == ""
+    assert result.stderr == '"z.java": Unsupported Java bare carriage return; line 1\n'
+
+
+def test_java_same_line_code_and_effective_comment_are_both_counted(repository: Path) -> None:
+    """真实说明与类声明共享物理行时分别进入分子和代码分母，空分隔符不增加比例且块首行跳过正式独占的装饰行。"""
+    _write(repository, "sample.java", "class X {} /*" + LONG + "*/\n/*\n * " + LONG + "\n */")
+    report = _audit(repository)
+    assert report["files"] == [{"path": "sample.java", "commentLines": 2, "codeLines": 1}]
+    assert report["violations"] == []

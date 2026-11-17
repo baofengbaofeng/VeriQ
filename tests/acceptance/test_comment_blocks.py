@@ -255,3 +255,58 @@ def test_css_ambiguous_url_refuses_all_rewrites(repository: Path) -> None:
     assert "Unsupported CSS comment context" in result.stderr
     assert "hidden_secret" not in result.stderr
     assert path.read_bytes() == source.encode()
+
+
+@pytest.mark.parametrize(
+    ("source", "guard"),
+    [
+        ("//hidden_secret\\u000a class X {}", "Unsupported Java Unicode escape"),
+        ("/*safe*/ /*hidden_secret", None),
+        ('class X { String s = """\nhidden_secret', None),
+        ("class X {}\r/** hidden_secret */\rclass Y {}", "Unsupported Java bare carriage return"),
+    ],
+)
+def test_java_fix_rejects_guard_or_syntax_without_any_writes(
+    repository: Path, source: str, guard: str | None
+) -> None:
+    """修复入口在任何文件写入之前完成全体可信范围检查，坏 Java 不能触发旧原生扫描旁路或提前改写另一个有效文件。"""
+    good = repository / "a.java"
+    good.write_text("/** actual documentation */\nclass X {}\n")
+    bad = repository / "z.java"
+    bad.write_bytes(source.encode())
+    before = {path: path.read_bytes() for path in (good, bad)}
+    result = _run(repository, "--fix")
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert "hidden_secret" not in result.stderr
+    if guard is not None:
+        assert result.stderr == f'"z.java": {guard}; line 1\n'
+    assert {path: path.read_bytes() for path in before} == before
+
+
+@pytest.mark.parametrize("newline", ["\n", "\r\n"], ids=["lf", "crlf"])
+def test_java_block_cli_formats_lf_and_crlf(repository: Path, newline: str) -> None:
+    """独立说明块在常见两种换行中仍会实际排版，已经存在的块内换行种类以及相邻类声明原字节都应保留。"""
+    path = repository / "sample.java"
+    path.write_bytes(
+        newline.join(["class X {}", "/** documentation", " */", "class Y {}"]).encode()
+    )
+    result = _run(repository, "--fix")
+    assert result.returncode == 0, result.stderr
+    assert (
+        path.read_bytes()
+        == newline.join(["class X {}", "/**", " * documentation", " */", "class Y {}"]).encode()
+    )
+
+
+def test_java_textblock_and_emoji_keep_real_block_only(formatter: Any, tmp_path: Path) -> None:
+    """成熟语法必须跳过文本块中的伪注释并定位补充字符之后的独立真实块，排版修改只能影响正式注释而保留其他源字节。"""
+    source = 'class X { String s = """\r\n/*literal😀*/\r\n"""; }\r\n/**真实*/'
+    (tmp_path / "sample.java").write_bytes(source.encode())
+    spans = formatter.comment_ranges(tmp_path, [Path("sample.java")])["sample.java"]
+    assert len(spans) == 1
+    start, end, replacement = formatter.replacements(source, spans)[0]
+    assert source[start:end] == "/**真实*/"
+    assert source[:start] + replacement + source[end:] == source.replace(
+        "/**真实*/", "/**\n * 真实\n */"
+    )

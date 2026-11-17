@@ -112,7 +112,9 @@ def test_source_boundary_keeps_all_existing_suffixes_names_and_explicit_path(
     ]
     for name in names:
         _write(
-            repository, name, "/*" + "中" * 59 + "*/\n" if name == "style.css" else "中" * 61 + "\n"
+            repository,
+            name,
+            "/*" + "中" * 59 + "*/\n" if name in {"style.css", "app.java"} else "中" * 61 + "\n",
         )
     for name in [
         "not-preinstall",
@@ -127,7 +129,7 @@ def test_source_boundary_keeps_all_existing_suffixes_names_and_explicit_path(
     assert width.check_sources(repository) == [(name, 1, 122) for name in sorted(names)]
     report = _tool("comment_audit").audit(repository)
     assert [item["path"] for item in report["unsupportedPaths"]] == sorted(
-        set(names) - {"style.css"}
+        set(names) - {"style.css", "app.java"}
     )
     assert all(item["reason"] for item in report["unsupportedPaths"])
 
@@ -190,6 +192,7 @@ def test_inventory_and_width_work_without_optional_parser_packages(repository: P
     """禁用站点包的独立解释器仍须枚举样式和脚本并检查列宽，路径消费者不能为了支持标记而导入可选成熟解析器。"""
     _write(repository, "style.css", "/*" + "中" * 59 + "*/\n")
     _write(repository, "setup.sh", "#!/bin/sh\n")
+    _write(repository, "sample.java", "class X {}\n")
     result = subprocess.run(
         [
             sys.executable,
@@ -197,7 +200,7 @@ def test_inventory_and_width_work_without_optional_parser_packages(repository: P
             "-c",
             "import sys; from pathlib import Path; sys.path.insert(0, sys.argv[1]); "
             "import source_inventory, line_width; root=Path(sys.argv[2]); "
-            "assert len(source_inventory.inventory(root)) == 2; "
+            "assert len(source_inventory.inventory(root)) == 3; "
             "assert line_width.check_sources(root) == [('style.css', 1, 122)]; "
             "assert not any(k.startswith('tree_sitter') for k in sys.modules)",
             str(ROOT / "scripts"),
@@ -208,3 +211,12 @@ def test_inventory_and_width_work_without_optional_parser_packages(repository: P
         check=False,
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_java_inventory_routes_without_excluding_guarded_files(repository: Path) -> None:
+    """所有 Java 后缀均保留在源码库存并路由成熟适配，原始转义限定只由消费者拒绝而不能静默从分母删去该路径。"""
+    _write(repository, "sample.java", "//" + chr(92) + "u000a class X {}")
+    (entry,) = _tool("source_inventory").inventory(repository)
+    assert entry["language"] == "java"
+    assert entry["unsupportedReason"] is None
+    assert entry["path"] == Path("sample.java")

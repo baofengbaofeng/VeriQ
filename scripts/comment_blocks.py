@@ -17,7 +17,7 @@ import comment_syntax
 from line_width import source_paths
 
 JAVASCRIPT = {".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"}
-NATIVE = {".c", ".h", ".cc", ".hh", ".cxx", ".hxx", ".cpp", ".hpp", ".m", ".mm", ".java"}
+NATIVE = {".c", ".h", ".cc", ".hh", ".cxx", ".hxx", ".cpp", ".hpp", ".m", ".mm"}
 STYLES = {".css", ".scss", ".less"}
 UNSUPPORTED_BLOCK_LANGUAGES = {".html", ".sql", ".go", ".rs", ".swift", ".tpl"}
 PRAGMA = re.compile(
@@ -140,11 +140,11 @@ def comment_ranges(
             )
         )
     for path in paths:
-        if path.suffix == ".css":
+        if path.suffix in {".css", ".java"}:
             output[path.as_posix()] = [
                 dict(span)
                 for span in comment_syntax.comment_ranges(
-                    (root / path).read_bytes(), "css", path.as_posix()
+                    (root / path).read_bytes(), path.suffix[1:], path.as_posix()
                 )
             ]
         elif path.suffix in NATIVE | STYLES:

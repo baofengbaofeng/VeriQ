@@ -93,8 +93,8 @@ def inventory(root: Path) -> list[SourceFile]:
             language, reason = "python", None
         elif path.suffix in TYPESCRIPT_EXTENSIONS:
             language, reason = "typescript", None
-        elif path.suffix == ".css":
-            language, reason = "css", None
+        elif path.suffix in {".css", ".java"}:
+            language, reason = path.suffix[1:], None
         elif path.suffix == ".sh" or path.as_posix() in SOURCE_PATHS:
             language = "shell"
             with (root / path).open("rb") as source:

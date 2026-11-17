@@ -7,13 +7,25 @@ from bisect import bisect_right
 import importlib
 import importlib.metadata
 import json
+import re
 from typing import TYPE_CHECKING, TypedDict, cast
 
 if TYPE_CHECKING:
     from tree_sitter import Node, Parser
 
-VERSIONS = {"tree-sitter": "0.26.1", "tree-sitter-bash": "0.25.1", "tree-sitter-css": "0.25.0"}
-GRAMMARS = {"shell": "tree_sitter_bash", "css": "tree_sitter_css"}
+VERSIONS = {
+    "tree-sitter": "0.26.1",
+    "tree-sitter-bash": "0.25.1",
+    "tree-sitter-css": "0.25.0",
+    "tree-sitter-java": "0.23.5",
+}
+GRAMMARS = {"shell": "tree_sitter_bash", "css": "tree_sitter_css", "java": "tree_sitter_java"}
+GRAMMAR_ABIS = {"shell": 15, "css": 15, "java": 14}
+COMMENT_KINDS = {
+    "shell": {"comment"},
+    "css": {"comment"},
+    "java": {"line_comment", "block_comment"},
+}
 
 
 class CommentSyntaxError(ValueError):
@@ -42,7 +54,7 @@ def _parser(language: str, path: str) -> "Parser":
         syntax = core.Language(grammar.language())
         if (
             (core.MIN_COMPATIBLE_LANGUAGE_VERSION, core.LANGUAGE_VERSION) != (13, 15)
-            or syntax.abi_version != 15
+            or syntax.abi_version != GRAMMAR_ABIS[language]
             or not core.MIN_COMPATIBLE_LANGUAGE_VERSION
             <= syntax.abi_version
             <= core.LANGUAGE_VERSION
@@ -136,6 +148,11 @@ def comment_ranges(source: bytes, language: str, path: str) -> list[CommentRange
         source.decode("utf-8")
     except UnicodeDecodeError:
         raise _failure(path, "Invalid UTF-8") from None
+    if language == "java" and b"\\u" in source:
+        raise _failure(path, "Unsupported Java Unicode escape")
+    # 固定 Java 语法把裸回车后的代码吞进行注释，因此在构造任何解析器前拒绝这种原始字节序列。
+    if language == "java" and re.search(rb"\r(?!\n)", source):
+        raise _failure(path, "Unsupported Java bare carriage return")
     tree = _parser(language, path).parse(source)
     pending = [tree.root_node]
     spans: list[tuple[int, int, bytes]] = []
@@ -144,7 +161,7 @@ def comment_ranges(source: bytes, language: str, path: str) -> list[CommentRange
         if node.is_missing or node.is_error:
             category = "Missing syntax node" if node.is_missing else "Syntax ERROR"
             raise _failure(path, category, node.start_point.row + 1)
-        if node.type == "comment":
+        if node.type in COMMENT_KINDS[language]:
             if language == "css":
                 _check_css_context(node, path)
             raw = node.text
