@@ -118,13 +118,17 @@ test("nested cancel preserves the count and the sheet", async ({ page }) => {
 });
 
 /**
- * 嵌套退出只应影响最上层确认框，等待确认面板出现后再发送退出按键，避免将尚未打开的面板误作关闭结果。
- * 显式检查外层输入可编辑及计数不变，不能把所有旧操作一律写成预期失败。
+ * 嵌套退出只应影响最上层确认框；可见后先验证确认按钮可操作，再发送退出按键，避免仅凭面板出现判断准备完成。
+ * 动作试运行不触发确认业务，且不保证键盘监听已就绪；下方仍须验证外层可编辑及计数不变。
  */
 test("Escape dismisses only the nested confirmation", async ({ page }) => {
     await page.getByRole("button", { name: "Edit synthetic resource", exact: true }).click();
     await page.getByRole("button", { name: "Archive synthetic resource", exact: true }).click();
     await expect(page.getByRole("dialog", { name: "Archive synthetic resource?", exact: true })).toBeVisible();
+    await page
+        .getByRole("dialog", { name: "Archive synthetic resource?", exact: true })
+        .getByRole("button", { name: "Confirm archive", exact: true })
+        .click({ trial: true });
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog", { name: "Archive synthetic resource?", exact: true })).toBeHidden();
     await expect(page.getByRole("dialog", { name: "Synthetic resource", exact: true })).toBeVisible();
