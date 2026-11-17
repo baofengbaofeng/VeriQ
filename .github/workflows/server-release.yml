@@ -351,6 +351,12 @@ jobs:
                       --output ../../.superpowers/cache/r02-web-full/results \
                       --reporter list,junit --trace retain-on-failure --max-failures=5 \
                       2>&1 | tee "$VERIQ_WEB_EVIDENCE/web-e2e.log"
+            - name: Run Web recovery and protocol unit regressions
+              timeout-minutes: 2
+              if: ${{ !cancelled() && steps.ready.outcome == 'success' }}
+              run: |
+                  set -o pipefail
+                  pnpm --filter @veriq/web test:unit 2>&1 | tee "$VERIQ_WEB_EVIDENCE/unit.log"
             - name: Check Web types, lint and formatting
               if: ${{ !cancelled() && steps.ready.outcome == 'success' }}
               run: |

@@ -28,7 +28,10 @@
         "@types/react-dom": "18.3.7",
         "@vitejs/plugin-react": "4.7.0",
         "tailwindcss": "3.4.19",
+        "tough-cookie": "6.1.0",
+        "tsx": "4.23.15",
         "typescript": "5.9.3",
+        "undici": "7.30.2",
         "vite": "6.4.5"
     },
     "version": "0.1.0",
@@ -39,9 +42,10 @@
         "dev": "vite",
         "build": "tsc --noEmit && vite build",
         "check": "tsc --noEmit && biome lint src tests vite.config.ts playwright.config.ts && prettier --check src tests vite.config.ts playwright.config.ts",
-        "test:e2e": "playwright test",
+        "test:e2e": "pnpm test:unit && playwright test",
         "build:desktop": "pnpm build:desktop:types && vite build --config vite.desktop.config.ts",
-        "build:desktop:types": "tsc -p tsconfig.desktop.json"
+        "build:desktop:types": "tsc -p tsconfig.desktop.json",
+        "test:unit": "node --import tsx --test --test-concurrency=1 tests/unit/*.ts"
     },
     "exports": {
         "./desktop": {
