@@ -13112,7 +13112,7 @@
                         "type": "array",
                         "items": { "type": "string" },
                         "minItems": 0,
-                        "maxItems": 4,
+                        "maxItems": 5,
                         "uniqueItems": true
                     },
                     "planIds": {
