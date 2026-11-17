@@ -176,7 +176,7 @@ export async function materializeRuntimeWorkspacePackages(
         });
         return text;
     };
-    const outputs = new Map<string, Buffer>();
+    const outputs = new Map<string, Uint8Array>();
     host.writeFile = (path, text) => {
         const rel = relativePath(outputRoot, path).replaceAll("\\", "/");
         relative(rel);

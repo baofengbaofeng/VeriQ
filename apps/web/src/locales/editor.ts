@@ -161,7 +161,7 @@ export const editorMessages: Record<string, readonly [string, string]> = {
         "Explicit lexical scope, no implicit active page.",
     ],
     "下载路径由 Runtime 安全分配，此处不能指定路径 / Runtime owns safe download destinations.": [
-        "下载路径由 Runtime 安全分配，此处不能指定路径",
+        "下载路径由运行时安全分配，此处不能指定路径",
         "Runtime owns safe download destinations.",
     ],
     "业务角色 key / Role key": ["业务角色 key", "Role key"],
@@ -226,7 +226,7 @@ export const editorMessages: Record<string, readonly [string, string]> = {
     Service: ["服务", "Service"],
     "Run report": ["运行报告", "Run report"],
     Run: ["运行", "Run"],
-    "· Runtime": ["· Runtime", "· Runtime"],
+    "· Runtime": ["· 运行时", "· Runtime"],
     "Attempt details": ["尝试详情", "Attempt details"],
     "[REDACTED]": ["[已脱敏]", "[REDACTED]"],
     "bytes ·": ["字节 ·", "bytes ·"],
@@ -288,7 +288,7 @@ export const editorMessages: Record<string, readonly [string, string]> = {
     "Compiler diagnostics": ["编译诊断", "Compiler diagnostics"],
     "Source path withheld": ["源码路径已隐藏", "Source path withheld"],
     "需要在线受管理的 Runtime / Requires an available managed Runtime.": [
-        "需要在线受管理的 Runtime",
+        "需要在线受管理的运行时",
         "Requires an available managed Runtime.",
     ],
     "尚无成功校验回执 / No successful validation receipt.": ["尚无成功校验回执", "No successful validation receipt."],

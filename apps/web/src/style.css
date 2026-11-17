@@ -1,73 +1,573 @@
+/*
+ * 全局样式：定义品牌青色主题变量、三段式应用外壳（顶部横幅 + 左侧菜单 + 右侧内容）、组件库样式，以及被各功能页与桌面共
+ * 用视图复用的基础控件样式。布局类统一使用 vq- 前缀，避免与原生元素选择器或既有 @veriq/ui 样式冲突。
+ */
+
 :root {
     font-family: Inter, ui-sans-serif, system-ui, sans-serif;
     color: #193038;
     background: #f3f6f6;
     font-synthesis: none;
     font-size: 16px;
+    --vq-brand: #136968;
+    --vq-brand-dark: #0f5554;
+    --vq-brand-soft: #e8f3f1;
+    --vq-brand-soft-strong: #cfe4e1;
+    --vq-brand-text: #0c3f3d;
+    --vq-border: #d8e1e2;
+    --vq-sidebar-width: 224px;
+    --vq-topbar-height: 60px;
 }
+
 * {
     box-sizing: border-box;
 }
+
 body {
     margin: 0;
 }
-header {
-    background: #fff;
-    border-bottom: 1px solid #d8e1e2;
-    padding: 20px 5%;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-.brand {
-    font-size: 25px;
-    font-weight: 750;
-    text-decoration: none;
-    color: #136968;
-}
-nav {
-    display: flex;
-    align-items: center;
-    gap: 24px;
-}
+
 a {
     color: #136968;
 }
-main {
+
+/*
+ * ---------- 应用外壳三段式布局 ----------
+ */
+
+/*
+ * 外层壳占满视口高度并纵向排列，内容区在横幅下方横向铺开。
+ */
+.vq-shell {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    background: #f3f6f6;
+}
+
+/*
+ * 顶部横幅：白色底、底部描边、固定高度，左右两端分布品牌与操作区。
+ */
+.vq-topbar {
+    background: #ffffff;
+    border-bottom: 1px solid var(--vq-border);
+    height: var(--vq-topbar-height);
+    padding: 0 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+/*
+ * 品牌区：logo 方块加系统名，颜色与 logo 青色一致，点击回到首页。
+ */
+.vq-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+    color: var(--vq-brand-text);
+    font-weight: 700;
+    font-size: 18px;
+}
+
+/*
+ * logo 方块：青色底白色首字母，作为无图片 logo 占位。
+ */
+.vq-brand-mark {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: var(--vq-brand);
+    color: #ffffff;
+    display: grid;
+    place-items: center;
+    font-weight: 750;
+    font-size: 17px;
+}
+
+.vq-brand-name {
+    color: var(--vq-brand-text);
+}
+
+/*
+ * 顶部右侧操作区：语言切换、用户菜单与退出按钮横向排列。
+ */
+.vq-topbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+/*
+ * 用户头像触发器：头像加姓名，悬停展示下拉菜单。
+ */
+.vq-user-trigger {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    background: transparent;
+    cursor: pointer;
+    color: #193038;
+}
+
+.vq-user-trigger:hover {
+    background: var(--vq-brand-soft);
+}
+
+.vq-user-name {
+    font-weight: 550;
+    font-size: 14px;
+}
+
+/*
+ * 首字头像：圆形、品牌浅色底、深青文字，尺寸由组件内联样式控制。
+ */
+.vq-avatar {
+    border-radius: 50%;
+    background: var(--vq-brand-soft);
+    color: var(--vq-brand-text);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 650;
+    line-height: 1;
+    flex: 0 0 auto;
+}
+
+/*
+ * 下拉菜单面板：白底、圆角、阴影，供用户头像菜单使用。
+ */
+.vq-menu {
+    min-width: 200px;
+    background: #ffffff;
+    border: 1px solid var(--vq-border);
+    border-radius: 10px;
+    box-shadow: 0 10px 40px #183f4818;
+    padding: 6px;
+    z-index: 2000;
+}
+
+.vq-menu-label {
+    padding: 8px 10px;
+    font-size: 13px;
+    color: #63767b;
+}
+
+.vq-menu-item {
+    padding: 9px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    outline: none;
+    font-size: 14px;
+    color: #193038;
+}
+
+.vq-menu-item:hover,
+.vq-menu-item:focus-visible {
+    background: var(--vq-brand-soft);
+    color: var(--vq-brand-text);
+}
+
+/*
+ * 横幅下方主体：左侧固定侧边栏与右侧自适应内容横向排列。
+ */
+.vq-shell-body {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+}
+
+/*
+ * 左侧侧边栏：固定宽度、白色底、右侧描边，纵向铺满。
+ */
+.vq-sidebar {
+    width: var(--vq-sidebar-width);
+    flex: 0 0 var(--vq-sidebar-width);
+    background: #ffffff;
+    border-right: 1px solid var(--vq-border);
+    border-radius: 0;
+    padding: 14px 10px;
+    overflow-y: auto;
+}
+
+.vq-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+/*
+ * 独立导航项与二级项共用块级链接样式，选中态用品牌浅色底与深青文字。
+ */
+.vq-nav-item,
+.vq-nav-sub {
+    display: block;
+    padding: 9px 12px;
+    border-radius: 8px;
+    text-decoration: none;
+    color: #193038;
+    font-size: 14px;
+}
+
+.vq-nav-item:hover,
+.vq-nav-sub:hover {
+    background: var(--vq-brand-soft);
+}
+
+.vq-nav-active {
+    background: var(--vq-brand-soft);
+    color: var(--vq-brand-text);
+    font-weight: 600;
+}
+
+/*
+ * 二级项相较独立项增加缩进，体现层级。
+ */
+.vq-nav-sub {
+    padding-left: 26px;
+}
+
+/*
+ * 分组标签：小号灰色文字，区分一级分组与其中子项。
+ */
+.vq-nav-group {
+    margin-top: 10px;
+}
+
+.vq-nav-group-label {
+    padding: 6px 12px;
+    font-size: 12px;
+    color: #7a8c90;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+/*
+ * 右侧内容区：自适应剩余宽度、可滚动，实际内容由内部容器居中约束到固定最大宽度，避免超宽屏上元素被拉伸。
+ */
+.vq-content {
+    flex: 1;
+    min-width: 0;
+    overflow-y: auto;
+}
+
+/*
+ * 内容内部容器：最大 1280px 居中，两侧留出舒适留白；操作区在此宽度内按自适应多列排布。
+ */
+.vq-content-inner {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 24px 32px;
+}
+
+/*
+ * 未登录的独立页（登录/初始化/加载/错误）居中显示在受限宽度内。
+ */
+.vq-standalone {
     max-width: 1080px;
     margin: 44px auto;
     padding: 0 24px;
 }
-.panel {
-    background: #fff;
-    border: 1px solid #dbe4e4;
-    border-radius: 14px;
-    padding: 32px;
-    box-shadow: 0 8px 30px #183f4810;
+
+/*
+ * ---------- 组件库样式 ----------
+ */
+
+/*
+ * 按钮基元：统一字体、圆角与光标，具体语气由变体类着色。
+ */
+.vq-btn {
+    font: inherit;
+    border-radius: 6px;
+    padding: 10px 15px;
+    cursor: pointer;
+    border: 1px solid transparent;
 }
+
+.vq-btn:disabled {
+    cursor: wait;
+    opacity: 0.6;
+}
+
+.vq-btn-primary {
+    background: var(--vq-brand);
+    color: #ffffff;
+    border-color: #126563;
+}
+
+.vq-btn-primary:hover:not(:disabled) {
+    background: var(--vq-brand-dark);
+}
+
+.vq-btn-secondary {
+    background: #ffffff;
+    color: var(--vq-brand);
+    border-color: #126563;
+}
+
+.vq-btn-danger {
+    background: #fff3f0;
+    color: #962e24;
+    border-color: #c46c63;
+}
+
+.vq-btn-ghost {
+    background: transparent;
+    color: var(--vq-brand);
+    border-color: transparent;
+}
+
+/*
+ * 文本输入与多行文本：保留原生边框与焦点样式，附加统一宽度与内边距。
+ */
+.vq-input {
+    font: inherit;
+    border: 1px solid #9db2b6;
+    border-radius: 6px;
+    padding: 11px;
+    width: 100%;
+    background: white;
+    color: #193038;
+}
+
+.vq-input:focus {
+    outline: 3px solid #b6dddb;
+    border-color: #136968;
+}
+
+.vq-textarea {
+    min-height: 96px;
+    resize: vertical;
+}
+
+/*
+ * 表单字段：纵向排列标签行与控件，标签行内联短提示与长提示问号。
+ */
+.vq-field {
+    display: grid;
+    gap: 8px;
+}
+
+.vq-field-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 550;
+}
+
+.vq-field-required {
+    color: #a62d2d;
+}
+
+.vq-field-hint {
+    font-weight: 400;
+    font-size: 13px;
+    color: #63767b;
+}
+
+/*
+ * 长提示问号图标：圆形浅色底，悬停显示气泡。
+ */
+.vq-hint-icon {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 1px solid #9db2b6;
+    background: #ffffff;
+    color: #63767b;
+    font-size: 12px;
+    line-height: 1;
+    padding: 0;
+    cursor: help;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/*
+ * 提示气泡：白底深色文字、圆角与阴影，箭头使用同色填充。
+ */
+.vq-tooltip {
+    background: #193038;
+    color: #ffffff;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 13px;
+    line-height: 1.45;
+    max-width: 280px;
+    z-index: 3000;
+}
+
+.vq-tooltip-arrow {
+    fill: #193038;
+}
+
+/*
+ * Radix Select：触发器、弹层与选项的视觉样式。
+ */
+.vq-select-trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    border: 1px solid #9db2b6;
+    border-radius: 6px;
+    padding: 10px 12px;
+    background: #ffffff;
+    color: #193038;
+    cursor: pointer;
+    font: inherit;
+    min-width: 120px;
+}
+
+.vq-select-icon {
+    color: #63767b;
+}
+
+.vq-select-content {
+    background: #ffffff;
+    border: 1px solid var(--vq-border);
+    border-radius: 8px;
+    box-shadow: 0 10px 40px #183f4818;
+    z-index: 3000;
+    width: var(--radix-select-trigger-width);
+}
+
+.vq-select-item {
+    padding: 9px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    outline: none;
+    font-size: 14px;
+    color: #193038;
+}
+
+.vq-select-item:hover,
+.vq-select-item:focus-visible {
+    background: var(--vq-brand-soft);
+    color: var(--vq-brand-text);
+}
+
+/*
+ * 右推窗（Sheet）：右侧滑出的抽屉面板，承载大空间编辑交互。
+ */
+.vq-sheet-overlay {
+    position: fixed;
+    inset: 0;
+    background: #12343877;
+    z-index: 4000;
+}
+
+.vq-sheet {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(560px, 92vw);
+    background: #ffffff;
+    box-shadow: -20px 0 60px #12343833;
+    z-index: 4001;
+    display: flex;
+    flex-direction: column;
+}
+
+/*
+ * 宽抽屉档位：承载资源/用例编辑器等含 Monaco 的大空间编辑，宽度随视口自适应且不超过 1000px。
+ */
+.vq-sheet-wide {
+    width: min(1000px, 88vw);
+}
+
+.vq-sheet-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--vq-border);
+}
+
+.vq-sheet-title {
+    font-size: 18px;
+    font-weight: 650;
+    margin: 0;
+}
+
+.vq-sheet-close {
+    border: none;
+    background: transparent;
+    color: #63767b;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 4px;
+}
+
+.vq-sheet-desc {
+    padding: 4px 24px 0;
+    color: #63767b;
+    font-size: 14px;
+}
+
+.vq-sheet-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+}
+
+/*
+ * ---------- 功能页与桌面共用的基础样式 ----------
+ */
+
+.panel {
+    background: #ffffff;
+    border: 1px solid #dbe4e4;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 2px 8px #183f4808;
+}
+
 h1 {
     font-size: 28px;
     margin: 0 0 14px;
 }
+
 h2 {
     font-size: 20px;
     margin-top: 32px;
 }
+
 p {
     line-height: 1.6;
     color: #4d6268;
 }
+
 form {
-    max-width: 480px;
     display: grid;
-    gap: 18px;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 18px 20px;
     margin: 24px 0;
+    align-items: start;
 }
+
+/*
+ * 提交按钮独占一行并居中，保持内容自然宽度，避免在多列网格中被拉伸成整列宽。
+ */
+form button[type="submit"] {
+    grid-column: 1 / -1;
+    justify-self: center;
+}
+
 label {
     display: grid;
     gap: 8px;
     font-weight: 550;
 }
+
 input,
 select {
     font: inherit;
@@ -78,11 +578,13 @@ select {
     background: white;
     color: #193038;
 }
+
 input:focus,
 select:focus {
     outline: 3px solid #b6dddb;
     border-color: #136968;
 }
+
 button {
     font: inherit;
     border: 1px solid #126563;
@@ -92,79 +594,82 @@ button {
     background: #136968;
     color: white;
 }
+
 button:disabled {
     cursor: wait;
     opacity: 0.6;
 }
+
 .check {
     display: flex;
     align-items: center;
 }
+
 .check input {
     width: auto;
 }
+
 button + button {
     margin-left: 8px;
 }
+
 [role="alert"] {
     color: #a62d2d;
     background: #fff1f0;
     padding: 12px;
     border-radius: 6px;
 }
+
 [role="status"] {
     color: #185b40;
 }
+
 table {
     border-collapse: collapse;
     width: 100%;
 }
+
 td,
 th {
     text-align: left;
     border-bottom: 1px solid #dce5e5;
     padding: 14px 10px;
 }
+
 td button {
     font-size: 13px;
     padding: 7px;
     margin: 3px;
 }
+
 small {
     display: block;
     color: #63767b;
     margin-top: 4px;
 }
+
 .table-scroll {
     overflow-x: auto;
 }
+
 aside {
     padding: 20px;
     background: #eaf5f3;
     border-radius: 8px;
 }
+
 aside input {
     margin-bottom: 12px;
 }
+
 dt {
     font-size: 13px;
     color: #60777c;
 }
+
 dd {
     margin: 4px 0 18px;
     font-weight: 600;
-}
-@media (max-width: 650px) {
-    main {
-        margin: 24px auto;
-        padding: 0 12px;
-    }
-    .panel {
-        padding: 20px;
-    }
-    nav {
-        gap: 12px;
-    }
 }
 
 /*
@@ -182,27 +687,37 @@ dd {
     border-radius: 6px;
     transform: translateY(-200%);
 }
+
 .veriq-skip-link:focus {
     transform: translateY(0);
 }
+
 :focus-visible {
     outline: 3px solid #136968;
     outline-offset: 3px;
 }
-header {
-    flex-wrap: wrap;
-    gap: 16px;
-}
-header nav {
-    flex-wrap: wrap;
-    gap: 12px 20px;
-}
+
 .veriq-language {
     display: flex;
     align-items: center;
     gap: 8px;
 }
+
 .veriq-language select {
     width: auto;
     min-width: 96px;
+}
+
+@media (max-width: 650px) {
+    .vq-content-inner {
+        padding: 16px;
+    }
+
+    .panel {
+        padding: 20px;
+    }
+
+    form {
+        grid-template-columns: 1fr;
+    }
 }

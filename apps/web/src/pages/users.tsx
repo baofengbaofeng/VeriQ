@@ -94,7 +94,7 @@ export function AdminUsers() {
                 }}
             >
                 <Field name="email" label={tx("Email")} type="email" />
-                <Field name="displayName" label={tx("Display name")} />
+                <Field name="displayName" label={tx("Display name")} hint={tx("展示给其他成员的名字。")} />
                 <Field
                     name="password"
                     label={tx("Initial password (at least 12 characters)")}

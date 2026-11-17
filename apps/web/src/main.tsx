@@ -11,7 +11,7 @@ import { AiPage } from "./features/ai/AiPage";
 import { ReportPage } from "./features/reports/ReportPage";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Link, NavLink, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Link, Navigate, Route, Routes } from "react-router-dom";
 import { api, ApiError, type User } from "./api";
 import { Auth } from "./auth-context";
 import { Panel } from "./ui";
@@ -24,6 +24,7 @@ import { RuntimePage } from "./features/runtimes/RuntimePage";
 import { ResourcePage } from "./features/resources/ResourcePage";
 import { EnvironmentPage } from "./features/environments/EnvironmentPage";
 import { AccessibilityNavigation, AppLocaleProvider, LanguageControl } from "./locale-ui";
+import { AppShell } from "./layout";
 import "./style.css";
 function App() {
     useAppLocale();
@@ -117,7 +118,7 @@ function App() {
     }, [readIdentity]);
     if (failure)
         return (
-            <main id="main-content" tabIndex={-1}>
+            <main id="main-content" className="vq-standalone" tabIndex={-1}>
                 <LanguageControl />
                 <Panel title={tx("VeriQ unavailable")}>
                     <p role="alert">{tx(failure)}</p>
@@ -129,41 +130,14 @@ function App() {
         );
     if (!ready)
         return (
-            <main id="main-content" tabIndex={-1}>
+            <main id="main-content" className="vq-standalone" tabIndex={-1}>
                 <LanguageControl />
                 <p role="status">{tx("Loading VeriQ…")}</p>
             </main>
         );
     return (
         <Auth.Provider value={{ user, refresh, setupComplete: () => setInitialized(true) }}>
-            <header>
-                <Link to="/account" className="brand">
-                    VeriQ
-                </Link>
-                <nav aria-label={tx("Main navigation")}>
-                    {user ? (
-                        <>
-                            <NavLink to="/account">{tx("Account")}</NavLink>
-                            <NavLink to="/workspaces">{tx("Workspaces")}</NavLink>
-                            <NavLink to="/runtimes">{tx("Runtimes")}</NavLink>
-                            <NavLink to="/reports">{tx("Reports")}</NavLink>
-                            <NavLink to="/execution-plans">{tx("执行计划 / Plans")}</NavLink>
-                            <NavLink to="/bundles">{tx("Bundles")}</NavLink>
-                            <NavLink to="/ai">AI</NavLink>
-                            <NavLink to="/resources">{tx("资源 / Resources")}</NavLink>
-                            <NavLink to="/environments">{tx("环境 / Environments")}</NavLink>
-                            {user.systemAdmin && <NavLink to="/admin/users">{tx("Users")}</NavLink>}
-                            <button type="button" data-testid="logout" onClick={() => void logout()}>
-                                {tx("Sign out")}
-                            </button>
-                        </>
-                    ) : (
-                        <NavLink to="/login">{tx("Sign in")}</NavLink>
-                    )}
-                </nav>
-                <LanguageControl />
-            </header>
-            <main id="main-content" tabIndex={-1}>
+            <AppShell onLogout={() => void logout()}>
                 <Routes>
                     <Route path="/setup" element={<Setup />} />
                     <Route
@@ -251,7 +225,7 @@ function App() {
                         }
                     />
                 </Routes>
-            </main>
+            </AppShell>
         </Auth.Provider>
     );
 }

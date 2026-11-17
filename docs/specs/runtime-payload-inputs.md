@@ -33,6 +33,8 @@ verifyRuntimePayloadInputs(
 ): Promise<Readonly<InputInspection>>;
 ```
 
+输入、树、收据、依赖图与入口模块在新进程中可直接或并发惰性导入，模块初始化不依赖先加载输入入口，也不会调用构建、输入程序或凭据操作。固定预算仍在树模块初始化时冻结。`RuntimePayloadError` 的单一实现位于既有树模块，输入入口继续导入并重导出同一构造器，原公开导入路径与 `instanceof` 身份保持兼容；构造参数、错误字段、默认阶段及冻结行为不变。
+
 两个入口都在首次 await 前复制 bytes、验证并独立复制冻结 expected；verify 还快照 inputRoot 和 signal。调用者随后原地改写输入不会改变已选政策。parse 只核配方结构与独立绑定，verify 自行 parse 后完成真实读取，结果全部深冻结。expected 必须由外层来源绑定审核独立提供，包含 recipe 原字节摘要、完整 target、commit、SourceBinding、pnpm 锁及 Chrome 布局摘要，不能从配方自举。
 
 ## 已实现核验

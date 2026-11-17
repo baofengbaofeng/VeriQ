@@ -3,18 +3,30 @@
  * 请求参数、技术标识或用户创建的业务名称。
  */
 export const commonMessages: Record<string, readonly [string, string]> = {
-    Runtimes: ["Runtime 设备", "Runtimes"],
+    Runtimes: ["运行时", "Runtimes"],
     Workspaces: ["工作区", "Workspaces"],
     "VeriQ unavailable": ["VeriQ 暂时不可用", "VeriQ unavailable"],
     Retry: ["重试", "Retry"],
     "Loading VeriQ…": ["正在加载 VeriQ…", "Loading VeriQ…"],
     Account: ["账号", "Account"],
     Reports: ["报告", "Reports"],
-    "执行计划 / Plans": ["执行计划", "Plans"],
+    Plans: ["执行计划", "Plans"],
     Bundles: ["离线包", "Bundles"],
-    "资源 / Resources": ["资源", "Resources"],
-    "环境 / Environments": ["环境", "Environments"],
+    Resources: ["资源", "Resources"],
+    Environments: ["环境", "Environments"],
     Users: ["用户", "Users"],
+    测试设计: ["测试设计", "Authoring"],
+    执行: ["执行", "Execution"],
+    系统管理: ["系统管理", "Administration"],
+    "由部署 VeriQ 的运维人员提供，仅用于首次创建系统管理员。": [
+        "由部署 VeriQ 的运维人员提供，仅用于首次创建系统管理员。",
+        "Provided by your operator; used once to create the first system administrator.",
+    ],
+    "至少 12 个字符，建议混用字母、数字与符号。": [
+        "至少 12 个字符，建议混用字母、数字与符号。",
+        "At least 12 characters; mix letters, numbers and symbols.",
+    ],
+    "展示给其他成员的名字。": ["展示给其他成员的名字。", "The name shown to other members."],
     "Sign out": ["退出登录", "Sign out"],
     "Sign in": ["登录", "Sign in"],
     "Page not found": ["页面不存在", "Page not found"],
@@ -36,7 +48,7 @@ export const commonMessages: Record<string, readonly [string, string]> = {
         "Sharing updated. Trust approval has been reset.",
     ],
     "Runtime revoked. New device operations are denied.": [
-        "Runtime 设备已吊销，已拒绝新的设备操作。",
+        "运行时已吊销，已拒绝新的设备操作。",
         "Runtime revoked. New device operations are denied.",
     ],
     "Current trust updated.": ["当前信任设置已更新。", "Current trust updated."],

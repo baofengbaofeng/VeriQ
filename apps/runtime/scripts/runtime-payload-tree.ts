@@ -2,15 +2,41 @@ import { createHash } from "node:crypto";
 import { constants, type BigIntStats } from "node:fs";
 import { lstat, open, opendir, readlink } from "node:fs/promises";
 import { dirname, isAbsolute, join, parse, resolve } from "node:path";
-import {
-    RuntimePayloadError,
-    type Ref,
-    type TreeInventory,
-    type BoundTree,
-    type TreeKind,
-    type PayloadErrorCode,
+import type {
+    Ref,
+    TreeInventory,
+    BoundTree,
+    TreeKind,
+    PayloadErrorCode,
+    Cleanup,
+    Phase,
 } from "./runtime-payload-inputs.ts";
 
+/**
+ * 核验异常只携带固定英文分类与受控系统错误码，不保留可能包含输入正文的原始异常；所有输入阶段都不创建候选目录，取消超时
+ * 只允许显式报告句柄关闭尚未确认。
+ */
+export class RuntimePayloadError extends Error {
+    readonly phase: Phase;
+    readonly candidateDirectory: string | null;
+    /**
+     * 错误构造只保留固定分类、阶段与受控 causeCode，实例随后冻结防止调用方改写诊断分支；没有原始 cause 或任意 message，
+     * 末尾上下文复制阶段与候选目录标量，旧调用仍维持输入阶段与空目录，不混淆真实事务的
+     * 清理事实。
+     */
+    constructor(
+        public readonly code: PayloadErrorCode,
+        public readonly causeCode: string | null = null,
+        public readonly cleanup: Cleanup = "NOT_NEEDED",
+        context?: Readonly<{ phase: Phase; candidateDirectory: string | null }>,
+    ) {
+        super(code);
+        this.name = "RuntimePayloadError";
+        this.phase = context?.phase ?? "INPUTS";
+        this.candidateDirectory = context?.candidateDirectory ?? null;
+        Object.freeze(this);
+    }
+}
 /**
  * 固定输入预算在声明解析和真实读取时分别执行，不能由调用方通过 options 放宽；五棵树共享成员及内容累计计数，单个 JSON 与
  * 单个 package 正文另受较小上限保护。

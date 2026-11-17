@@ -62,7 +62,7 @@ export function ExecutionPlansPage() {
     if (!user) return <Navigate to="/login" />;
     const workspace = items.find((w) => w.id === selected);
     return (
-        <Panel title={tx("执行计划 / Execution plans")}>
+        <Panel title={tx("执行计划")}>
             <label>
                 {tx("空间 / Workspace")}
                 <select aria-label={tx("Plan Workspace")} value={selected} onChange={(e) => select(e.target.value)}>

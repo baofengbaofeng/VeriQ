@@ -12,7 +12,7 @@ export const plansMessages: Record<string, readonly [string, string]> = {
     "更多资源 / More resources": ["更多资源", "More resources"],
     "浏览器 / Browsers": ["浏览器", "Browsers"],
     "名称 / Name": ["名称", "Name"],
-    "执行计划 / Execution plans": ["执行计划", "Execution plans"],
+    执行计划: ["执行计划", "Execution plans"],
     "Plan Workspace": ["执行计划工作区", "Plan Workspace"],
     "选择资源 / Select resource": ["选择资源", "Select resource"],
     "版本 / Version": ["版本", "Version"],

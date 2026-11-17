@@ -31,9 +31,9 @@ export const runtimesMessages: Record<string, readonly [string, string]> = {
     "Share with selected members": ["共享给所选成员", "Share with selected members"],
     "Registered devices": ["已登记设备", "Registered devices"],
     "Refresh devices": ["刷新设备", "Refresh devices"],
-    "Loading Runtimes…": ["正在加载 Runtime 设备…", "Loading Runtimes…"],
+    "Loading Runtimes…": ["正在加载运行时…", "Loading Runtimes…"],
     "No registered Runtimes in this Workspace.": [
-        "此工作区尚无已登记的 Runtime 设备。",
+        "此工作区尚无已登记的运行时。",
         "No registered Runtimes in this Workspace.",
     ],
     "Load more devices": ["加载更多设备", "Load more devices"],

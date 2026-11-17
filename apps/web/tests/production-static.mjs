@@ -43,7 +43,7 @@ try {
     // 不创建计划、执行任务或调用外部服务。
     await page.goto(`${origin}/execution-plans`);
     await page.reload();
-    await expect(page.getByRole("heading", { name: "执行计划 / Execution plans" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Execution plans" })).toBeVisible();
     // 用同一浏览器上下文请求入口并核对 no-cache，避免页面从前次客户端状态看似成功；服务必须为每次刷新保留重新验证入口的
     // 语义。
     // 入口请求不是对任意未知路径放行。
