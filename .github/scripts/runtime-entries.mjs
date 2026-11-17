@@ -587,16 +587,19 @@ export function checkOwnedEnvironment(env, owned) {
             throw new EntryEnvironmentError({ phase: "OWNED_PATHS", invariant: key });
 }
 
-// 工具不属于来源树，允许 pnpm 安装的真实链接与工具执行权限，但固定真实路径并流式读取有界文件；只保留身份、模式、
-// 链接数和摘要，不把本机可执行内容或整份依赖包上传为所谓载荷证据。
-async function toolIdentity(path) {
+/**
+ * 工具不属于来源树，允许 pnpm 安装的真实链接与工具执行权限，但固定真实路径并流式读取有界文件；只保留身份、模式、
+ * 链接数和摘要，不把本机可执行内容或整份依赖包上传为所谓载荷证据。
+ * 私有安装已观察到的0700仅在此工具资格集合接纳，模式按实记录，不改变来源或输出文件的权限规则。
+ */
+export async function toolIdentity(path) {
     const fixed = await realpath(path),
         before = await lstat(fixed, { bigint: true });
     if (
         !before.isFile() ||
         before.nlink < 1n ||
         before.size > 256n * 1024n ** 2n ||
-        ![0o400, 0o600, 0o444, 0o644, 0o555, 0o755].includes(Number(before.mode & 0o7777n))
+        ![0o400, 0o600, 0o444, 0o644, 0o555, 0o700, 0o755].includes(Number(before.mode & 0o7777n))
     )
         fail("ENTRY_TOOL");
     const handle = await open(fixed, constants.O_RDONLY | constants.O_NOFOLLOW),

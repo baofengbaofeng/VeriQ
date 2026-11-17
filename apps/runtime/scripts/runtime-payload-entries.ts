@@ -358,6 +358,7 @@ async function outputFiles(work: ArchiveTransaction, root: string, trace: Observ
 /**
  * 工具文件通过持有的真实安装文件描述符流式核身份与字节，Vite CLI、实际 Node 模块及包清单都单独绑定；允许 pnpm 已安装工
  * 具的硬链接与私有权限，但不把这种宿主资格提升为载荷规则或传递依赖认证。
+ * 私有安装的0700按实际模式保留，仅加入工具文件的精确集合；来源、输出与归档权限仍由各自门禁核验。
  */
 async function hostTools(work: ArchiveTransaction, source: SourceBindingV1, host: EntryInputOptions["hostBuild"]) {
     if (
@@ -379,7 +380,7 @@ async function hostTools(work: ArchiveTransaction, source: SourceBindingV1, host
         if (
             !info.isFile() ||
             info.nlink < 1n ||
-            ![0o400, 0o600, 0o444, 0o644, 0o555, 0o755].includes(Number(info.mode & 0o7777n)) ||
+            ![0o400, 0o600, 0o444, 0o644, 0o555, 0o700, 0o755].includes(Number(info.mode & 0o7777n)) ||
             info.size > BigInt(collect ? limits.package : limits.file)
         )
             fail("PAYLOAD_LIMIT");

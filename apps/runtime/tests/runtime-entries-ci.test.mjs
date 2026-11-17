@@ -1,7 +1,19 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { chmod, link, lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import {
+    chmod,
+    link,
+    lstat,
+    mkdir,
+    mkdtemp,
+    readFile,
+    readdir,
+    realpath,
+    rm,
+    symlink,
+    writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
@@ -14,6 +26,7 @@ import {
     sealMetadata,
     verifyMetadata,
     runEntryOperation,
+    toolIdentity,
 } from "../../../.github/scripts/runtime-entries.mjs";
 import { runBoundedAssetCli } from "../scripts/runtime-assets-ci-process.mjs";
 
@@ -60,6 +73,31 @@ async function fixture(consume) {
         await rm(root, { recursive: true });
     }
 }
+
+/**
+ * 私有安装产生的真实可执行文件必须按原权限和原字节绑定，测试逐项改变同一文件的模式并核实拒绝边界，避免用权限归一化掩盖
+ * 工具身份门禁与私有安装策略之间的不一致。
+ */
+test("qualified tool preserves private executable mode and rejects unsafe modes", async () =>
+    fixture(async (root) => {
+        const path = join(root, "pnpm.mjs"),
+            bytes = Buffer.from("export const tool = 1;\n");
+        await writeFile(path, bytes, { mode: 0o700 });
+        for (const mode of [0o700, 0o400, 0o600, 0o444, 0o644, 0o555, 0o755]) {
+            await chmod(path, mode);
+            const identity = await toolIdentity(path);
+            assert.equal(identity.mode, mode);
+            assert.equal(identity.sizeBytes, bytes.length);
+            assert.equal(identity.sha256, sha(bytes));
+            assert.equal(identity.path, await realpath(path));
+            assert.equal(identity.links, 1);
+            assert.equal(Number((await lstat(path)).mode & 0o7777), mode);
+        }
+        for (const mode of [0o500, 0o770, 0o777, 0o1700, 0o2700, 0o4700]) {
+            await chmod(path, mode);
+            await assert.rejects(toolIdentity(path), /ENTRY_TOOL/);
+        }
+    }));
 
 test("inert import starts no command and creates no file", async () =>
     fixture(async (root) => {
