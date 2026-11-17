@@ -23,13 +23,14 @@ const messages: Record<string, string> = {
 };
 /**
  * 最多投影前一百条分析问题，路径不满足本地白名单检查时置空；消息只取固定英文映射或通用说明，不复制原始消息。
- * 路径检查限制长度为 512 个字符串单元，分段后跳过首段；后续段只接受白名单名称、0 或无前导零的六位以内整数。
+ * 路径检查限制长度为 512 个字符串单元，非空值须以 ASCII 斜杠起始；后续段只接受白名单名称、0 或无前导零的六位以内整数。
  * EXACT 表示原路径通过上述检查并原样保留，REDACTED 表示路径隐藏；代码只校验大写标识形状。
  */
 export function safeDiagnostics(issues: ValidationIssue[]) {
     return issues.slice(0, 100).map((issue) => {
         const exact =
             issue.path.length <= 512 &&
+            (issue.path === "" || issue.path.startsWith("/")) &&
             issue.path
                 .split("/")
                 .slice(1)
