@@ -8,6 +8,9 @@
 下方历史“未执行”指代码交付阶段，最新执行、失败、修复与后续事项见
 [本轮验证计划](../plans/2026-11-17-mvp-validation.md)。源码与验证状态继续分开登记，不能据部分组件通过发布。
 
+2026-11-17 最新指令：当前修复 `6525ec3` 已收尾并独立复审；全部源码及进度文档提交后暂停。
+待用户明确恢复后再开始扩展回归、原生重验或其他任务，不自动启动新的手动 CI。
+
 需求定位见 [F01–F14 实现与验证映射](requirements-matrix.md)。
 
 ## 接手规则
@@ -27,7 +30,7 @@
 | V02 | MySQL、部署、readiness、指标、保留期与恢复                       | 既有子集 10 项、最后就绪模块 7 项通过并定向复审；完整运维未验收          | [运维](tasks/V02-operations.md)             |
 | V03 | macOS 15+ Intel / ARM、Windows 11 x64、Ubuntu 24.04 x64 桌面安装 | 未执行；Mac 两架构最高优先级 | [桌面](tasks/V03-desktop.md) |
 | V04 | 依赖闭包、生成包、条件解析、optional/peer/bin 与离网材料 | 未执行本轮代码验证 | [依赖](tasks/V04-dependencies.md) |
-| V05 | Runtime 组装、库存、原生能力、进程与停止                         | 可移植入口 22 项通过；实际双架构 Mac 均因额外环境变量失败                  | [Runtime](tasks/V05-runtime.md)             |
+| V05 | Runtime 组装、库存、原生能力、进程与停止                         | 可移植入口 30 项通过；双架构 Mac 安装及守卫 97 项通过，构建前初始化错误已本地修复，39 项守卫通过；原生重验和完整回归待恢复                  | [Runtime](tasks/V05-runtime.md)             |
 | V06 | 示例全流程、前后端接入和手册可复现性 | 未执行本轮代码验证 | [接入](tasks/V06-integration.md) |
 | V07 | 实际 AI Provider、预算、usage/cost、审核与无模型执行 | 阻塞：需独立提供 endpoint/model/密钥配置和预算授权 | [Provider](tasks/V07-provider.md) |
 | V08 | 正常前端→static/dist→Python wheel→离线安装→OCI 发行 | 未通过；不能以候选包替代正常成功包 | [发行](tasks/V08-release.md) |
