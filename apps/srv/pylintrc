@@ -1,0 +1,15 @@
+[MAIN]
+py-version=3.12
+recursive=yes
+ignore=.venv,__pycache__,node_modules
+ignore-paths=(?:^|.*/)(?:\.venv|__pycache__|node_modules)/.*
+persistent=no
+jobs=1
+
+[FORMAT]
+indent-string="    "
+max-line-length=120
+
+[REPORTS]
+reports=no
+score=no
