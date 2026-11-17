@@ -17,6 +17,7 @@ import { ConfirmDialog } from "../../locale-ui";
 import { api, ApiError, type Workspace } from "../../api";
 import { Auth } from "../../auth-context";
 import { Panel } from "../../ui";
+import { Sheet } from "../../components";
 import { useWorkspace } from "../workspaces/WorkspaceContext";
 import {
     CloudResourceAdapter,
@@ -352,17 +353,26 @@ export function ResourceWorkspaceView({
                     {error && <ErrorState error={error} />}
                 </Section>
             )}
-            {selected && (
-                <DraftLoader
-                    key={selected.id}
-                    resource={selected}
-                    adapter={adapter}
-                    workspace={workspace}
-                    signal={signal}
-                    refresh={refresh}
-                    onResource={setSelected}
-                />
-            )}
+            <Sheet
+                open={!!selected}
+                onOpenChange={(open) => {
+                    if (!open) setSelected(null);
+                }}
+                title={selected?.name ?? t("resources")}
+                size="wide"
+            >
+                {selected && (
+                    <DraftLoader
+                        key={selected.id}
+                        resource={selected}
+                        adapter={adapter}
+                        workspace={workspace}
+                        signal={signal}
+                        refresh={refresh}
+                        onResource={setSelected}
+                    />
+                )}
+            </Sheet>
         </div>
     );
 }

@@ -476,6 +476,13 @@ a {
     flex-direction: column;
 }
 
+/*
+ * 宽抽屉档位：承载资源/用例编辑器等含 Monaco 的大空间编辑，宽度随视口自适应且不超过 1000px。
+ */
+.vq-sheet-wide {
+    width: min(1000px, 88vw);
+}
+
 .vq-sheet-header {
     display: flex;
     align-items: center;

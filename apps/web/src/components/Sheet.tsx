@@ -7,8 +7,8 @@ import type { ReactNode } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 
 /**
- * Sheet 公开属性：open/onOpenChange 控制显隐，title 必填作为无障碍名称，description 可选描述，children 为抽屉正文。面板
- * 固定从右侧进入，宽度由全局样式控制。
+ * Sheet 公开属性：open/onOpenChange 控制显隐，title 必填作为无障碍名称，description 可选描述，children 为抽屉正文，size
+ * 决定抽屉宽度档位（default 为常规窄抽屉，wide 为承载编辑器的大抽屉）。面板固定从右侧进入，宽度由全局样式控制。
  */
 export function Sheet({
     open,
@@ -16,18 +16,20 @@ export function Sheet({
     title,
     description,
     children,
+    size = "default",
 }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     title: string;
     description?: string;
     children: ReactNode;
+    size?: "default" | "wide";
 }) {
     return (
         <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
             <DialogPrimitive.Portal>
                 <DialogPrimitive.Overlay className="vq-sheet-overlay" />
-                <DialogPrimitive.Content className="vq-sheet">
+                <DialogPrimitive.Content className={size === "wide" ? "vq-sheet vq-sheet-wide" : "vq-sheet"}>
                     <div className="vq-sheet-header">
                         <DialogPrimitive.Title className="vq-sheet-title">{title}</DialogPrimitive.Title>
                         <DialogPrimitive.Close className="vq-sheet-close" aria-label="Close">
