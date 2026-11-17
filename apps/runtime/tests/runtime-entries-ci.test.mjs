@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { chmod, link, lstat, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import {
     admitEntryRun,
     selectGitInventory,
@@ -81,7 +82,7 @@ test("native admission accepts only the full reviewed manual dual Mac input", ()
         assert.throws(() => admitEntryRun({ ...admitted, ...patch }), /ENTRY_ADMISSION/);
 });
 
-test("Git selection includes every regular source and only the three named executable exclusions", () => {
+test("Git selection preserves regular sources and the original three executable exclusions", () => {
     const raw = Buffer.from(
         gitRecord("100644", "package.json") +
             gitRecord("100644", "apps/a.ts") +
@@ -103,6 +104,65 @@ test("Git selection includes every regular source and only the three named execu
         gitRecord("100644", "x") + gitRecord("100644", "x"),
     ])
         assert.throws(() => selectGitInventory(Buffer.from(bad)), /ENTRY_GIT/);
+});
+
+// 六个固定脚本只保留提交元数据而不进入来源正文，尤其新增安装钩子不得扩大到邻近路径；独立列出期望路径，避免测试跟随实现
+// 的允许集合一起漂移，也不执行任何脚本正文或改写提交模式。
+test("Git selection excludes exactly the six approved scripts while retaining their identities", () => {
+    const paths = [
+        "build.sh",
+        "deploy/desktop/linux/before-install.sh",
+        "deploy/desktop/linux/before-remove.sh",
+        "deploy/desktop/macos/scripts/preinstall",
+        "deploy/install.sh",
+        "deploy/start.sh",
+    ];
+    const raw = Buffer.from(gitRecord("100644", "apps/a.ts") + paths.map((path) => gitRecord("100755", path)).join(""));
+    const result = selectGitInventory(raw);
+    assert.deepEqual(result.selected, [{ path: "apps/a.ts", mode: "100644", gitBlob: "b".repeat(40) }]);
+    assert.deepEqual(
+        result.excluded,
+        paths.map((path) => ({ path, mode: "100755", gitBlob: "b".repeat(40), reason: "TRACKED_EXECUTABLE" })),
+    );
+    for (const row of [
+        gitRecord("100755", "deploy/desktop/linux/after-install.sh"),
+        gitRecord("100755", "deploy/desktop/macos/scripts/postinstall"),
+        gitRecord("120000", "deploy/desktop/macos/scripts/preinstall"),
+        gitRecord("160000", "deploy/desktop/linux/hooks"),
+        gitRecord("100755", "deploy/desktop/linux/before-install.sh"),
+        gitRecord("100644", "deploy/Desktop/other.ts"),
+    ])
+        assert.throws(() => selectGitInventory(Buffer.concat([raw, Buffer.from(row)])), /ENTRY_GIT/);
+});
+
+// 真实 HEAD 提交树覆盖安装钩子集成后的阻塞，只读取有界 Git 元数据；不接受脏工作区正文、不触发入口构建，也不能
+// 用可通过的微型清单替代当前来源树仍会被拒绝的事实。
+test("actual HEAD Git inventory admits all six approved executable exclusions", () => {
+    const raw = execFileSync("/usr/bin/git", ["ls-tree", "-r", "-z", "HEAD"], {
+        cwd: fileURLToPath(new URL("../../../", import.meta.url)),
+        timeout: 5000,
+        maxBuffer: 4 * 1024 ** 2,
+    });
+    const result = selectGitInventory(raw);
+    assert.deepEqual(
+        result.excluded.map((row) => row.path),
+        [
+            "build.sh",
+            "deploy/desktop/linux/before-install.sh",
+            "deploy/desktop/linux/before-remove.sh",
+            "deploy/desktop/macos/scripts/preinstall",
+            "deploy/install.sh",
+            "deploy/start.sh",
+        ],
+    );
+    assert.ok(result.selected.length > 0);
+    assert.equal(result.selected.length + result.excluded.length, raw.toString().split("\0").length - 1);
+    for (const row of result.excluded) {
+        assert.equal(row.mode, "100755");
+        assert.equal(row.reason, "TRACKED_EXECUTABLE");
+        assert.match(row.gitBlob, /^[a-f0-9]{40}$/);
+        assert.ok(raw.includes(Buffer.from(`${row.mode} blob ${row.gitBlob}\t${row.path}\0`)));
+    }
 });
 
 test("physical source admission rejects private modes links and altered bytes without rewriting", async () =>

@@ -8,6 +8,17 @@
 
 固定版本为 Node24.22.1、Chrome158.0.8127.18、Playwright1.65.0、revision1254。开发包的 engines 声明和通用 CI 仍为 Node24 系列。本片没有全局版本下限变化。
 
+入口物化 CI 的 Git 来源清单只把 `100644 blob` 选为来源正文。`100755 blob` 的排除集合精确限定为以下六个已交付脚本，选择器与构建前后完整提交绑定共用同一冻结排序常量；完整绑定必须观察到全部六项且没有额外项：
+
+- `build.sh`
+- `deploy/desktop/linux/before-install.sh`
+- `deploy/desktop/linux/before-remove.sh`
+- `deploy/desktop/macos/scripts/preinstall`
+- `deploy/install.sh`
+- `deploy/start.sh`
+
+其中 C03 的三个 desktop 安装钩子属于打包安装流程，不是入口构建来源；此处只补齐既有脚本的精确元数据排除，不授权执行钩子或安装产品。每条排除仍保存原始 `path`、`mode`、`gitBlob` 和 `reason:TRACKED_EXECUTABLE`，正文不读取、不执行、不进入所选来源，不改 Git 或物理模式。没有通配符、目录级放行、动态发现后的自动准入或失败回退；未知执行文件、符号链接、子模块、重复路径及逐级大小写碰撞继续拒绝，其余来源绑定、物理权限、字节摘要与最终复验规则不变。
+
 从 `apps/runtime` 工作目录执行，所有参数各出现一次；宿主 JSON 路径及两个根必须绝对，候选名是单个可移植 ASCII 标识。拒绝缺失、重复、未知、尾随参数及隐式环境默认。
 
 ```sh
