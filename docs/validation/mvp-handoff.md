@@ -9,7 +9,7 @@
 [本轮验证计划](../plans/2026-11-17-mvp-validation.md)。源码与验证状态继续分开登记，不能据部分组件通过发布。
 
 历史暂停点为 `6525ec3`；用户随后明确恢复，并要求拉取人工更新的 dev 后继续开发与 CI。
-已核对人工提交至 `b0899f2` 的全部 78 个文件，当前交互修复提交为 `ddefca9`。
+已核对人工提交至 `b0899f2` 的全部 78 个文件，当前集成提交为 `161a8b5`。
 本轮继续在 dev 推进；历史暂停不再阻止后续任务，master 不变。精确 CI 与未完成项以本轮验证计划为准。
 
 需求定位见 [F01–F14 实现与验证映射](requirements-matrix.md)。
@@ -27,15 +27,15 @@
 | ID  | 任务                                                             | 当前状态                                                                                                                | 详细交接                                    |
 | --- | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
 | V00 | 公共契约、新维护操作、运维指标与派生类型                         | 迁移样例补齐后契约 293 项、服务端契约 263 项通过；维护 HTTP 专项仍待补验                                                | [契约](tasks/V00-contracts.md)              |
-| V01 | Web 类型、lint、真实 GUI、作用域和会话传输                       | 交互修复已提交并复审；组件 8/9，主流程 2 通过、5 失败、25 未运行；check/build 通过                                      | [Web](tasks/V01-web.md)                     |
+| V01 | Web 类型、lint、真实 GUI、作用域和会话传输                       | 交互修复已提交并复审；组件 9/9，主流程 6 通过、5 失败、21 未运行；check/build 通过                                      | [Web](tasks/V01-web.md)                     |
 | V02 | MySQL、部署、readiness、指标、保留期与恢复                       | 既有子集 10 项、最后就绪模块 7 项通过并定向复审；完整运维未验收                                                         | [运维](tasks/V02-operations.md)             |
 | V03 | macOS 15+ Intel / ARM、Windows 11 x64、Ubuntu 24.04 x64 桌面安装 | 未执行；Mac 两架构最高优先级                                                                                            | [桌面](tasks/V03-desktop.md)                |
 | V04 | 依赖闭包、生成包、条件解析、optional/peer/bin 与离网材料         | 未执行本轮代码验证                                                                                                      | [依赖](tasks/V04-dependencies.md)           |
-| V05 | Runtime 组装、库存、原生能力、进程与停止                         | 相关 payload 184 项、观察夹具 71 项通过；e1d0cda 两类 Mac 受限入口 CI 的构建/最终校验/清理通过；完整 Runtime 验收未完成 | [Runtime](tasks/V05-runtime.md)             |
+| V05 | Runtime 组装、库存、原生能力、进程与停止                         | 相关 payload 184 项、观察夹具 71 项通过；161a8b5 两类 Mac 受限入口 CI 的构建/最终校验/清理通过；完整 Runtime 验收未完成 | [Runtime](tasks/V05-runtime.md)             |
 | V06 | 示例全流程、前后端接入和手册可复现性                             | 未执行本轮代码验证                                                                                                      | [接入](tasks/V06-integration.md)            |
 | V07 | 实际 AI Provider、预算、usage/cost、审核与无模型执行             | 阻塞：需独立提供 endpoint/model/密钥配置和预算授权                                                                      | [Provider](tasks/V07-provider.md)           |
 | V08 | 正常前端→static/dist→Python wheel→离线安装→OCI 发行              | 未通过；不能以候选包替代正常成功包                                                                                      | [发行](tasks/V08-release.md)                |
-| V09 | 编码规范、全量测试、覆盖率、许可与 SBOM                          | 根 check 通过；全仓注释审计未通过，完整覆盖率/许可仍待执行                                                              | [质量](tasks/V09-quality.md)                |
+| V09 | 编码规范、全量测试、覆盖率、许可与 SBOM                          | 根 check/lint/format 通过；pylint/Black 门禁 d14de81 已交付；既有静态债、注释比例与覆盖率未通过                         | [质量](tasks/V09-quality.md)                |
 | V10 | 最终需求追踪、并发/故障/篡改和整分支独立复审                     | 待 V00–V09 及 V11 的适用条件满足                                                                                        | [最终验收](tasks/V10-final-review.md)       |
 | V11 | Windows SQLite Claim 日志、本地保留期和未知进程保护              | Linux 既有回归 55 项、新增专项 12 项通过并复审；Windows 与完整 V11 未验收                                               | [本地持久化](tasks/V11-local-durability.md) |
 
