@@ -10,7 +10,7 @@ import {
     ASSET_SOURCES,
 } from "../scripts/runtime-assets-observation.ts";
 import { ArchiveTransaction } from "../scripts/runtime-payload-transaction.ts";
-import { assetsFixture, tinyAssets, fact } from "./fixtures/runtime-assets.ts";
+import { assetsFixture, tinyAssets, fact, syntheticCollectorEvidence } from "./fixtures/runtime-assets.ts";
 
 /**
  * 这些正例只调用顶层实际使用的扫描段并输入独立摘要的微型快照，因此检验真实 CRC、布局和原模式而不会声称官方准入通过；默
@@ -277,6 +277,8 @@ for (const scenario of [
     "normal-truncated-log",
     "metadata-limit",
     "logs-limit",
+    "metadata-aggregate-limit",
+    "logs-aggregate-limit",
     "manifest-limit",
     "read-failure",
     "prefix-write-failure",
@@ -284,9 +286,26 @@ for (const scenario of [
     "close-failure",
     "symlink",
     "fallback-failure",
+    "fallback-close-failure",
     "existing-upload",
+    "unit-missing",
+    "unit-malformed",
+    "unit-started",
+    "unit-truncated",
+    "unit-close-unknown",
+    "unit-outcome-conflict",
+    "unit-conclusion-conflict",
+    "bootstrap-missing",
+    "bootstrap-malformed",
+    "bootstrap-close-unknown",
+    "bootstrap-outcome-conflict",
+    "bootstrap-conclusion-skipped",
+    "bootstrap-diagnostic-conflict",
+    "bootstrap-success-missing-receipt",
+    "binding-missing",
+    "observe-close-unknown",
 ] as const)
-    test(`production inline evidence collector ${scenario}`, async () => {
+    test(`production inline evidence collector ${scenario}`, async (t) => {
         const { mkdtemp, mkdir, writeFile, open, lstat, statfs, rm, symlink } = await import("node:fs/promises");
         const { tmpdir } = await import("node:os"),
             { createHash } = await import("node:crypto"),
@@ -324,6 +343,70 @@ for (const scenario of [
                 ]),
             );
             await writeFile(join(meta, "steps.json"), existingSteps, { mode: 0o600 });
+            const synthetic = await syntheticCollectorEvidence(root);
+            const outcomeOverrides: Record<string, string> = {};
+            const editJournal = async (path: string, changes: Record<string, unknown>) => {
+                const bytes = synthetic.files[path];
+                assert.ok(bytes);
+                const journal = JSON.parse(bytes.toString("utf8"));
+                await writeFile(join(meta, path), JSON.stringify({ ...journal, ...changes }), { mode: 0o600 });
+            };
+            if (scenario === "unit-missing") await rm(join(meta, "unit.json"));
+            if (scenario === "bootstrap-missing") await rm(join(meta, "bootstrap/execution.json"));
+            if (scenario === "unit-malformed") await writeFile(join(meta, "unit.json"), "{}", { mode: 0o600 });
+            if (scenario === "bootstrap-malformed")
+                await writeFile(join(meta, "bootstrap/execution.json"), "{", { mode: 0o600 });
+            if (scenario === "unit-started") await editJournal("unit.json", { status: "STARTED" });
+            if (scenario === "unit-truncated") await editJournal("unit.json", { truncated: true });
+            if (scenario === "unit-close-unknown") await editJournal("unit.json", { closeConfirmed: false });
+            if (scenario === "bootstrap-close-unknown")
+                await editJournal("bootstrap/execution.json", { closeConfirmed: false });
+            if (scenario === "unit-outcome-conflict") outcomeOverrides.UNIT_OUTCOME = "failure";
+            if (scenario === "unit-conclusion-conflict") outcomeOverrides.UNIT_CONCLUSION = "failure";
+            if (scenario === "bootstrap-outcome-conflict") outcomeOverrides.BOOTSTRAP_OUTCOME = "success";
+            if (scenario === "bootstrap-conclusion-skipped") outcomeOverrides.BOOTSTRAP_CONCLUSION = "skipped";
+            if (scenario === "bootstrap-diagnostic-conflict")
+                await editJournal("bootstrap/execution.json", { code: "PAYLOAD_PATH" });
+            if (scenario === "bootstrap-success-missing-receipt") {
+                await editJournal("bootstrap/execution.json", {
+                    status: "PASS",
+                    exit: 0,
+                    code: null,
+                    phase: null,
+                    cleanup: "CONFIRMED",
+                });
+                outcomeOverrides.BOOTSTRAP_OUTCOME = "success";
+                await writeFile(
+                    join(meta, "bootstrap/result.stdout.json"),
+                    JSON.stringify({
+                        kind: "NODE_NPM_SOURCE_TREE_RESULT",
+                        committed: true,
+                        cleanup: "CONFIRMED",
+                        directory: join(root, "bootstrap/prepared"),
+                    }),
+                    { mode: 0o600 },
+                );
+            }
+            if (scenario === "binding-missing") await rm(join(meta, "ci-process/binding-unit.json"));
+            if (scenario === "observe-close-unknown") {
+                const bytes = synthetic.files["ci-process/observe-executions.json"];
+                assert.ok(bytes);
+                const executions = JSON.parse(bytes.toString("utf8"));
+                executions[1].closeConfirmed = false;
+                await writeFile(join(meta, "ci-process/observe-executions.json"), JSON.stringify(executions), {
+                    mode: 0o600,
+                });
+            }
+            const retainedInputs = new Map<string, Buffer>();
+            for (const path of Object.keys(synthetic.files)) {
+                if (
+                    (scenario === "unit-missing" && path === "unit.json") ||
+                    (scenario === "bootstrap-missing" && path === "bootstrap/execution.json") ||
+                    (scenario === "binding-missing" && path === "ci-process/binding-unit.json")
+                )
+                    continue;
+                retainedInputs.set(path, await readFile(join(meta, path)));
+            }
             if (scenario === "normal" || scenario === "normal-truncated-log") {
                 await mkdir(join(meta, "nested/deep"), { recursive: true, mode: 0o700 });
                 await writeFile(join(meta, "nested/deep/source.json"), "small committed source evidence", {
@@ -338,8 +421,19 @@ for (const scenario of [
                 } finally {
                     await fd.close();
                 }
-                assert.ok((await lstat(file, { bigint: true })).blocks * 512n <= 65536n);
+                const info = await lstat(file, { bigint: true });
+                assert.equal(info.size, BigInt(bytes));
+                assert.ok(info.blocks * 512n <= 65536n);
             };
+            let manifestExpected:
+                | {
+                      inputs: ReturnType<typeof fact>[];
+                      inputMetadataBytes: number;
+                      generatedMetadataBytes: number;
+                      preManifestMetadataBytes: number;
+                      manifestBytes: number;
+                  }
+                | undefined;
             if (scenario === "metadata-limit") {
                 await sparse("a.json", 9 * 1024 ** 2);
                 await sparse("b.json", 9 * 1024 ** 2);
@@ -348,9 +442,78 @@ for (const scenario of [
                 await sparse("a.log", 4 * 1024 ** 2 + 1);
                 await sparse("b.log", 4 * 1024 ** 2 + 1);
             }
+            if (scenario === "metadata-aggregate-limit" || scenario === "logs-aggregate-limit") {
+                const sizes = Array.from(
+                    { length: scenario === "metadata-aggregate-limit" ? 5 : 3 },
+                    () => (scenario === "metadata-aggregate-limit" ? 4 : 3) * 1024 ** 2,
+                );
+                for (const [index, size] of sizes.entries()) {
+                    assert.ok(size <= 4 * 1024 ** 2);
+                    await sparse(
+                        `aggregate-${index}.${scenario === "metadata-aggregate-limit" ? "json" : "log"}`,
+                        size,
+                    );
+                }
+                assert.ok(
+                    sizes.reduce((total, size) => total + size, 0) >
+                        (scenario === "metadata-aggregate-limit" ? 16 : 8) * 1024 ** 2,
+                );
+            }
             if (scenario === "manifest-limit") {
                 await rm(join(meta, "status.json"));
-                await sparse("large.json", 16 * 1024 ** 2 - 1 - existingSteps.length);
+                // 配额算术先绑定全部输入与固定生成字节，各填充文件单独准入后，只有加入清单本身才超过总元数据预算。
+                const generated = Buffer.from(
+                    JSON.stringify({
+                        unit: { outcome: "success", conclusion: "success" },
+                        bootstrap: { outcome: "failure", conclusion: "success" },
+                    }),
+                );
+                const inputs = [
+                    ...Object.entries(synthetic.files).map(([path, bytes]) => fact(path, bytes)),
+                    fact("steps.json", existingSteps),
+                    fact("pnpm-install.log", Buffer.from("small setup log")),
+                ];
+                let padding =
+                    16 * 1024 ** 2 -
+                    1 -
+                    generated.length -
+                    inputs
+                        .filter((file) => !file.path.endsWith(".log"))
+                        .reduce((total, file) => total + file.sizeBytes, 0);
+                assert.ok(padding > 0);
+                for (let index = 0; padding > 0; index++) {
+                    const size = Math.min(padding, 4 * 1024 ** 2),
+                        path = `manifest-pad-${index}.json`;
+                    await sparse(path, size);
+                    inputs.push(fact(path, Buffer.alloc(size)));
+                    padding -= size;
+                }
+                assert.ok(inputs.every((file) => file.sizeBytes <= 4 * 1024 ** 2));
+                const inputMetadataBytes = inputs
+                    .filter((file) => !file.path.endsWith(".log"))
+                    .reduce((total, file) => total + file.sizeBytes, 0);
+                const preManifestMetadataBytes = inputMetadataBytes + generated.length;
+                const files = [...inputs, fact("ci-step-outcomes.json", generated)].sort((a, b) =>
+                    a.path < b.path ? -1 : a.path > b.path ? 1 : 0,
+                );
+                const manifestBytes = Buffer.byteLength(
+                    JSON.stringify({
+                        source: "a".repeat(40),
+                        arch: "x64",
+                        collection: "FULL",
+                        files,
+                        truncations: [],
+                    }),
+                );
+                assert.equal(preManifestMetadataBytes, 16 * 1024 ** 2 - 1);
+                assert.ok(preManifestMetadataBytes + manifestBytes > 16 * 1024 ** 2);
+                manifestExpected = {
+                    inputs,
+                    inputMetadataBytes,
+                    generatedMetadataBytes: generated.length,
+                    preManifestMetadataBytes,
+                    manifestBytes,
+                };
             }
             if (scenario === "normal-truncated-log") {
                 await rm(join(meta, "pnpm-install.log"));
@@ -362,7 +525,7 @@ for (const scenario of [
                 await rm(join(meta, "pnpm-install.log"));
                 await sparse("pnpm-install.log", 1024 ** 2);
             }
-            if (scenario === "symlink" || scenario === "fallback-failure")
+            if (scenario === "symlink" || scenario === "fallback-failure" || scenario === "fallback-close-failure")
                 await symlink(join(base, "outside-unread"), join(meta, "foreign.json"));
             const steps = assetWorkflowSteps(join(base, "uv-cache"));
             const collector = steps.find(
@@ -371,18 +534,33 @@ for (const scenario of [
             assert.equal(typeof collector?.run, "string");
             const code = (collector!.run as string).match(/node --input-type=module <<'JS'\n([\s\S]*?)\nJS/)?.[1];
             assert.ok(code);
+            // 阶段探针观察末尾证据关闭后的源目录复核，所有调用仍委托真实文件系统而不替换校验结果。
             const prefix =
                 `import fixIO from "node:fs"; import { syncBuiltinESMExports as fixSync } from "node:module";
 const fixOpen = fixIO.promises.open; let fixUsed = false; const fixSourceOpens = []; const fixSourceReads = {};
-process.on("exit",()=>process.stdout.write(JSON.stringify({sourceOpens:fixSourceOpens,sourceReads:fixSourceReads})+` +
+const fixManifests = []; const fixLstat = fixIO.promises.lstat;
+let fixEvidenceClosed = false; let fixCompleteEvidenceChecks = 0;
+fixIO.promises.lstat = async (path,...args) => {
+    if (fixEvidenceClosed && String(path) === process.env.ASSET_ROOT+"/metadata") fixCompleteEvidenceChecks++;
+    return fixLstat(path,...args);
+};
+process.on("exit",()=>process.stdout.write(JSON.stringify({sourceOpens:fixSourceOpens,sourceReads:fixSourceReads,
+manifestAttempts:fixManifests,completeEvidenceChecks:fixCompleteEvidenceChecks})+` +
                 `"\\n"));
 fixIO.promises.open = async (path, ...args) => {
     const name = String(path); if (name.startsWith(process.env.ASSET_ROOT+"/metadata/")) fixSourceOpens.push(name);
     if (${JSON.stringify(scenario)} === "fallback-failure" && name.includes(".upload-build-")) throw Object.assign(E` +
                 `rror("CONTROLLED_IO"), {code:"EIO"});
+    if (name.endsWith("/manifest.json") && (args[0] & fixIO.constants.O_WRONLY)) {
+        const parent = name.slice(0,-14); fixManifests.push({full:fixIO.existsSync(parent+"/unit.json"),
+        failure:fixIO.existsSync(parent+"/failure.json")});
+    }
     if (${JSON.stringify(scenario)} === "manifest-write-failure" && name.endsWith("/manifest.json") && !fixUsed) { f` +
                 `ixUsed=true; throw Object.assign(Error("CONTROLLED_IO"), {code:"EIO"}); }
     const handle = await fixOpen(path,...args);
+    if (name.includes(".upload-build-") && name.endsWith("/bootstrap/prepare.log") && !(args[0] & 3)) {
+        const close = handle.close.bind(handle); handle.close=async()=>{await close();fixEvidenceClosed=true;};
+    }
     if (name.startsWith(process.env.ASSET_ROOT+"/metadata/")) { const read = handle.read.bind(handle); handle.read=a` +
                 `sync(...values)=>{fixSourceReads[name]=(fixSourceReads[name]??0)+values[2];return read(...values);}; }
     if (${JSON.stringify(scenario)} === "read-failure" && name.endsWith("/metadata/status.json")) handle.read=async(` +
@@ -393,6 +571,10 @@ fixIO.promises.open = async (path, ...args) => {
     if (${JSON.stringify(scenario)} === "close-failure" && name.endsWith("/metadata/status.json")) { const close = ` +
                 `handle.close.bind(handle); handle.close=async()=>{await close();` +
                 `throw Object.assign(Error("CONTROLLED_CLOSE"),{code:"EIO"});}; }
+    if (${JSON.stringify(scenario)} === "fallback-close-failure" && name.endsWith("/failure.json")) {
+        const close = handle.close.bind(handle); handle.close=async()=>{await close();
+        throw Object.assign(Error("CONTROLLED_FALLBACK_CLOSE"),{code:"EIO"});};
+    }
     return handle;
 }; fixSync();\n`;
             const result = spawnSync(process.execPath, ["--input-type=module"], {
@@ -402,6 +584,8 @@ fixIO.promises.open = async (path, ...args) => {
                 maxBuffer: 65536,
                 env: {
                     ...process.env,
+                    ...synthetic.env,
+                    ...outcomeOverrides,
                     ASSET_ROOT: root,
                     GITHUB_OUTPUT: output,
                     GITHUB_SHA: "a".repeat(40),
@@ -413,19 +597,65 @@ fixIO.promises.open = async (path, ...args) => {
                 },
             });
             const markers = await readFile(output, "utf8");
-            if (scenario === "fallback-failure" || scenario === "existing-upload") {
+            assert.equal(result.signal, null);
+            assert.equal(result.error, undefined);
+            for (const [path, bytes] of retainedInputs) assert.deepEqual(await readFile(join(meta, path)), bytes);
+            assert.deepEqual(await readFile(join(meta, "steps.json")), existingSteps);
+            if (
+                scenario === "fallback-failure" ||
+                scenario === "fallback-close-failure" ||
+                scenario === "existing-upload"
+            ) {
                 assert.notEqual(result.status, 0);
                 assert.equal(markers, "");
                 if (scenario === "existing-upload")
                     assert.equal(await readFile(join(root, "upload"), "utf8"), "outside sentinel");
                 else await assert.rejects(lstat(join(root, "upload")), { code: "ENOENT" });
+                if (scenario === "fallback-close-failure") {
+                    assert.match(result.stderr, /ARTIFACT_COLLECTION_UNCONFIRMED ready=false cleanup=INCOMPLETE/);
+                    const drafts = (await readdir(root)).filter((name) => name.startsWith(".upload-build-"));
+                    assert.equal(drafts.length, 1);
+                    const draft = drafts[0];
+                    assert.ok(draft);
+                    const failure = JSON.parse(await readFile(join(root, draft, "failure.json"), "utf8"));
+                    assert.equal(failure.code, "ARTIFACT_BOUNDARY");
+                    assert.equal(failure.cleanup, "CONFIRMED");
+                    assert.equal(failure.steps[1].status, "NOT_RUN");
+                }
                 return;
             }
             const trace = JSON.parse(result.stdout.trim()) as {
                 sourceOpens: string[];
                 sourceReads: Record<string, number>;
+                manifestAttempts: { full: boolean; failure: boolean }[];
+                completeEvidenceChecks: number;
             };
-            if (scenario === "metadata-limit" || scenario === "logs-limit") assert.deepEqual(trace.sourceOpens, []);
+            if (scenario === "manifest-limit") {
+                assert.ok(trace.sourceOpens.length > 0, "manifest budget must be checked after source reads");
+                assert.ok(manifestExpected);
+                assert.deepEqual(
+                    trace.sourceOpens.sort(),
+                    manifestExpected.inputs.map((file) => join(meta, file.path)).sort(),
+                );
+                for (const file of manifestExpected.inputs) {
+                    assert.equal(trace.sourceReads[join(meta, file.path)] ?? 0, file.sizeBytes);
+                }
+                assert.equal(trace.completeEvidenceChecks, 1);
+                assert.deepEqual(trace.manifestAttempts, [{ full: false, failure: true }]);
+                assert.doesNotMatch(markers, /^collection=FULL$/m);
+                const { inputs, ...budget } = manifestExpected;
+                t.diagnostic(JSON.stringify({ scenario, inputFiles: inputs.length, ...budget }));
+            }
+            if (scenario === "manifest-write-failure") {
+                assert.deepEqual(trace.manifestAttempts, [
+                    { full: true, failure: false },
+                    { full: false, failure: true },
+                ]);
+            }
+            if (scenario === "metadata-limit" || scenario === "logs-limit" || scenario.endsWith("aggregate-limit")) {
+                assert.deepEqual(trace.sourceOpens, []);
+                assert.equal(trace.completeEvidenceChecks, 0);
+            }
             assert.match(markers, /^ready=true$/m, result.stderr);
             assert.match(markers, new RegExp(`^upload_root=${root}/upload$`, "m"));
             const uploaded = join(root, "upload"),
@@ -478,19 +708,38 @@ fixIO.promises.open = async (path, ...args) => {
                 assert.equal(result.status, 0, result.stderr);
                 assert.ok(names.includes("status.json"));
                 assert.match(markers, /^collection=FULL$/m);
-                assert.deepEqual(names.sort(), [
-                    "manifest.json",
-                    "nested",
-                    "pnpm-install.log",
-                    "status.json",
-                    "steps.json",
-                ]);
-                assert.deepEqual(manifest.files.map((f) => f.path).sort(), [
-                    "nested/deep/source.json",
-                    "pnpm-install.log",
-                    "status.json",
-                    "steps.json",
-                ]);
+                assert.deepEqual(
+                    names.sort(),
+                    [
+                        "bootstrap",
+                        "ci-process",
+                        "ci-step-outcomes.json",
+                        "manifest.json",
+                        "nested",
+                        "pnpm-install.log",
+                        "source.json",
+                        "status.json",
+                        "steps.json",
+                        "unit.json",
+                        "unit.stderr.log",
+                        "unit.stdout.log",
+                    ].sort(),
+                );
+                assert.deepEqual(
+                    manifest.files.map((f) => f.path).sort(),
+                    [
+                        ...Object.keys(synthetic.files),
+                        "ci-step-outcomes.json",
+                        "nested/deep/source.json",
+                        "pnpm-install.log",
+                        "status.json",
+                        "steps.json",
+                    ].sort(),
+                );
+                for (const [path, bytes] of Object.entries(synthetic.files)) {
+                    assert.deepEqual(await readFile(join(uploaded, path)), bytes);
+                    assert.deepEqual(await readFile(join(meta, path)), bytes);
+                }
                 assert.deepEqual(await readFile(join(uploaded, "steps.json")), existingSteps);
                 if (scenario === "normal-truncated-log") {
                     assert.equal(trace.sourceReads[join(meta, "pnpm-install.log")], 32700);
@@ -512,6 +761,19 @@ fixIO.promises.open = async (path, ...args) => {
                           ? "ARTIFACT_BOUNDARY"
                           : "ARTIFACT_IO",
                 );
+                assert.equal(
+                    failure.reason,
+                    scenario.startsWith("unit-") ||
+                        scenario.startsWith("bootstrap-") ||
+                        scenario === "binding-missing" ||
+                        scenario === "observe-close-unknown"
+                        ? "MISSING_EXECUTION_EVIDENCE"
+                        : null,
+                );
+                if (scenario === "close-failure") {
+                    assert.ok((await readdir(root)).some((name) => name.startsWith(".upload-build-")));
+                    assert.doesNotMatch(markers, /^collection=FULL$/m);
+                }
                 assert.equal(failure.steps[0].status, "FAIL");
                 assert.equal(failure.steps[1].status, "NOT_RUN");
                 assert.match(markers, /^collection=FAILURE$/m);
@@ -537,6 +799,7 @@ for (const scenario of [
     "invalid-existing",
     "existing-valid",
     "setup-added-quota",
+    "setup-bootstrap-skipped",
 ] as const)
     test(`production setup evidence collector ${scenario}`, async () => {
         const { mkdtemp, mkdir, writeFile, lstat, statfs, open, rm } = await import("node:fs/promises");
@@ -581,6 +844,10 @@ for (const scenario of [
                 NODE_SETUP_OUTCOME: "success",
                 DEPENDENCIES_OUTCOME: "failure",
                 ORCHESTRATION_OUTCOME: "skipped",
+                UNIT_OUTCOME: "skipped",
+                UNIT_CONCLUSION: "skipped",
+                BOOTSTRAP_OUTCOME: "success",
+                BOOTSTRAP_CONCLUSION: "success",
             };
             if (scenario === "setup-empty" || scenario === "setup-bind-failure")
                 Object.assign(outcomes, {
@@ -593,6 +860,8 @@ for (const scenario of [
                     NODE_SETUP_OUTCOME: "failure",
                     DEPENDENCIES_OUTCOME: "skipped",
                 });
+            if (scenario === "setup-bootstrap-skipped")
+                Object.assign(outcomes, { BOOTSTRAP_OUTCOME: "skipped", BOOTSTRAP_CONCLUSION: "skipped" });
             if (scenario === "missing-unknown")
                 Object.assign(outcomes, {
                     BIND_OUTCOME: "",
@@ -611,6 +880,7 @@ for (const scenario of [
                     ORCHESTRATION_OUTCOME: "cancelled",
                 });
             if (scenario === "missing-skipped-no-failure") Object.assign(outcomes, { DEPENDENCIES_OUTCOME: "success" });
+            const synthetic = scenario === "existing-valid" ? await syntheticCollectorEvidence(root, true) : null;
             const steps = assetWorkflowSteps(join(base, "uv-cache")),
                 collector = steps.find((step) => step.id === "collect");
             const code = (collector!.run as string).match(/node --input-type=module <<'JS'\n([\s\S]*?)\nJS/)?.[1];
@@ -629,6 +899,10 @@ for (const scenario of [
                 env: {
                     ...process.env,
                     ...outcomes,
+                    ...synthetic?.env,
+                    GITHUB_RUN_ID: "123",
+                    GITHUB_RUN_ATTEMPT: "1",
+                    GITHUB_WORKSPACE: join(root, "synthetic-checkout"),
                     ASSET_ROOT: root,
                     GITHUB_OUTPUT: output,
                     GITHUB_SHA: "a".repeat(40),
@@ -661,7 +935,8 @@ for (const scenario of [
             if (
                 scenario.startsWith("missing-") ||
                 scenario === "invalid-existing" ||
-                scenario === "setup-added-quota"
+                scenario === "setup-added-quota" ||
+                scenario === "setup-bootstrap-skipped"
             ) {
                 assert.notEqual(result.status, 0);
                 assert.match(markers, /^collection=FAILURE$/m);
@@ -695,6 +970,34 @@ for (const scenario of [
                     assert.equal(facts[0].cleanup, "NOT_NEEDED");
                     assert.equal(facts[1].code, null);
                     assert.equal(facts[2].code, null);
+                    for (const [path, step] of [
+                        ["unit.json", "UNIT"],
+                        ["bootstrap/execution.json", "BOOTSTRAP"],
+                    ] as const) {
+                        assert.deepEqual(JSON.parse(await readFile(join(uploaded, path), "utf8")), {
+                            step,
+                            status: "NOT_RUN",
+                            reason: "SETUP_FAILED",
+                            admitted: false,
+                            closeConfirmed: null,
+                            truncated: false,
+                            timedOut: false,
+                            exit: null,
+                            signal: null,
+                            elapsedMs: 0,
+                            code: null,
+                            phase: null,
+                            cleanup: null,
+                            argv: null,
+                            cwd: null,
+                            error: null,
+                        });
+                        await assert.rejects(lstat(join(meta, path)), { code: "ENOENT" });
+                    }
+                    assert.deepEqual(JSON.parse(await readFile(join(uploaded, "ci-step-outcomes.json"), "utf8")), {
+                        unit: { outcome: "skipped", conclusion: "skipped" },
+                        bootstrap: { outcome: "success", conclusion: "success" },
+                    });
                     await assert.rejects(lstat(join(meta, "steps.json")), { code: "ENOENT" });
                 }
             }
