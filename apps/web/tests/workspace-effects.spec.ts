@@ -198,7 +198,7 @@ test("four GUI entry selectors retain manual selection across real list refetch"
             input: '[data-testid="enrollment-code"]',
         },
         {
-            link: "执行计划 / Plans",
+            link: "Plans",
             selector: '[aria-label="Plan Workspace"]',
             input: '[aria-label="Plan name"]',
         },
@@ -275,7 +275,7 @@ test("four GUI entry selectors retain manual selection across real list refetch"
             if (entry.link === "Workspaces")
                 await expect(page.getByTestId("workspace-detail")).toContainText("W2B Beta");
             await selector.selectOption(alpha);
-            if (entry.link === "Runtimes" || entry.link === "执行计划 / Plans") await expect(input).toHaveValue("");
+            if (entry.link === "Runtimes" || entry.link === "Plans") await expect(input).toHaveValue("");
             if (entry.link === "Bundles") await expect(input).toHaveValue("CASE");
         } finally {
             release();
