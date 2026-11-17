@@ -384,9 +384,10 @@ runtime
         const releaseDirectory = installed?.engineDirectory ?? options.releaseDir;
         const browserExecutable = installed?.browserExecutable ?? options.browserExecutable;
         if (!releaseDirectory || !browserExecutable) throw new Error("RUNTIME_CONFIGURATION_REQUIRED");
+        // 源码启动沿用登记时的零点一引擎身份，安装模式仍以核验库存版本为准，不能由组件包号覆盖发行身份。
         const diagnostics = await diagnoseRelease({
             engineDirectory: releaseDirectory,
-            engineVersion: installed?.engineVersion ?? "1.0.0",
+            engineVersion: installed?.engineVersion ?? "0.1.0",
             browserExecutable,
             signal: controller.signal,
             ...(installed ? { runtime: installed } : {}),
