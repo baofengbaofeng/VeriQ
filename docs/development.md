@@ -23,6 +23,11 @@ uv sync --project apps/srv --frozen --all-groups
 pnpm install --frozen-lockfile
 ```
 
+全组同步会安装用于严格检查 S3 的四个精确 dev 输入。`boto3-stubs[s3]` 与 `mypy-boto3-s3` 均为 `1.44.0`，
+`botocore-stubs` 为 `1.43.126`，`types-s3transfer` 为 `0.19.3`。核心声明与运行时 botocore `1.44.0` 的兼容范围限于已核对的接口。
+服务生产依赖、56 项冻结发行需求与 SDK 运行版本继续使用原有锁定值。
+生产源码引用 `mypy_boto3_s3` 时，仅在 `TYPE_CHECKING` 中导入，并使用字符串注解或延迟求值。详见 [ADR 0027](decisions/0027-sdk-type-stubs.md)。
+
 注释工具也要求先完成上述冻结全组 Python 同步，不能依赖全局偶然安装的 tree-sitter。
 在仓库根运行：
 

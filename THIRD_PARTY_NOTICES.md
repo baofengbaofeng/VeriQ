@@ -97,3 +97,13 @@ advisories at the recorded evidence capture times; this is not a complete releas
 ABI validation and the unchanged production dependency closure. The adapters support qualified Shell, CSS and Java source only.
 The Java adapter rejects raw Unicode escape spellings and bare CR bytes, including in otherwise legal input. It accepts LF and CRLF.
 The pinned grammar can absorb code after a bare CR into a line comment despite the line boundaries defined by JLS §3.4 and §3.7.
+
+V09 adds four development-only MIT distributions for strict S3 checking:
+`boto3-stubs[s3]` 1.44.0, `mypy-boto3-s3` 1.44.0, `botocore-stubs` 1.43.126,
+and `types-s3transfer` 0.19.3. The upstream copyright notices are Copyright (c) 2026 Vlad Emelianov
+for `boto3-stubs` and `mypy-boto3-s3`, and Copyright (c) 2022 Vlad Emelianov for `botocore-stubs`
+and `types-s3transfer`. Distributions of these tools must retain their original copyright, permission,
+and warranty notices. Official wheel hashes, original MIT texts, and the 2026-11-17 exact-version OSV
+query are recorded in the [SDK type audit](docs/dependencies/v09-sdk-types-audit.json).
+[ADR 0027](docs/decisions/0027-sdk-type-stubs.md) records the verified scope of the older core declarations.
+The production `--no-dev` requirements export retains the same 56 entries and distribution hashes.
