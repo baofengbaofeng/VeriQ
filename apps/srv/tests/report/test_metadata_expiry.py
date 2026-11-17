@@ -127,6 +127,11 @@ class _FixtureGuard:
             return
         await response.aread()
         expected, fields = _fixture_response(request)
+        cookie = None
+        if fields == ("csrfToken",) and response.status_code == expected:
+            cookie = response.cookies.get("veriq_session")
+            if cookie:
+                self._known.add(cookie)
         if response.status_code == expected and fields:
             self.check(self._issued_text(response, fields), request)
         elif not (
@@ -136,11 +141,6 @@ class _FixtureGuard:
             and response.content == _RAW_TRACE
         ):
             self.check(response.text, request)
-        cookie = None
-        if fields == ("csrfToken",) and response.status_code == expected:
-            cookie = response.cookies.get("veriq_session")
-            if cookie:
-                self._known.add(cookie)
         self._check_headers(response, cookie)
         if expected is not None and response.status_code != expected:
             pytest.fail("Fixture HTTP request returned an unexpected status", pytrace=False)
@@ -256,6 +256,35 @@ async def test_known_fixture_credentials_are_rejected_before_diagnostics(
     )
     with pytest.raises(pytest.fail.Exception, match="Response exposed private fixture data"):
         await guard.buffered(repeated)
+
+
+async def test_first_login_cookie_is_guarded_before_diagnostics() -> None:
+    """首次登录签发的合成会话值若同时出现在正文中，守卫应安全拒绝，正常签发后也要保护员工读取。"""
+    cookie = "synthetic-fixture-first-session"
+    request = httpx.Request("POST", "https://veriq.invalid/api/v1/auth/login")
+    headers = {"Set-Cookie": f"veriq_session={cookie}; Path=/; HttpOnly"}
+    body = {"data": {"csrfToken": "synthetic-fixture-first-csrf"}}
+    repeated = httpx.Response(
+        200, json={**body, "unexpected": cookie}, headers=headers, request=request
+    )
+    with pytest.raises(pytest.fail.Exception) as failure:
+        await _FixtureGuard().buffered(repeated)
+    if str(failure.value) != "Response exposed private fixture data":
+        pytest.fail("Fixture guard diagnostic did not match the fixed message", pytrace=False)
+
+    guard = _FixtureGuard()
+    issued = httpx.Response(200, json=body, headers=headers, request=request)
+    original = issued.content, issued.headers.raw
+    await guard.buffered(issued)
+    if (issued.content, issued.headers.raw) != original:
+        pytest.fail("Fixture guard changed the original login response bytes", pytrace=False)
+
+    response = _synthetic_error(cookie)
+    with pytest.raises(pytest.fail.Exception, match="^Response exposed private fixture data$"):
+        await guard.buffered(response)
+    stream = httpx.Response(200, text=f"event: report\ndata: {cookie}\n\n")
+    with pytest.raises(pytest.fail.Exception, match="^Response exposed private fixture data$"):
+        await _frame(stream.aiter_lines(), response.request, guard)
 
 
 @pytest.mark.parametrize("code", ("REPORT_EXPIRED", "ARTIFACT_EXPIRED"))
