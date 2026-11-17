@@ -1,10 +1,10 @@
 /**
- * 本文件把校验问题投影为可安全外泄的诊断：只保留 schema 拥有的路径段：动态键一律脱敏以免泄露凭证形态字段（Set）。
+ * 编译入口需要将分析问题写入结构化结果，此处以固定英文说明替换原始消息，并按长度和分段白名单决定是否保留路径。
  */
 
 import type { ValidationIssue } from "./dependency.js";
 /**
- * Only schema-owned segments may survive. Dynamic keys can themselves be credentials.
+ * 仅保留这里枚举的模式属性名与有限十进制索引段，动态对象键即使来自合法源文档也可能包含凭据而需要隐藏。
  */
 const propertyWords =
     "assets document steps children beforeAssertions afterAssertions assertions observers target action path method " +
@@ -22,7 +22,9 @@ const messages: Record<string, string> = {
     INVALID_ENTRY_CASE: "Selected entry is not a case version.",
 };
 /**
- * 公开函数 safeDiagnostics 截断并脱敏 ValidationIssue：路径段不在白名单时标记 REDACTED。消息映射到稳定中文友好说明。
+ * 最多投影前一百条分析问题，路径不满足本地白名单检查时置空；消息只取固定英文映射或通用说明，不复制原始消息。
+ * 路径检查限制长度为 512 个字符串单元，分段后跳过首段；后续段只接受白名单名称、0 或无前导零的六位以内整数。
+ * EXACT 表示原路径通过上述检查并原样保留，REDACTED 表示路径隐藏；代码只校验大写标识形状。
  */
 export function safeDiagnostics(issues: ValidationIssue[]) {
     return issues.slice(0, 100).map((issue) => {
