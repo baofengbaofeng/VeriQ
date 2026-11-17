@@ -172,44 +172,47 @@ test("four GUI entry selectors retain manual selection across real list refetch"
         ).toBe(201);
     }
     await page.goto("/login");
-    await page.getByTestId("email").fill("w2b@example.com");
-    await page.getByTestId("password").fill("Workspace password 123!");
-    await page.getByTestId("login-submit").click();
-    await expect(page.getByTestId("account-info")).toBeVisible();
+    await page.getByRole("textbox", { name: "Email" }).fill("w2b@example.com");
+    await page.getByLabel("Password").fill("Workspace password 123!");
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect(page.locator("dl")).toBeVisible();
     await page.getByRole("link", { name: "Workspaces", exact: true }).click();
     const ids: string[] = [];
     for (const name of ["Alpha", "Beta"]) {
-        await page.getByTestId("workspace-key").fill("w2b-" + name.toLowerCase());
-        await page.getByTestId("workspace-name").fill("W2B " + name);
-        await page.getByTestId("workspace-create").click();
-        await expect(page.getByTestId("workspace-detail")).toContainText("W2B " + name);
-        ids.push(await page.getByTestId("workspace-selector").inputValue());
+        await page.getByLabel("Key").fill("w2b-" + name.toLowerCase());
+        await page
+            .getByLabel("Name")
+            .first()
+            .fill("W2B " + name);
+        await page.getByRole("button", { name: "Create Workspace" }).click();
+        await expect(page.getByRole("article")).toContainText("W2B " + name);
+        ids.push(await page.getByLabel("Current Workspace").inputValue());
     }
     const [alpha, beta] = ids;
     for (const entry of [
         {
             link: "Workspaces",
-            selector: '[data-testid="workspace-selector"]',
-            input: '[data-testid="workspace-name"]',
+            selector: page.getByLabel("Current Workspace"),
+            input: page.getByLabel("Name").first(),
         },
         {
             link: "Runtimes",
-            selector: '[data-testid="runtime-workspace"]',
-            input: '[data-testid="enrollment-code"]',
+            selector: page.getByLabel("Workspace"),
+            input: page.getByLabel("Approval code"),
         },
         {
             link: "Plans",
-            selector: '[aria-label="Plan Workspace"]',
-            input: '[aria-label="Plan name"]',
+            selector: page.getByLabel("Plan Workspace"),
+            input: page.getByLabel("Plan name"),
         },
         {
             link: "Bundles",
-            selector: '[aria-label="Bundle Workspace"]',
-            input: '[data-testid="bundle-kind"]',
+            selector: page.getByLabel("Bundle Workspace"),
+            input: page.getByLabel("Selection"),
         },
     ]) {
         await page.getByRole("link", { name: entry.link, exact: true }).click();
-        const selector = page.locator(entry.selector);
+        const selector = entry.selector;
         await expect(selector.locator(`option[value="${alpha}"]`)).toHaveText("W2B Alpha");
         await selector.selectOption(alpha);
         let captured!: () => void;
@@ -258,7 +261,7 @@ test("four GUI entry selectors retain manual selection across real list refetch"
             await page.getByRole("link", { name: entry.link, exact: true }).click();
             await backendCompleted;
             await selector.selectOption(beta);
-            const input = page.locator(entry.input);
+            const input = entry.input;
             if (entry.link === "Bundles") await input.selectOption("SUITE");
             else await input.fill(entry.link === "Runtimes" ? "ABCDEFGH2345" : "Beta unsaved " + entry.link);
             release();
@@ -272,8 +275,7 @@ test("four GUI entry selectors retain manual selection across real list refetch"
                       ? "ABCDEFGH2345"
                       : "Beta unsaved " + entry.link,
             );
-            if (entry.link === "Workspaces")
-                await expect(page.getByTestId("workspace-detail")).toContainText("W2B Beta");
+            if (entry.link === "Workspaces") await expect(page.getByRole("article")).toContainText("W2B Beta");
             await selector.selectOption(alpha);
             if (entry.link === "Runtimes" || entry.link === "Plans") await expect(input).toHaveValue("");
             if (entry.link === "Bundles") await expect(input).toHaveValue("CASE");
@@ -285,13 +287,13 @@ test("four GUI entry selectors retain manual selection across real list refetch"
         }
     }
     await page.getByRole("combobox", { name: "Bundle Workspace" }).selectOption(beta);
-    await page.getByTestId("bundle-kind").selectOption("SUITE");
-    await page.getByTestId("logout").click();
-    await page.getByTestId("email").fill("w2b@example.com");
-    await page.getByTestId("password").fill("Workspace password 123!");
-    await page.getByTestId("login-submit").click();
-    await expect(page.getByTestId("account-info")).toBeVisible();
+    await page.getByLabel("Selection").selectOption("SUITE");
+    await page.getByRole("button", { name: "Sign out" }).click();
+    await page.getByRole("textbox", { name: "Email" }).fill("w2b@example.com");
+    await page.getByLabel("Password").fill("Workspace password 123!");
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect(page.locator("dl")).toBeVisible();
     await page.getByRole("link", { name: "Bundles", exact: true }).click();
     await expect(page.getByRole("combobox", { name: "Bundle Workspace" })).toHaveValue(alpha);
-    await expect(page.getByTestId("bundle-kind")).toHaveValue("CASE");
+    await expect(page.getByLabel("Selection")).toHaveValue("CASE");
 });

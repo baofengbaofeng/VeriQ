@@ -25,10 +25,10 @@ test("real CLI enrollment, owner consent, trust and revocation in Runtime UI", a
         ).toBe(201);
     await page.goto("/login");
     await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
-    await page.getByTestId("email").fill("browser-admin@example.com");
-    await page.getByTestId("password").fill("Browser password 123!");
-    await page.getByTestId("login-submit").click();
-    await expect(page.getByTestId("account-info")).toBeVisible();
+    await page.getByRole("textbox", { name: "Email" }).fill("browser-admin@example.com");
+    await page.getByLabel("Password").fill("Browser password 123!");
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect(page.locator("dl")).toBeVisible();
     const session = (await (await page.request.get("/api/v1/auth/session")).json()).data;
     headers["X-CSRF-Token"] = session.csrfToken;
     const ws = (
@@ -41,7 +41,7 @@ test("real CLI enrollment, owner consent, trust and revocation in Runtime UI", a
     ).data.id;
     await page.goto("/runtimes");
     await expect(page.getByRole("heading", { name: "Runtimes", exact: true })).toBeVisible();
-    await page.getByTestId("runtime-workspace").selectOption(ws);
+    await page.getByLabel("Workspace").selectOption(ws);
     await expect(page.getByText("No registered Runtimes in this Workspace.")).toBeVisible();
     const directory = await mkdtemp(join(tmpdir(), "veriq-browser-device-"));
     const child = spawn(
@@ -68,32 +68,36 @@ test("real CLI enrollment, owner consent, trust and revocation in Runtime UI", a
     try {
         await expect.poll(() => /Approval code: ([A-Z2-7]{12})/.exec(output)?.[1]).toBeTruthy();
         const code = /Approval code: ([A-Z2-7]{12})/.exec(output)![1]!;
-        await page.getByTestId("enrollment-code").fill(code);
-        await page.getByTestId("enrollment-inspect").click();
-        await expect(page.getByTestId("enrollment-preview")).toContainText("Browser laptop");
-        await page.getByTestId("enrollment-approve").click();
-        await expect(page.getByTestId("success")).toContainText("Device approved");
+        await page.getByLabel("Approval code").fill(code);
+        await page.getByRole("button", { name: "Inspect device" }).click();
+        await expect(page.getByRole("button", { name: "Approve device" }).locator("..")).toContainText(
+            "Browser laptop",
+        );
+        await page.getByRole("button", { name: "Approve device" }).click();
+        await expect(page.getByText("Device approved")).toContainText("Device approved");
         expect(await exit).toBe(0);
         const config = JSON.parse(await readFile(join(directory, "device.json"), "utf8"));
         expect(output).not.toContain(config.deviceToken);
-        const card = page.getByTestId(`runtime-${config.runnerId}`);
+        const card = page
+            .getByRole("article")
+            .filter({ has: page.getByRole("heading", { name: "Browser laptop", exact: true }) });
         await expect(card).toContainText("OFFLINE");
         await expect(card).toContainText("USER_REGISTERED");
-        await card.getByTestId("share-workspace").check();
-        await card.getByTestId("save-grants").click();
+        await card.getByLabel("Share with the Workspace").check();
+        await card.getByRole("button", { name: "Save sharing" }).click();
         await expect(card.getByRole("status")).toContainText("Sharing updated");
-        await card.getByTestId("trust-status").selectOption("MANAGED");
-        await card.getByTestId("save-trust").click();
-        await expect(card.getByTestId("current-trust")).toContainText("MANAGED");
-        await card.getByTestId("credential-delivery").check();
-        await card.getByTestId("save-delivery").click();
+        await card.getByLabel("Current trust").selectOption("MANAGED");
+        await card.getByRole("button", { name: "Save trust" }).click();
+        await expect(card.getByText("Current trust:")).toContainText("MANAGED");
+        await card.getByLabel("Allow platform credential delivery").check();
+        await card.getByRole("button", { name: "Save credential delivery" }).click();
         await expect(card.getByRole("status")).toContainText("Workspace credential delivery updated");
         await page.screenshot({
             path: "../../.superpowers/sdd/veriq-1/evidence/t08/runtime-managed.png",
             fullPage: true,
         });
-        await card.getByTestId("revoke-runtime").click();
-        await expect(card.getByTestId("current-trust")).toContainText("REVOKED");
+        await card.getByRole("button", { name: "Revoke device" }).click();
+        await expect(card.getByText("Current trust:")).toContainText("REVOKED");
         const rejected = await page.request.get("/internal/v1/runtime", {
             headers: { Authorization: "Bearer " + config.deviceToken },
         });
@@ -109,10 +113,10 @@ test("deployment account UI registers a real service Runtime through CLI stdin a
     const origin = "http://127.0.0.1:5173";
     await page.goto("/login");
     await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
-    await page.getByTestId("email").fill("browser-admin@example.com");
-    await page.getByTestId("password").fill("Browser password 123!");
-    await page.getByTestId("login-submit").click();
-    await expect(page.getByTestId("account-info")).toBeVisible();
+    await page.getByRole("textbox", { name: "Email" }).fill("browser-admin@example.com");
+    await page.getByLabel("Password").fill("Browser password 123!");
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect(page.locator("dl")).toBeVisible();
     const session = (await (await page.request.get("/api/v1/auth/session")).json()).data;
     const ws = (
         await (
@@ -124,7 +128,7 @@ test("deployment account UI registers a real service Runtime through CLI stdin a
     ).data.id;
     await page.goto("/runtimes");
     await expect(page.getByRole("heading", { name: "Runtimes", exact: true })).toBeVisible();
-    await page.getByTestId("runtime-workspace").selectOption(ws);
+    await page.getByLabel("Workspace").selectOption(ws);
     await page.getByLabel("Name", { exact: true }).fill("Browser deployment");
     await page.getByRole("button", { name: "Create service account", exact: true }).click();
     const account = page.getByRole("article").filter({
@@ -174,7 +178,11 @@ test("deployment account UI registers a real service Runtime through CLI stdin a
         expect((await run(["workspace", "use", ws])).status).toBe(0);
         expect((await run(["workspace", "use", "00000000-0000-4000-8000-000000000000"])).status).toBe(1);
         await page.getByRole("button", { name: "Refresh devices" }).click();
-        await expect(page.getByTestId(`runtime-${config.runnerId}`)).toContainText("MANAGED_CLOUD");
+        await expect(
+            page
+                .getByRole("article")
+                .filter({ has: page.getByRole("heading", { name: "Cloud browser worker", exact: true }) }),
+        ).toContainText("MANAGED_CLOUD");
         expect((await run(["logout"])).status).toBe(0);
         expect(
             (

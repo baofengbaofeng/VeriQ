@@ -16,10 +16,10 @@ export type EditorScope = {
 };
 export async function editorScope(page: Page, key: string): Promise<EditorScope> {
     await page.goto("/login");
-    await page.getByTestId("email").fill("browser-admin@example.com");
-    await page.getByTestId("password").fill("Browser password 123!");
-    await page.getByTestId("login-submit").click();
-    await expect(page.getByTestId("account-info")).toBeVisible();
+    await page.getByRole("textbox", { name: "Email" }).fill("browser-admin@example.com");
+    await page.getByLabel("Password").fill("Browser password 123!");
+    await page.getByRole("button", { name: "Sign in" }).click();
+    await expect(page.locator("dl")).toBeVisible();
     const session = (await (await page.request.get("/api/v1/auth/session")).json()).data;
     const headers = { Origin: origin, "X-CSRF-Token": session.csrfToken };
     const response = await page.request.post("/api/v1/workspaces", {
@@ -29,33 +29,33 @@ export async function editorScope(page: Page, key: string): Promise<EditorScope>
     expect(response.status(), await response.text()).toBe(201);
     const workspaceId = (await response.json()).data.id;
     await page.goto("/resources");
-    await page.getByTestId("resource-workspace").selectOption(workspaceId);
+    await page.getByLabel("Workspace").selectOption(workspaceId);
     return { workspaceId, key, headers };
 }
 export async function createResource(page: Page, kind: ResourceKind, key: string): Promise<S["ResourceDTO"]> {
-    await page.getByTestId("resource-kind").selectOption(kind);
-    await page.getByTestId("resource-key").fill(key);
-    await page.getByTestId("resource-name").fill(key);
+    await page.getByLabel("Kind", { exact: true }).selectOption(kind);
+    await page.getByLabel("Key").fill(key);
+    await page.getByLabel("Name").fill(key);
     const response = page.waitForResponse((r) => r.url().endsWith("/resources") && r.request().method() === "POST");
-    await page.getByTestId("resource-create").click();
+    await page.getByRole("button", { name: "Create resource" }).click();
     const created = await response;
     expect(created.status(), await created.text()).toBe(201);
     await expect(
-        page.getByTestId("resource-editor").getByRole("heading", { name: `${key} · ${kind}`, exact: true }),
+        page.getByRole("article").getByRole("heading", { name: `${key} · ${kind}`, exact: true }),
     ).toBeVisible();
     return (await created.json()).data;
 }
 export async function saveDraft(page: Page): Promise<S["DraftDTO"]> {
-    await expect(page.getByTestId("case.validation-errors")).toHaveCount(0);
+    await expect(page.locator('ul[role="alert"]')).toHaveCount(0);
     const response = page.waitForResponse((r) => r.url().endsWith("/draft") && r.request().method() === "PUT");
-    await page.getByTestId("resource-save").click();
+    await page.getByRole("button", { name: "Save draft" }).click();
     const saved = await response;
     expect(saved.status(), await saved.text()).toBe(200);
-    await expect(page.getByTestId("resource-status")).toContainText("Saved");
+    await expect(page.getByText("Saved")).toContainText("Saved");
     return (await saved.json()).data;
 }
 export async function replaceEditorJson(page: Page, text: string) {
-    const editor = page.getByTestId("resource-json");
+    const editor = page.locator(".vq-monaco").first();
     await editor.locator(".view-lines").click();
     await page.keyboard.press("Control+A");
     // Monaco0.57 mirrors selection into native EditContext at render time.
@@ -81,16 +81,16 @@ export async function replaceEditorJson(page: Page, text: string) {
     await page.keyboard.press("Control+V");
 }
 export async function applyDocument(page: Page, content: ResourceDocumentV1) {
-    await page.getByTestId("resource-json-tab").click();
+    await page.getByRole("button", { name: "JSON source" }).click();
     await replaceEditorJson(page, JSON.stringify(content, null, 2));
-    await page.getByTestId("resource-json-apply").click();
-    await expect(page.getByTestId("resource-json-pending")).toHaveCount(0);
-    await page.getByTestId("resource-form-tab").click();
-    await expect(page.getByTestId("case.validation-errors")).toHaveCount(0);
+    await page.getByRole("button", { name: "Apply JSON" }).click();
+    await expect(page.getByText("Unapplied JSON changes")).toHaveCount(0);
+    await page.getByRole("button", { name: "Visual form" }).click();
+    await expect(page.locator('ul[role="alert"]')).toHaveCount(0);
 }
 export async function queueValidation(page: Page): Promise<S["JobDTO"]> {
     const response = page.waitForResponse((r) => r.url().endsWith("/validate") && r.request().method() === "POST");
-    await page.getByTestId("case.validate").click();
+    await page.getByRole("button", { name: "Compile and validate" }).click();
     const queued = await response;
     expect(queued.status(), await queued.text()).toBe(202);
     return (await queued.json()).data;
@@ -160,18 +160,18 @@ export async function managedCompiler(page: Page, scope: EditorScope, evidenceTa
     };
     const publish = async (): Promise<S["ResourceVersionDTO"]> => {
         const job = await queueValidation(page);
-        await expect(page.getByTestId("case.publish")).toBeDisabled();
+        await expect(page.getByRole("button", { name: "Publish version" })).toBeDisabled();
         await compile();
-        await expect(page.getByTestId("case.validation-receipt")).toBeVisible({
+        await expect(page.getByText(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12} · /)).toBeVisible({
             timeout: 20_000,
         });
         const status = (await (await page.request.get(base + `/jobs/${job.id}`)).json()).data;
         expect(status.outcome).toBe("PASSED");
         const response = page.waitForResponse((r) => r.url().endsWith("/publish") && r.request().method() === "POST");
-        await page.getByTestId("case.publish").click();
+        await page.getByRole("button", { name: "Publish version" }).click();
         const published = await response;
         expect(published.status(), await published.text()).toBe(201);
-        await expect(page.getByTestId("case.published-version")).toBeVisible();
+        await expect(page.getByText(/^v\d+ · .+ · .+$/)).toBeVisible();
         return (await published.json()).data;
     };
     const close = async () => {
