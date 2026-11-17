@@ -210,7 +210,7 @@ export function BundleWorkspaceView({
             </option>
         ));
     return (
-        <section data-testid="bundle-workspace">
+        <section>
             <p>
                 {tx(
                     "签名用于来源与完整性校验。本地运行使用本机凭证，离线撤销状态未知。 / Signatu" +
@@ -225,7 +225,6 @@ export function BundleWorkspaceView({
                     <label>
                         {tx("选择类型 / Selection")}
                         <select
-                            data-testid="bundle-kind"
                             value={kind}
                             onChange={(e) => {
                                 setKind(e.target.value as typeof kind);
@@ -241,7 +240,6 @@ export function BundleWorkspaceView({
                     <label>
                         {tx("资源 / Resource")}
                         <select
-                            data-testid="bundle-resource"
                             value={resource}
                             onChange={(e) => {
                                 setResource(e.target.value);
@@ -260,7 +258,6 @@ export function BundleWorkspaceView({
                         <label>
                             {tx("不可变版本 / Published version")}
                             <select
-                                data-testid="bundle-version"
                                 multiple={kind === "CASE"}
                                 value={kind === "CASE" ? (version ? version.split(",") : []) : version}
                                 onChange={(e) =>
@@ -282,7 +279,6 @@ export function BundleWorkspaceView({
                     {kind !== "DRAFT" && versions.hasNextPage && (
                         <button
                             type="button"
-                            data-testid="bundle-more-versions"
                             disabled={versions.isFetchingNextPage}
                             onClick={() => void versions.fetchNextPage()}
                         >
@@ -293,7 +289,6 @@ export function BundleWorkspaceView({
                         <>
                             <button
                                 type="button"
-                                data-testid="bundle-add-case"
                                 disabled={!version || basket.length >= 100}
                                 onClick={() => {
                                     const selectedResource = items.find((r) => r.id === resource);
@@ -323,7 +318,7 @@ export function BundleWorkspaceView({
                             </button>
                             <ul aria-label={tx("Selected case versions")}>
                                 {basket.map((item) => (
-                                    <li key={item.version.id} data-testid="bundle-selected-case">
+                                    <li key={item.version.id}>
                                         {item.resource.name} · v{item.version.versionNo} · {item.version.id}
                                         <button
                                             type="button"
@@ -347,7 +342,6 @@ export function BundleWorkspaceView({
                     <label>
                         {tx("环境 / Environment")}
                         <select
-                            data-testid="bundle-environment"
                             value={environment}
                             onChange={(e) => {
                                 setEnvironment(e.target.value);
@@ -360,11 +354,7 @@ export function BundleWorkspaceView({
                     </label>
                     <label>
                         {tx("环境版本 / Environment version")}
-                        <select
-                            data-testid="bundle-environment-version"
-                            value={environmentVersion}
-                            onChange={(e) => setEnvironmentVersion(e.target.value)}
-                        >
+                        <select value={environmentVersion} onChange={(e) => setEnvironmentVersion(e.target.value)}>
                             <option value="">{tx("请选择 / Select")}</option>
                             {versionOptions(environments.data?.pages.flatMap((p) => p.items) ?? [])}
                         </select>
@@ -372,7 +362,6 @@ export function BundleWorkspaceView({
                     {environments.hasNextPage && (
                         <button
                             type="button"
-                            data-testid="bundle-more-environments"
                             disabled={environments.isFetchingNextPage}
                             onClick={() => void environments.fetchNextPage()}
                         >
@@ -390,7 +379,6 @@ export function BundleWorkspaceView({
                     )}
                     <button
                         type="button"
-                        data-testid="bundle-export"
                         disabled={
                             busy ||
                             !environmentVersion ||
@@ -407,16 +395,11 @@ export function BundleWorkspaceView({
                     )}
                     <h2>{tx("已导出 / Exports")}</h2>
                     {(bundles.data?.pages.flatMap((p) => p.items) ?? []).map((b) => (
-                        <article key={b.id} data-testid="bundle-item">
+                        <article key={b.id}>
                             <p>
                                 {b.id} · {b.validationStatus} · {b.createdAt}
                             </p>
-                            <button
-                                type="button"
-                                disabled={busy}
-                                data-testid="bundle-download"
-                                onClick={() => void download(b.id)}
-                            >
+                            <button type="button" disabled={busy} onClick={() => void download(b.id)}>
                                 {tx("下载 / Download")}
                             </button>
                         </article>

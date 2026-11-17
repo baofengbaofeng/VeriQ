@@ -112,7 +112,7 @@ export function IdentityManager({
     const kind = credential.watch("kind"),
         authKind = auth.watch("kind");
     return (
-        <section data-testid="identity-manager">
+        <section>
             <h2>{tx("环境身份与凭证 / Environment identities and credentials")}</h2>
             <p>
                 {tx(
@@ -154,17 +154,11 @@ export function IdentityManager({
                     </label>
                     <label>
                         {tx("身份路径 / Identity path")}
-                        <input
-                            data-testid="adapter-identity-path"
-                            {...auth.register("identityPath", { required: true })}
-                        />
+                        <input {...auth.register("identityPath", { required: true })} />
                     </label>
                     <label>
                         {tx("身份 Pointer / Identity pointer")}
-                        <input
-                            data-testid="adapter-identity-pointer"
-                            {...auth.register("identityPointer", { required: true })}
-                        />
+                        <input {...auth.register("identityPointer", { required: true })} />
                     </label>
                     {authKind === "HTTP_SESSION" && (
                         <label>
@@ -172,13 +166,13 @@ export function IdentityManager({
                             <input {...auth.register("loginPath", { required: true })} />
                         </label>
                     )}
-                    <Button type="submit" data-testid="adapter-create" disabled={busy}>
+                    <Button type="submit" disabled={busy}>
                         {tx("创建适配器版本 / Create adapter version")}
                     </Button>
                 </form>
                 {adapters.isPending && <p role="status">{tx("正在加载 / Loading…")}</p>}
                 {adapters.error && <ErrorState error={adapters.error} retry={() => void adapters.refetch()} />}
-                <div data-testid="adapter-list">
+                <div>
                     {adapters.data?.pages
                         .flatMap((p) => p.items)
                         .map((a) => (
@@ -249,7 +243,7 @@ export function IdentityManager({
                 >
                     <label>
                         {tx("创建或轮换 / Operation")}
-                        <select data-testid="credential-mode" {...credential.register("mode")}>
+                        <select {...credential.register("mode")}>
                             <option value="create">{tx("创建引用 / Create reference")}</option>
                             <option value="rotate">{tx("新版本 / New version")}</option>
                         </select>
@@ -257,7 +251,6 @@ export function IdentityManager({
                     <label>
                         {tx("引用 key / Secret ref")}
                         <input
-                            data-testid="credential-ref"
                             required
                             {...credential.register("secretRef", {
                                 required: true,
@@ -267,11 +260,7 @@ export function IdentityManager({
                     </label>
                     <label>
                         {tx("允许身份（每行一个）/ Allowed identities")}
-                        <textarea
-                            data-testid="credential-identities"
-                            required
-                            {...credential.register("identities", { required: true })}
-                        />
+                        <textarea required {...credential.register("identities", { required: true })} />
                     </label>
                     <label>
                         {tx("凭证类型 / Credential type")}
@@ -290,7 +279,6 @@ export function IdentityManager({
                         <label>
                             {tx("Bearer token")}
                             <input
-                                data-testid="credential-token"
                                 type="password"
                                 autoComplete="new-password"
                                 {...credential.register("token", {
@@ -321,13 +309,13 @@ export function IdentityManager({
                             </label>
                         </>
                     )}
-                    <Button type="submit" data-testid="credential-create" disabled={busy}>
+                    <Button type="submit" disabled={busy}>
                         {tx("保存凭证新版本 / Save credential version")}
                     </Button>
                 </form>
                 {credentials.isPending && <p role="status">{tx("正在加载 / Loading…")}</p>}
                 {credentials.error && <ErrorState error={credentials.error} retry={() => void credentials.refetch()} />}
-                <div data-testid="credential-list">
+                <div>
                     {credentials.data?.pages
                         .flatMap((p) => p.items)
                         .map((c) => (

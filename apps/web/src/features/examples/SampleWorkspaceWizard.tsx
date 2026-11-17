@@ -310,7 +310,7 @@ function SampleWorkspaceWizardSession({
     };
     if (!user) return null;
     return (
-        <section aria-labelledby="sample-wizard-title" data-testid="sample-workspace-wizard">
+        <section aria-labelledby="sample-wizard-title">
             <h2 id="sample-wizard-title" tabIndex={-1}>
                 {t("title")}
             </h2>
@@ -477,16 +477,12 @@ function SampleWorkspaceWizardSession({
                         />
                     </label>
                 </fieldset>
-                <button
-                    type="submit"
-                    disabled={running || !sample || !currentWorkspace}
-                    data-testid="sample-import-start"
-                >
+                <button type="submit" disabled={running || !sample || !currentWorkspace}>
                     {t("start")}
                 </button>
             </form>
             {running && (
-                <button type="button" data-testid="sample-import-stop" onClick={() => active.current?.abort()}>
+                <button type="button" onClick={() => active.current?.abort()}>
                     {t("stop")}
                 </button>
             )}

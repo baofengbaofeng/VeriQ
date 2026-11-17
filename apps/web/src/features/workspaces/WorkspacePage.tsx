@@ -65,7 +65,7 @@ export function WorkspacePage() {
             {!!items.length && (
                 <label>
                     {tx("Current Workspace")}
-                    <select data-testid="workspace-selector" value={selected} onChange={(e) => select(e.target.value)}>
+                    <select value={selected} onChange={(e) => select(e.target.value)}>
                         <option value="" disabled>
                             {tx("Select Workspace")}
                         </option>
@@ -84,7 +84,6 @@ export function WorkspacePage() {
             {workspaces.hasNextPage && (
                 <button
                     type="button"
-                    data-testid="workspaces-more"
                     disabled={workspaces.isFetchingNextPage}
                     onClick={() => void workspaces.fetchNextPage()}
                 >
@@ -94,7 +93,6 @@ export function WorkspacePage() {
             <button
                 type="button"
                 ref={sampleTrigger}
-                data-testid="sample-workspace-open"
                 aria-expanded={sampleOpen}
                 aria-controls="sample-workspace-panel"
                 onClick={() => setSampleOpen((open) => !open)}
@@ -140,19 +138,13 @@ export function WorkspacePage() {
             >
                 <label>
                     {tx("Key")}
-                    <input
-                        data-testid="workspace-key"
-                        name="key"
-                        required
-                        pattern="[A-Za-z_][A-Za-z0-9_.-]*"
-                        maxLength={160}
-                    />
+                    <input name="key" required pattern="[A-Za-z_][A-Za-z0-9_.-]*" maxLength={160} />
                 </label>
                 <label>
                     {tx("Name")}
-                    <input data-testid="workspace-name" name="name" required maxLength={160} />
+                    <input name="name" required maxLength={160} />
                 </label>
-                <button type="submit" data-testid="workspace-create" disabled={a.busy}>
+                <button type="submit" disabled={a.busy}>
                     {tx("Create Workspace")}
                 </button>
             </form>
@@ -203,12 +195,12 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
         );
     const ws = detail.data;
     return (
-        <article data-testid="workspace-detail">
+        <article>
             <h2>{ws.name}</h2>
             <p>
                 {ws.key} · {ws.role} · {ws.archived ? tx("Archived") : tx("Active")}
             </p>
-            <button type="button" data-testid="workspace-refresh" onClick={() => void a.run(refresh)} disabled={a.busy}>
+            <button type="button" onClick={() => void a.run(refresh)} disabled={a.busy}>
                 {tx("Refresh Workspace")}
             </button>
             {canManage && (
@@ -224,15 +216,9 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
                 >
                     <label>
                         {tx("Name")}
-                        <input
-                            name="name"
-                            data-testid="workspace-rename-name"
-                            defaultValue={ws.name}
-                            required
-                            maxLength={160}
-                        />
+                        <input name="name" defaultValue={ws.name} required maxLength={160} />
                     </label>
-                    <button type="submit" data-testid="workspace-rename" disabled={a.busy}>
+                    <button type="submit" disabled={a.busy}>
                         {tx("Rename Workspace")}
                     </button>
                 </form>
@@ -240,7 +226,6 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
             {ws.role === "OWNER" && !ws.archived && (
                 <button
                     type="button"
-                    data-testid="workspace-archive"
                     disabled={a.busy}
                     onClick={() =>
                         void a.run(async () => {
@@ -253,7 +238,7 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
                 </button>
             )}
             {!canManage && (
-                <p data-testid="workspace-permission">
+                <p>
                     {ws.archived
                         ? tx("Archived Workspaces are read-only.")
                         : tx("Your role cannot manage this Workspace or its members.")}
@@ -272,7 +257,7 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
             {members.isSuccess && !members.data.pages.some((page) => page.items.length) && (
                 <p>{tx("No members found.")}</p>
             )}
-            <ul data-testid="workspace-members">
+            <ul>
                 {members.data?.pages
                     .flatMap((page) => page.items)
                     .map((member) => (
@@ -288,7 +273,6 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
             {members.hasNextPage && (
                 <button
                     type="button"
-                    data-testid="members-more"
                     disabled={members.isFetchingNextPage}
                     onClick={() => void members.fetchNextPage()}
                 >
@@ -331,11 +315,11 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
                     >
                         <label>
                             {tx("Email")}
-                            <input name="email" type="email" data-testid="invite-email" required maxLength={254} />
+                            <input name="email" type="email" required maxLength={254} />
                         </label>
                         <label>
                             {tx("Role")}
-                            <select name="role" data-testid="invite-role" defaultValue="VIEWER">
+                            <select name="role" defaultValue="VIEWER">
                                 {roles
                                     .filter((role) => role !== "OWNER")
                                     .map((role) => (
@@ -344,22 +328,17 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
                             </select>
                         </label>
                         <label className="check">
-                            <input type="checkbox" name="sendEmail" data-testid="invite-email-send" />
+                            <input type="checkbox" name="sendEmail" />
                             {tx("Send by configured SMTP")}
                         </label>
-                        <button type="submit" data-testid="invite-create" disabled={a.busy}>
+                        <button type="submit" disabled={a.busy}>
                             {tx("Create invitation")}
                         </button>
                     </form>
                     {link && (
                         <label>
                             {tx("Copy invitation link")}
-                            <input
-                                data-testid="invitation-url"
-                                readOnly
-                                value={link}
-                                onFocus={(e) => e.currentTarget.select()}
-                            />
+                            <input readOnly value={link} onFocus={(e) => e.currentTarget.select()} />
                         </label>
                     )}
                     <h3>{tx("Invitations")}</h3>
@@ -379,7 +358,7 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
                         {invites.data?.pages
                             .flatMap((page) => page.items)
                             .map((invite) => (
-                                <li key={invite.id} data-testid={`invitation-${invite.email}`}>
+                                <li key={invite.id}>
                                     {invite.email} · {invite.role} · {invite.status} {tx(" · Expires")}{" "}
                                     {new Date(invite.expiresAt).toLocaleString(undefined, {
                                         timeZone: "Asia/Shanghai",
@@ -406,7 +385,6 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
                     {invites.hasNextPage && (
                         <button
                             type="button"
-                            data-testid="invitations-more"
                             disabled={invites.isFetchingNextPage}
                             onClick={() => void invites.fetchNextPage()}
                         >
@@ -442,7 +420,7 @@ function MemberRow({
     }, [member.role, member.status]);
     const editable = manageable && (member.role !== "OWNER" || workspace.role === "OWNER");
     return (
-        <li data-testid={`member-${member.email}`}>
+        <li>
             <p>
                 {member.displayName} · {member.email} · {member.role} · {member.status}
                 {member.userDisabled ? tx(" · Account disabled") : ""}
@@ -451,11 +429,7 @@ function MemberRow({
                 <>
                     <label>
                         {tx("Role")}
-                        <select
-                            data-testid="member-role"
-                            value={role}
-                            onChange={(e) => setRole(e.target.value as Member["role"])}
-                        >
+                        <select value={role} onChange={(e) => setRole(e.target.value as Member["role"])}>
                             {roles
                                 .filter((r) => r !== "OWNER" || workspace.role === "OWNER")
                                 .map((r) => (
@@ -465,11 +439,7 @@ function MemberRow({
                     </label>
                     <label>
                         {tx("Membership")}
-                        <select
-                            data-testid="member-status"
-                            value={status}
-                            onChange={(e) => setStatus(e.target.value as Member["status"])}
-                        >
+                        <select value={status} onChange={(e) => setStatus(e.target.value as Member["status"])}>
                             <option>ACTIVE</option>
                             <option>DISABLED</option>
                         </select>
@@ -541,12 +511,7 @@ export function AcceptInvitation() {
                         )}
                     </p>
                     <label className="check">
-                        <input
-                            type="checkbox"
-                            data-testid="invite-new-account"
-                            checked={newAccount}
-                            onChange={(e) => setNewAccount(e.target.checked)}
-                        />
+                        <input type="checkbox" checked={newAccount} onChange={(e) => setNewAccount(e.target.checked)} />
                         {tx("Create a new account")}
                     </label>
                     <form
@@ -592,7 +557,7 @@ export function AcceptInvitation() {
                                 <Field name="password" label={tx("Current account password")} type="password" />
                             </>
                         )}
-                        <button type="submit" data-testid="invite-accept" disabled={a.busy}>
+                        <button type="submit" disabled={a.busy}>
                             {tx("Accept invitation")}
                         </button>
                     </form>

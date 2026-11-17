@@ -1,7 +1,7 @@
 <a id="adr-0023-veriq-id-element-locator"></a>
 # 0023 被测系统元素定位标记 veriq-id
 
-- 状态：待审批（proposed）。
+- 状态：已选定（selected）。
 - 日期：2026-11-17。
 - 许可：不涉及新依赖或专有框架，沿用 AGPL-3.0。
 
@@ -16,7 +16,7 @@ VeriQ 的用例通过 `ElementCatalogV1` 目录描述被测系统元素，`locat
 ## 决策
 
 1. 被测系统元素定位属性由 `data-testid` 改为 `veriq-id`；DSL `locator.by` 由 `"testId"` 改为 `"veriqId"`，`value` 仍引用目录 Key。
-2. Runner SDK 的 `locator()` 不再调用 `getByTestId`，改为按 `veriq-id` 属性定位（等价于 Playwright `getByAttribute("veriq-id", value)`）。
+2. Runner SDK 的 `locator()` 不再调用 `getByTestId`，改为按 `veriq-id` 属性定位（等价于 Playwright `locator('[veriq-id="…"]')`）。
 3. VeriQ 后台自身移除全部 `data-testid`（也不引入 `testId`/`veriq-id`）；其内部端到端测试改用可访问角色、名称、label 与文本定位。
 4. `data-record-key` 保持不变，重复行仍用稳定业务 id 定位。
 

@@ -40,14 +40,12 @@ export function Monaco({
     language = "json",
     readOnly = false,
     label = "JSON source",
-    testId = "monaco",
 }: {
     value: string;
     onChange?: (value: string) => void;
     language?: string;
     readOnly?: boolean;
     label?: string;
-    testId?: string;
 }) {
     useAppLocale();
     const helpId = useId();
@@ -106,7 +104,7 @@ export function Monaco({
             >
                 {tx("Toggle Tab key navigation")}
             </button>
-            <div className="vq-monaco" ref={host} data-testid={testId} aria-describedby={helpId} />
+            <div className="vq-monaco" ref={host} aria-describedby={helpId} />
         </div>
     );
 }
@@ -144,5 +142,5 @@ export function MonacoDiff({ original, modified }: { original: string; modified:
     useEffect(() => {
         instance.current?.updateOptions({ ariaLabel: localizedLabel });
     }, [localizedLabel]);
-    return <div className="vq-monaco" data-testid="resource-diff" ref={host} />;
+    return <div className="vq-monaco" ref={host} />;
 }

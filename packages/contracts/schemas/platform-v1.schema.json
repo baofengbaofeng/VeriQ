@@ -1851,7 +1851,7 @@
                     "type": "object",
                     "properties": {
                         "by": {
-                            "const": "testId"
+                            "const": "veriqId"
                         },
                         "value": {
                             "$ref": "#/$defs/Key"

@@ -131,7 +131,7 @@ export function AssertionEditor({
     return (
         <>
             {phase === "BEFORE" && (
-                <p data-testid={`${name}.phase`}>
+                <p>
                     {tx(
                         "前置断言先于本步骤监听器安装；网络响应、计数与耗时断言应放在后置阶段。模板同" +
                             "样受调用阶段约束。 / BEFORE runs before step observers are arm" +
@@ -191,7 +191,7 @@ function AssertionFields({
             <Field name={`${path}.id`} label={tx("断言 ID / Assertion ID")} />
             <label>
                 {tx("断言类型 / Assertion type")}
-                <select data-testid={`${path}.type`} value={type} onChange={(e) => setType(e.target.value)}>
+                <select value={type} onChange={(e) => setType(e.target.value)}>
                     {!offeredTypes.includes(type) && (
                         <option value={type} disabled>
                             {type} {tx(" · 不适用于前置阶段 / Not available BEFORE")}
@@ -224,7 +224,6 @@ function AssertionFields({
                     <label>
                         {tx("运算符 / Operator")}
                         <select
-                            data-testid={`${path}.operator`}
                             value={operator}
                             onChange={(e) => {
                                 const next = e.target.value;

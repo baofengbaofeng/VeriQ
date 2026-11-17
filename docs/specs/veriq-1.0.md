@@ -17,7 +17,7 @@ VeriQ是面向企业PC Web系统的自动化冒烟与回归平台。模型按需
 | F01 | 安装与系统初始化 | 文档化部署、数据库迁移、管理员创建、配置校验、健康检查、示例资源 |
 | F02 | 自有用户 | 登录/退出、邀请或管理员创建、密码重置、禁用、会话撤销 |
 | F03 | Workspace | 一项目一Workspace、多空间成员、角色、切换、资源隔离、审计 |
-| F04 | 页面与元素 | testId/role定位、记录key、作用域、目录版本、引用影响 |
+| F04 | 页面与元素 | veriqId/role定位、记录key、作用域、目录版本、引用影响 |
 | F05 | 用例 | 步骤编辑、JSON编辑、数据驱动、变量、公共流程、草稿、校验、发布、差异、归档 |
 | F06 | 操作与断言 | UI、URL、请求、响应、JSON字段/Schema、持久化、最终一致、模板版本与预期依据 |
 | F07 | 环境与身份 | 前后端地址、域名约束、语言时区、业务角色、凭证引用和构建版本 |
@@ -281,7 +281,7 @@ AI完整提供Provider配置/连接测试、需求+OpenAPI+元素+数据生成�
 
 ## 16. 被测前后端接入要求
 
-前端testId表达业务语义，覆盖关键交互、结果、错误、加载/空态；重复行结合稳定recordKey，不用随机数/数组下标/翻译文案。Radix Trigger/Content和Portal单独锚点；CVA/asChild透传属性/ref。TanStack Query的后台请求不能误配，乐观更新须持久化验证；i18next固定locale/timezone；dnd-kit采用稳定目标和键盘优先；DOMPurify不为测试放宽清洗。
+前端以可访问角色、名称与标签表达业务语义，覆盖关键交互、结果、错误、加载/空态；不用随机数/数组下标/翻译文案作为定位依据。Radix Trigger/Content和Portal提供独立可访问锚点；CVA/asChild透传属性/ref。TanStack Query的后台请求不能误配，乐观更新须持久化验证；i18next固定locale/timezone；dnd-kit采用稳定目标和键盘优先；DOMPurify不为测试放宽清洗。
 
 Java/Python后端均以HTTP接入，提供固定OpenAPI、角色与正常认证、fixture准备/查询/cleanup、requestId和构建 SHA。fixture幂等、每Attempt独立命名空间、UI创建资源可精确归属、finally和TTL补偿；同key不同参数409；清理重复安全且不能触碰其他fixture。测试支持仅在受控环境鉴权开放。权限测试使用普通业务身份。所有地址从实际Runtime可达。
 

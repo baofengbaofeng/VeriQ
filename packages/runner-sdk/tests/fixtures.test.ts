@@ -195,9 +195,9 @@ test("sample backend isolates Attempts, cleans UI resources and rejects a concur
         expect(other.namespace).not.toBe(first.namespace);
         const business = await authenticateBusiness(context);
         await f.page.goto(demo.origin + `/?namespace=${first.namespace}`);
-        await f.page.getByTestId("name").fill("UI-created");
-        await f.page.getByTestId("save").click();
-        await f.page.getByTestId("result").getByText("CREATED", { exact: true }).waitFor();
+        await f.page.locator('[veriq-id="name"]').fill("UI-created");
+        await f.page.locator('[veriq-id="save"]').click();
+        await f.page.locator('[veriq-id="result"]').getByText("CREATED", { exact: true }).waitFor();
         const listed = await f.page.request.get(demo.origin + `/employees?namespace=${first.namespace}`, {
             headers: { authorization: `Bearer ${demo.businessToken}` },
         });
@@ -427,7 +427,7 @@ test("built-in lifecycle compensates after cancellation closes the business brow
     if (catalog.kind !== "ELEMENT_CATALOG") throw Error();
     catalog.document.elements.push({
         key: "save",
-        locator: { by: "testId", value: "save" },
+        locator: { by: "veriqId", value: "save" },
     });
     rehash(source);
     const e = execution(demo.origin);

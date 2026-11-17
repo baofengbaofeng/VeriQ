@@ -27,12 +27,7 @@ export function LanguageControl() {
     return (
         <label htmlFor={id} className="veriq-language">
             {tx("Language")}
-            <select
-                id={id}
-                data-testid="app-language"
-                value={language}
-                onChange={(event) => setLanguage(event.target.value)}
-            >
+            <select id={id} value={language} onChange={(event) => setLanguage(event.target.value)}>
                 <option value="zh">中文</option>
                 <option value="en">English</option>
             </select>

@@ -9,7 +9,7 @@
 | F01 安装初始化 | `apps/srv/src/veriq_server/cli.py`、`deploy/`、`examples/`、`scripts/build_release.py` | V02、V06、V08 | 干净部署、迁移、管理员、静态资源、示例导入；缺少必需资源时拒绝启动 |
 | F02 自有用户 | 后端 `service.py`、`handlers/`；Web `pages/`、`api.ts` | V01、V02、V10 | 登录/退出、禁用/撤销、邀请重置、CSRF；迟到响应与 Cookie 不覆盖新会话 |
 | F03 Workspace | `services/workspace.py`、Web `features/workspaces/` | V01、V02、V10 | 多空间角色、最后 OWNER、资源/事件/下载/嵌套引用隔离 |
-| F04 页面元素 | `packages/contracts/schemas/`、Web `features/resources/` | V01、V06、V10 | testId/role、recordKey、作用域、版本与引用影响 |
+| F04 页面元素 | `packages/contracts/schemas/`、Web `features/resources/` | V01、V06、V10 | veriqId/role、recordKey、作用域、版本与引用影响 |
 | F05 用例编译发布 | `packages/compiler/`、后端资源/发布服务、资源编辑器 | V01、V04、V06、V10 | 真实草稿→编译→回执→发布；Flow/模板/数据引用与版本源码一致 |
 | F06 操作断言 | `packages/runner-sdk/`、Runtime `src/execution/` | V04、V05、V10 | UI/URL/请求/响应/JSON/持久化/最终一致断言；快速响应和歧义不得误关联 |
 | F07 环境身份 | Runtime `src/credentials/`、后端加密/权限服务、环境编辑器 | V01、V03、V05、V10 | 构建版本、域名、语言时区、角色、凭证轮换/撤销、无明文回退 |

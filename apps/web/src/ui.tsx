@@ -16,21 +16,13 @@ import { Input, Field as FormField } from "./components";
 export function Notice({ error, message }: { error?: string; message?: string }) {
     return (
         <>
-            {error && (
-                <p role="alert" data-testid="error">
-                    {tx(error)}
-                </p>
-            )}
-            {message && (
-                <p role="status" data-testid="success">
-                    {tx(message)}
-                </p>
-            )}
+            {error && <p role="alert">{tx(error)}</p>}
+            {message && <p role="status">{tx(message)}</p>}
         </>
     );
 }
 /**
- * 带 label/data-testid 的非受控输入字段保留浏览器必填及长度校验，并按字段类型选择 maxLength 与 autocomplete；hint 为短
+ * 带 label 的非受控输入字段保留浏览器必填及长度校验，并按字段类型选择 maxLength 与 autocomplete；hint 为短
  * 提示直接内联展示，longHint 折叠为「?」图标悬停展示，使普通认证与账户表单获得一致的操作提示。字段结构复用组件库的
  * Field 与 Input，避免重复实现标签、提示与聚焦样式。
  * 用于认证、账户与管理表单；资源 DSL 编辑请改用 features/resources/fields 的 RHF 字段。
@@ -55,7 +47,6 @@ export function Field({
             <Input
                 id={name}
                 name={name}
-                data-testid={name}
                 type={type}
                 required
                 minLength={minLength}

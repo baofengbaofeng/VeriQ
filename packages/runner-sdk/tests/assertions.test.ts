@@ -137,10 +137,10 @@ it.each([
         createStepContext(f.options),
     );
     expect(r.status).toBe("PASSED");
-    if (action === "fill") expect(await f.page.getByTestId("name").inputValue()).toBe("A");
+    if (action === "fill") expect(await f.page.locator('[veriq-id="name"]').inputValue()).toBe("A");
     if (action === "check" || action === "uncheck")
-        expect(await f.page.getByTestId("check").isChecked()).toBe(action === "check");
-    if (action === "selectOption") expect(await f.page.getByTestId("select").inputValue()).toBe("b");
+        expect(await f.page.locator('[veriq-id="check"]').isChecked()).toBe(action === "check");
+    if (action === "selectOption") expect(await f.page.locator('[veriq-id="select"]').inputValue()).toBe("b");
 });
 it.each([
     ["visible", "text", true],
@@ -254,7 +254,7 @@ it("requires an upload provider and uses actual file bytes from it", async () =>
             )
         ).status,
     ).toBe("PASSED");
-    expect(await f.page.getByTestId("upload").evaluate((el: HTMLInputElement) => el.files?.[0]?.name)).toBe(
+    expect(await f.page.locator('[veriq-id="upload"]').evaluate((el: HTMLInputElement) => el.files?.[0]?.name)).toBe(
         "fixture.txt",
     );
 });

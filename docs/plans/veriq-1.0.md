@@ -354,8 +354,8 @@ expect(firstAttempt.fixtureId).not.toBe(secondAttempt.fixtureId);
 - [x] **步骤 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
 
 ```ts
-expect(await page.getByTestId("case.validation-errors").count()).toBe(0);
-await expect(page.getByTestId("case.published-version")).toBeVisible();
+expect(await page.locator('[veriq-id="case.validation-errors"]').count()).toBe(0);
+await expect(page.locator('[veriq-id="case.published-version"]')).toBeVisible();
 ```
 
 - [x] **步骤 2：运行测试确认未实现时失败。** `pnpm --filter @veriq/web test:e2e case-publish.spec.ts`；失败必须来自缺失行为，而非测试环境拼写错误。
@@ -693,8 +693,8 @@ assert incompatible_rollback_is_rejected is True
 - [ ] **步骤 1：编写失败测试。** 落实以下关键断言与规格中的该模块验收。
 
 ```ts
-await expect(page.getByTestId("workspace.demo")).toBeVisible();
-await expect(page.getByTestId("run.outcome")).toHaveText("PASSED");
+await expect(page.locator('[veriq-id="workspace.demo"]')).toBeVisible();
+await expect(page.locator('[veriq-id="run.outcome"]')).toHaveText("PASSED");
 ```
 
 - [ ] **步骤 2：运行测试确认未实现时失败。** `pnpm e2e -- tests/e2e/full-product.spec.ts`；失败必须来自缺失行为，而非测试环境拼写错误。

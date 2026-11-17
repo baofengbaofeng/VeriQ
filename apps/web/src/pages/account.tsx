@@ -70,7 +70,7 @@ export function Account() {
     };
     return (
         <Panel title={tx("Your account")}>
-            <dl data-testid="account-info">
+            <dl>
                 <dt>{tx("Display name")}</dt>
                 <dd>{user.displayName}</dd>
                 <dt>{tx("Email")}</dt>
@@ -99,19 +99,14 @@ export function Account() {
                     minLength={12}
                     longHint={tx("至少 12 个字符，建议混用字母、数字与符号。")}
                 />
-                <button type="submit" data-testid="change-password" disabled={a.busy}>
+                <button type="submit" disabled={a.busy}>
                     {tx("Change password and sign out")}
                 </button>
             </form>
             <h2>{tx("Active sessions")}</h2>
             <label>
                 {tx("Sessions per page")}
-                <select
-                    data-testid="sessions-limit"
-                    value={limit}
-                    disabled={a.busy}
-                    onChange={(e) => setLimit(Number(e.target.value))}
-                >
+                <select value={limit} disabled={a.busy} onChange={(e) => setLimit(Number(e.target.value))}>
                     {[1, 10, 25, 50, 100].map((value) => (
                         <option key={value} value={value}>
                             {value}
@@ -133,7 +128,7 @@ export function Account() {
             ) : sessions.items.length === 0 ? (
                 <p>{tx("No active sessions.")}</p>
             ) : (
-                <ul data-testid="sessions">
+                <ul>
                     {sessions.items.map((s) => (
                         <li key={s.id}>
                             {s.current ? tx("This session") : tx("Other session")} {tx(" · Expires")}{" "}
@@ -145,7 +140,6 @@ export function Account() {
             {sessions?.nextCursor && (
                 <button
                     type="button"
-                    data-testid="sessions-more"
                     disabled={a.busy}
                     onClick={() => void a.run(() => loadSessions(sessions.nextCursor!))}
                 >
@@ -154,7 +148,6 @@ export function Account() {
             )}
             <button
                 type="button"
-                data-testid="revoke-own"
                 disabled={a.busy}
                 onClick={() =>
                     void a.run(async () => {

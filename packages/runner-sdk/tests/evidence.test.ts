@@ -20,8 +20,8 @@ test(
                 authorization: `Bearer ${secret}`,
                 cookie: `demo=${secret}`,
             });
-            await f.page.getByTestId("name").fill(secret);
-            await f.page.getByTestId("save").click();
+            await f.page.locator('[veriq-id="name"]').fill(secret);
+            await f.page.locator('[veriq-id="save"]').click();
             const screenshot = await policy.screenshot(f.page, directory);
             const trace = await policy.stopTrace(f.page.context(), directory);
             expect((await stat(screenshot.path)).size).toBeGreaterThan(100);
@@ -86,7 +86,7 @@ test(
                 res.end(secret);
             } else {
                 res.setHeader("content-type", "text/html");
-                res.end('<a data-testid="download" href="/file">Download</a>');
+                res.end('<a veriq-id="download" href="/file">Download</a>');
             }
         });
         await new Promise<void>((r) => target.listen(0, "127.0.0.1", r));
@@ -105,7 +105,7 @@ test(
                 },
                 catalog: {
                     schemaVersion: "1.0",
-                    elements: [{ key: "download", locator: { by: "testId", value: "download" } }],
+                    elements: [{ key: "download", locator: { by: "veriqId", value: "download" } }],
                 },
                 downloads: { directory, maxBytes: 1024 },
             });
@@ -142,7 +142,7 @@ test(
                 ]);
                 const catalog = source.assets.find((a) => a.kind === "ELEMENT_CATALOG")!;
                 if (catalog.kind !== "ELEMENT_CATALOG") throw Error();
-                catalog.document.elements = [{ key: "download", locator: { by: "testId", value: "download" } }];
+                catalog.document.elements = [{ key: "download", locator: { by: "veriqId", value: "download" } }];
                 rehash(source);
                 const captured: unknown[] = [];
                 const report = await executeCase(analyze(source).cases[0]!, source, {
