@@ -1,5 +1,6 @@
 import json
 import re
+from collections.abc import Awaitable, Callable
 from veriq_server.validation import api_document, validate_api
 from pathlib import Path
 import httpx
@@ -14,6 +15,21 @@ from veriq_server.db import Database
 from veriq_server.settings import Settings
 from veriq_server.service import provision_setup_secret
 from veriq_server.migrate import migrate
+
+
+def _response_hooks(
+    request: pytest.FixtureRequest, validate: Callable[[httpx.Response], Awaitable[None]]
+) -> list[Callable[[httpx.Response], Awaitable[None]]]:
+    """在站点启动时接纳用例提供的可选守卫，并将同一契约校验器交给守卫以处理包含实例的失败诊断。"""
+    if "veriq_response_guard" not in request.fixturenames:
+        return [validate]
+    guard = request.getfixturevalue("veriq_response_guard")
+
+    async def guarded_response(response: httpx.Response) -> None:
+        """在首次匿名安装请求及之后的响应中沿用同一个守卫，依次扫描响应并调用原有公开契约检查。"""
+        await guard(response, validate)
+
+    return [guarded_response]
 
 
 @pytest.fixture
@@ -140,7 +156,7 @@ async def site(request, monkeypatch):
     async with httpx.AsyncClient(
         base_url=settings.public_url,
         headers={"Origin": settings.public_url},
-        event_hooks={"response": [validate_response]},
+        event_hooks={"response": _response_hooks(request, validate_response)},
     ) as c:
         state = await c.get("/api/v1/setup")
         c.headers["X-CSRF-Token"] = state.json()["data"]["csrfToken"]
