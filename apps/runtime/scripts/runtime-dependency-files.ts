@@ -176,7 +176,7 @@ export async function admitDependencyBuildRoot(work: ArchiveTransaction, root: s
  * 来源路径只能在本次独占安装根中逐级创建，内容先由来源绑定核验再使用排他写入；所有包清单和锁保留原始字节，不通过重新序
  * 列化或 pnpm 命令参数替换原始源码声明。
  */
-export async function writeDependencySource(root: string, path: string, bytes: Buffer) {
+export async function writeDependencySource(root: string, path: string, bytes: Uint8Array) {
     relative(path);
     await mkdir(dirname(join(root, path)), { recursive: true, mode: 0o700 });
     await writeFile(join(root, path), bytes, { flag: "wx", mode: 0o600 });
@@ -189,7 +189,7 @@ export async function writeDependencySource(root: string, path: string, bytes: B
 export async function writeDependencyView(
     work: ArchiveTransaction,
     path: string,
-    bytes: Buffer,
+    bytes: Uint8Array,
     mode = 0o644,
 ): Promise<Ref> {
     const ref = await work.write(`views/${relative(path)}`, assetBytes(bytes), undefined, mode);
