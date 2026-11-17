@@ -2,8 +2,8 @@
  * Test-only real UI/API/CLI helpers; never a production compiler or receipt writer.
  */
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium, expect, type Page } from "@playwright/test";
 import type { PlatformComponents, ResourceDocumentV1, ResourceKind } from "@veriq/contracts";
@@ -214,15 +214,15 @@ export async function managedCompiler(page: Page, scope: EditorScope, evidenceTa
                 guardianPid: journal.guardianPid,
             });
         }
-        await writeFile(
-            fileURLToPath(
-                new URL(
-                    `../../../.superpowers/sdd/veriq-1/evidence/${evidenceTask}/fix1-stops-${scope.key}.json`,
-                    import.meta.url,
-                ),
+        const evidencePath = fileURLToPath(
+            new URL(
+                `../../../.superpowers/sdd/veriq-1/evidence/${evidenceTask}/fix1-stops-${scope.key}.json`,
+                import.meta.url,
             ),
-            JSON.stringify(stops, null, 2),
         );
+        // 全新持续集成检出没有旧证据目录，仅建立当前夹具自己的输出父目录；写入失败仍保留私有恢复现场。
+        await mkdir(dirname(evidencePath), { recursive: true });
+        await writeFile(evidencePath, JSON.stringify(stops, null, 2));
         expect(
             stops.every((stop) => stop.state === "STOPPED"),
             "Unconfirmed stop; private profile retained at " + profile,

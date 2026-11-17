@@ -250,7 +250,7 @@ test("real setup, login, account, administration and one-time reset", async ({ p
     await page.getByRole("textbox", { name: "Email" }).fill("browser-second-admin@example.com");
     await page.getByRole("textbox", { name: /^Display name/ }).fill("Second Administrator");
     await page.getByLabel("Password").fill("Second password 123!");
-    await page.getByLabel("System administrator").check();
+    await page.getByRole("checkbox", { name: "System administrator", exact: true }).check();
     await page.getByRole("button", { name: "Create user" }).click();
     await expect(page.getByRole("row", { name: "browser-second-admin@example.com" })).toBeVisible();
 
@@ -266,7 +266,7 @@ test("real setup, login, account, administration and one-time reset", async ({ p
     page.on("request", recordUsers);
     await page.getByLabel("Search email or display name").fill("browser-");
     await page.getByLabel("Account status").selectOption("false");
-    await page.getByLabel("Permission").selectOption("");
+    await page.getByRole("combobox", { name: "Permission", exact: true }).selectOption("");
     await page.getByLabel("Users per page").selectOption("1");
     expect(userQueries).toHaveLength(0);
     const applied = page.waitForResponse(

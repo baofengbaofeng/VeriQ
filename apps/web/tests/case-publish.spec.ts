@@ -515,7 +515,7 @@ test("all eight kinds expose usable typed controls and preserve literal business
             await page.getByRole("combobox", { name: "Assertion type", exact: true }).selectOption("responseField");
             await page.getByLabel("Network source").fill("response:save");
             const expectedType = page.getByRole("combobox", {
-                name: "Expected value 类型 / Type",
+                name: "Expected value Type",
                 exact: true,
             });
             await expectedType.selectOption("null");
@@ -648,7 +648,10 @@ test("JSON Apply is lossless, blocks unapplied writes, and revision recovery ret
     };
     page.on("request", record);
     await page.getByRole("button", { name: "Save draft" }).click();
-    await expect(page.locator('div[role="alert"]')).toContainText("尚未应用");
+    const resourceError = page.getByRole("dialog").getByRole("article").locator(':scope > div[role="alert"]');
+    await expect(resourceError).toHaveText(
+        "Unapplied JSON changes: apply or discard them before saving, validating or publishing.",
+    );
     expect(writes).toBe(0);
     await page.getByRole("button", { name: "Apply JSON" }).click();
     await expect(page.getByText("Unapplied JSON changes")).toHaveCount(0);
@@ -713,7 +716,7 @@ test("JSON Apply is lossless, blocks unapplied writes, and revision recovery ret
     await page.getByRole("button", { name: "JSON source" }).click();
     await replaceJson("{ invalid");
     await page.getByRole("button", { name: "Apply JSON" }).click();
-    await expect(page.locator('div[role="alert"]')).toBeVisible();
+    await expect(resourceError).toBeVisible();
     await closeResourceEditor(page);
     await page.getByLabel("Workspace").selectOption(secondWorkspace.id);
     await expect(page.getByRole("article")).toHaveCount(0);
@@ -751,19 +754,19 @@ test("fixture binding picker exposes declared initial variables without future o
     await page.getByRole("button", { name: "Add Initial variable declarations" }).click();
     await page
         .getByRole("textbox", {
-            name: "Fixture input bindings 字段名 / Field name",
+            name: "Fixture input bindings Field name",
             exact: true,
         })
         .fill("answer");
     await page
         .locator(".vq-value")
         .filter({
-            has: page.getByRole("textbox", { name: "Fixture input bindings 字段名 / Field name", exact: true }),
+            has: page.getByRole("textbox", { name: "Fixture input bindings Field name", exact: true }),
         })
         .getByRole("button", { name: "Add field", exact: true })
         .click();
     const picker = page.getByRole("combobox", {
-        name: "Fixture input bindings.answer 插入绑定 / Insert binding",
+        name: "Fixture input bindings.answer Insert binding",
         exact: true,
     });
     await expect(picker).toBeVisible();
@@ -1163,7 +1166,7 @@ test("primitive rows preserve focused survivors and persist only business values
     await nested.pressSequentially(" edited");
     await expect(nested).toHaveValue("same edited");
     expect(await survivor.evaluate((node) => node === document.activeElement)).toBe(true);
-    const root = page.getByRole("combobox", { name: "payload 类型 / Type", exact: true }).locator("../..");
+    const root = page.getByRole("combobox", { name: "payload Type", exact: true }).locator("../..");
     // 原生 click 激活前面的删除按钮而不把键盘焦点移到该按钮，以便直接观察存活输入节点的焦点；不改写 DOM、值或产品事件处
     // 理，增删仍完全经过真实 React 控件。
     await root
