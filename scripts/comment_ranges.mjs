@@ -6,6 +6,7 @@
  * 同一注释可能属于多个节点，按起止偏移去重后再计数。
  */
 import { readFileSync } from "node:fs";
+import { extname } from "node:path";
 import { pathToFileURL } from "node:url";
 
 /**
@@ -18,9 +19,57 @@ const { default: ts } = await import(
         : new URL("../packages/compiler/node_modules/typescript/lib/typescript.js", import.meta.url).href
 );
 const paths = JSON.parse(readFileSync(0, "utf8"));
-const output = {};
+const scriptKinds = new Map([
+    [".ts", ts.ScriptKind.TS],
+    [".mts", ts.ScriptKind.TS],
+    [".cts", ts.ScriptKind.TS],
+    [".tsx", ts.ScriptKind.TSX],
+    [".js", ts.ScriptKind.JS],
+    [".mjs", ts.ScriptKind.JS],
+    [".cjs", ts.ScriptKind.JS],
+    [".jsx", ts.ScriptKind.JSX],
+]);
+const sources = [];
+let invalid = false;
+let diagnosticCount = 0;
+/**
+ * 所有文件先完成语法检查再提取注释，诊断只保留有界路径位置与编号；恢复生成的语法树不能被当作已验证的源码统计结果。
+ */
+const reject = (path, source, position, code) => {
+    invalid = true;
+    if (diagnosticCount++ >= 20) return;
+    const location = source.getLineAndCharacterOfPosition(position);
+    const safePath = JSON.stringify([...path].slice(0, 200).join(""));
+    process.stderr.write(`${safePath}:${location.line + 1}:${location.character + 1}: TS${code}\n`);
+};
 for (const path of paths) {
+    const kind = scriptKinds.get(extname(path));
+    if (kind === undefined) {
+        invalid = true;
+        if (diagnosticCount++ < 20) {
+            process.stderr.write(`Unsupported source language: ${JSON.stringify([...path].slice(0, 200).join(""))}\n`);
+        }
+        continue;
+    }
     const text = readFileSync(path, "utf8");
+    const source = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, kind);
+    for (const diagnostic of source.parseDiagnostics) {
+        reject(path, source, diagnostic.start ?? 0, diagnostic.code);
+    }
+    const jsxTextRanges = [];
+    /**
+     * 官方解析器确认的标签正文属于字面文字，遍历节点时即使发现斜杠也不能当作注释，区间过滤保持原始语法与方言判定。
+     */
+    const validate = (node) => {
+        if (ts.isJsxText(node)) jsxTextRanges.push([node.pos, node.end]);
+        ts.forEachChild(node, validate);
+    };
+    validate(source);
+    sources.push({ path, text, source, jsxTextRanges });
+}
+if (invalid) process.exit(1);
+const output = Object.create(null);
+for (const { path, text, source, jsxTextRanges } of sources) {
     /**
      * 每个文件只遍历一次原文建立 UTF16 有效边界到 Unicode 码点位置的映射，成对代理字符仅推进一个码点；解析器的注释边界
      * 不会拆分字符，原始偏移仍保留给既有消费者使用。
@@ -33,7 +82,6 @@ for (const path of paths) {
         codePointOffset += 1;
         codePointOffsets[offset] = codePointOffset;
     }
-    const source = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true);
     const ranges = new Map();
     const visit = (node) => {
         for (const position of [node.pos, node.end]) {
@@ -41,7 +89,9 @@ for (const path of paths) {
                 ...(ts.getLeadingCommentRanges(text, position) ?? []),
                 ...(ts.getTrailingCommentRanges(text, position) ?? []),
             ]) {
-                ranges.set(`${range.pos}:${range.end}`, range);
+                if (!jsxTextRanges.some(([start, end]) => range.pos >= start && range.pos < end)) {
+                    ranges.set(`${range.pos}:${range.end}`, range);
+                }
             }
         }
         for (const child of node.getChildren(source)) visit(child);

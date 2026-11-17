@@ -1,7 +1,7 @@
 """注释审计验收通过微型 Git 仓库调用真实 Python 审计和固定 TypeScript 桥接，验证补充字符与原始换行不会改变计数、
 违规行或发行退出码，并保留既有范围和严格比例门槛。
 
-夹具仅复制两个轻量脚本并只读链接既有解析器，不安装或复制依赖树。所有被审计片段都是受控输入，短注释专门验证失败规则而非项
+夹具仅复制三个轻量脚本并只读链接既有解析器，不安装或复制依赖树。所有被审计片段都是受控输入，短注释专门验证失败规则而非项
 目说明。
 """
 
@@ -11,10 +11,10 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tokenize
 from typing import Any, cast
 
 import pytest
-
 
 ROOT = Path(__file__).resolve().parents[2]
 LONG = (
@@ -23,8 +23,8 @@ LONG = (
 )
 
 
-@pytest.fixture
-def repository(tmp_path: Path) -> Path:
+@pytest.fixture(name="repository")
+def repository_fixture(tmp_path: Path) -> Path:
     """每个验收使用独立且可清理的微型仓库，脚本副本保持只读且解析器只链接现有锁定版本；忽略工具目录使统计仅包含测试选择
     的输入，同时保留真实 Git 文件枚举路径。
 
@@ -37,7 +37,7 @@ def repository(tmp_path: Path) -> Path:
     (root / ".gitignore").write_text("scripts/\npackages/\n", encoding="utf-8")
     scripts = root / "scripts"
     scripts.mkdir()
-    for name in ("comment_ranges.mjs", "comment_audit.py"):
+    for name in ("comment_ranges.mjs", "comment_audit.py", "source_inventory.py"):
         target = scripts / name
         shutil.copyfile(ROOT / "scripts" / name, target)
         target.chmod(0o444)
@@ -315,6 +315,9 @@ def test_owned_git_scope_keeps_tests_old_files_and_only_explicit_exclusions(
         "generatedExclusions": sorted(generated),
         "requiresHumanQualityReview": True,
         "ratio": 1,
+        "observedRatio": 1,
+        "coverageComplete": True,
+        "unsupportedPaths": [],
         "passed": True,
         "files": [
             {"path": name, "commentLines": 1, "codeLines": 0}
@@ -349,6 +352,7 @@ def test_cli_writes_report_and_returns_rule_exit_from_another_cwd(
         ],
         cwd=tmp_path,
         capture_output=True,
+        check=False,
         text=True,
     )
     assert result.returncode == exit_code, result.stderr
@@ -447,5 +451,217 @@ def test_python_docstring_and_inline_comment_keep_physical_line_positions(
     report = _audit(repository)
     assert report["files"] == [{"path": "sample.py", "commentLines": 2, "codeLines": 2}]
     assert report["ratio"] == 0.5
+    assert report["violations"] == []
+    assert report["passed"] is True
+
+
+@pytest.mark.parametrize("suffix", [".ts", ".cjs", ".mts", ".cts", ".js", ".mjs", ".jsx", ".tsx"])
+def test_bridge_rejects_syntax_before_emitting_any_file(repository: Path, suffix: str) -> None:
+    """混合批次先提交合法文件再提交带受控敏感标记的坏语法，必须整体拒绝且不输出部分计数，诊断仅含路径位置与编号。"""
+    _write(repository, "valid.ts", f"//{LONG}\n")
+    name = "broken" + suffix
+    marker = "private_syntax_fixture"
+    _write(repository, name, f"const {marker} = ;\n")
+    result = subprocess.run(
+        ["node", "scripts/comment_ranges.mjs"],
+        cwd=repository,
+        input=json.dumps(["valid.ts", name]),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert result.stdout == ""
+    assert name in result.stderr
+    assert "TS1109" in result.stderr
+    assert marker not in result.stderr
+
+
+def test_cjs_is_counted_and_native_and_shell_fail_coverage_closed(repository: Path) -> None:
+    """即使已支持文件的观察比例达到百分之百，原生源码与可能包含文档正文的脚本仍须显式阻断全仓结论，
+    不能以局部计数通过。
+    """
+    _write(repository, "sample.cjs", f"//{LONG}\n")
+    _write(repository, "native.c", "int value;\n")
+    _write(repository, "native.cc", "int value;\n")
+    _write(repository, "sample.sh", f"cat <<'EOF'\n#{LONG}\nEOF\n")
+    report = _audit(repository)
+    assert report["files"] == [{"path": "sample.cjs", "commentLines": 1, "codeLines": 0}]
+    assert report["observedRatio"] == 1
+    assert report["ratio"] is None
+    assert report["coverageComplete"] is False
+    assert report["passed"] is False
+    assert [item["path"] for item in report["unsupportedPaths"]] == [
+        "native.c",
+        "native.cc",
+        "sample.sh",
+    ]
+    assert all(item["reason"] for item in report["unsupportedPaths"])
+
+
+def test_cli_reports_ratio_unavailable_with_unsupported_source(
+    repository: Path, tmp_path: Path
+) -> None:
+    """命令行必须落盘完整的不支持路径并返回失败，日志不得将已支持文件的满分观察值标成全仓比例以误导发行门禁。"""
+    _write(repository, "sample.ts", f"//{LONG}\n")
+    _write(repository, "style.css", "body {}\n")
+    output = tmp_path / "report.json"
+    result = subprocess.run(
+        [sys.executable, str(repository / "scripts/comment_audit.py"), "--output", str(output)],
+        cwd=tmp_path,
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+    assert result.returncode == 1
+    assert "Comment ratio unavailable" in result.stdout
+    assert "100.0000%" not in result.stdout
+    report = json.loads(output.read_text())
+    assert report["ratio"] is None
+    assert report["passed"] is False
+    assert [item["path"] for item in report["unsupportedPaths"]] == ["style.css"]
+
+
+@pytest.mark.parametrize(("length", "passed"), [(120, True), (121, False)])
+def test_first_line_upper_bound_counts_unicode_body(
+    repository: Path, length: int, passed: bool
+) -> None:
+    """正文上限按实际码点而非显示列或代理单元计算，最后一个补充字符只占一个字符，长度一百二十一时须真实阻断通过。"""
+    _write(repository, "sample.ts", "//" + "中" * (length - 1) + "😀")
+    report = _audit(repository)
+    assert report["ratio"] == 1
+    assert report["passed"] is passed
+    assert bool(report["violations"]) is not passed
+
+
+@pytest.mark.parametrize("suffix", [".jsx", ".tsx", ".cts", ".cjs", ".pyi"])
+def test_new_supported_suffixes_preserve_real_language_boundaries(
+    repository: Path, suffix: str
+) -> None:
+    """新纳入后缀必须通过真正语言适配计数，显式 JSX 方言保留标签文字中的伪注释，声明文件则由 Python 语法处理。"""
+    if suffix == ".pyi":
+        text = f"#{LONG}\nvalue: int\n"
+    elif suffix in {".jsx", ".tsx"}:
+        text = f"//{LONG}\nconst element = <div>/* literal 😀 */</div>;\r\n"
+    else:
+        text = f"//{LONG}\nconst value = 1;\n"
+    _write(repository, "sample" + suffix, text)
+    report = _audit(repository)
+    assert report["files"] == [{"path": "sample" + suffix, "commentLines": 1, "codeLines": 1}]
+    assert report["ratio"] == 0.5
+    assert report["passed"] is True
+
+
+def test_typescript_without_jsx_extension_reports_native_parse_diagnostics(
+    repository: Path,
+) -> None:
+    """类型脚本的普通后缀必须保留官方解析诊断而不升级为 JSX，审计只检查真实语法错误，类型与编译选项交由所属构建检查。"""
+    _write(repository, "sample.ts", "const element = <div />;\n")
+    with pytest.raises(subprocess.CalledProcessError):
+        _audit(repository)
+
+
+@pytest.mark.parametrize("suffix", [".js", ".mjs", ".cjs"])
+def test_javascript_keeps_native_scriptkind_jsx_acceptance(repository: Path, suffix: str) -> None:
+    """普通脚本使用官方原生方言解析，保留解析器自身接受的 JSX 行为且不自行制造语法诊断，
+    标签正文中的伪注释不能抬高比例。
+    """
+    _write(repository, "sample" + suffix, f"//{LONG}\nconst element = <div>/* text */</div>;\n")
+    report = _audit(repository)
+    assert report["files"] == [{"path": "sample" + suffix, "commentLines": 1, "codeLines": 1}]
+    assert report["ratio"] == 0.5
+    assert report["passed"] is True
+
+
+def test_python_strings_separators_and_empty_lines_do_not_inflate_comments(
+    repository: Path,
+) -> None:
+    """普通三引号常量必须保留在代码分母，只有 AST 确认的文档串算说明，纯分隔符和空行不能增加有效注释行数。"""
+    _write(repository, "sample.py", f'"""{LONG}"""\nvalue = """ordinary\ntext"""\n#\n\n')
+    report = _audit(repository)
+    assert report["files"] == [{"path": "sample.py", "commentLines": 1, "codeLines": 2}]
+    assert report["ratio"] == 1 / 3
+
+
+@pytest.mark.parametrize("text", ['value = "unterminated', "def invalid(:\n    pass\n"])
+def test_python_invalid_source_cannot_return_a_ratio(repository: Path, text: str) -> None:
+    """未终止的字符串和畸形函数定义必须通过真实分词或语法检查拒绝，不能把错误输入当成没有注释的可统计代码。"""
+    _write(repository, "sample.py", text)
+    with pytest.raises((SyntaxError, tokenize.TokenError)):
+        _audit(repository)
+
+
+def test_supported_unicode_newline_path_survives_inventory_and_bridge(repository: Path) -> None:
+    """带空格换行和中文的合法源码路径必须原样经过 Git 库存与 Node 桥接，完整计数证明没有逐行拆分或路径引号污染。"""
+    name = "空 格/换\n行.cjs"
+    _write(repository, name, f"//{LONG}\nconst value = '😀';\r\n")
+    subprocess.run(["git", "add", "--", name], cwd=repository, check=True)
+    report = _audit(repository)
+    assert report["files"] == [{"path": name, "commentLines": 1, "codeLines": 1}]
+    assert report["coverageComplete"] is True
+    assert report["ratio"] == 0.5
+    assert report["passed"] is True
+
+
+def test_bridge_does_not_interpret_c_as_javascript(repository: Path) -> None:
+    """即使原生文件内容恰好可被脚本语法接受，桥接也须按语言拒绝而不返回空注释成功，防止未来调用方绕过库存支持状态。"""
+    _write(repository, "native.c", "value;\n")
+    result = subprocess.run(
+        ["node", "scripts/comment_ranges.mjs"],
+        cwd=repository,
+        input='["native.c"]',
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert result.stdout == ""
+    assert "Unsupported source language" in result.stderr
+
+
+def test_bridge_bounds_and_escapes_diagnostic_paths(repository: Path) -> None:
+    """多个畸形输入只能输出有界数量的诊断，路径中的换行须被转义且长路径不能撑大日志，源码正文标记始终不能泄露。"""
+    name = "/".join(["segment" * 10] * 4) + "/换\n行.ts"
+    _write(repository, name, "const hidden_diagnostic_marker = ;\n" * 30)
+    short_name = "换\n行.ts"
+    _write(repository, short_name, "const hidden_diagnostic_marker = ;\n")
+    result = subprocess.run(
+        ["node", "scripts/comment_ranges.mjs"],
+        cwd=repository,
+        input=json.dumps([short_name, name]),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert result.stdout == ""
+    diagnostics = result.stderr.splitlines()
+    assert diagnostics[0].startswith(json.dumps(short_name, ensure_ascii=False) + ":")
+    assert len(diagnostics) == 20
+    assert all(len(line) < 240 for line in diagnostics)
+    assert "hidden_diagnostic_marker" not in result.stderr
+
+
+def test_empty_block_delimiters_cannot_raise_observed_ratio(repository: Path) -> None:
+    """纯块注释分隔符和空正文不得增加注释分子，保留真实代码行后比例仍为零，避免仅插入空白外壳使全仓门禁通过。"""
+    _write(repository, "sample.ts", "/**\n *\n\n */\nconst value = 1;\n")
+    report = _audit(repository)
+    assert report["files"] == [{"path": "sample.ts", "commentLines": 0, "codeLines": 1}]
+    assert report["ratio"] == 0
+    assert report["passed"] is False
+
+
+def test_python_ast_docstrings_cover_class_sync_and_async_bodies(repository: Path) -> None:
+    """模块类及同步异步函数的首语句说明都须由 AST 确认并从代码分母扣除，函数体的普通字符串仍作为代码参与全局计数。"""
+    _write(
+        repository,
+        "sample.py",
+        f'"""{LONG}"""\nclass Example:\n    """{LONG}"""\n'
+        f'    def method(self):\n        """{LONG}"""\n        return 1\n'
+        f'async def task():\n    """{LONG}"""\n    value = "ordinary"\n',
+    )
+    report = _audit(repository)
+    assert report["files"] == [{"path": "sample.py", "commentLines": 4, "codeLines": 5}]
+    assert report["ratio"] == 4 / 9
     assert report["violations"] == []
     assert report["passed"] is True
