@@ -276,7 +276,7 @@ async def test_reset_and_admin_revoke_invalidate_another_browser(site):
         assert (await other.get("/api/v1/auth/session")).status_code == 401
 
 
-async def test_production_cookie_and_database_shape(site, static_package):
+async def test_production_cookie_and_database_shape(site, static_package, tmp_path):
     """生产 Cookie 检查继续使用真实数据库并提供有效包内静态库存，同时验证已有会话与深链接在同一应用协作；
     顶层健康别名遵守标准 DTO，而历史探针和数据库结构断言保持原有兼容。
 
@@ -284,10 +284,12 @@ async def test_production_cookie_and_database_shape(site, static_package):
     HTTPS 集成承担。计划页带查询参数刷新，仍必须返回 index 与
     no-cache。缺少 CSRF 的登录不能因静态装配而放行。合法登录的会话应可读取真实账户邮箱。带有效 CSRF 但错误 Origin
     的退出仍须拒绝。生产会话 Cookie 保留 Secure、HttpOnly 与
-    SameSite=Strict。canonical readiness 成功只证明实际数据库连接可用。最后的版本、事务隔离、迁移和列约束仍逐项检查。
+    SameSite=Strict。canonical readiness 同时要求真实数据库、迁移、静态库存及临时 FILE 根可用。
+    最后的版本、事务隔离、迁移和列约束仍逐项检查。
     """
     from veriq_server.app import make_app
     from veriq_server.settings import Settings
+    from veriq_server import readiness
     from tornado.httpserver import HTTPServer
     from sqlalchemy import text
 
@@ -295,11 +297,14 @@ async def test_production_cookie_and_database_shape(site, static_package):
     await setup(c)
     # 生产测试继续通过真实 MySQL 校验登录和会话，只将外部 TLS 终结替换为本地 HTTP 传输；包内静态 fixture 提供完整库存，
     # 绝不通过降级开发环境绕过正式启动门禁。
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
     config = Settings(
         database_url=db.engine.url.render_as_string(hide_password=False),
         public_url="https://veriq.example.com",
         master_key="a" * 64,
         signing_key="b" * 64,
+        artifact_directory=str(artifacts),
     )
     server = HTTPServer(make_app(config, db))
     server.listen(18891, "127.0.0.1")
@@ -312,7 +317,16 @@ async def test_production_cookie_and_database_shape(site, static_package):
             ready = await other.get("/health/ready")
             assert ready.status_code == 200
             validate_api("HealthDTOEnvelope", ready.json())
-            assert ready.json()["data"] == {"status": "ok", "checks": {"database": True}}
+            assert ready.json()["data"] == {
+                "status": "ok",
+                "checks": {
+                    "database": True,
+                    "mysqlVersion": True,
+                    "schema": True,
+                    "static": True,
+                    "storage": True,
+                },
+            }
             assert (await other.get("/api/v1/health/ready")).json()["data"] == {"ready": True}
             page = await other.get("/execution-plans?workspace=test")
             assert page.status_code == 200
@@ -363,9 +377,11 @@ async def test_production_cookie_and_database_shape(site, static_package):
         assert (
             await s.execute(text("SELECT @@transaction_isolation"))
         ).scalar() == "READ-COMMITTED"
+        heads = readiness.packaged_heads()
+        assert len(heads) == 1
         assert (
             await s.execute(text("SELECT version_num FROM veriq_alembic_version"))
-        ).scalar() == "0014_execution_plans"
+        ).scalar() == heads[0]
         assert (
             await s.execute(
                 text(

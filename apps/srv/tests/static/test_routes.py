@@ -24,7 +24,7 @@ from veriq_server.validation import validate_api
 
 
 @pytest.fixture
-def production_settings():
+def production_settings(tmp_path):
     """路由检查仅创建未连接的数据库句柄并使用生产 HTTPS 公网源，避免用开发模式掩盖缺包检查或 Secure Cookie 差异；
     需要鉴权的集成另由现有真实 MySQL 测试承担。
 
@@ -33,11 +33,14 @@ def production_settings():
     没有读取私有 test-env 或外部 Provider。需要身份状态的场景留给 auth 目录的真实库 fixture。文件测试仍使用生产模式，
     不能省略缺包校验。
     """
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
     return Settings(
         database_url="mysql+asyncmy://unused:unused@127.0.0.1/unused",
         public_url="https://veriq.example.com",
         master_key="a" * 64,
         signing_key="b" * 64,
+        artifact_directory=str(artifacts),
     )
 
 
@@ -418,9 +421,10 @@ async def test_declared_health_aliases_keep_canonical_outage_envelopes(published
 
     published 中数据库账号刻意不可用。进程 live 不应尝试连接这个数据库。live 必须仍返回标准 ok 与 process 检查。ready
     的已知数据库错误应成为可识别的 503。降级信封仍通过
-    HealthDTOEnvelope 验证。只能暴露 database:false，不能泄露驱动异常。历史 API liveness 保留 alive 字段。
+    HealthDTOEnvelope 验证。连接失败令数据库、版本与迁移三项为 false，临时 FILE 根和静态库存仍为 true。
+    响应不能泄露驱动异常。历史 API liveness 保留 alive 字段。
     真实数据库成功时的 canonical readiness 由生产
-    Cookie 集成测试覆盖。这里只验证最小数据库探测，其余存储与运行依赖监控属于 T21。
+    Cookie 集成测试覆盖。此处完整核对五个依赖字段，不能因数据库不可用省略其它检查。
     """
     client, _ = published
     live = await client.get("/health/live")
@@ -430,7 +434,16 @@ async def test_declared_health_aliases_keep_canonical_outage_envelopes(published
     ready = await client.get("/health/ready")
     assert ready.status_code == 503
     validate_api("HealthDTOEnvelope", ready.json())
-    assert ready.json()["data"] == {"status": "degraded", "checks": {"database": False}}
+    assert ready.json()["data"] == {
+        "status": "degraded",
+        "checks": {
+            "database": False,
+            "mysqlVersion": False,
+            "schema": False,
+            "static": True,
+            "storage": True,
+        },
+    }
     assert (await client.get("/api/v1/health/live")).json()["data"] == {"alive": True}
 
 
