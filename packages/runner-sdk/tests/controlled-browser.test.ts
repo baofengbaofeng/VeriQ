@@ -116,6 +116,67 @@ for field in ['stdout','stderr']:check(base64.b64decode(v[field]),field)
 print(json.dumps(r))
 `;
 
+/**
+ * 用标准库生成真实压缩归档并将标记放在末尾成员，直接执行共享扫描程序，防止换行截断或只检查 HTML 原文造成假绿。
+ * 两种编码都必须读取完整归档，命中计数仅来自解压后的正文，不能靠外层 base64 或文件名满足断言。
+ */
+test.each(["one-line", "CRLF"] as const)(
+    "embedded report scanner reads all members with %s base64",
+    async (wrapping) => {
+        const root = await mkdtemp(join(tmpdir(), "veriq-report-scan-"));
+        const python = process.platform === "darwin" ? "python3" : "python";
+        const endpoint = "ws://synthetic.invalid/scanner-endpoint";
+        const token = "synthetic-scanner-token";
+        try {
+            const fixture = await command(
+                python,
+                [
+                    "-c",
+                    String.raw`
+import base64,io,json,pathlib,sys,zipfile
+v=json.load(sys.stdin)
+archive=io.BytesIO()
+with zipfile.ZipFile(archive,'w',compression=zipfile.ZIP_DEFLATED) as z:
+    z.writestr('report.json','{}')
+    z.writestr('resources/src@scanner.txt',v['endpoint']+'\n'+v['token']+'\nVERIQ_BROWSER_CONNECTION_FAILED')
+encoded=base64.b64encode(archive.getvalue()).decode()
+if v['wrapping']=='CRLF':encoded='\r\n'.join(encoded[i:i+40] for i in range(0,len(encoded),40))
+report=pathlib.Path(v['root'])/'reports'/'html'/'index.html'
+report.parent.mkdir(parents=True)
+report.write_bytes(('<script>data:application/zip;base64,'+encoded+'</script>').encode())
+`,
+                ],
+                root,
+                JSON.stringify({ root, wrapping, endpoint, token }),
+            );
+            expect(fixture.code).toBe(0);
+            const scan = await command(
+                python,
+                ["-c", scanProgram],
+                root,
+                JSON.stringify({ root, endpoint, token, stdout: "", stderr: "" }),
+            );
+            expect(scan.code).toBe(0);
+            const facts = JSON.parse(scan.stdout.toString());
+            expect(facts).toEqual({
+                hits: 2,
+                containers: { "report.html:decoded": 2 },
+                files: 1,
+                traceFiles: 0,
+                traceEntries: 0,
+                sourceEntries: 1,
+                htmlZipEntries: 2,
+                referencedFiles: 0,
+                mainReport: true,
+                fixedFailure: true,
+            });
+            process.stdout.write(JSON.stringify({ embeddedReportScanner: { wrapping, ...facts } }) + "\n");
+        } finally {
+            await rm(root, { recursive: true, force: true });
+        }
+    },
+);
+
 test.skipIf(process.platform === "win32")(
     "real public Playwright connection failure keeps private endpoint out of every delivered report",
     async () => {
