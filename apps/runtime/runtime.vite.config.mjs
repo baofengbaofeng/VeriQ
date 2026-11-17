@@ -66,7 +66,12 @@ export default {
     publicDir: false,
     cacheDir: false,
     plugins: [observation()],
+    // 服务端消费者仍须显式嵌入 VeriQ 工作区，防止默认外部化绕过真实来源追踪；其它包继续沿用下方外部依赖策略。
+    ssr: { noExternal: /^@veriq\// },
     build: {
+        // 此处只选择 Node 构建管线，保留模块 URL 的源码回退语义；数据资产和内部观察仍需写盘并接受独立完整性核验。
+        ssr: true,
+        emitAssets: true,
         target: "node24",
         minify: false,
         sourcemap: false,
