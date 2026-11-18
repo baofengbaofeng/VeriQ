@@ -84,7 +84,7 @@ parseContract(schemaName: string, text: string): unknown;
 
 `DatasetV1` 保留 `schemaVersion: "1.0"` 及原有必填列和非空行规则。`DatasetV2` 使用 `schemaVersion: "2.0"`，静态来源为 `{kind: "STATIC", rows}`，字段声明由 `fields` 映射保存。字段类型为 `string`、`number`、`integer`、`boolean`、`object` 或 `array`，`required` 控制是否可省略，`nullable` 控制是否接受显式 `null`。TABLE 行包含 `key` 和 `values`。TREE 行另含 `parentKey`（根节点为 `null`）和数值 `order`。
 
-草稿沿用资源正文及依赖闭包预算。可信编译验证行键、声明字段的存在和值类型，以及树的孤立节点、循环和深度，根节点计为第 1 层，最多 100 层。独立参考数据集允许空行数组，CASE 或 SUITE 矩阵要求至少一行，并按冻结行数组顺序投影 `{key, values}` 到既有执行快照。V2 矩阵要求联网执行。
+草稿沿用资源正文及依赖闭包预算。可信编译验证行键、声明字段的存在和值类型，以及树的孤立节点、循环和深度，根节点计为第 1 层，最多 100 层。独立参考数据集允许空行数组，CASE 或 SUITE 矩阵要求至少一行，并按冻结行数组顺序投影 `{key, values}` 到既有执行快照。V2 矩阵要求联网执行。冻结闭包包含 V2 数据集时拒绝离线导出、安装或结果导入，含被套件覆盖的默认引用。
 
 `CaseDslV1` 可选锁定 fixtureVersionId、datasetVersionId 和 persistenceCheckpointStepId。版本引用是 UUID，不得查询可变 `latest`。WRITE 检查点/关键断言、依赖归属、变量存在性/类型、夹具模式、流程展开/环/深度及数据列一致性等语义由编译器/服务负责。
 

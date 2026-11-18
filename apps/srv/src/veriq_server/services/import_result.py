@@ -38,7 +38,15 @@ from ..db import (
 )
 from ..repositories.resource import ResourceRepository
 from ..service import Problem, now, lock_installation
-from .bundle import BundleService, safe_path, MAX_ARCHIVE, MAX_FILE, MAX_OUTPUT, MAX_FILES
+from .bundle import (
+    BundleService,
+    safe_path,
+    require_legacy_datasets,
+    MAX_ARCHIVE,
+    MAX_FILE,
+    MAX_OUTPUT,
+    MAX_FILES,
+)
 from .workspace import WorkspaceRepository
 from .results import aggregate, reduce_test
 from .completion import retry_is_safe
@@ -94,6 +102,7 @@ def verify_archive(raw: bytes, manifest_hash: str, public: dict[str, Any]) -> di
             or snapshot["workspaceId"] != manifest["workspaceId"]
         ):
             raise ValueError()
+        require_legacy_datasets(snapshot["assets"])
         return {
             "manifest": manifest,
             "snapshot": snapshot,
@@ -121,7 +130,9 @@ def expected_variants(checked: dict[str, Any], result: dict[str, Any]) -> dict[s
 
     重复提交不得制造双份业务副作用。
     """
-    assets = {a["versionId"]: a for a in checked["snapshot"]["assets"]}
+    snapshot_assets = checked["snapshot"]["assets"]
+    require_legacy_datasets(snapshot_assets)
+    assets = {a["versionId"]: a for a in snapshot_assets}
     selection, files = checked["selection"], checked["files"]
     draft = "draft/source.json" in files
     target = checked["snapshot"].get("validationTarget", {}).get("versionId")
@@ -159,17 +170,7 @@ def expected_variants(checked: dict[str, Any], result: dict[str, Any]) -> dict[s
             if path in files and (not draft or name.startswith("publishedDependency")):
                 provenance[name] = sha256(files[path]).hexdigest()
         dataset = entry.get("datasetVersionId", document.get("datasetVersionId"))
-        data_rows = [None]
-        if dataset:
-            dataset_document = assets[dataset]["document"]
-            # 旧签名包只解释旧版数据行。新版静态矩阵只能经联网准入冻结，不能从旧导入路径推导执行变体。
-            if dataset_document.get("schemaVersion") == "2.0":
-                raise Problem(
-                    422,
-                    "OFFLINE_DATASET_VERSION_UNSUPPORTED",
-                    "Dataset v2 requires connected execution",
-                )
-            data_rows = dataset_document["rows"]
+        data_rows = assets[dataset]["document"]["rows"] if dataset else [None]
         for role in entry.get("roleKeys", [document["roleKey"]]):
             for browser in entry.get(
                 "browsers", result.get("executionChoices", {}).get("browsers", ["chromium"])

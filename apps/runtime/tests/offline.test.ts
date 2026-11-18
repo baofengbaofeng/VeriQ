@@ -194,6 +194,28 @@ test("signed portable directory aliases and compressed oversize members are reje
     }
 });
 
+/**
+ * 两个归档都由受信任测试签发者签名，验证与安装必须保留旧版数据集的可用性，同时在落盘前拒绝新版数据集正文。
+ */
+test("signed offline bundle installs a legacy dataset and rejects V2 before installation", async () => {
+    const f = await fixture();
+    try {
+        const legacy = await verifyBundle(await f.archive({ dataset: "1.0" }), {
+            trust: f.trust,
+            destination: join(f.dir, "legacy"),
+        });
+        assert.equal(legacy.snapshot.assets.find((asset) => asset.kind === "DATASET")?.document.schemaVersion, "1.0");
+        const destination = join(f.dir, "connected");
+        await assert.rejects(
+            verifyBundle(await f.archive({ dataset: "2.0" }), { trust: f.trust, destination }),
+            /OFFLINE_DATASET_VERSION_UNSUPPORTED/,
+        );
+        await assert.rejects(stat(destination), { code: "ENOENT" });
+    } finally {
+        await f.close();
+    }
+});
+
 test("OOB fingerprint never admits appended signers or their unsigned revision", async () => {
     const f = await fixture();
     try {

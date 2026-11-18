@@ -97,6 +97,7 @@ export async function fixture(
             payload?: Buffer;
             directoryCollision?: boolean;
             suite?: boolean;
+            dataset?: "1.0" | "2.0";
             inconsistent?:
                 | "entries"
                 | "adapter"
@@ -148,7 +149,24 @@ export async function fixture(
                         },
                     ],
                 }),
+                ...(opts.dataset
+                    ? [
+                          asset(
+                              15,
+                              "DATASET",
+                              opts.dataset === "1.0"
+                                  ? { schemaVersion: "1.0", columns: {}, rows: [{ key: "row", values: {} }] }
+                                  : {
+                                        schemaVersion: "2.0",
+                                        shape: "TABLE",
+                                        fields: {},
+                                        source: { kind: "STATIC", rows: [{ key: "row", values: {} }] },
+                                    },
+                          ),
+                      ]
+                    : []),
             ],
+            opts.dataset ? { datasetVersionId: id(15) } : {},
         );
         const suite = opts.suite || opts.inconsistent === "suiteSwap";
         if (suite) {
@@ -249,7 +267,12 @@ export async function fixture(
                 entryCaseVersionIds: a.kind === "CASE" ? [a.versionId] : a.kind === "SUITE" ? [id(1), id(10)] : [],
                 assets:
                     a.kind === "CASE"
-                        ? source.assets.filter((x) => x.versionId === a.versionId || x.kind === "ELEMENT_CATALOG")
+                        ? source.assets.filter(
+                              (x) =>
+                                  x.versionId === a.versionId ||
+                                  x.kind === "ELEMENT_CATALOG" ||
+                                  x.versionId === a.document.datasetVersionId,
+                          )
                         : a.kind === "SUITE"
                           ? source.assets.filter((x) => x.kind !== "ENVIRONMENT")
                           : [a],
