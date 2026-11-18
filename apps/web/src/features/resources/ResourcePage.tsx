@@ -101,6 +101,14 @@ export function ResourcePage({
     useEffect(() => {
         if (!selected && firstWorkspaceId) select(firstWorkspaceId);
     }, [selected, firstWorkspaceId, select]);
+    // 只记录显式选择的目标空间，带键子树提交后再聚焦新选择器；列表刷新和语言变化没有接续请求。
+    const workspaceSelector = useRef<HTMLSelectElement>(null);
+    const pendingSelectorFocus = useRef<string>();
+    useLayoutEffect(() => {
+        const target = pendingSelectorFocus.current;
+        pendingSelectorFocus.current = undefined;
+        if (target === selected) workspaceSelector.current?.focus({ preventScroll: true });
+    }, [selected]);
     if (!user) return <Navigate to="/login" />;
     const workspace = items.find((w) => w.id === selected);
     // 将选择器交给资源库工具栏或新建页标题区，分页游标仍归同一个空间查询所有，切换呈现不会重新请求首屏。
@@ -109,7 +117,15 @@ export function ResourcePage({
             {!!items.length && (
                 <label>
                     {tx("Workspace")}
-                    <select value={selected} onChange={(e) => select(e.target.value)}>
+                    <select
+                        ref={workspaceSelector}
+                        value={selected}
+                        onChange={(event) => {
+                            const next = event.currentTarget.value;
+                            if (!initialKind && next !== selected) pendingSelectorFocus.current = next;
+                            select(next);
+                        }}
+                    >
                         {items.map((w) => (
                             <option key={w.id} value={w.id}>
                                 {w.name}

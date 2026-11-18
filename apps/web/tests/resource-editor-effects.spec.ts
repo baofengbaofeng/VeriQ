@@ -34,7 +34,7 @@ declare global {
     }
 }
 
-test("resources retain manual workspace and unsaved values across list refresh", async ({ page }) => {
+test("resources restore workspace focus on selection and retain unsaved values across refresh", async ({ page }) => {
     const origin = "http://127.0.0.1:5173";
     const setup = (await (await page.request.get("/api/v1/setup")).json()).data;
     if (!setup.initialized)
@@ -113,8 +113,15 @@ test("resources retain manual workspace and unsaved values across list refresh",
         lastLoadedId = items.at(-1).id;
         await expect(selector.locator(`option[value="${lastLoadedId}"]`)).toHaveCount(1);
     }
+    if (first === alpha) {
+        await selector.selectOption(beta);
+        await expect(selector).toHaveValue(beta);
+    }
+    await selector.focus();
+    await expect(selector).toBeFocused();
     await selector.selectOption(alpha);
     await expect(selector).toHaveValue(alpha);
+    await expect.soft(selector).toBeFocused();
     await expect(page.getByText("No resources in this Workspace.")).toBeVisible();
     expect(queried.some((url) => new URL(url).pathname === `/api/v1/workspaces/${alpha}/resources`)).toBe(true);
 
@@ -172,7 +179,9 @@ test("resources retain manual workspace and unsaved values across list refresh",
         await page.getByRole("button", { name: "New resource", exact: true }).click();
         await resourceCreateForm(page).getByRole("combobox", { name: "Kind", exact: true }).selectOption("DATASET");
         await page.getByLabel("Key").fill("unsaved_beta");
-        await page.getByLabel("Name").fill("Unsaved Beta resource");
+        const name = page.getByLabel("Name");
+        await name.fill("Unsaved Beta resource");
+        await expect(name).toBeFocused();
         const refreshed = page.waitForResponse(
             (response) => response.request().method() === "GET" && response.url() === path,
         );
@@ -186,8 +195,13 @@ test("resources retain manual workspace and unsaved values across list refresh",
         );
         await expect(page.getByLabel("Key")).toHaveValue("unsaved_beta");
         await expect(page.getByLabel("Name")).toHaveValue("Unsaved Beta resource");
+        await expect(name).toBeFocused();
         expect(queried.some((url) => new URL(url).pathname === `/api/v1/workspaces/${beta}/resources`)).toBe(true);
+        await selector.focus();
+        await expect(selector).toBeFocused();
         await selector.selectOption(alpha);
+        await expect(selector).toHaveValue(alpha);
+        await expect(selector).toBeFocused();
         await expect(page.getByText("No resources in this Workspace.")).toBeVisible();
         await page.getByRole("button", { name: "New resource", exact: true }).click();
         await expect(page.getByLabel("Key")).toHaveValue("");

@@ -96,6 +96,26 @@ test("compact console navigation closes on selection and exposes the current bra
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
 });
 
+test("compact console returns focus to Menu after selecting the current route", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await signIn(page);
+    await page.goto("/resources");
+    const menu = page.getByRole("button", { name: "Menu", exact: true });
+    await menu.press("Enter");
+    const nav = page.getByRole("navigation", { name: "Main navigation" });
+    const resources = nav.getByRole("link", { name: "Resources" });
+    await expect(resources).toHaveAttribute("aria-current", "page");
+    await resources.focus();
+    await expect(resources).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL("/resources");
+    await expect(nav).toBeHidden();
+    await expect(menu).toHaveAttribute("aria-expanded", "false");
+    await expect(menu).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(resources).toHaveAttribute("aria-current", "page");
+});
+
 test("console resources return to the selected list and create in the same workspace", async ({ page }) => {
     const { workspaceId } = await editorScope(page, `console-${randomUUID()}`);
     const filter = page.getByLabel("Filter kind");

@@ -3,7 +3,7 @@
  * 栏仅登录后显示，登录/初始化/重置等独立页无侧边栏。所有文案经 tx 单语展示，跟随当前语言切换而重渲染。
  */
 
-import { useContext, useEffect, useId, useState, type ReactNode } from "react";
+import { useContext, useEffect, useId, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { Link, matchPath, NavLink, useLocation, useNavigate } from "react-router-dom";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Auth } from "./auth-context";
@@ -65,7 +65,7 @@ function SidebarGroup({
 }: {
     group: MenuGroup;
     open: boolean;
-    onSelect: () => void;
+    onSelect: (event: MouseEvent<HTMLAnchorElement>) => void;
     onToggle: () => void;
 }) {
     const id = useId();
@@ -102,12 +102,20 @@ function Sidebar() {
     const { pathname } = useLocation();
     const [openedAt, setOpenedAt] = useState<string | null>(null);
     const [collapsed, setCollapsed] = useState<MenuGroup[]>([]);
+    const menuTrigger = useRef<HTMLButtonElement>(null);
     const open = openedAt === pathname;
     useEffect(() => {
         setOpenedAt((path) => (path === pathname ? path : null));
         setCollapsed((groups) => revealCurrentGroup(groups, pathname));
     }, [pathname]);
-    const close = () => setOpenedAt(null);
+    // 同一路径不会触发标题聚焦，窄屏关闭导航时把焦点交给仍在布局中的菜单按钮，桌面链接保持原焦点。
+    const close = (event: MouseEvent<HTMLAnchorElement>) => {
+        setOpenedAt(null);
+        const trigger = menuTrigger.current;
+        if (open && event.currentTarget.pathname === pathname && trigger?.getClientRects().length) {
+            trigger.focus({ preventScroll: true });
+        }
+    };
     const toggleMenu = () => {
         if (!open) setCollapsed((groups) => revealCurrentGroup(groups, pathname));
         setOpenedAt(open ? null : pathname);
@@ -127,6 +135,7 @@ function Sidebar() {
     return (
         <aside className="vq-sidebar">
             <button
+                ref={menuTrigger}
                 type="button"
                 className="vq-mobile-menu"
                 aria-controls="vq-navigation"
