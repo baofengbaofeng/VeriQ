@@ -4,6 +4,7 @@
 PublishService 接续。所有突变要求 Workspace 编辑权限并持安装护栏至提交。
 """
 
+from copy import deepcopy
 from hashlib import sha256
 from typing import Any, Protocol
 from uuid import NAMESPACE_URL, uuid4, uuid5
@@ -13,6 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.authorization import Permission, WorkspaceScope
 from ..contracts import canonical_bytes, asset_source_hash, validate_schema
+from ..datasets.bindings import authorize_dataset
+from ..datasets.connection import literal_header
+from ..settings import Settings
 from ..db import Resource, ResourceDraft, ResourceVersion, User, Job
 from ..repositories.resource import ResourceRepository
 from ..service import Problem, audit, now, stamp
@@ -86,6 +90,11 @@ def check_document(kind: str, content: dict[str, Any]) -> None:
     if validate_schema("ResourceDocumentV1", content) or content["kind"] != kind:
         raise Problem(
             422, "INVALID_RESOURCE_DOCUMENT", "Document must match the immutable resource kind"
+        )
+    source = content["document"].get("source", {}) if kind == "DATASET" else {}
+    if source.get("kind") == "HTTP" and any(not literal_header(h) for h in source["headers"]):
+        raise Problem(
+            422, "DATASET_HEADER_FORBIDDEN", "Authentication headers must use a credential binding"
         )
     try:
         raw = canonical_bytes(content)
@@ -211,6 +220,7 @@ class ResourceService:
         registry: IdentityReferenceRegistry | None = None,
         *,
         engine_version: str = ENGINE_VERSION,
+        settings: Settings | None = None,
     ):
         """注入会话、用户、设置与身份注册表，供授权与冻结引用，ResourceService.__init__ 遵守本文件边界，失败返回稳定
         Problem。
@@ -222,6 +232,7 @@ class ResourceService:
         # 选择值只用于当前服务创建的新快照与任务要求，冻结 sourceHash 随版本变化而变化；这里不修改已有发布对象，
         # 也不把候选选择解释为已获批准的执行发行。
         self.engine_version = engine_version
+        self.settings = settings
 
     async def authorize(
         self,
@@ -272,13 +283,19 @@ class ResourceService:
         resource = await repo.resource(version.resource_id)
         if resource.kind != "DATASET":
             raise Problem(404, "VERSION_NOT_FOUND", "Dataset version not found")
+        content = deepcopy(version.document_json)
+        source = content["document"].get("source", {})
+        if source.get("kind") == "HTTP":
+            source.update(connectionRef=None, environmentVersionId=None)
+            if source["auth"]["kind"] != "NONE":
+                source["auth"].update(secretRef=None, secretVersionId=None)
         result = await self.create(
             scope,
             {
                 "kind": "DATASET",
                 "key": data["key"],
                 "name": data["name"],
-                "content": version.document_json,
+                "content": content,
             },
         )
         audit(
@@ -418,6 +435,16 @@ class ResourceService:
             source_size += len(canonical_bytes(asset))
             if source_size > SNAPSHOT_LIMIT:
                 raise Problem(413, "SNAPSHOT_TOO_LARGE", "Dependency snapshot exceeds 16 MiB")
+            doc = content["document"]
+            if content["kind"] == "DATASET" and doc.get("source", {}).get("kind") == "HTTP":
+                await authorize_dataset(
+                    self.session,
+                    self.settings,
+                    scope.workspace_id,
+                    self.user.id,
+                    doc["source"]["environmentVersionId"],
+                    doc,
+                )
             if content["kind"] == "ENVIRONMENT":
                 identities = [*content["document"]["roles"]]
                 if content["document"].get("fixtureIdentity"):

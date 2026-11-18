@@ -31,6 +31,8 @@ def dataset_matrix_rows(document: dict[str, Any]) -> list[dict[str, Any]]:
     """从已验证资产读取冻结矩阵行，兼容旧版行的正文层级；空参考集可以独立发布，但不能产生空的执行选择。
     保留冻结数组顺序并延迟行投影，使矩阵基数检查无需先复制所有行。
     """
+    if document.get("source", {}).get("kind") == "HTTP":
+        raise Problem(422, "DATASET_HTTP_MATRIX", "HTTP datasets cannot drive a run matrix")
     rows = document["rows"] if document["schemaVersion"] == "1.0" else document["source"]["rows"]
     if not rows:
         raise Problem(422, "DATASET_EMPTY_MATRIX", "A matrix dataset requires at least one row")

@@ -61,6 +61,11 @@ export interface ResourceAdapter {
         cursor?: string,
         signal?: AbortSignal,
     ): Promise<Page<S["DatasetCopySource"]>>;
+    httpPreview(
+        id: string,
+        data: S["HttpDatasetPreviewRequest"],
+        signal?: AbortSignal,
+    ): Promise<S["HttpDatasetPreviewResult"]>;
     copyDataset(data: S["DatasetCopyRequest"], signal?: AbortSignal): Promise<Resource>;
     create(data: S["ResourceCreate"], signal?: AbortSignal): Promise<Resource>;
     save(resourceId: string, data: S["DraftWrite"], signal?: AbortSignal): Promise<Draft>;
@@ -129,6 +134,8 @@ export class CloudResourceAdapter implements ResourceAdapter {
             undefined,
             signal,
         );
+    httpPreview = (id: string, data: S["HttpDatasetPreviewRequest"], signal?: AbortSignal) =>
+        request<S["HttpDatasetPreviewResult"]>(this.base(id) + "/http-preview", "POST", data, signal);
     copyDataset = (data: S["DatasetCopyRequest"], signal?: AbortSignal) =>
         request<Resource>(this.base("dataset-copies"), "POST", data, signal);
     create = (data: S["ResourceCreate"], signal?: AbortSignal) => request<Resource>(this.base(), "POST", data, signal);
@@ -277,6 +284,7 @@ export class LocalResourceAdapter implements ResourceAdapter {
     private denied = async (): Promise<never> => {
         throw new Error("LOCAL_SNAPSHOT_READ_ONLY");
     };
+    httpPreview = this.denied;
     copyDataset = this.denied;
     listDatasetCopySources = this.denied;
     create = this.denied;

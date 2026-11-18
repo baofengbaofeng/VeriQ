@@ -1664,3 +1664,117 @@ test("writes named dataset queries without changing the expected provenance", as
     if (literal.kind !== "CASE") throw new Error("Expected CASE");
     expect(literal.document.steps[0]!.afterAssertions![0]).not.toHaveProperty("datasetExpected");
 });
+
+test("edits and previews HTTP datasets", async ({ page }) => {
+    test.setTimeout(90_000);
+    const scope = await editorScope(page, "remote-form");
+    await closeResourceEditor(page);
+    const form = resourceCreateForm(page);
+    await form.getByRole("combobox", { name: "Kind", exact: true }).selectOption("DATASET");
+    await form.getByLabel("Dataset format").selectOption("HTTP_TABLE");
+    await form.getByLabel("Key", { exact: true }).fill("remote");
+    await form.getByLabel("Name", { exact: true }).fill("Remote catalog");
+    await form.getByRole("button", { name: "Create resource" }).click();
+    const editor = page.getByRole("article");
+    await expect(editor.getByLabel("HTTP path")).toHaveValue("/items");
+    await editor.getByLabel("HTTP method").selectOption("POST");
+    await editor.getByLabel("Body format").selectOption("RAW");
+    await editor.getByLabel("Raw UTF-8 body").fill("雪 +");
+    expect((await saveDraft(page)).content.document).toMatchObject({ source: { body: { raw: "雪 +" } } });
+    await editor.getByLabel("Body format").selectOption("FORM");
+    await editor.getByRole("button", { name: "Add form parameter" }).click();
+    await editor.getByLabel("Form name").fill("q");
+    await editor.getByLabel("Form value").fill("雪 +");
+    expect((await saveDraft(page)).content.document).toMatchObject({
+        source: { body: { form: [{ name: "q", value: "雪 +" }] } },
+    });
+    await editor.getByLabel("HTTP method").selectOption("GET");
+    await editor.getByRole("button", { name: "Add query parameter" }).click();
+    await editor.getByRole("button", { name: "Add query parameter" }).click();
+    await editor.getByLabel("Query name").nth(0).fill("q");
+    await editor.getByLabel("Query name").nth(1).fill("q");
+    await editor.getByLabel("Query value").nth(0).fill("first");
+    const saved = await saveDraft(page);
+    expect(saved.content.kind).toBe("DATASET");
+    const response = page.waitForResponse((item) => item.url().endsWith("/http-preview"));
+    await editor.getByRole("button", { name: "Preview mapped rows" }).click();
+    expect((await response).status()).toBe(422);
+    await expect(editor.getByText("DATASET_CONNECTION_UNAVAILABLE", { exact: true })).toBeVisible();
+    const base = "/api/v1/workspaces/" + scope.workspaceId;
+    const credential = await page.request.post(base + "/credentials", {
+        headers: scope.headers,
+        data: {
+            secretRef: "browser_catalog",
+            allowedIdentityIds: ["dataset-reader"],
+            value: { value: "browser-only-material" },
+        },
+    });
+    expect(credential.status(), await credential.text()).toBe(201);
+    const credentialId = (await credential.json()).data.versionId;
+    await editor.getByLabel("Connection version", { exact: true }).fill("00000000-0000-4000-8000-000000000001");
+    await editor.getByLabel("Environment version", { exact: true }).fill("00000000-0000-4000-8000-000000000002");
+    await editor.getByLabel("Authentication mode").selectOption("BEARER");
+    await editor.getByLabel("Credential reference").fill("browser_catalog");
+    await editor.getByLabel("Credential version").fill(credentialId);
+    const result = page.waitForResponse((item) => item.url().endsWith("/http-preview"));
+    await editor.getByRole("button", { name: "Preview mapped rows" }).click();
+    const ok = await result;
+    expect(ok.status(), await ok.text()).toBe(200);
+    await expect(editor.getByText("Mapped rows · 1", { exact: false })).toBeVisible();
+    expect(await ok.text()).not.toContain("browser-only-material");
+    const bound = await saveDraft(page);
+    expect(JSON.stringify(bound)).not.toContain("browser-only-material");
+    expect(bound.content.document).toMatchObject({
+        source: {
+            query: [
+                { name: "q", value: "first" },
+                { name: "q", value: "" },
+            ],
+        },
+    });
+    const job = await queueValidation(page);
+    await promisify(execFile)(
+        "uv",
+        [
+            "run",
+            "--project",
+            "apps/srv",
+            "--no-sync",
+            "python",
+            "apps/srv/tests/resources/copy_browser_fixture.py",
+            job.id,
+        ],
+        { cwd: fileURLToPath(new URL("../../../", import.meta.url)) },
+    );
+    const receipt = (await (await page.request.get(base + "/jobs/" + job.id + "/validation-receipt")).json()).data;
+    const pub = await page.request.post(base + "/resources/" + bound.resourceId + "/publish", {
+        headers: scope.headers,
+        data: { revision: receipt.revision, validationReceiptId: receipt.id },
+    });
+    expect(pub.status(), await pub.text()).toBe(201);
+    const target = (
+        await (
+            await page.request.post("/api/v1/workspaces", {
+                headers: scope.headers,
+                data: { key: "remote-copy", name: "remote-copy" },
+            })
+        ).json()
+    ).data.id;
+    const copy = await page.request.post("/api/v1/workspaces/" + target + "/resources/dataset-copies", {
+        headers: scope.headers,
+        data: {
+            sourceWorkspaceId: scope.workspaceId,
+            sourceDatasetVersionId: (await pub.json()).data.id,
+            key: "copy",
+            name: "copy",
+        },
+    });
+    expect(copy.status(), await copy.text()).toBe(201);
+    await closeResourceEditor(page);
+    await page.reload();
+    await page.getByLabel("Workspace").selectOption(target);
+    await page.getByRole("button", { name: "copy", exact: true }).click();
+    await expect(editor.getByLabel("Connection version", { exact: true })).toHaveValue("");
+    await expect(editor.getByLabel("Credential version")).toHaveValue("");
+    await expect(editor.getByLabel("Query value").nth(0)).toHaveValue("first");
+});

@@ -626,3 +626,37 @@ TEST 从冻结执行快照中的矩阵版本和命名版本决定数据保护。
 Linux 宿主在分配任务时，在工作树和暂存树之外的私有目录签发一次性退休许可，Attempt 日志保存许可文件的设备号、inode 和创建时间。确认进程停止与两个原目录身份后，宿主必须在原许可文件上追加并同步开始记录，才能通过已打开的任务目录和文件描述符进行三遍核验。每个任务树在变更前落盘成员路径和物理身份的摘要；文件名不写入标记。仅单硬链接、同挂载且验证过的普通文件通过其打开的句柄截断、同步并复核大小。保留文件名与目录壳，避免名称替换时误删其他对象。成员移动、替换、特殊文件、符号链接、多个硬链接或无法确认的上次清理均保留并记录 OWNERSHIP_UNCONFIRMED。启动恢复与结束收尾共用这份许可。首次退休中断或已尝试时保留现场，不再清点、截断或补签回执，即使树内的清点和退休标记都已消失。旧日志未绑定许可、原许可丢失或被替换时同样保留文件。每个 .veriq-retired 回执记录该次确认的文件集合及其摘要。两个可变目录没有同一时点的一致性快照，任务级状态记录 OWNERSHIP_UNCONFIRMED；即使两个目录都已签发回执，后续新写入的文件也可能存在。Windows/macOS 当前保留文件并记录 OWNERSHIP_UNCONFIRMED。未确认物理停止时记录 STOP_UNCONFIRMED。业务结果与本机清理状态分别记录。
 
 生产路由仅提供历史离线包元数据、历史报告读取与联网执行。签名包创建与下载、离线结果导入及上传仅保留在历史协议夹具。设备签发者公钥读取继续用于凭据映射。
+
+## HTTP 数据集定义与预览
+
+`DatasetV2` 的 `source.kind = "HTTP"` 可用于 TABLE 或 TREE 命名参考集。CASE 默认和 SUITE 覆盖矩阵必须是静态数据集。
+字段声明和行键规则与静态数据相同。跨 Workspace 复制会清空连接、环境和认证凭证绑定，保留可独立编辑的映射与表达式。
+验证和发布重新检查目标授权与当前凭证版本。
+
+部署方在 `dataset_connections` 中以不可变版本 UUID 登记 HTTPS 连接。更换路由、地址、环境或凭证策略应登记新的版本。
+每项配置 `workspace_id`、`environment_version_id`、`user_ids`、`identity_id`、`origin`、数字 IP `address` 和精确的
+`routes`（路径映射到批准的 GET/POST 读取方法）。TCP 连接使用这个地址，TLS 验证和 Host 使用批准的域名。RFC1918 和 ULA
+目标须单独设置 `allow_private`。服务不跟随重定向，不使用环境代理。显式 `retry_reads` 只允许 GET 连接失败重试一次。
+同进程最多四次同时读取。总时间十秒，网络和映射正文各有 2 MiB 限制，总行数一万，分页上限三十二页。
+
+`auth_kinds` 选择 NONE、BASIC、BEARER、API_KEY、HMAC_SHA256 或 AES256_GCM。连接的 `credentials` 用凭证引用映射
+`{version_id, purposes}`。凭证版本也必须允许该连接的 `identity_id`。BASIC 从已加密凭证对象的 username、password
+字段构造请求头，其余方式使用 value 字段。认证值仅在受控服务端内存中解封。签名或 API Key 头名须与部署的
+`signature_header` 一致。普通自定义头须列入 `request_headers`。
+
+- `source.parameters` 声明 JSON 类型；读取只接受完整的已声明实参。Query 数组保留重复键与空值，
+  字符串按 UTF-8 编码，其余类型先转规范 JSON。查询编码使用 RFC3986（空格为 `%20`）。Header 的值必须是字符串，
+  支持 `{{arg.<name>}}` 与 `{{request.timestamp}}`。值完成插值后仍须为可打印 ASCII。
+- POST 的 `body` 可为空、`{json: <值>}`、`{parameter: <参数名>}`、`{form: <有序名值列表>}` 或
+  `{raw: <字符串或参数引用>}`。JSON 使用 JCS 字节；表单按顺序使用 UTF-8 表单编码（空格为 `+`）；原始文本为 UTF-8。
+- 签名输入中的 METHOD、PATH、QUERY、BODY 和 TIMESTAMP 均引用该次请求实际字节，时间取一次 Unix UTC 整秒。
+  PARAMETER 与 LITERAL 明确选值；SORTED_QUERY 可按名称筛选，按 Unicode 码点先键后值排序并保留重复项。
+  JOIN、PERCENT_ENCODE、SHA256（小写十六进制）与 BASE64 可组合。HMAC_SHA256 输出小写十六进制；
+  AES256_GCM 使用 Base64 编码的 32 字节密钥、随机 12 字节 nonce，结果为 Base64(nonce + 密文含标签)。
+- 映射 `rows` 为行数组的绝对 JSON 指针，`key`、`values` 指针相对单个行对象。树另需 parentKey、order。
+  PAGE 在查询传入从 1 开始的页码，`next` 指针须返回布尔值。CURSOR 从无游标开始，`next` 返回下一非空字符串，
+  显式 null 表示结束。重复游标、缺失终止标记或要求超过 maxPages 均返回错误；整批数据验完才可交付。
+- `POST /api/v1/workspaces/{workspaceId}/resources/{resourceId}/http-preview` 接收 document 和 arguments。
+  当前成员须能编辑该资源并获准使用目标。返回 rowCount 和至多十行的已映射字段名；原始行键、字段值和响应头均不回传。
+  可添加 `verifySignature: {at,expected}`，使用固定 UTC 时间和预期十六进制 HMAC 返回 signatureMatches，期间不发送请求。
+  交付前复核授权、记录资源标识审计。超时、上游拒绝、连接异常、超预算、未完成分页与不合法映射有独立错误码。

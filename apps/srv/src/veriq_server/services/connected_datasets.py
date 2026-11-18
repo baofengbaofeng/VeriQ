@@ -386,6 +386,8 @@ async def static_bytes(
     doc = asset["document"]
     if asset["sha256"] != checksum({"kind": "DATASET", "document": doc}):
         raise Problem(409, "DATASET_HASH_MISMATCH", "Frozen dataset differs")
+    if doc.get("source", {}).get("kind") == "HTTP":
+        raise denied
     if mode == "DATASET":
         return canonical_bytes(doc)
     row = subject.get("selectedRow", {})

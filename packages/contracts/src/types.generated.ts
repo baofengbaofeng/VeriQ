@@ -1115,6 +1115,223 @@ export type LocatorV1 =
 export type DataRowV2 = DataRowV1 | TreeDataRowV2;
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "DatasetSignatureInput".
+ */
+export type DatasetSignatureInput =
+  | {
+      op: "QUERY" | "PATH" | "BODY" | "METHOD" | "TIMESTAMP";
+    }
+  | {
+      op: "PARAMETER";
+      name: Key;
+    }
+  | {
+      op: "LITERAL";
+      value: string;
+    }
+  | {
+      op: "PERCENT_ENCODE" | "SHA256" | "BASE64";
+      input: DatasetSignatureInput;
+    }
+  | {
+      op: "JOIN";
+      separator: string;
+      /**
+       * @maxItems 16
+       */
+      parts:
+        | []
+        | [DatasetSignatureInput]
+        | [DatasetSignatureInput, DatasetSignatureInput]
+        | [DatasetSignatureInput, DatasetSignatureInput, DatasetSignatureInput]
+        | [DatasetSignatureInput, DatasetSignatureInput, DatasetSignatureInput, DatasetSignatureInput]
+        | [
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput
+          ]
+        | [
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput
+          ]
+        | [
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput
+          ]
+        | [
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput
+          ]
+        | [
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput
+          ]
+        | [
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput
+          ]
+        | [
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput
+          ]
+        | [
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput
+          ]
+        | [
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput
+          ]
+        | [
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput
+          ]
+        | [
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput
+          ]
+        | [
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput
+          ];
+    }
+  | {
+      op: "SORTED_QUERY";
+      /**
+       * @maxItems 64
+       */
+      names?: string[];
+    };
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "DatasetHttpAuth".
+ */
+export type DatasetHttpAuth =
+  | {
+      kind: "NONE";
+    }
+  | {
+      kind: "BEARER" | "BASIC";
+      secretRef: Key | null;
+      secretVersionId: Id | null;
+    }
+  | {
+      kind: "SIGNED";
+      secretRef: Key | null;
+      secretVersionId: Id | null;
+      header: string;
+      algorithm: "HMAC_SHA256" | "AES256_GCM";
+      input: DatasetSignatureInput;
+    }
+  | {
+      kind: "API_KEY";
+      header: string;
+      secretRef: Key | null;
+      secretVersionId: Id | null;
+    };
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
  * via the `definition` "DatasetV2".
  */
 export type DatasetV2 =
@@ -1135,6 +1352,12 @@ export type DatasetV2 =
         kind: "STATIC";
         rows: TreeDataRowV2[];
       };
+    }
+  | {
+      schemaVersion: "2.0";
+      shape: "TABLE" | "TREE";
+      fields: DatasetFieldsV2;
+      source: DatasetHttpSource;
     };
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -1804,6 +2027,10 @@ export interface ContractDefinitions {
   DatasetFieldsV2?: DatasetFieldsV2;
   TreeDataRowV2?: TreeDataRowV2;
   DataRowV2?: DataRowV2;
+  DatasetSignatureInput?: DatasetSignatureInput;
+  DatasetHttpAuth?: DatasetHttpAuth;
+  DatasetHttpMapping?: DatasetHttpMapping;
+  DatasetHttpSource?: DatasetHttpSource;
   DatasetV2?: DatasetV2;
   DatasetDocument?: DatasetDocument;
   FlowV1?: FlowV1;
@@ -2071,6 +2298,83 @@ export interface TreeDataRowV2 {
   values: JsonObject;
   parentKey: Key | null;
   order: number;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "DatasetHttpMapping".
+ */
+export interface DatasetHttpMapping {
+  rows: string;
+  key: string;
+  values: {
+    [k: string]: string;
+  };
+  parentKey?: string;
+  order?: string;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "DatasetHttpSource".
+ */
+export interface DatasetHttpSource {
+  kind: "HTTP";
+  connectionRef: Id | null;
+  environmentVersionId: Id | null;
+  method: "GET" | "POST";
+  path: string;
+  /**
+   * @maxItems 64
+   */
+  query: {
+    name: string;
+    value:
+      | string
+      | {
+          parameter: Key;
+        };
+  }[];
+  headers: {
+    [k: string]: string;
+  };
+  parameters: {
+    [k: string]: ValueType;
+  };
+  body:
+    | {
+        json: JsonValue;
+      }
+    | null
+    | {
+        parameter: Key;
+      }
+    | {
+        raw:
+          | string
+          | {
+              parameter: Key;
+            };
+      }
+    | {
+        /**
+         * @maxItems 64
+         */
+        form: {
+          name: string;
+          value:
+            | string
+            | {
+                parameter: Key;
+              };
+        }[];
+      };
+  auth: DatasetHttpAuth;
+  mapping: DatasetHttpMapping;
+  pagination?: {
+    kind: "PAGE" | "CURSOR";
+    parameter: Key;
+    next: string;
+    maxPages: number;
+  };
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema

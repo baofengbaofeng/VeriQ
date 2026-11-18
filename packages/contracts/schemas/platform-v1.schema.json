@@ -2865,6 +2865,475 @@
                 }
             ]
         },
+        "DatasetSignatureInput": {
+            "oneOf": [
+                {
+                    "type": "object",
+                    "properties": {
+                        "op": {
+                            "enum": ["QUERY", "PATH", "BODY", "METHOD", "TIMESTAMP"]
+                        }
+                    },
+                    "required": ["op"],
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "op": {
+                            "const": "PARAMETER"
+                        },
+                        "name": {
+                            "$ref": "#/$defs/Key"
+                        }
+                    },
+                    "required": ["op", "name"],
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "op": {
+                            "const": "LITERAL"
+                        },
+                        "value": {
+                            "type": "string",
+                            "maxLength": 1024
+                        }
+                    },
+                    "required": ["op", "value"],
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "op": {
+                            "enum": ["PERCENT_ENCODE", "SHA256", "BASE64"]
+                        },
+                        "input": {
+                            "$ref": "#/$defs/DatasetSignatureInput"
+                        }
+                    },
+                    "required": ["op", "input"],
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "op": {
+                            "const": "JOIN"
+                        },
+                        "separator": {
+                            "type": "string",
+                            "maxLength": 64
+                        },
+                        "parts": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/$defs/DatasetSignatureInput"
+                            },
+                            "maxItems": 16
+                        }
+                    },
+                    "required": ["op", "separator", "parts"],
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "op": {
+                            "const": "SORTED_QUERY"
+                        },
+                        "names": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "maxLength": 128
+                            },
+                            "maxItems": 64
+                        }
+                    },
+                    "required": ["op"],
+                    "additionalProperties": false
+                }
+            ]
+        },
+        "DatasetHttpAuth": {
+            "oneOf": [
+                {
+                    "type": "object",
+                    "properties": {
+                        "kind": {
+                            "const": "NONE"
+                        }
+                    },
+                    "required": ["kind"],
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "kind": {
+                            "enum": ["BEARER", "BASIC"]
+                        },
+                        "secretRef": {
+                            "oneOf": [
+                                {
+                                    "$ref": "#/$defs/Key"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ]
+                        },
+                        "secretVersionId": {
+                            "oneOf": [
+                                {
+                                    "$ref": "#/$defs/Id"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ]
+                        }
+                    },
+                    "required": ["kind", "secretRef", "secretVersionId"],
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "kind": {
+                            "const": "SIGNED"
+                        },
+                        "secretRef": {
+                            "oneOf": [
+                                {
+                                    "$ref": "#/$defs/Key"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ]
+                        },
+                        "secretVersionId": {
+                            "oneOf": [
+                                {
+                                    "$ref": "#/$defs/Id"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ]
+                        },
+                        "header": {
+                            "type": "string",
+                            "maxLength": 80
+                        },
+                        "algorithm": {
+                            "enum": ["HMAC_SHA256", "AES256_GCM"]
+                        },
+                        "input": {
+                            "$ref": "#/$defs/DatasetSignatureInput"
+                        }
+                    },
+                    "required": ["kind", "secretRef", "secretVersionId", "header", "algorithm", "input"],
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "kind": {
+                            "const": "API_KEY"
+                        },
+                        "header": {
+                            "type": "string",
+                            "maxLength": 80
+                        },
+                        "secretRef": {
+                            "oneOf": [
+                                {
+                                    "$ref": "#/$defs/Key"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ]
+                        },
+                        "secretVersionId": {
+                            "oneOf": [
+                                {
+                                    "$ref": "#/$defs/Id"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ]
+                        }
+                    },
+                    "required": ["kind", "header", "secretRef", "secretVersionId"],
+                    "additionalProperties": false
+                }
+            ]
+        },
+        "DatasetHttpMapping": {
+            "type": "object",
+            "properties": {
+                "rows": {
+                    "type": "string",
+                    "maxLength": 512,
+                    "pattern": "^(?:/(?:[^~/]|~[01])*)*$"
+                },
+                "key": {
+                    "type": "string",
+                    "maxLength": 512,
+                    "pattern": "^(?:/(?:[^~/]|~[01])*)*$"
+                },
+                "values": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string",
+                        "maxLength": 512,
+                        "pattern": "^(?:/(?:[^~/]|~[01])*)*$"
+                    },
+                    "maxProperties": 64
+                },
+                "parentKey": {
+                    "type": "string",
+                    "maxLength": 512,
+                    "pattern": "^(?:/(?:[^~/]|~[01])*)*$"
+                },
+                "order": {
+                    "type": "string",
+                    "maxLength": 512,
+                    "pattern": "^(?:/(?:[^~/]|~[01])*)*$"
+                }
+            },
+            "required": ["rows", "key", "values"],
+            "additionalProperties": false
+        },
+        "DatasetHttpSource": {
+            "type": "object",
+            "properties": {
+                "kind": {
+                    "const": "HTTP"
+                },
+                "connectionRef": {
+                    "oneOf": [
+                        {
+                            "$ref": "#/$defs/Id"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "environmentVersionId": {
+                    "oneOf": [
+                        {
+                            "$ref": "#/$defs/Id"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "method": {
+                    "enum": ["GET", "POST"]
+                },
+                "path": {
+                    "type": "string",
+                    "maxLength": 1024,
+                    "pattern": "^/[A-Za-z0-9/_~.\\-]*$"
+                },
+                "query": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "maxLength": 128
+                            },
+                            "value": {
+                                "oneOf": [
+                                    {
+                                        "type": "string",
+                                        "maxLength": 4096
+                                    },
+                                    {
+                                        "type": "object",
+                                        "properties": {
+                                            "parameter": {
+                                                "$ref": "#/$defs/Key"
+                                            }
+                                        },
+                                        "required": ["parameter"],
+                                        "additionalProperties": false
+                                    }
+                                ]
+                            }
+                        },
+                        "required": ["name", "value"],
+                        "additionalProperties": false
+                    },
+                    "maxItems": 64
+                },
+                "headers": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string",
+                        "maxLength": 1024
+                    },
+                    "maxProperties": 64
+                },
+                "parameters": {
+                    "type": "object",
+                    "propertyNames": {
+                        "$ref": "#/$defs/Key"
+                    },
+                    "additionalProperties": {
+                        "$ref": "#/$defs/ValueType"
+                    },
+                    "maxProperties": 32
+                },
+                "body": {
+                    "oneOf": [
+                        {
+                            "type": "object",
+                            "properties": {
+                                "json": {
+                                    "$ref": "#/$defs/JsonValue"
+                                }
+                            },
+                            "required": ["json"],
+                            "additionalProperties": false
+                        },
+                        {
+                            "type": "null"
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "parameter": {
+                                    "$ref": "#/$defs/Key"
+                                }
+                            },
+                            "required": ["parameter"],
+                            "additionalProperties": false
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "raw": {
+                                    "oneOf": [
+                                        {
+                                            "type": "string",
+                                            "maxLength": 4096
+                                        },
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "parameter": {
+                                                    "$ref": "#/$defs/Key"
+                                                }
+                                            },
+                                            "required": ["parameter"],
+                                            "additionalProperties": false
+                                        }
+                                    ]
+                                }
+                            },
+                            "required": ["raw"],
+                            "additionalProperties": false
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "form": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "name": {
+                                                "type": "string",
+                                                "maxLength": 128
+                                            },
+                                            "value": {
+                                                "oneOf": [
+                                                    {
+                                                        "type": "string",
+                                                        "maxLength": 4096
+                                                    },
+                                                    {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "parameter": {
+                                                                "$ref": "#/$defs/Key"
+                                                            }
+                                                        },
+                                                        "required": ["parameter"],
+                                                        "additionalProperties": false
+                                                    }
+                                                ]
+                                            }
+                                        },
+                                        "required": ["name", "value"],
+                                        "additionalProperties": false
+                                    },
+                                    "maxItems": 64
+                                }
+                            },
+                            "required": ["form"],
+                            "additionalProperties": false
+                        }
+                    ]
+                },
+                "auth": {
+                    "$ref": "#/$defs/DatasetHttpAuth"
+                },
+                "mapping": {
+                    "$ref": "#/$defs/DatasetHttpMapping"
+                },
+                "pagination": {
+                    "type": "object",
+                    "properties": {
+                        "kind": {
+                            "enum": ["PAGE", "CURSOR"]
+                        },
+                        "parameter": {
+                            "$ref": "#/$defs/Key"
+                        },
+                        "next": {
+                            "type": "string",
+                            "maxLength": 512,
+                            "pattern": "^(?:/(?:[^~/]|~[01])*)*$"
+                        },
+                        "maxPages": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 32
+                        }
+                    },
+                    "required": ["kind", "parameter", "next", "maxPages"],
+                    "additionalProperties": false
+                }
+            },
+            "required": [
+                "kind",
+                "connectionRef",
+                "environmentVersionId",
+                "method",
+                "path",
+                "query",
+                "headers",
+                "parameters",
+                "body",
+                "auth",
+                "mapping"
+            ],
+            "additionalProperties": false
+        },
         "DatasetV2": {
             "oneOf": [
                 {
@@ -2926,6 +3395,25 @@
                             },
                             "required": ["kind", "rows"],
                             "additionalProperties": false
+                        }
+                    },
+                    "required": ["schemaVersion", "shape", "fields", "source"],
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "schemaVersion": {
+                            "const": "2.0"
+                        },
+                        "shape": {
+                            "enum": ["TABLE", "TREE"]
+                        },
+                        "fields": {
+                            "$ref": "#/$defs/DatasetFieldsV2"
+                        },
+                        "source": {
+                            "$ref": "#/$defs/DatasetHttpSource"
                         }
                     },
                     "required": ["schemaVersion", "shape", "fields", "source"],

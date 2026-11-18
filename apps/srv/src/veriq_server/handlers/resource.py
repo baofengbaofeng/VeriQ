@@ -2,6 +2,8 @@ from typing import Any
 import re
 from sqlalchemy import and_, or_, select
 from ..auth.authorization import Permission, WorkspaceScope
+from ..datasets.bindings import authorize_dataset
+from ..datasets.request import fetch_rows, masked_preview, verify_signature
 from ..db import Resource, ResourceVersion, ResourceDependency, ValidationReceipt, Attempt
 from ..contracts import validate_schema
 from ..pagination import Page
@@ -27,10 +29,15 @@ class ResourceAPI(API):
         勿假设通用成功默认值。
         JSON 资源信封：2 MiB 加有界信封开销；其他操作保留 64 KiB 账户/API 上限。
         """
-        self.body_limit = 2 * 1024 * 1024 + 4096 if self.action in {"resources", "draft"} else 65536
+        self.body_limit = (
+            2 * 1024 * 1024 + 4096
+            if self.action in {"resources", "draft", "http-preview"}
+            else 65536
+        )
         super().prepare()
         allowed = {
             "dataset-copies": {"GET", "POST"},
+            "http-preview": {"POST"},
             "resources": {"GET", "POST"},
             "resource": {"GET", "PATCH"},
             "draft": {"GET", "PUT"},
@@ -59,6 +66,7 @@ class ResourceAPI(API):
             user,
             self.application.settings.get("identity_reference_registry"),
             engine_version=self.config.validation_engine_version,
+            settings=self.config,
         )
 
     async def get(
@@ -269,6 +277,31 @@ class ResourceAPI(API):
                 }
             )
 
+    async def _preview_binding(self, scope, resource_id, doc, *, resolve=False, delivered=False):
+        async with self.db.sessions.begin() as session:
+            user, _ = await self.identity(session)
+            resource = await self.service(session, user).editable(scope, resource_id)
+            if resource.kind != "DATASET":
+                raise Problem(422, "DATASET_UNAVAILABLE", "Dataset cannot be previewed")
+            result = await authorize_dataset(
+                session,
+                self.config,
+                scope.workspace_id,
+                user.id,
+                doc["source"].get("environmentVersionId"),
+                doc,
+                resolve=resolve,
+            )
+            if delivered:
+                audit(
+                    session,
+                    "dataset.http.previewed",
+                    user.id,
+                    resource_id,
+                    workspace_id=scope.workspace_id,
+                )
+            return result
+
     async def post(self, workspace_id: str, resource_id: str | None = None) -> None:
         """POST 创建资源、异步启动校验（202）或在校验回执通过后发布不可变版本；validate 返回 202 表示作业已入队，
         不是已通过。post 必须坚持 Workspace 归属与成员授权，
@@ -279,11 +312,29 @@ class ResourceAPI(API):
             {
                 "resources": "ResourceCreate",
                 "dataset-copies": "DatasetCopyRequest",
+                "http-preview": "HttpDatasetPreviewRequest",
                 "validate": "ValidationRequest",
                 "publish": "PublishRequest",
             }[self.action]
         )
         scope = WorkspaceScope(workspace_id)
+        if self.action == "http-preview":
+            assert resource_id
+            doc = data["document"]
+            config, secret = await self._preview_binding(scope, resource_id, doc, resolve=True)
+            if "verifySignature" in data:
+                output = verify_signature(
+                    config, data["arguments"], secret, data["verifySignature"]
+                )
+            else:
+                async def recheck():
+                    await self._preview_binding(scope, resource_id, doc)
+
+                output = masked_preview(await fetch_rows(config, data["arguments"], secret, recheck=recheck))
+            await self._preview_binding(scope, resource_id, doc, delivered=True)
+            self.set_header("Cache-Control", "no-store")
+            self.respond(output)
+            return
         async with self.db.sessions.begin() as s:
             await lock_installation(s)
             user, _ = await self.identity(s)

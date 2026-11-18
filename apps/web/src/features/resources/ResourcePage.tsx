@@ -180,7 +180,7 @@ export function ResourceWorkspaceView({
         client = useQueryClient(),
         { t } = useTranslation(undefined, useEditorTranslationOptions);
     const [kind, setKind] = useState<ResourceKind | "">(initialKind ?? ""),
-        [datasetFormat, setDatasetFormat] = useState<"V1" | "TABLE" | "TREE">("V1"),
+        [datasetFormat, setDatasetFormat] = useState<"V1" | "TABLE" | "TREE" | "HTTP_TABLE" | "HTTP_TREE">("V1"),
         [createKind, setCreateKind] = useState<ResourceKind>(initialKind ?? "CASE"),
         [key, setKey] = useState(""),
         [name, setName] = useState(""),
@@ -339,6 +339,8 @@ export function ResourceWorkspaceView({
                                     <option value="V1">{tx("Legacy table (V1)")}</option>
                                     <option value="TABLE">{tx("Static table (V2)")}</option>
                                     <option value="TREE">{tx("Static tree (V2)")}</option>
+                                    <option value="HTTP_TABLE">{tx("HTTP table (V2)")}</option>
+                                    <option value="HTTP_TREE">{tx("HTTP tree (V2)")}</option>
                                 </select>
                             </label>
                         )}
@@ -772,7 +774,12 @@ export function ResourceEditorView({
             <FormProvider {...form}>
                 <fieldset className="vq-editor-fields" disabled={!writable || busy}>
                     {mode === "form" ? (
-                        <ResourceForms key={formLifetime} kind={resource.kind} versions={allVersions.data ?? []} />
+                        <ResourceForms
+                            key={formLifetime}
+                            kind={resource.kind}
+                            versions={allVersions.data ?? []}
+                            preview={(data) => adapter.httpPreview(resource.id, data, signal)}
+                        />
                     ) : (
                         <>
                             <Monaco value={buffer} onChange={setBuffer} readOnly={!writable} label="JSON source" />

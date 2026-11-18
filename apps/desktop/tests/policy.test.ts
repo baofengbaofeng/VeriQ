@@ -5,6 +5,7 @@ import addFormats from "ajv-formats";
 import { resolveOperation } from "../src/main/policy.ts";
 import desktopSchema from "../src/shared/validation.generated.json" with { type: "json" };
 
+import httpDataset from "../../../packages/contracts/fixtures/http-dataset.json" with { type: "json" };
 import datasetFixtures from "../../../packages/contracts/fixtures/datasets.json" with { type: "json" };
 
 const validator = new Ajv2020({ strict: true, allErrors: true });
@@ -141,4 +142,21 @@ test("dataset copy discovery and creation bind the selected target workspace", (
     for (const request of [list, copy]) {
         assert.throws(() => resolveOperation(request, sourceWorkspaceId), /WORKSPACE_SCOPE_MISMATCH/);
     }
+});
+
+test("HTTP dataset previews stay within the selected workspace and reject credential material", () => {
+    const workspaceId = "00000000-0000-4000-8000-000000000001";
+    const resourceId = "00000000-0000-4000-8000-000000000002";
+    const item = {
+        operation: "previewHttpDataset",
+        params: { workspaceId, resourceId },
+        data: { document: httpDataset, arguments: {} },
+    };
+    assert.equal(
+        resolveOperation(item, workspaceId).path,
+        `/api/v1/workspaces/${workspaceId}/resources/${resourceId}/http-preview`,
+    );
+    assert.throws(() => resolveOperation(item, resourceId), /WORKSPACE_SCOPE_MISMATCH/);
+    const bad = { ...httpDataset, source: { ...httpDataset.source, auth: { kind: "BEARER", value: "fixture" } } };
+    assert.throws(() => resolveOperation({ ...item, data: { document: bad, arguments: {} } }, workspaceId));
 });

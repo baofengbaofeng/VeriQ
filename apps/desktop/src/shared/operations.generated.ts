@@ -85,6 +85,14 @@ export type CloudOperation =
           data: S["DraftWrite"];
       }
     | {
+          operation: "previewHttpDataset";
+          params: {
+              workspaceId: string;
+              resourceId: string;
+          };
+          data: S["HttpDatasetPreviewRequest"];
+      }
+    | {
           operation: "validateResource";
           params: {
               workspaceId: string;

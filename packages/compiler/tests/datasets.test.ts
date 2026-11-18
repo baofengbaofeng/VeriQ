@@ -3,6 +3,7 @@
  */
 import { readFileSync } from "node:fs";
 import { expect, test } from "vitest";
+import remote from "../../contracts/fixtures/http-dataset.json" with { type: "json" };
 import fixtures from "../../contracts/fixtures/datasets.json" with { type: "json" };
 import { analyze } from "../src/validate.js";
 import { asset, id, rehash, snapshot } from "./helpers.js";
@@ -127,4 +128,39 @@ test("the case accepts a typed string from its matrix and detects sparse binding
             }),
         ).issues,
     ).toEqual(expect.arrayContaining([expect.objectContaining({ code: "POSSIBLY_MISSING_VARIABLE" })]));
+});
+
+test("published HTTP data defines named assertions and never drives an execution matrix", () => {
+    expect(diagnostics(remote)).toEqual([]);
+    const reference = asset(3, "DATASET", remote);
+    const named = snapshot(
+        [
+            {
+                id: "read",
+                action: "apiRequest",
+                method: "GET",
+                path: "/one",
+                observers: [
+                    { id: "answer", method: "GET", path: "/one", window: { mode: "UNTIL_ACTION_SETTLED", quietMs: 0 } },
+                ],
+                afterAssertions: [
+                    {
+                        id: "match",
+                        type: "responseField",
+                        source: "response:answer",
+                        pointer: "",
+                        operator: "equals",
+                        severity: "BLOCK",
+                        expectedSource: "catalog",
+                        datasetExpected: { op: "field", alias: "lookup", key: "one", field: "label" },
+                    },
+                ],
+            },
+        ],
+        [reference],
+        { datasetBindings: { lookup: id(3) } },
+    );
+    expect(analyze(named).issues).toEqual([]);
+    const matrix = snapshot(undefined, [reference], { datasetVersionId: id(3) });
+    expect(analyze(matrix).issues.map((issue) => issue.code)).toContain("DATASET_HTTP_MATRIX");
 });

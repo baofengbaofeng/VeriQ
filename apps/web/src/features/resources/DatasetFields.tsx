@@ -105,7 +105,7 @@ function PageButtons({ scope, pages }: { scope: "rows" | "fields"; pages: Return
 /**
  * 创建静态数据集时附上一个可立即保存的字段和一行数据，树行另有显式的根标记及同级排序值。
  */
-export function newStaticDataset(shape: DatasetV2["shape"]): DatasetV2 {
+export function newStaticDataset(shape: DatasetV2["shape"]): Extract<DatasetV2, { source: { kind: "STATIC" } }> {
     const base = { schemaVersion: "2.0" as const, fields: { name: defaultField } };
     const row = { key: "row_1", values: { name: "" } };
     return shape === "TREE"
@@ -117,7 +117,7 @@ export function newStaticDataset(shape: DatasetV2["shape"]): DatasetV2 {
  * 数据集仅通过固定文档路径写入表单；业务字段键可以含点或与原型键相同，不能拼作表单路径。
  * 成功导入会重新建立行的局部组件身份，避免上一份草稿的嵌套 JSON 输入框状态遗留在新数组中。
  */
-export function DatasetFields({ dataset }: { dataset: DatasetV2 }) {
+export function DatasetFields({ dataset }: { dataset: Extract<DatasetV2, { source: { kind: "STATIC" } }> }) {
     useAppLocale();
     const set = useSet();
     const [generation, setGeneration] = useState(0);
@@ -232,7 +232,7 @@ function DatasetRows({
     update,
     visibleFields,
 }: {
-    dataset: DatasetV2;
+    dataset: Extract<DatasetV2, { source: { kind: "STATIC" } }>;
     update: (rows: DataRowV2[]) => void;
     visibleFields: [string, DataFieldV2][];
 }) {
@@ -366,7 +366,13 @@ function DatasetRows({
  * 预检结果绑定当前字段和草稿快照，输入、格式或原始草稿发生变化就使旧结果失效。文件读取完成前后的选择序号
  * 隔离较慢的异步读取，确保先选文件不能覆盖后来粘贴的文本或随后选择的文件。
  */
-function ImportRows({ dataset, apply }: { dataset: DatasetV2; apply: (rows: DataRowV2[]) => void }) {
+function ImportRows({
+    dataset,
+    apply,
+}: {
+    dataset: Extract<DatasetV2, { source: { kind: "STATIC" } }>;
+    apply: (rows: DataRowV2[]) => void;
+}) {
     const [format, setFormat] = useState<"CSV" | "JSON">("CSV"),
         [text, setText] = useState("");
     const [preview, setPreview] = useState<{ baseline: string; result: ReturnType<typeof parseDatasetImport> }>();

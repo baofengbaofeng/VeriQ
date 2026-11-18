@@ -524,7 +524,7 @@ export function assembleExecution(
         const dataset = source.assets.find((a) => a.versionId === datasetId);
         if (dataset?.kind !== "DATASET") return false;
         const d = dataset.document;
-        const rows = d.schemaVersion === "1.0" ? d.rows : d.source.rows;
+        const rows = d.schemaVersion === "1.0" ? d.rows : d.source.kind === "STATIC" ? d.source.rows : [];
         return rows.some(({ key, values }) => sha256(canonicalBytes({ key, values })) === selectedRowHash);
     });
     if (!matchesData)

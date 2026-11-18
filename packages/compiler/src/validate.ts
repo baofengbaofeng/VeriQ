@@ -122,9 +122,9 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
         if (
             dataset?.kind === "DATASET" &&
             dataset.document.schemaVersion === "2.0" &&
-            dataset.document.source.rows.length === 0
+            (dataset.document.source.kind === "HTTP" || dataset.document.source.rows.length === 0)
         )
-            fail("DATASET_EMPTY_MATRIX", path);
+            fail(dataset.document.source.kind === "HTTP" ? "DATASET_HTTP_MATRIX" : "DATASET_EMPTY_MATRIX", path);
     }
 
     const unique = (values: string[], p: string, code = "DUPLICATE_ID") => {
@@ -794,13 +794,18 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
                 }
                 const selected = datasetVersionId ? assets.get(datasetVersionId) : undefined;
                 const dataset = selected?.kind === "DATASET" ? selected.document : undefined;
-                const rows = dataset?.schemaVersion === "1.0" ? dataset.rows : dataset?.source.rows;
+                const rows =
+                    dataset?.schemaVersion === "1.0"
+                        ? dataset.rows
+                        : dataset?.source.kind === "STATIC"
+                          ? dataset.source.rows
+                          : undefined;
                 if (dataset?.schemaVersion === "1.0") {
                     for (const [key, type] of Object.entries(dataset.columns)) {
                         const present = dataset.rows.filter((row) => Object.hasOwn(row.values, key));
                         scope.data.set(key, { ...dataSymbol(present.map((row) => row.values[key]!)), type });
                     }
-                } else if (dataset) {
+                } else if (dataset?.source.kind === "STATIC") {
                     /**
                      * 冻结行决定矩阵中的可能值：缺失字段使绑定可缺失，显式空值保留为联合成员，声明类型仍约束取值。
                      * 按实际值收集列，避免为大量稀疏字段重复扫描整个行数组。

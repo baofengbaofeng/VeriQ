@@ -1994,6 +1994,159 @@
                 }
             }
         },
+        "/api/v1/workspaces/{workspaceId}/resources/{resourceId}/http-preview": {
+            "post": {
+                "operationId": "previewHttpDataset",
+                "tags": ["workspaces"],
+                "security": [
+                    {
+                        "WebSession": [],
+                        "CsrfToken": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "workspaceId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/components/schemas/Id"
+                        }
+                    },
+                    {
+                        "name": "resourceId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/components/schemas/Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "400": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "413": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "200": {
+                        "description": "Masked preview",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HttpDatasetPreviewEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "502": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "504": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/HttpDatasetPreviewRequest"
+                            }
+                        }
+                    }
+                },
+                "summary": "Preview masked mapped rows from an approved connection"
+            }
+        },
         "/api/v1/workspaces/{workspaceId}/resources/{resourceId}/validate": {
             "post": {
                 "operationId": "validateResource",
@@ -11146,6 +11299,92 @@
                 "additionalProperties": false
             },
             "ResourceDTO": { "$ref": "../schemas/platform-v1.schema.json#/$defs/ResourceDTO" },
+            "HttpDatasetPreviewRequest": {
+                "type": "object",
+                "properties": {
+                    "document": {
+                        "$ref": "#/components/schemas/DatasetV2"
+                    },
+                    "arguments": {
+                        "$ref": "#/components/schemas/JsonObject"
+                    },
+                    "verifySignature": {
+                        "type": "object",
+                        "properties": {
+                            "at": {
+                                "type": "string",
+                                "format": "date-time"
+                            },
+                            "expected": {
+                                "type": "string",
+                                "pattern": "^[a-f0-9]{64}$"
+                            }
+                        },
+                        "required": ["at", "expected"],
+                        "additionalProperties": false
+                    }
+                },
+                "required": ["document", "arguments"],
+                "additionalProperties": false
+            },
+            "HttpDatasetPreviewResult": {
+                "oneOf": [
+                    {
+                        "type": "object",
+                        "properties": {
+                            "rowCount": {
+                                "type": "integer",
+                                "minimum": 0
+                            },
+                            "sample": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "fields": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string",
+                                                "maxLength": 256
+                                            },
+                                            "maxItems": 10000
+                                        }
+                                    },
+                                    "required": ["fields"],
+                                    "additionalProperties": false
+                                },
+                                "maxItems": 10
+                            }
+                        },
+                        "required": ["rowCount", "sample"],
+                        "additionalProperties": false
+                    },
+                    {
+                        "type": "object",
+                        "properties": {
+                            "signatureMatches": {
+                                "type": "boolean"
+                            }
+                        },
+                        "required": ["signatureMatches"],
+                        "additionalProperties": false
+                    }
+                ]
+            },
+            "HttpDatasetPreviewEnvelope": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "$ref": "#/components/schemas/HttpDatasetPreviewResult"
+                    },
+                    "requestId": {
+                        "type": "string",
+                        "maxLength": 1024
+                    }
+                },
+                "required": ["data", "requestId"],
+                "additionalProperties": false
+            },
             "DatasetCopyRequest": {
                 "type": "object",
                 "properties": {

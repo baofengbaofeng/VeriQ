@@ -12,6 +12,8 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
 
+from .datasets.connection import DatasetConnection
+
 
 class Settings(BaseModel):
     """控制面强类型配置模型；extra=forbid，生产环境额外强制 HTTPS 公网源以及 SMTP TLS，Settings 的失败路径返回稳定错误。
@@ -62,6 +64,8 @@ class Settings(BaseModel):
     runtime_job_slots: int = Field(default=1, ge=1, le=100)
     compile_slots: int = Field(default=2, ge=1, le=100)
     cleanup_slots: int = Field(default=2, ge=1, le=100)
+
+    dataset_connections: dict[str, DatasetConnection] = Field(default_factory=dict)
 
     ai_allowed_base_urls: list[str] = Field(
         default_factory=lambda: ["https://api.openai.com/v1", "https://api.anthropic.com/v1"],
@@ -169,7 +173,7 @@ def resolve_settings_values(path: Path, overrides: dict[str, Any] | None = None)
         if (value := os.environ.get("VERIQ_" + key.upper())) is not None:
             values[key] = (
                 json.loads(value)
-                if key in {"previous_master_keys", "ai_allowed_base_urls"}
+                if key in {"previous_master_keys", "ai_allowed_base_urls", "dataset_connections"}
                 else value
             )
     values.update({k: v for k, v in (overrides or {}).items() if v is not None})

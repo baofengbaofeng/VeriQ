@@ -45,6 +45,23 @@ export function validateDataset(document: DatasetDocument, path = "") {
      * 按自有属性匹配字段和值，避免把对象原型上的名字当成真实字段。行键索引同时检测重复键并供树父链接查询。
      * 对于无效的重复行，保留首个键位置作为诊断依据；树关系不能在键有歧义时求值。
      */
+    if (document.source.kind === "HTTP") {
+        const { mapping, auth, environmentVersionId, connectionRef } = document.source;
+        if (
+            !connectionRef ||
+            !environmentVersionId ||
+            (auth.kind !== "NONE" && (!auth.secretRef || !auth.secretVersionId))
+        )
+            fail("DATASET_CONNECTION_UNAVAILABLE", "/source");
+        if (
+            Object.keys(mapping.values).length !== Object.keys(document.fields).length ||
+            Object.keys(mapping.values).some((key) => !Object.hasOwn(document.fields, key)) ||
+            (document.shape === "TREE") !== Object.hasOwn(mapping, "parentKey") ||
+            (document.shape === "TREE") !== Object.hasOwn(mapping, "order")
+        )
+            fail("DATASET_MAPPING_INVALID", "/source/mapping");
+        return issues;
+    }
     const rows = document.source.rows;
     const indexes = new Map<string, number>();
     const required = Object.keys(document.fields).filter((key) => document.fields[key]!.required);

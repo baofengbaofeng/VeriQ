@@ -26,7 +26,9 @@ export function staticDatasetResolver(documents: ReadonlyMap<string, DatasetDocu
             signal.throwIfAborted();
             const doc = documents.get(q.alias);
             if (!doc) throw new Error("UNKNOWN_DATASET_ALIAS");
-            const rows = doc.schemaVersion === "1.0" ? doc.rows : doc.source.rows;
+            const rows =
+                doc.schemaVersion === "1.0" ? doc.rows : doc.source.kind === "STATIC" ? doc.source.rows : undefined;
+            if (!rows) throw new Error("DATASET_REMOTE_REQUIRED");
             const fields = doc.schemaVersion === "1.0" ? doc.columns : doc.fields;
             const resolve = (v: JsonValue) =>
                 resolveBinding(v, { data: parameters.data ?? {}, vars: parameters.vars ?? {} });
@@ -51,7 +53,8 @@ export function staticDatasetResolver(documents: ReadonlyMap<string, DatasetDocu
             if (q.op === "contains") return row !== undefined;
             if (key !== null && !row) throw new Error("DATASET_ROW_MISSING");
             if (q.op === "field") return field(row!.values, q.field);
-            if (doc.schemaVersion !== "2.0" || doc.shape !== "TREE") throw new Error("DATASET_TREE_REQUIRED");
+            if (doc.schemaVersion !== "2.0" || doc.shape !== "TREE" || doc.source.kind !== "STATIC")
+                throw new Error("DATASET_TREE_REQUIRED");
             if (q.op === "children")
                 return doc.source.rows
                     .filter((r) => r.parentKey === key)

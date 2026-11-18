@@ -161,6 +161,15 @@
         "idempotency": false,
         "kind": "json"
     },
+    "previewHttpDataset": {
+        "path": "/api/v1/workspaces/{workspaceId}/resources/{resourceId}/http-preview",
+        "method": "POST",
+        "ids": ["workspaceId", "resourceId"],
+        "queries": {},
+        "request": "HttpDatasetPreviewRequest",
+        "idempotency": false,
+        "kind": "json"
+    },
     "validateResource": {
         "path": "/api/v1/workspaces/{workspaceId}/resources/{resourceId}/validate",
         "method": "POST",
