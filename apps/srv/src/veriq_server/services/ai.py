@@ -29,6 +29,7 @@ from .workspace import WorkspaceRepository
 from .resource import ResourceService, asset_references
 from .report import ReportService, redact
 
+AGENT_PURPOSE = "CONVERSATION"
 PURPOSE = "veriq-ai-provider-v1"
 ADVICE_SCHEMA = {
     "type": "object",
@@ -512,7 +513,7 @@ class AiService:
         勿假设通用成功默认值。
         """
         g = await s.get(AiGeneration, gid)
-        if not g or g.workspace_id != scope.workspace_id:
+        if not g or g.workspace_id != scope.workspace_id or g.purpose == AGENT_PURPOSE:
             raise Problem(404, "AI_GENERATION_NOT_FOUND", "Generation not found")
         if g.data.get("metadataExpiredAt"):
             raise Problem(410, "AI_GENERATION_EXPIRED", "Generation metadata retention has expired")
@@ -580,7 +581,10 @@ class AiService:
         async with self.transaction(scope) as (s, _):
             if gid:
                 return await self.dto(s, scope, await self.generation(s, scope, gid))
-            q = select(AiGeneration).where(AiGeneration.workspace_id == scope.workspace_id)
+            q = select(AiGeneration).where(
+                AiGeneration.workspace_id == scope.workspace_id,
+                AiGeneration.purpose != AGENT_PURPOSE,
+            )
             if page.last:
                 q = q.where(AiGeneration.id > page.last[1])
             rows = list((await s.scalars(q.order_by(AiGeneration.id).limit(page.limit + 1))).all())
@@ -596,6 +600,54 @@ class AiService:
                 if rows
                 else None,
             }
+
+    async def reserve_usage(
+        self,
+        s: AsyncSession,
+        p: AiProvider,
+        user: User,
+        request_id: str,
+        request_hash: str,
+        purpose: str,
+        reserve: int,
+        data: dict[str, Any],
+    ) -> AiGeneration:
+        """在调用者已取得的安装锁内核对月度余额并创建用量记录，让一次生成与私人对话竞争同一份可用预算。"""
+        budget = await self.budget(s, p)
+        if micros(p.config["monthlyBudgetUsd"]) == 0 or reserve > micros(budget["availableUsd"]):
+            raise Problem(
+                429, "AI_BUDGET_EXHAUSTED", "Provider budget cannot cover this bounded request"
+            )
+        g = AiGeneration(
+            id=str(uuid4()),
+            workspace_id=p.workspace_id,
+            provider_id=p.id,
+            actor_id=user.id,
+            request_id=request_id,
+            request_hash=request_hash,
+            created_at=now(),
+            month=budget["month"],
+            status="RUNNING",
+            purpose=purpose,
+            reserved_micros=reserve,
+            cost_micros=None,
+            data=data,
+        )
+        s.add(g)
+        return g
+
+    @staticmethod
+    def settle_usage(g: AiGeneration, reply: ModelReply | None, d: dict, config: dict) -> None:
+        """仅接受预留范围内的非负整数用量来结算费用，供应商缺失用量或返回超限数字时继续保留整笔预留。"""
+        if (
+            reply
+            and type(reply.input_tokens) is int
+            and type(reply.output_tokens) is int
+            and 0 <= reply.input_tokens <= d["inputTokenBound"]
+            and 0 <= reply.output_tokens <= config["maxOutputTokens"]
+        ):
+            g.cost_micros = priced(reply.input_tokens, reply.output_tokens, config)
+            d.update(inputTokens=reply.input_tokens, outputTokens=reply.output_tokens)
 
     async def create_draft(
         self, scope: WorkspaceScope, req: dict[str, Any], *, connection: bool = False
@@ -616,7 +668,7 @@ class AiService:
                 )
             )
             if existing:
-                if existing.request_hash != request_hash:
+                if existing.purpose == AGENT_PURPOSE or existing.request_hash != request_hash:
                     raise Problem(
                         409, "IDEMPOTENCY_CONFLICT", "Request id already represents different input"
                     )
@@ -627,13 +679,6 @@ class AiService:
             if req.get("contextHash") and req["contextHash"] != preview["contextHash"]:
                 raise Problem(409, "AI_CONTEXT_CHANGED", "Preview context changed; review it again")
             reserve = micros(preview["reservedUsd"])
-            budget = await self.budget(s, p)
-            if micros(p.config["monthlyBudgetUsd"]) == 0 or reserve > micros(
-                budget["availableUsd"]
-            ):
-                raise Problem(
-                    429, "AI_BUDGET_EXHAUSTED", "Provider budget cannot cover this bounded request"
-                )
             data = {
                 "context": preview["context"],
                 "provenance": preview["provenance"],
@@ -652,22 +697,16 @@ class AiService:
                 )
             if req.get("runId"):
                 data["runId"] = req["runId"]
-            g = AiGeneration(
-                id=str(uuid4()),
-                workspace_id=scope.workspace_id,
-                provider_id=p.id,
-                actor_id=user.id,
-                request_id=req["requestId"],
-                request_hash=request_hash,
-                created_at=now(),
-                month=budget["month"],
-                status="RUNNING",
-                purpose="CONNECTION_TEST" if connection else req["purpose"],
-                reserved_micros=reserve,
-                cost_micros=None,
-                data=data,
+            g = await self.reserve_usage(
+                s,
+                p,
+                user,
+                req["requestId"],
+                request_hash,
+                "CONNECTION_TEST" if connection else req["purpose"],
+                reserve,
+                data,
             )
-            s.add(g)
             key = self.key(p)
             config = dict(p.config)
             gid = g.id
@@ -694,15 +733,7 @@ class AiService:
                     409, "AI_PROVIDER_CHANGED", "Provider changed while the call was running"
                 )
             d = dict(g.data)
-            if (
-                reply
-                and type(reply.input_tokens) is int
-                and type(reply.output_tokens) is int
-                and 0 <= reply.input_tokens <= d["inputTokenBound"]
-                and 0 <= reply.output_tokens <= config["maxOutputTokens"]
-            ):
-                g.cost_micros = priced(reply.input_tokens, reply.output_tokens, config)
-                d.update(inputTokens=reply.input_tokens, outputTokens=reply.output_tokens)
+            self.settle_usage(g, reply, d, config)
             if g.status == "CANCELLED":
                 g.data = d
                 return await self.dto(s, scope, g)

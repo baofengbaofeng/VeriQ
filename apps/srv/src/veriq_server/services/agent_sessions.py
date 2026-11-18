@@ -97,13 +97,14 @@ class AgentSessionService:
         permission: Permission = Permission.VIEW,
         *,
         write: bool = False,
+        lock: bool = False,
     ) -> AsyncIterator[tuple[AsyncSession, User]]:
         """每段短事务均重查登录身份与当前成员权限，写入先锁安装行再鉴权，以便成员、归档和供应商变更能够按同一顺序生效。
 
         调用者必须在进入远程模型调用前结束事务，避免处理器持锁等待外部网络响应。
         """
         async with self.db.sessions.begin() as session:
-            if write:
+            if write or lock:
                 await lock_installation(session)
             user, _ = await self.identity(session)
             await WorkspaceRepository(session, scope).authorize(user, permission, write=write)

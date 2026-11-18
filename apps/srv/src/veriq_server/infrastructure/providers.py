@@ -76,6 +76,7 @@ class DraftContext:
     context: dict[str, Any]
     schema: dict[str, Any]
     max_output_tokens: int
+    system: str = SYSTEM
 
     def messages(self) -> list[dict[str, str]]:
         """组装 system/user 消息；用户侧仅承载规范化 JSON，避免把上下文当指令执行；system 提示固定强调上下文不可信且禁止
@@ -84,7 +85,7 @@ class DraftContext:
         错误码与调用方契约阅读，勿假设通用成功默认值。
         """
         return [
-            {"role": "system", "content": SYSTEM},
+            {"role": "system", "content": self.system},
             {
                 "role": "user",
                 "content": canonical_bytes(
@@ -216,7 +217,7 @@ class ProviderGateway:
                 result = await sdk.messages.create(
                     model=self.config["model"],
                     max_tokens=context.max_output_tokens,
-                    system=SYSTEM,
+                    system=context.messages()[0]["content"],
                     messages=[{"role": "user", "content": context.messages()[1]["content"]}],
                 )
                 usage_in, usage_out = result.usage.input_tokens, result.usage.output_tokens

@@ -5,7 +5,8 @@ from typing import Any
 from ..auth.authorization import Permission, WorkspaceScope
 from ..pagination import Page, boolean_filter
 from ..service import Problem
-from ..services.agent_sessions import AgentSessionService, session_dto
+from ..services.agent_sessions import session_dto
+from ..services.conversational_agent import ConversationalAgent
 from .base import API
 
 
@@ -31,9 +32,9 @@ class AgentAPI(API):
         if self.request.method not in self._methods[self.action]:
             raise Problem(405, "METHOD_NOT_ALLOWED", "Method not allowed")
 
-    def _sessions(self) -> AgentSessionService:
+    def _sessions(self) -> ConversationalAgent:
         """将当前请求的员工身份解析器传给存储服务，使更新和模型调用后的处理可重新查询有效登录状态。"""
-        return AgentSessionService(self.db, self.config, self.identity)
+        return ConversationalAgent(self.db, self.config, self.identity)
 
     def _page(self, scope: WorkspaceScope, user_id: str, **filters: Any) -> Page:
         """分页签名统一绑定员工、工作区和列表类别，有归档筛选或具体会话的列表还要绑定各自的参数。"""
@@ -51,7 +52,7 @@ class AgentAPI(API):
         """
         scope = WorkspaceScope(workspace_id)
         service = self._sessions()
-        async with service.transaction(scope) as (session, user):
+        async with service.transaction(scope, lock=self.action == "agent-turns") as (session, user):
             if self.action == "agent-settings":
                 data = await service.read_settings(session, scope)
             elif session_id is None:
@@ -63,6 +64,7 @@ class AgentAPI(API):
                 if self.action == "agent-session":
                     data = session_dto(owned)
                 else:
+                    await service.expire(session, owned)
                     page = self._page(scope, user.id, sessionId=owned.id)
                     data = await service.list_turns(session, owned, page)
         self.respond(data)
@@ -82,7 +84,7 @@ class AgentAPI(API):
     async def post(
         self, workspace_id: str, session_id: str | None = None, turn_id: str | None = None
     ) -> None:
-        """创建会话只写入个人元数据；轮次入口先校验权限、归属和输入，等待编排接入期间明确报告操作暂不可用。"""
+        """创建会话只写入个人元数据；提交和确认基于同一员工身份，委托编排服务验证归属及当前业务操作权限。"""
         scope = WorkspaceScope(workspace_id)
         service = self._sessions()
         if session_id is None:
@@ -97,19 +99,14 @@ class AgentAPI(API):
 
         # 提交输入不携带服务端标识以外的操作参数；确认只定位已存提议，不能从确认请求注入新的模型正文或操作。
         if self.action == "agent-turns":
-            self.body("AgentTurnSubmit")
-        elif self.request.body:
-            raise Problem(400, "INVALID_REQUEST", "Turn confirmation does not take a request body")
-        # 付费生成沿用编辑权限，确认入口先检查会话与轮次的归属，具体编辑或派发授权随后由所选业务操作决定。
-        permission = Permission.EDIT if turn_id is None else Permission.VIEW
-        async with service.transaction(scope, permission, write=True) as (session, user):
-            owned = await service.require_owned_session(
-                session, scope, user, session_id, active=True
-            )
-            if turn_id is not None:
-                await service.require_owned_turn(session, owned, turn_id)
-        # 这是编排接入点，只有后续服务能在同一事务证明业务操作和回执已保存；此处不能生成成功轮次或假回执。
-        raise Problem(503, "AGENT_TURN_UNAVAILABLE", "Conversation turn processing is unavailable")
+            result = await service.submit(scope, session_id, self.body("AgentTurnSubmit"))
+        else:
+            if self.request.body:
+                raise Problem(
+                    400, "INVALID_REQUEST", "Turn confirmation does not take a request body"
+                )
+            result = await service.confirm(scope, session_id, turn_id)
+        self.respond(result)
 
     async def delete(self, workspace_id: str, session_id: str) -> None:
         """归档是可安全重试的状态更新，只隐藏默认列表中的会话，保留已经产生的轮次和执行回执供本人继续查看。"""
