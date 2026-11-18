@@ -1606,17 +1606,12 @@ async def test_old_http_projection_reuses_only_the_live_capable_revalidation():
     assert result == (migration, None)
 
 
-async def test_previously_projected_http_job_revalidates_its_immutable_bundle(
-    site, dataset_deployment, dataset_wire
-):
-    """复现旧式投影回执与已排队测试同时跨版本升级；新增运行及既有运行应共享同一份从冻结原稿生成的重验证。"""
-    from uuid import uuid4
-    from sqlalchemy import select
+@pytest.fixture
+async def historical_http_case(site, dataset_deployment):
+    """共用正常创建的环境、HTTP 数据版本、用例草稿和受信设备，旧回执与新投影分别由各测试场景单独生成。"""
     from test_http_datasets import REF, config, connection
-    from test_lease_mysql import auth, claim_body
-    from test_publish import completed, create, queue
+    from test_publish import create
     from test_runs_mysql import environment, published
-    from veriq_server.db import Job, ValidationReceipt
 
     c, db = site
     await setup(c)
@@ -1675,6 +1670,21 @@ async def test_previously_projected_http_job_revalidates_its_immutable_bundle(
             },
         },
     )
+    return ws, d, env, path
+
+
+async def test_previously_projected_http_job_revalidates_its_immutable_bundle(
+    site, historical_http_case
+):
+    """复现旧式投影回执与已排队测试同时跨版本升级；新增运行及既有运行应共享同一份从冻结原稿生成的重验证。"""
+    from uuid import uuid4
+    from sqlalchemy import select
+    from test_lease_mysql import auth, claim_body
+    from test_publish import completed, queue
+    from veriq_server.db import Job, ValidationReceipt
+
+    c, db = site
+    ws, d, env, path = historical_http_case
     preview, validation = await queue(c, path)
     receipt, _ = await completed(db, validation["id"], connected=True)
     published_case = await c.post(
@@ -1704,7 +1714,7 @@ async def test_previously_projected_http_job_revalidates_its_immutable_bundle(
     from veriq_server.db import Attempt
     from veriq_server.services.connected_datasets import frozen_object
 
-    malformed = [await submit(), await submit()]
+    malformed = [await submit() for _ in range(4)]
     prior, waiting = await submit(), await submit()
     async with db.sessions.begin() as session:
         repo = ResourceRepository(session, WorkspaceScope(ws))
@@ -1716,8 +1726,18 @@ async def test_previously_projected_http_job_revalidates_its_immutable_bundle(
                 k: v for k, v in queued.required_capabilities.items() if k != "httpDatasets"
             }
             manifest = await frozen_object(repo, queued.manifest_hash)
-            if rid != prior:
+            if rid == malformed[3]:
+                queued.required_capabilities = {
+                    **queued.required_capabilities,
+                    "httpDatasets": "1.0",
+                }
+            if rid not in (prior, *malformed[2:]):
                 manifest.pop("compiledBundleSha256")
+            if rid in malformed[2:]:
+                queued.required_capabilities = {
+                    **queued.required_capabilities,
+                    "validationJobId": None,
+                }
             if rid in (malformed[1], waiting):
                 queued.required_capabilities = {
                     **queued.required_capabilities,
@@ -1748,7 +1768,7 @@ async def test_previously_projected_http_job_revalidates_its_immutable_bundle(
         )
         assert len(jobs) == 3
         broken = (await session.scalars(select(Job).where(Job.run_id.in_(malformed)))).all()
-        assert len(broken) == 2 and all(
+        assert len(broken) == 4 and all(
             j.state == "FINISHED" and j.outcome == "ERROR" for j in broken
         )
         assert not (
@@ -1757,16 +1777,176 @@ async def test_previously_projected_http_job_revalidates_its_immutable_bundle(
         assert all(j.required_capabilities.get("validationJobId") == claimed["jobId"] for j in jobs)
         assert all(j.required_capabilities.get("httpDatasets") == "1.0" for j in jobs)
         assert (await session.get(ValidationReceipt, receipt)).compiled_bundle_sha256 == retained
-    headers = {
-        **auth(d),
-        "X-VeriQ-Lease-Token": claimed["leaseToken"],
-        "X-VeriQ-Fencing-Token": str(claimed["fencingToken"]),
-    }
-    for rejected in broken:
+
+
+@pytest.mark.parametrize("ready", [False, True], ids=["pending", "ready"])
+async def test_historical_scheduler_redirect_keeps_only_its_original_lineage(
+    site, historical_http_case, dataset_deployment, monkeypatch, ready
+):
+    """使用旧代调度器的真实重定向写入与撤权发布方，只有原清单所派生的验证可恢复执行，其它同源验证不能借用。"""
+    from uuid import uuid4
+    from sqlalchemy import select
+    from test_http_datasets import REF
+    from test_lease_mysql import auth, claim_body
+    from test_publish import completed, queue
+    from veriq_server.auth.authorization import WorkspaceScope
+    from veriq_server.repositories.resource import ResourceRepository
+    from veriq_server.services import connected_datasets as connected, runs
+    from veriq_server.db import Attempt, CaseExecution, Job, ValidationReceipt, CapacityPool
+    from veriq_server.contracts import canonical_bytes
+
+    c, db = site
+    ws, d, env, path = historical_http_case
+    editor = await new_member(c, ws, "old-publisher@example.com", "ADMIN")
+    deployment = dataset_deployment[REF]
+    dataset_deployment[REF] = deployment.model_copy(
+        update={"user_ids": [*deployment.user_ids, editor]}
+    )
+
+    async def claim(live=False):
+        body = claim_body(d)
+        body["capabilities"] = {
+            **body["capabilities"],
+            "connectedDatasets": "2.0",
+            **({"httpDatasets": "1.0"} if live else {}),
+        }
+        return await c.post("/internal/v1/jobs/claim", headers=auth(d), json=body)
+
+    async def submit(original):
         response = await c.post(
-            f"/internal/v1/attempts/{rejected.id}/datasets/http",
-            headers=headers,
-            json={"versionId": vid, "parameters": {"search": "one"}},
+            f"/api/v1/workspaces/{ws}/runs",
+            headers={"Idempotency-Key": str(uuid4())},
+            json={
+                "draftValidationJobId": original,
+                "environmentVersionId": env,
+                "roleKeys": ["reader"],
+                "browsers": ["chromium"],
+                "runtimeIds": [d["runnerId"]],
+            },
         )
-        assert response.status_code == 403
-    assert dataset_wire[0] == []
+        assert response.status_code == 202, response.text
+        return response.json()["data"]["id"]
+
+    with monkeypatch.context() as old:
+        # 此处重放 15cb5cc 的静态能力输入，正常调度器仍自行建重验证、选择幂等键、改写依赖并保留原清单。
+        old.setattr(connected, "http_capabilities", lambda _: {})
+        old.setattr(runs, "http_capabilities", lambda _: {})
+        async with client(c, "old-publisher@example.com") as publisher:
+            preview, validation = await queue(publisher, path)
+            original = validation["id"]
+            receipt_id, _ = await completed(db, original, connected=False)
+            published = await publisher.post(
+                path + "/publish",
+                json={"revision": preview["revision"], "validationReceiptId": receipt_id},
+            )
+            assert published.status_code == 201, published.text
+        assert (await c.delete(f"/api/v1/workspaces/{ws}/members/{editor}")).status_code == 200
+        good, wrong = await submit(original), await submit(original)
+        assert (await claim()).status_code == 204
+        async with db.sessions.begin() as session:
+            repo = ResourceRepository(session, WorkspaceScope(ws))
+            candidates = (
+                await session.scalars(select(Job).where(Job.run_id.in_([good, wrong])))
+            ).all()
+            assert len(candidates) == 2
+            redirected = candidates[0].required_capabilities["validationJobId"]
+            assert redirected != original
+            for job in candidates:
+                case = await session.get(CaseExecution, job.case_execution_id)
+                assert case.provenance["validationJobId"] == original
+                manifest = await connected.frozen_object(repo, job.manifest_hash)
+                assert manifest["pendingValidationJobId"] == original
+                assert job.required_capabilities["validationJobId"] == redirected
+            replacement = await repo.job(redirected)
+            assert replacement.required_capabilities["publishedValidationJobId"] == original
+            # 同一个工作区、请求者、原始源、资源和引擎，也可有来自另一验证链的同形重验证；复制标志不能伪造幂等键。
+            subject = await repo.job(original)
+            source = await connected.frozen_object(repo, subject.snapshot_hash)
+            receipt = await session.get(ValidationReceipt, receipt_id)
+            bundle = await connected.frozen_object(repo, receipt.compiled_bundle_sha256)
+            sibling, _ = await connected.revalidate_bundle(
+                repo, replacement, source, bundle, receipt, requester=replacement.created_by
+            )
+            assert sibling.validation_key != replacement.validation_key
+            sibling.required_capabilities = {
+                **sibling.required_capabilities,
+                "publishedValidationJobId": original,
+                "revalidationGroup": replacement.required_capabilities["revalidationGroup"],
+            }
+            rejected = next(j for j in candidates if j.run_id == wrong)
+            rejected.required_capabilities = {
+                **rejected.required_capabilities,
+                "validationJobId": sibling.id,
+            }
+            bad_id = rejected.id
+        if ready:
+            good_receipt, _ = await completed(db, redirected, connected=True)
+            wrong_receipt, _ = await completed(db, sibling.id, connected=True)
+            async with db.sessions.begin() as session:
+                repo = ResourceRepository(session, WorkspaceScope(ws))
+                # 通用回执夹具写入成功 Attempt 和回执，补齐正式完成器同时记录的作业终态以重放旧队列。
+                for id_ in (redirected, sibling.id):
+                    finished = await repo.job(id_)
+                    actual = await session.get(Attempt, finished.active_attempt_id)
+                    assert (actual.phase, actual.outcome) == ("FINISHED", "PASSED")
+                    finished.outcome = actual.outcome
+                alternate = await session.get(ValidationReceipt, wrong_receipt)
+                descriptor = await connected.frozen_object(repo, alternate.compiled_bundle_sha256)
+                entry = next(f for f in descriptor["files"] if f["path"] == "entry.ts")
+                alternate_body = b"// independent synthetic compiler build\nexport {};\n"
+                entry.update(sha256=await repo.store(alternate_body), sizeBytes=len(alternate_body))
+                alternate.compiled_bundle_sha256 = await repo.store(canonical_bytes(descriptor))
+                wrong_digest = alternate.compiled_bundle_sha256
+                good_digest = (
+                    await session.get(ValidationReceipt, good_receipt)
+                ).compiled_bundle_sha256
+                assert wrong_digest != good_digest
+                session.add(CapacityPool(key="00/global/browser", limit=4, used=4))
+            # 旧领取器已写完最终包，再由数据库里已满的浏览器池拒绝派发，故两个没有显式依赖的 TEST 仍然排队。
+            assert (await claim()).status_code == 204
+            async with db.sessions.begin() as session:
+                repo = ResourceRepository(session, WorkspaceScope(ws))
+                for run_id, expected_digest in ((good, good_digest), (wrong, wrong_digest)):
+                    queued = (await session.scalars(select(Job).where(Job.run_id == run_id))).one()
+                    assert (queued.state, queued.wait_reason) == ("QUEUED", "CAPACITY")
+                    assert "validationJobId" not in queued.required_capabilities
+                    manifest = await connected.frozen_object(repo, queued.manifest_hash)
+                    assert "pendingValidationJobId" not in manifest
+                    assert manifest["compiledBundleSha256"] == expected_digest
+                    case = await session.get(CaseExecution, queued.case_execution_id)
+                    assert case.provenance["validationJobId"] == original
+                pool = await session.get(CapacityPool, "00/global/browser")
+                pool.used = 0
+
+    assert (await claim()).status_code == 204
+    async with db.sessions() as session:
+        good_job = (await session.scalars(select(Job).where(Job.run_id == good))).one()
+        rejected = await session.get(Job, bad_id)
+        assert (good_job.state, good_job.required_capabilities.get("httpDatasets")) == (
+            "QUEUED",
+            "1.0",
+        )
+        assert good_job.required_capabilities["validationJobId"] == (
+            original if ready else redirected
+        )
+        assert (rejected.state, rejected.outcome) == ("FINISHED", "ERROR")
+        assert not (await session.scalars(select(Attempt).where(Attempt.job_id == bad_id))).all()
+        expected_test = good_job.id
+    if ready:
+        assert (await claim(live=True)).status_code == 204
+        async with db.sessions() as session:
+            queued = await session.get(Job, expected_test)
+            replacement_id = queued.required_capabilities["validationJobId"]
+            fresh = await session.get(Job, replacement_id)
+            assert fresh.required_capabilities["httpDatasets"] == "1.0"
+            assert fresh.required_capabilities["publishedValidationJobId"] == original
+            assert replacement_id not in (original, redirected, sibling.id)
+    else:
+        replacement_id = redirected
+    await completed(db, replacement_id, connected=True)
+    result = await claim(live=True)
+    assert result.status_code == 200, result.text
+    assert (result.json()["data"]["jobId"], result.json()["data"]["jobKind"]) == (
+        expected_test,
+        "TEST",
+    )

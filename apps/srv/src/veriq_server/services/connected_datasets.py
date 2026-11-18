@@ -2,6 +2,7 @@
 
 import json
 import re
+from collections.abc import Iterable
 from hashlib import sha256
 from typing import Any
 from uuid import uuid4
@@ -9,7 +10,7 @@ from uuid import uuid4
 from sqlalchemy import or_, select
 
 from ..contracts import asset_source_hash, canonical_bytes, validate_schema
-from ..db import Attempt, CaseExecution, Job, ValidationReceipt
+from ..db import Attempt, CaseExecution, Job, Run, ValidationReceipt
 from ..repositories.resource import ResourceRepository
 from ..service import Problem, now
 from .snapshots import execution_data_row
@@ -295,6 +296,27 @@ def project_execution(execution: dict, source: dict) -> dict:
     return projected
 
 
+def revalidation_group(
+    original_id: str, requester: str, token: str | None, plan: str | None, features: dict
+) -> str:
+    """验证任务的同组键同时绑定原发布验证、实际触发者和计划；功能升级会生成独立键，重试代次则属于原组。"""
+    return checksum(
+        {
+            "connectedDatasets": "2.0",
+            **features,
+            "validationJobId": original_id,
+            "requester": requester,
+            "serviceToken": token,
+            "planId": plan,
+        }
+    )
+
+
+def revalidation_key(group: str, generation: int) -> str:
+    """首代直接使用组键，之后每次失败重试都有自己的持久键，创建与历史溯源核查必须采用相同规则。"""
+    return checksum({"group": group, "generation": generation}) if generation else group
+
+
 async def revalidate_bundle(
     repo: ResourceRepository,
     validation: Job,
@@ -324,18 +346,8 @@ async def revalidate_bundle(
         raise Problem(
             409, "COMPILED_PROVENANCE_REQUIRED", "Retained source differs from frozen version"
         )
-    key = checksum(
-        {
-            "connectedDatasets": "2.0",
-            **needed,
-            "validationJobId": validation.id,
-            "requester": requester,
-            "serviceToken": service_token,
-            "planId": plan_id,
-        }
-    )
+    group = revalidation_group(validation.id, requester, service_token, plan_id, needed)
     # 已有版本使用单一幂等键；同一组后续重验证另取代次键。保留失败任务和旧依赖的关联，使既有运行终态可追查。
-    group = key
     existing = (
         await repo.session.execute(
             select(Job)
@@ -361,7 +373,7 @@ async def revalidate_bundle(
         ):
             return existing, None
         generation = existing.required_capabilities.get("revalidationGeneration", 0) + 1
-        key = checksum({"group": group, "generation": generation})
+
     jid = str(uuid4())
     manifest = await frozen_object(repo, validation.manifest_hash, "JobManifestV1")
     manifest.update(
@@ -375,7 +387,7 @@ async def revalidate_bundle(
         state="QUEUED",
         snapshot_hash=validation.snapshot_hash,
         manifest_hash=await repo.store(canonical_bytes(manifest)),
-        validation_key=key,
+        validation_key=revalidation_key(group, generation),
         required_capabilities={
             "engineVersion": source["engineVersion"],
             "compileAssets": True,
@@ -486,6 +498,114 @@ async def legacy_source(repo: ResourceRepository, job: Job) -> dict | None:
     return source
 
 
+def pending_validation(job: Job) -> str | None:
+    """只有未携带属性才表示没有依赖；显式空值或不合法标识说明分配记录损坏，不能据此直接领取测试任务。"""
+    if "validationJobId" not in job.required_capabilities:
+        return None
+    pending = job.required_capabilities["validationJobId"]
+    if validate_schema("Id", pending):
+        raise Problem(409, "COMPILED_PROVENANCE_REQUIRED", "Invalid validation dependency")
+    return pending
+
+
+async def verify_redirect(
+    repo: ResourceRepository,
+    job: Job,
+    original: Job,
+    source: dict,
+    *,
+    pending: str | None = None,
+    compiled: str | None = None,
+) -> None:
+    """旧调度器在有容量前可能已经写入最终包；用原验证、组键和投影清单查证替代关系，包摘要只用于选择候选。"""
+    invalid = Problem(409, "COMPILED_PROVENANCE_REQUIRED", "Invalid historical validation redirect")
+    run = await repo.session.get(Run, job.run_id)
+    if not run or run.workspace_id != job.workspace_id:
+        raise invalid
+    # 同一旧验证以后可被新设备接手，领用时追加的 HTTP 能力不会改变静态代次写入的键或验证来源。
+    group = revalidation_group(
+        original.id, job.created_by, job.requester_service_token_id, run.plan_id, {}
+    )
+    manifest = await frozen_object(repo, original.manifest_hash, "ValidateJobManifestV1")
+    projected = checksum(project_source(source))
+    if (
+        manifest["jobId"] != original.id
+        or manifest["workspaceId"] != job.workspace_id
+        or manifest["resourceId"] != original.subject_id
+        or manifest["sourceHash"] != source["sourceHash"]
+        or manifest["engineVersion"] != source["engineVersion"]
+        or manifest["snapshotSha256"] not in (original.snapshot_hash, projected)
+    ):
+        raise invalid
+    candidates: Iterable[Job]
+    if pending is not None:
+        candidates = [await repo.job(pending)]
+    else:
+        # 可执行回执须由该空间内替代验证的活动尝试成功签发；即使别的作业生成相同包字节，其回执也不能作证。
+        candidates = await repo.session.scalars(
+            select(Job)
+            .join(ValidationReceipt, ValidationReceipt.job_id == Job.id)
+            .where(
+                Job.workspace_id == job.workspace_id,
+                Job.subject_id == original.subject_id,
+                Job.snapshot_hash == original.snapshot_hash,
+                Job.state == "FINISHED",
+                Job.outcome == "PASSED",
+                Job.required_capabilities["revalidationGroup"].as_string() == group,
+                ValidationReceipt.workspace_id == job.workspace_id,
+                ValidationReceipt.resource_id == original.subject_id,
+                ValidationReceipt.revision == manifest["revision"],
+                ValidationReceipt.attempt_id == Job.active_attempt_id,
+                ValidationReceipt.compiler_trust == "MANAGED",
+                ValidationReceipt.source_hash == source["sourceHash"],
+                ValidationReceipt.engine_version == source["engineVersion"],
+                ValidationReceipt.compiled_bundle_sha256 == compiled,
+            )
+        )
+    for linked in candidates:
+        caps = linked.required_capabilities
+        if not isinstance(caps, dict):
+            continue
+        generation = caps.get("revalidationGeneration")
+        if (
+            linked.kind != "VALIDATE"
+            or linked.subject_id != original.subject_id
+            or linked.snapshot_hash != original.snapshot_hash
+            or linked.created_by != job.created_by
+            or linked.requester_service_token_id != job.requester_service_token_id
+            or caps.get("publishedValidationJobId") != original.id
+            or caps.get("engineVersion") != source["engineVersion"]
+            or caps.get("connectedDatasets") != "2.0"
+            or caps.get("compileAssets") is not True
+            or caps.get("revalidationPlanId")
+            != (run.plan_id if job.requester_service_token_id else None)
+            or caps.get("revalidationGroup") != group
+            or type(generation) is not int
+            or generation < 0
+            or linked.validation_key != revalidation_key(group, generation)
+        ):
+            continue
+        expected = {**manifest, "jobId": linked.id, "snapshotSha256": projected}
+        if linked.manifest_hash == checksum(expected):
+            await frozen_object(repo, linked.manifest_hash, "ValidateJobManifestV1")
+            if compiled is not None:
+                bundle = await frozen_object(repo, compiled, "CompiledAssetBundle")
+                retained = {k: v for k, v in source.items() if k != "validationTarget"}
+                members = [
+                    f["sha256"]
+                    for f in bundle["files"]
+                    if f["path"] == "source/asset-snapshot.json"
+                ]
+                if (
+                    bundle["sourceHash"] != source["sourceHash"]
+                    or bundle["engineVersion"] != source["engineVersion"]
+                    or members != [checksum(project_source(retained))]
+                ):
+                    raise invalid
+            return
+    raise invalid
+
+
 async def historical_test_validation(
     repo: ResourceRepository, job: Job, source: dict, subject: dict, manifest: dict, expected: dict
 ) -> str:
@@ -515,9 +635,12 @@ async def historical_test_validation(
         "caseVersionId": case.case_version_id,
         "executionSnapshotSha256": job.snapshot_hash,
     }
-    pending = job.required_capabilities.get("validationJobId")
+    pending = pending_validation(job)
+    redirected = pending is not None and pending != validation_id
     if pending is not None:
-        if pending != validation_id or manifest != {**expected, "pendingValidationJobId": pending}:
+        if manifest != {**expected, "pendingValidationJobId": validation_id} or (
+            redirected and subject["schemaVersion"] != "2.0"
+        ):
             raise invalid
     elif validate_schema("TestJobManifestV1", manifest) or any(
         manifest.get(k) != v for k, v in expected.items()
@@ -526,7 +649,7 @@ async def historical_test_validation(
     validation = await repo.job(validation_id)
     if validation.kind != "VALIDATE" or validation.snapshot_hash != case.source_snapshot_hash:
         raise invalid
-    if pending is None:
+    if pending is None or redirected:
         receipt = (
             await repo.session.execute(
                 select(ValidationReceipt).where(
@@ -542,9 +665,16 @@ async def historical_test_validation(
             or receipt.source_hash != source["sourceHash"]
             or receipt.attempt_id != validation.active_attempt_id
             or receipt.engine_version != source["engineVersion"]
-            or receipt.compiled_bundle_sha256 != manifest["compiledBundleSha256"]
         ):
             raise invalid
+        if redirected:
+            await verify_redirect(repo, job, validation, source, pending=pending)
+        elif receipt.compiled_bundle_sha256 != manifest["compiledBundleSha256"]:
+            if subject["schemaVersion"] != "2.0":
+                raise invalid
+            await verify_redirect(
+                repo, job, validation, source, compiled=manifest["compiledBundleSha256"]
+            )
     return validation_id
 
 

@@ -226,7 +226,12 @@ class JobService:
     ) -> bool:
         """在单项保存点内核验历史源、验证依赖与已发布回执；正常等待保留候选状态，只有来源不可恢复才终止该项。"""
         repo = ResourceRepository(self.session, WorkspaceScope(job.workspace_id))
-        from .connected_datasets import frozen_object, upgrade_queued, revalidate_bundle
+        from .connected_datasets import (
+            frozen_object,
+            pending_validation,
+            upgrade_queued,
+            revalidate_bundle,
+        )
 
         if await upgrade_queued(repo, job) and not compatible:
             job.wait_reason = "NO_CAPABILITY"
@@ -234,7 +239,7 @@ class JobService:
         if job.required_capabilities.get("httpDatasets") and not http_compatible:
             job.wait_reason = "NO_CAPABILITY"
             return False
-        if dependency := job.required_capabilities.get("validationJobId"):
+        if dependency := pending_validation(job):
             compiled_receipt = (
                 await self.session.execute(
                     select(ValidationReceipt).where(
