@@ -4,9 +4,10 @@
 store 以内容寻址写入 INLINE。外部后端未过期对象在钉死内联字节前先 retire，避免双后端同时指向同一 digest。
 """
 
-from typing import Protocol, cast
+from typing import Any, Protocol, cast
+from ..pagination import Page
 from hashlib import sha256
-from sqlalchemy import select
+from sqlalchemy import select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..auth.authorization import WorkspaceScope
 from ..db import (
@@ -91,6 +92,45 @@ class ResourceRepository:
         if row is None:
             raise Problem(404, "DRAFT_NOT_FOUND", "Draft not found")
         return row
+
+    async def dataset_versions(self, page: Page) -> dict[str, Any]:
+        """清单只投影来源空间内已发布数据集的身份与展示字段，翻页不读取或传送可能很大的版本正文。"""
+        query = (
+            select(
+                Resource.id,
+                Resource.key,
+                Resource.name,
+                ResourceVersion.id,
+                ResourceVersion.version_no,
+            )
+            .join(ResourceVersion, ResourceVersion.resource_id == Resource.id)
+            .where(
+                Resource.workspace_id == self.scope.workspace_id,
+                ResourceVersion.workspace_id == self.scope.workspace_id,
+                Resource.kind == "DATASET",
+            )
+        )
+        if page.last:
+            query = query.where(
+                tuple_(Resource.key, ResourceVersion.version_no) > (page.last[0], int(page.last[1]))
+            )
+        rows = (
+            await self.session.execute(
+                query.order_by(Resource.key, ResourceVersion.version_no).limit(page.limit + 1)
+            )
+        ).all()
+        items = [
+            {"resourceId": rid, "key": key, "name": name, "versionId": vid, "versionNo": number}
+            for rid, key, name, vid, number in rows[: page.limit]
+        ]
+        return {
+            "items": items,
+            "nextCursor": (
+                page.next((items[-1]["key"], str(items[-1]["versionNo"])), len(rows) > page.limit)
+                if items
+                else None
+            ),
+        }
 
     async def version(self, version_id: str) -> ResourceVersion:
         """读取不可变版本，必须属当前 Workspace，否则 VERSION_NOT_FOUND，ResourceRepository.version 路径必须遵守

@@ -42,7 +42,7 @@ async def queue(c, path):
     return p, r.json()["data"]
 
 
-async def completed(db, job_id):
+async def completed(db, job_id, *, connected=False):
     async with db.sessions.begin() as s:
         job = await s.get(Job, job_id)
         source = await s.get(Artifact, (job.workspace_id, job.snapshot_hash))
@@ -76,6 +76,37 @@ async def completed(db, job_id):
                 {"name": "@veriq/runner-sdk", "version": "0.1.0", "integrity": "sha256-" + digest}
             ],
         }
+        if any(a["kind"] == "DATASET" for a in snapshot["assets"]):
+            from veriq_server.auth.authorization import WorkspaceScope
+            from veriq_server.repositories.resource import ResourceRepository
+
+            repo = ResourceRepository(s, WorkspaceScope(job.workspace_id))
+            retained = (
+                {k: v for k, v in snapshot.items() if k != "validationTarget"}
+                if snapshot["entryCaseVersionIds"]
+                else snapshot
+            )
+            if connected:
+                from veriq_server.services.connected_datasets import project_source
+
+                retained = project_source(retained)
+            else:
+                # 默认模拟历史编译回执；显式联网夹具使用任务的投影清单与对应的精确源成员。
+                manifest = json.loads((await repo.artifact(job.manifest_hash)).content)
+                manifest["snapshotSha256"] = job.snapshot_hash
+                job.manifest_hash = await repo.store(canonical_bytes(manifest))
+                job.required_capabilities = {
+                    k: v for k, v in job.required_capabilities.items() if k != "connectedDatasets"
+                }
+            source_bytes = canonical_bytes(retained)
+            source_digest = await repo.store(source_bytes)
+            bundle["files"].append(
+                {
+                    "path": "source/asset-snapshot.json",
+                    "sha256": source_digest,
+                    "sizeBytes": len(source_bytes),
+                }
+            )
         if not snapshot["entryCaseVersionIds"]:
             bundle["validationOnly"] = True
         raw = canonical_bytes(bundle)
@@ -767,3 +798,45 @@ async def test_revalidation_requires_identical_compiled_artifacts(site, changed_
         from veriq_server.db import ResourceVersion
 
         assert (await s.get(ResourceVersion, old["id"])).receipt_id == receipt_id
+
+
+async def test_named_dataset_dependency_uses_only_local_published_version(site):
+    c, db = site
+    await setup(c)
+    await login(c)
+    ws = await workspace(c)
+    other = await workspace(c, "other")
+    catalog, _, _ = await publish(c, db, await create(c, ws))
+    dataset = {
+        "kind": "DATASET",
+        "document": {
+            "schemaVersion": "1.0",
+            "columns": {"versionId": "string"},
+            "rows": [{"key": "one", "values": {"versionId": str(uuid4())}}],
+        },
+    }
+    path = await create(c, ws, "names", dataset)
+    local, _, _ = await publish(c, db, path)
+    foreign, _, _ = await publish(c, db, await create(c, other, "remote", dataset))
+    case = {
+        "kind": "CASE",
+        "document": {
+            "schemaVersion": "1.0",
+            "caseKey": "read",
+            "title": "Read",
+            "kind": "READ",
+            "roleKey": "user",
+            "catalogVersionId": catalog["id"],
+            "datasetBindings": {"names": local["id"]},
+            "steps": [{"id": "open", "action": "goto", "path": "/"}],
+        },
+    }
+    target = await create(c, ws, "read", case)
+    version, _, snap = await publish(c, db, target)
+    assert {a["versionId"] for a in snap["assets"]} == {version["id"], local["id"], catalog["id"]}
+    assert (await c.get(path + "/dependents")).json()["data"]["items"][0]["id"] == version[
+        "resourceId"
+    ]
+    case["document"]["datasetBindings"]["names"] = foreign["id"]
+    foreign_target = await create(c, ws, "reject", case)
+    assert (await c.get(foreign_target + "/validation-preview")).status_code == 422

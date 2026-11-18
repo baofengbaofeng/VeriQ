@@ -11,15 +11,25 @@ const propertyWords =
     "source pointer expected value type id catalogVersionId fixtureVersionId datasetVersionId flowVersionId " +
     "templateVersionId entryCaseVersionIds validationTarget sourceHash engineVersion workspaceId schemaVersion " +
     "elements locator by severity expectedSource parameters vars columns rows values timeoutMs roleKey browsers " +
-    "kind versionId resourceId sha256";
+    "kind versionId resourceId sha256 key parentKey fields shape cases order";
 const properties = new Set(propertyWords.split(" "));
 const messages: Record<string, string> = {
+    SELF_REFERENTIAL_EXPECTED: "The expected value comes from the same observed field.",
     UNKNOWN_ELEMENT: "Element is not declared in the pinned catalog.",
     MISSING_REFERENCE: "Referenced version is missing from the dependency snapshot.",
     REFERENCE_KIND_MISMATCH: "Referenced version has an incompatible resource kind.",
     SOURCE_HASH_MISMATCH: "Source snapshot integrity check failed.",
     DOCUMENT_HASH_MISMATCH: "Resource document integrity check failed.",
     INVALID_ENTRY_CASE: "Selected entry is not a case version.",
+    DATASET_EMPTY_MATRIX: "A matrix dataset requires at least one row.",
+    DATASET_DUPLICATE_ROW_KEY: "Dataset row keys must be unique.",
+    DATASET_ORPHAN_NODE: "Tree row parent does not exist in the dataset.",
+    DATASET_TREE_CYCLE: "Dataset parent links contain a cycle.",
+    DATASET_TREE_DEPTH_LIMIT: "Dataset tree exceeds the maximum depth of 100.",
+    DATASET_UNKNOWN_FIELD: "Dataset row includes a field without a declaration.",
+    DATASET_REQUIRED_FIELD_MISSING: "A required dataset field is missing.",
+    DATASET_FIELD_NULL_FORBIDDEN: "Dataset field does not allow explicit null.",
+    DATASET_FIELD_TYPE_MISMATCH: "Dataset field value does not match its declared type.",
 };
 /**
  * 最多投影前一百条分析问题，路径不满足本地白名单检查时置空；消息只取固定英文映射或通用说明，不复制原始消息。

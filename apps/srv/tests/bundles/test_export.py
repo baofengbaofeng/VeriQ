@@ -486,3 +486,104 @@ async def test_bundle_selection_and_download_require_current_workspace_authority
             json={"environmentVersionId": env, "validationStatus": "VALIDATED", **data},
         )
         assert response.status_code == 400
+
+
+async def test_offline_export_rejects_v2_hidden_by_legacy_suite_override(
+    approved_metadata, site, monkeypatch
+):
+    """套件使用旧版矩阵覆盖用例默认数据集时，导出仍会包含默认版本，必须在准备签名归档之前拒绝该依赖。"""
+    from functools import partial
+    import test_publish
+    from sqlalchemy import select
+    from veriq_server.auth.authorization import WorkspaceScope
+    from veriq_server.db import BundleExport
+    from veriq_server.repositories.resource import ResourceRepository
+
+    monkeypatch.setattr(test_publish, "completed", partial(test_publish.completed, connected=True))
+    c, db = site
+    await setup(c)
+    await login(c)
+    ws = await workspace(c)
+    async with db.sessions.begin() as session:
+        for body in approved_metadata.values():
+            await ResourceRepository(session, WorkspaceScope(ws)).store(body)
+    env = await environment(c, db, ws)
+    catalog = await published(
+        c,
+        db,
+        ws,
+        "catalog",
+        "ELEMENT_CATALOG",
+        {
+            "schemaVersion": "1.0",
+            "elements": [{"key": "name", "locator": {"by": "veriqId", "value": "name"}}],
+        },
+    )
+    legacy = await published(
+        c,
+        db,
+        ws,
+        "legacy",
+        "DATASET",
+        {"schemaVersion": "1.0", "columns": {}, "rows": [{"key": "legacy_row", "values": {}}]},
+    )
+    v2 = await published(
+        c,
+        db,
+        ws,
+        "connected",
+        "DATASET",
+        {
+            "schemaVersion": "2.0",
+            "shape": "TABLE",
+            "fields": {},
+            "source": {"kind": "STATIC", "rows": [{"key": "connected_row", "values": {}}]},
+        },
+    )
+    endpoint = f"/api/v1/workspaces/{ws}/bundles"
+    for label, default_dataset, expected in [("legacy", legacy, 201), ("connected", v2, 422)]:
+        case = await published(
+            c,
+            db,
+            ws,
+            "case_" + label,
+            "CASE",
+            {
+                "schemaVersion": "1.0",
+                "caseKey": label,
+                "title": label,
+                "kind": "READ",
+                "roleKey": "reader",
+                "catalogVersionId": catalog,
+                "datasetVersionId": default_dataset,
+                "steps": [{"id": "open", "action": "goto", "path": "/"}],
+            },
+        )
+        suite = await published(
+            c,
+            db,
+            ws,
+            "suite_" + label,
+            "SUITE",
+            {"schemaVersion": "1.0", "cases": [{"versionId": case, "datasetVersionId": legacy}]},
+        )
+        export_key = str(uuid4())
+        response = await c.post(
+            endpoint,
+            headers={"Idempotency-Key": export_key},
+            json={
+                "suiteVersionId": suite,
+                "environmentVersionId": env,
+                "validationStatus": "VALIDATED",
+            },
+        )
+        assert response.status_code == expected, response.text
+        if expected == 422:
+            assert response.json()["code"] == "OFFLINE_DATASET_VERSION_UNSUPPORTED"
+            async with db.sessions() as session:
+                reservation = await session.scalar(
+                    select(BundleExport.id).where(
+                        BundleExport.workspace_id == ws, BundleExport.idempotency_key == export_key
+                    )
+                )
+                assert reservation is None

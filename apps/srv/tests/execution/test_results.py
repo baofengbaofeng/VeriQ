@@ -476,3 +476,88 @@ def test_cancellation_does_not_bypass_invalid_lifecycle_order():
         cancel_requested=True,
     )
     assert result["outcome"] == "INCOMPLETE"
+
+
+@pytest.mark.parametrize("declared", [True, False])
+def test_dataset_error_blocks_warn_only_with_frozen_query(declared):
+    declaration = {"id": "lookup", "stage": "BEFORE", "severity": "WARN"}
+    if declared:
+        declaration["datasetExpected"] = True
+    proof = {"blockedByStepId": "save", "blockedByAssertionId": "lookup"}
+    plan = [
+        expected_step(
+            assertions=[declaration, {"id": "after", "severity": "BLOCK", "stage": "AFTER"}]
+        )
+    ]
+    result = canonical_case(
+        plan,
+        [
+            began(),
+            event("STEP_STARTED", {}, stepId="save"),
+            assertion_event("lookup", "ERROR", severity="WARN", errorCode="DATASET_ROW_MISSING"),
+            assertion_event("after", "SKIPPED", **proof),
+            step_end(status="ERROR", **proof),
+            cleanup_event(),
+            finished("ERROR"),
+        ],
+        "ERROR",
+    )
+    assert result["outcome"] == "ERROR"
+    assert result["evidence"] == ("COMPLETE" if declared else "INCOMPLETE")
+
+
+@pytest.mark.parametrize("policy,evidence", [("CONTINUE", "INCOMPLETE"), ("STOP", "COMPLETE")])
+def test_failed_dataset_step_can_only_skip_siblings_if_stopping(policy, evidence):
+    query = {"id": "read", "stage": "BEFORE", "severity": "WARN", "datasetExpected": True}
+    proof = {"blockedByStepId": "first", "blockedByAssertionId": "read"}
+    plan = [
+        expected_step("first", 0, failurePolicy=policy, assertions=[query]),
+        expected_step("next", 1),
+    ]
+    result = canonical_case(
+        plan,
+        [
+            began(),
+            event("STEP_STARTED", {}, stepId="first"),
+            assertion_event(
+                "read", "ERROR", "first", severity="WARN", errorCode="DATASET_ROW_MISSING"
+            ),
+            step_end("first", "ERROR", **proof),
+            step_end("next", "SKIPPED", **proof),
+            cleanup_event(),
+            finished("ERROR"),
+        ],
+        "ERROR",
+    )
+    assert result["evidence"] == evidence
+
+
+@pytest.mark.parametrize("use_assertion", [False, True])
+def test_nested_query_error_cannot_skip_outside_a_continuing_flow(use_assertion):
+    query = {"id": "read", "stage": "BEFORE", "severity": "WARN", "datasetExpected": True}
+    proof = {"blockedByStepId": "child", "blockedByAssertionId": "read"}
+    plan = [
+        expected_step("flow", 0, failurePolicy="CONTINUE"),
+        expected_step("child", 1, parentId="flow", assertions=[query]),
+        expected_step("next", 2),
+    ]
+    result = canonical_case(
+        plan,
+        [
+            began(),
+            event("STEP_STARTED", {}, stepId="flow"),
+            event("STEP_STARTED", {}, stepId="child"),
+            assertion_event(
+                "read", "ERROR", "child", severity="WARN", errorCode="DATASET_ROW_MISSING"
+            ),
+            step_end("child", "ERROR", **proof),
+            step_end("flow", "ERROR"),
+            step_end(
+                "next", "SKIPPED", **(proof if use_assertion else {"blockedByStepId": "child"})
+            ),
+            cleanup_event(),
+            finished("ERROR"),
+        ],
+        "ERROR",
+    )
+    assert result["evidence"] == "INCOMPLETE"

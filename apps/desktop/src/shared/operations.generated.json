@@ -93,6 +93,38 @@
         "idempotency": false,
         "kind": "json"
     },
+    "listDatasetCopySources": {
+        "path": "/api/v1/workspaces/{workspaceId}/resources/dataset-copies",
+        "method": "GET",
+        "ids": ["workspaceId"],
+        "queries": {
+            "cursor": {
+                "type": "string",
+                "maxLength": 4096
+            },
+            "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100,
+                "default": 25
+            },
+            "sourceWorkspaceId": {
+                "$ref": "#/components/schemas/Id"
+            }
+        },
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "copyDataset": {
+        "path": "/api/v1/workspaces/{workspaceId}/resources/dataset-copies",
+        "method": "POST",
+        "ids": ["workspaceId"],
+        "queries": {},
+        "request": "DatasetCopyRequest",
+        "idempotency": false,
+        "kind": "json"
+    },
     "getResource": {
         "path": "/api/v1/workspaces/{workspaceId}/resources/{resourceId}",
         "method": "GET",
@@ -126,6 +158,15 @@
         "ids": ["workspaceId", "resourceId"],
         "queries": {},
         "request": "DraftWrite",
+        "idempotency": false,
+        "kind": "json"
+    },
+    "previewHttpDataset": {
+        "path": "/api/v1/workspaces/{workspaceId}/resources/{resourceId}/http-preview",
+        "method": "POST",
+        "ids": ["workspaceId", "resourceId"],
+        "queries": {},
+        "request": "HttpDatasetPreviewRequest",
         "idempotency": false,
         "kind": "json"
     },
@@ -386,15 +427,6 @@
         "idempotency": false,
         "kind": "json"
     },
-    "createBundle": {
-        "path": "/api/v1/workspaces/{workspaceId}/bundles",
-        "method": "POST",
-        "ids": ["workspaceId"],
-        "queries": {},
-        "request": "BundleCreate",
-        "idempotency": true,
-        "kind": "json"
-    },
     "listBundles": {
         "path": "/api/v1/workspaces/{workspaceId}/bundles",
         "method": "GET",
@@ -416,15 +448,6 @@
     },
     "getBundle": {
         "path": "/api/v1/workspaces/{workspaceId}/bundles/{bundleId}",
-        "method": "GET",
-        "ids": ["workspaceId", "bundleId"],
-        "queries": {},
-        "request": null,
-        "idempotency": false,
-        "kind": "json"
-    },
-    "getBundleManifest": {
-        "path": "/api/v1/workspaces/{workspaceId}/bundles/{bundleId}/manifest",
         "method": "GET",
         "ids": ["workspaceId", "bundleId"],
         "queries": {},

@@ -56,6 +56,17 @@ export interface ResourceAdapter {
     dependents(resourceId: string, cursor?: string, signal?: AbortSignal): Promise<Page<Resource>>;
     sourceFiles(resourceId: string, versionId: string, signal?: AbortSignal): Promise<SourceFiles>;
     source(resourceId: string, versionId: string, file: FileEntry, signal?: AbortSignal): Promise<string>;
+    listDatasetCopySources(
+        sourceWorkspaceId: string,
+        cursor?: string,
+        signal?: AbortSignal,
+    ): Promise<Page<S["DatasetCopySource"]>>;
+    httpPreview(
+        id: string,
+        data: S["HttpDatasetPreviewRequest"],
+        signal?: AbortSignal,
+    ): Promise<S["HttpDatasetPreviewResult"]>;
+    copyDataset(data: S["DatasetCopyRequest"], signal?: AbortSignal): Promise<Resource>;
     create(data: S["ResourceCreate"], signal?: AbortSignal): Promise<Resource>;
     save(resourceId: string, data: S["DraftWrite"], signal?: AbortSignal): Promise<Draft>;
     update(resourceId: string, data: S["ResourceUpdate"], signal?: AbortSignal): Promise<Resource>;
@@ -116,6 +127,17 @@ export class CloudResourceAdapter implements ResourceAdapter {
             throw new Error("INVALID_ARTIFACT: generated source bytes differ from descriptor");
         return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
     };
+    listDatasetCopySources = (sourceWorkspaceId: string, cursor?: string, signal?: AbortSignal) =>
+        request<Page<S["DatasetCopySource"]>>(
+            this.base("dataset-copies") + query({ sourceWorkspaceId, cursor }),
+            "GET",
+            undefined,
+            signal,
+        );
+    httpPreview = (id: string, data: S["HttpDatasetPreviewRequest"], signal?: AbortSignal) =>
+        request<S["HttpDatasetPreviewResult"]>(this.base(id) + "/http-preview", "POST", data, signal);
+    copyDataset = (data: S["DatasetCopyRequest"], signal?: AbortSignal) =>
+        request<Resource>(this.base("dataset-copies"), "POST", data, signal);
     create = (data: S["ResourceCreate"], signal?: AbortSignal) => request<Resource>(this.base(), "POST", data, signal);
     save = (id: string, data: S["DraftWrite"], signal?: AbortSignal) =>
         request<Draft>(this.base(id) + "/draft", "PUT", data, signal);
@@ -262,6 +284,9 @@ export class LocalResourceAdapter implements ResourceAdapter {
     private denied = async (): Promise<never> => {
         throw new Error("LOCAL_SNAPSHOT_READ_ONLY");
     };
+    httpPreview = this.denied;
+    copyDataset = this.denied;
+    listDatasetCopySources = this.denied;
     create = this.denied;
     save = this.denied;
     update = this.denied;

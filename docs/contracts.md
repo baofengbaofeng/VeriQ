@@ -69,18 +69,36 @@ parseContract(schemaName: string, text: string): unknown;
 
 `ResourceDocumentV1` 为 `{kind, document}`，其 kind/document 使用严格联合：
 
-| kind | 文档类型 | 除 schemaVersion `1.0` 外的必填字段 |
+| kind | 文档类型 | 除 schemaVersion 外的必填字段 |
 | --- | --- | --- |
 | CASE | CaseDslV1 | caseKey、title、kind READ/WRITE、roleKey、catalogVersionId、steps |
 | ELEMENT_CATALOG | ElementCatalogV1 | elements：key/locator 记录 |
 | ASSERTION_TEMPLATE | AssertionTemplateV1 | assertions；可选参数类型映射 |
-| DATASET | DatasetV1 | columns 类型映射、`{key, values}` 行 |
+| DATASET | DatasetV1 / DatasetV2 | V1 使用 columns 和 rows；V2 使用 shape、fields 和 source |
 | FLOW | FlowV1 | steps；可选参数类型映射 |
 | FIXTURE | FixtureV1 | prepare/query/cleanup 端点、inputSchema、outputSchema、ttlSeconds |
 | SUITE | SuiteV1 | 锁定 versionId 的 cases；可选 datasetVersionId/roleKeys/browsers |
 | ENVIRONMENT | EnvironmentV1 | baseURL、apiBaseURL、allowedOrigins、locale、timezone、roles |
 
 所有固定文档字段都须声明，拒绝未知字段。有意开放的字典仅限已命名映射或 JSON 业务数据。`FixtureV1.query.method` 为 GET。`EnvironmentV1` 可选 fixtureBaseURL/buildSha；每个角色包含 roleKey、authAdapterVersionId、secretRef、secretVersionId，可选 allowedIdentityIds。环境快照和 Bundle 只包含凭据引用，不包含密码、设备 token、Cookie 或 storageState。
+
+`DatasetV1` 保留 `schemaVersion: "1.0"` 及原有必填列和非空行规则。`DatasetV2` 使用 `schemaVersion: "2.0"`，静态来源为 `{kind: "STATIC", rows}`，字段声明由 `fields` 映射保存。字段类型为 `string`、`number`、`integer`、`boolean`、`object` 或 `array`，`required` 控制是否可省略，`nullable` 控制是否接受显式 `null`。TABLE 行包含 `key` 和 `values`。TREE 行另含 `parentKey`（根节点为 `null`）和数值 `order`。
+
+草稿沿用资源正文及依赖闭包预算。可信编译验证行键、声明字段的存在和值类型，以及树的孤立节点、循环和深度，根节点计为第 1 层，最多 100 层。独立参考数据集允许空行数组，CASE 或 SUITE 矩阵要求至少一行，并按冻结行数组顺序投影 `{key, values}` 到既有执行快照。V2 矩阵要求联网执行。冻结闭包包含 V2 数据集时拒绝离线导出、安装或结果导入，含被套件覆盖的默认引用。
+
+`GET /api/v1/workspaces/{workspaceId}/resources/dataset-copies` 按 `sourceWorkspaceId` 查询来源中已发布的数据集版本。每项返回 `resourceId`、`key`、`name`、`versionId` 和 `versionNo`。沿用资源列表的分页预算，游标绑定当前用户、目标及来源。
+
+同路径 `POST` 接受以下请求。两个操作均校验目标可编辑及源可下载。成功时返回 201 和目标资源 DTO；初始草稿修订为 1。目标空间内同类型键冲突返回 409。目标草稿与复制审计在同一事务提交，审计保留来源版本标识供内部追溯。
+
+```json
+{
+    "sourceWorkspaceId": "11111111-1111-4111-8111-111111111111",
+    "sourceDatasetVersionId": "22222222-2222-4222-8222-222222222222",
+    "key": "checkout_cases",
+    "name": "结账数据"
+}
+```
+
 
 `CaseDslV1` 可选锁定 fixtureVersionId、datasetVersionId 和 persistenceCheckpointStepId。版本引用是 UUID，不得查询可变 `latest`。WRITE 检查点/关键断言、依赖归属、变量存在性/类型、夹具模式、流程展开/环/深度及数据列一致性等语义由编译器/服务负责。
 
@@ -528,7 +546,7 @@ AI 提供器的增删改查、连接测试、`/ai/context`、生成、历史、�
 预算使用整数微美元估算，保留不可变费率/模型快照；用量未知或取消时，预算预留跨 UTC 月份继续保留。禁用提供器、预算耗尽或提供器错误不会影响确定性 Run。精确限制和验收边界见 [AI 操作](ai.md)及 [ADR0015](decisions/0015-ai-provider-boundaries.md)。
 
 <a id="t14-signed-offline-packages"></a>
-## T14：签名离线包
+## T14：历史签名离线包协议
 
 `BundleSelectionV1` 是规范类型，BundleCreate 为其别名。选择内容必须且只能是一份有界 CASE 版本列表、一个 SUITE 版本或一个不可变草稿验证 Job，再附环境。选择草稿要求 UNVALIDATED_DEBUG，且导出、列表、读取和下载时均检查当前 EDIT；普通已发布导出要求 DOWNLOAD。BundleDTO 标识保留的清单和快照散列。`/manifest` 是信封预览；分离签名验证的是下载 ZIP 内 `manifest.json` 的精确字节，不是重新序列化的预览 JSON。`/download` 返回私有附件 `application/octet-stream`，绝不返回预签名 URL。
 
@@ -564,3 +582,117 @@ T14 复审修正：createBundle 要求可打印 ASCII Idempotency-Key，并同�
 桌面复用既有平台 OpenAPI，未新增 Server Run、DSL 或设备 token 模式。`DesktopBridge` 是本机内部类型边界：云端调用使用明确枚举的 `operationId`、结构化参数和契约正文，由宿主重新绑定当前 Workspace；Cookie / CSRF 只属于独立 Electron Session，设备身份只属于独立 Node24 Agent。报告流同时限制待连接与活动句柄，总计最多四条；切换工作区或注销撤销旧流。`operations.generated.*` 和宿主校验闭包由 `apps/desktop/scripts/generate-operations.mjs` 读取共享 OpenAPI 与平台模式生成，服务端新增端点不会自动扩张桌面权限。
 
 本机启动准备使用独立的 `startupId` 和 `preparing` 状态，尚未创建 Run 时不伪造 Run ID。取消启动必须引用当前准备事务，取消执行必须匹配当前持久化 Run；旧标识不能中止新任务。离线执行的可选 `headless` 默认为 `true`，可见模式要求已探测到匹配的完整浏览器，选择与实际能力写入本机执行记录。原始证据经当前范围检查和原生确认后保存或查看，renderer 不接收文件路径或原始字节。
+
+### 命名数据集断言
+
+CASE 的可选 `datasetBindings` 将别名固定到当前工作区已发布的 DATASET 版本。执行快照记录相同映射，安装时逐项核对。矩阵仍由 CASE 或 SUITE 的 `datasetVersionId` 决定。
+除模板调用与 `responseSchema` 外，每个断言恰有一个 `expected` 或 `datasetExpected`，并保留独立的 `expectedSource`。查询节点的 `alias` 在调用 CASE 中解析。键、父键、等值参数及 HTTP 源实参展开当前步骤或模板的显式绑定，返回值始终保持 JSON 字面内容。
+
+| op | 参数 | 结果 |
+| --- | --- | --- |
+| field | key、field | 返回字段原值；缺行或未设置的字段产生 ERROR |
+| contains | key | 存在对应行返回 true，否则 false |
+| filter | field、equals、select | 按冻结行顺序返回匹配行的 select 字段。严格 JSON 等值，缺字段不匹配 null，匹配后缺少投影字段产生 ERROR |
+| path | key | 从树根至目标的键序列，包含根与目标 |
+| children | parentKey | 直接子节点键，按 order 再按键排序。null 选择根节点，叶节点返回空数组 |
+
+查询错误产生 ERROR，即使断言为 WARN。正常比较失败继续沿用原严重性。查询断言事件使用空预期和缺失实际值来避免传递数据正文。
+
+## 联网静态数据传输
+
+经核验的发行库存分别记录编译器和 Runner SDK 声明的联网协议。只有两个组件均声明 2.0 才对外报告该能力。
+旧库存缺少声明的组件仍可执行兼容的无数据任务。含数据集的在线验证或测试任务领取时要求客户端声明 `connectedDatasets: "2.0"`。
+`ConnectedSourceSnapshotV2` 保留原始源摘要、原始规范字节摘要以及依赖的顺序。
+每项数据集只携带资源和版本身份、字段声明、资产摘要和文档摘要。
+`ConnectedExecutionSnapshotV2.selectedRow` 保存版本、行键及执行行的规范摘要。
+控制面保留完整冻结源，普通 Attempt 内容下载只授权投影和已验证的产物。
+
+设备通过 `POST /internal/v1/attempts/{attemptId}/datasets/static` 指定 `VALIDATION_SOURCE`、
+`DATASET` 或 `ROW`。请求复用当前设备、租约、围栏和请求者权限。验证源只属于本次受管验证任务。
+测试编译器在内存中重建整个原冻结闭包并重算源码与编译包摘要，因而可读取该闭包内的静态版本。
+浏览器用例只恢复本例声明的别名，矩阵行只接受当前变体的版本和键。
+私有 IPC 使用最多 32 KiB 原始字节的有界分段，完整载荷上限 16 MiB，先验证 SHA-256 再解码。
+
+历史含数据编译包通过受管验证任务从原发布快照重新编译。执行请求者须有当前派发权限，
+原始发布人的后续权限变化不改写历史版本或回执。被批准的同一引擎必须提供联网投影能力；
+缺少该能力时验证失败，测试保持阻断。验证投影和文件传输不构成对离线数据的授权。
+
+### 联网任务的证据与恢复
+
+TEST 从冻结执行快照中的矩阵版本和命名版本决定数据保护。受保护任务从 SDK 上报结构化断言、步骤、来源及结果，保留版本标识、错误码与执行位置。实际值和预期值在写入前清除。Runtime 在启动浏览器前关闭 Trace、截图、视频、下载文件及 Playwright 文件报告，完成清单仅引用允许的证据。普通 TEST 的既有 Trace 要求继续生效。受保护 SDK 针对固定 Playwright 1.65.0 使用 test.extend 覆盖失败上下文采集夹具 _setupArtifacts，并显式建立禁用下载与 Service Worker 的业务上下文。引擎升级须重跑真实失败中的错误文件检查。
+
+受保护 SDK 证据策略版本为 2。所有断言通过固定协议标记 PROTECTED_CASE 上报；凭据脱敏仅保留这一可信字段。服务端从本次 CaseExecution 的原始冻结 CASE 及其已引用的 FLOW、断言模板展开位置，用路径的 UTF-8 SHA-256 生成步骤与断言 ID，并绑定观察器、模板参数覆盖与告警级别。写入事件时，服务端将固定标记替换为 CASE 或 DATASET 加冒号及实际冻结版本 UUID。上传的展示元数据和作者标签不能授权事件标识。自由文本日志、原始观察内容与未列入约定的错误码在入库前被拒绝。
+
+Linux 宿主在分配任务时，在工作树和暂存树之外的私有目录签发一次性退休许可，Attempt 日志保存许可文件的设备号、inode 和创建时间。确认进程停止与两个原目录身份后，宿主必须在原许可文件上追加并同步开始记录，才能通过已打开的任务目录和文件描述符进行三遍核验。每个任务树在变更前落盘成员路径和物理身份的摘要；文件名不写入标记。仅单硬链接、同挂载且验证过的普通文件通过其打开的句柄截断、同步并复核大小。保留文件名与目录壳，避免名称替换时误删其他对象。成员移动、替换、特殊文件、符号链接、多个硬链接或无法确认的上次清理均保留并记录 OWNERSHIP_UNCONFIRMED。启动恢复与结束收尾共用这份许可。首次退休中断或已尝试时保留现场，不再清点、截断或补签回执，即使树内的清点和退休标记都已消失。旧日志未绑定许可、原许可丢失或被替换时同样保留文件。每个 .veriq-retired 回执记录该次确认的文件集合及其摘要。两个可变目录没有同一时点的一致性快照，任务级状态记录 OWNERSHIP_UNCONFIRMED；即使两个目录都已签发回执，后续新写入的文件也可能存在。Windows/macOS 当前保留文件并记录 OWNERSHIP_UNCONFIRMED。未确认物理停止时记录 STOP_UNCONFIRMED。业务结果与本机清理状态分别记录。
+
+生产路由仅提供历史离线包元数据、历史报告读取与联网执行。签名包创建与下载、离线结果导入及上传仅保留在历史协议夹具。设备签发者公钥读取继续用于凭据映射。
+
+## HTTP 数据集定义与预览
+
+`DatasetV2` 的 `source.kind = "HTTP"` 可用于 TABLE 或 TREE 命名参考集。CASE 默认和 SUITE 覆盖矩阵必须是静态数据集。
+字段声明和行键规则与静态数据相同。跨 Workspace 复制会清空连接、环境和认证凭证绑定，保留可独立编辑的映射与表达式。
+验证和发布重新检查目标授权与当前凭证版本。
+
+部署方在 `dataset_connections` 中以不可变版本 UUID 登记 HTTPS 连接。更换路由、地址、环境或凭证策略应登记新的版本。
+每项配置 `workspace_id`、`environment_version_id`、`user_ids`、`identity_id`、`origin`、数字 IP `address` 和精确的
+`routes`（路径映射到批准的 GET/POST 读取方法）。TCP 连接使用这个地址，TLS 验证和 Host 使用批准的域名。RFC1918 和 ULA
+目标须单独设置 `allow_private`。服务不跟随重定向，不使用环境代理。显式 `retry_reads` 只允许 GET 连接失败重试一次。
+同进程最多四次同时读取。总时间十秒，网络和映射正文各有 2 MiB 限制，总行数一万，分页上限三十二页。
+
+`auth_kinds` 选择 NONE、BASIC、BEARER、API_KEY、HMAC_SHA256 或 AES256_GCM。连接的 `credentials` 用凭证引用映射
+`{version_id, purposes}`。凭证版本也必须允许该连接的 `identity_id`。BASIC 从已加密凭证对象的 username、password
+字段构造请求头，其余方式使用 value 字段。认证值仅在受控服务端内存中解封。签名或 API Key 头名须与部署的
+`signature_header` 一致。普通自定义头须列入 `request_headers`。
+
+- `source.parameters` 声明 JSON 类型；读取只接受完整的已声明实参。Query 数组保留重复键与空值，
+  字符串按 UTF-8 编码，其余类型先转规范 JSON。查询编码使用 RFC3986（空格为 `%20`）。Header 的值必须是字符串，
+  支持 `{{arg.<name>}}` 与 `{{request.timestamp}}`。值完成插值后仍须为可打印 ASCII。
+- POST 的 `body` 可为空、`{json: <值>}`、`{parameter: <参数名>}`、`{form: <有序名值列表>}` 或
+  `{raw: <字符串或参数引用>}`。JSON 使用 JCS 字节；表单按顺序使用 UTF-8 表单编码（空格为 `+`）；原始文本为 UTF-8。
+- 签名输入中的 METHOD、PATH、QUERY、BODY 和 TIMESTAMP 均引用该次请求实际字节，时间取一次 Unix UTC 整秒。
+  PARAMETER 与 LITERAL 明确选值；SORTED_QUERY 可按名称筛选，按 Unicode 码点先键后值排序并保留重复项。
+  JOIN、PERCENT_ENCODE、SHA256（小写十六进制）与 BASE64 可组合。HMAC_SHA256 输出小写十六进制；
+  AES256_GCM 使用 Base64 编码的 32 字节密钥、随机 12 字节 nonce，结果为 Base64(nonce + 密文含标签)。
+- 映射 `rows` 为行数组的绝对 JSON 指针，`key`、`values` 指针相对单个行对象。树另需 parentKey、order。
+  PAGE 在查询传入从 1 开始的页码，`next` 指针须返回布尔值。CURSOR 从无游标开始，`next` 返回下一非空字符串，
+  显式 null 表示结束。重复游标、缺失终止标记或要求超过 maxPages 均返回错误；整批数据验完才可交付。
+- `POST /api/v1/workspaces/{workspaceId}/resources/{resourceId}/http-preview` 接收 document 和 arguments。
+  当前成员须能编辑该资源并获准使用目标。返回 rowCount 和至多十行的已映射字段名；原始行键、字段值和响应头均不回传。
+  可添加 `verifySignature: {at,expected}`，使用固定 UTC 时间和预期十六进制 HMAC 返回 signatureMatches，期间不发送请求。
+  交付前复核授权、记录资源标识审计。超时、上游拒绝、连接异常、超预算、未完成分页与不合法映射有独立错误码。
+
+### 联网断言与采样
+
+命名查询的可选 `parameters` 是本次 HTTP 读取的源实参对象。名称、类型与冻结的
+`source.parameters` 一致。断言可以使用调用步骤或模板范围内的 `{{data.*}}`、
+`{{vars.*}}`，也可以使用 JSON 字面值。编译器在具体 CASE 的冻结闭包中检查多余、
+缺失和类型错误。静态查询保持原有字段和语义。比如按键读字段的完整节点为
+`{"op":"field","alias":"catalog","key":"one","field":"label","parameters":{"search":"{{data.name}}"}}`。
+
+SDK 对每个步骤分别开启前置、后置断言阶段。后置阶段包括提取前的响应断言和最终计数。
+在单个 Attempt 和阶段内，源版本、环境版本及 JCS 实参完全相同的多个别名或查询操作共享同一份
+正在读取或已映射的样本。查询缺失字段报 ERROR，成员未匹配返回 false，过滤未匹配返回空数组。
+返回数据中的字符串保持惰性。阶段结束或取消即释放缓存；下一个阶段或重试 Attempt 重新读取。
+每个阶段最多保存 256 组实参，映射数据与实参合计上限 16 MiB。
+
+设备以当前 Bearer、租约与 fencing 头向 `POST /internal/v1/attempts/{attemptId}/datasets/http`
+提交 `{versionId,parameters}`，获得 `{sourceVersionId,fetchedAt,rows}`。服务器从本次 CASE
+的冻结命名绑定、环境和原始触发者确定权限。服务计划通过当前令牌、计划、设备批准和连接的
+`service_account_ids` 授权。员工使用 `user_ids`。读取前、后续页与允许的重试前、交付前均复核。
+数据域只向服务端提供凭证。客户端断开会关闭正在等待的上游请求。超过预算、上游拒绝、传输超时和
+分页不完整分别保留错误码，比较不匹配遵循断言 severity。
+
+`httpDatasets: "1.0"` 由已核验发行中的编译器和 SDK 各自声明，并要求两者支持连接格式 2.0。
+声明 HTTP 数据的验证和执行须具备该能力。可信编译期间可在内存取得已冻结的 HTTP 请求定义；
+实时映射行只走单独的 HTTP 端点。私有代理每次最多并发四份 3 MiB 以内的响应，每帧最多 32 KiB
+原始字节，解码前核对总长、分段顺序及 SHA-256。受保护断言事件保持
+`expectedSource="PROTECTED_CASE"`、`expected=null` 和 `actual={"present":false}`。
+有完整采样的 HTTP 断言另带 `sample={sourceVersionId,fetchedAt}`。平台从冻结断言的实际位置
+独立核对来源并还原版本。静态断言和跳过断言不能携带采样。上游故障没有样本，保留 ERROR。
+
+若断言执行预算在取得预期数据之前就已耗尽，BLOCK 与 WARN 都记录 ERROR、
+BUSINESS_TIMEOUT，不携带采样字段。已取得样本的普通比较仍沿用严重级别。CASE 编辑器将已有别名
+重新绑定到静态版本时，移除本用例直接引用该别名的 HTTP 实参；引用的已发布流程及模板保持版本语义。
+
+已发布的 HTTP 来源若只经过旧版静态组件编译，平台会用原冻结源建立独立的兼容重验证。
+同一请求者和计划的重验证可被既有排队运行和新运行共享。先前的发布回执与构建摘要保持可追溯。

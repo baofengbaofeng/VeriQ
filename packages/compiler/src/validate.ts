@@ -6,6 +6,9 @@
 import { Ajv2020 } from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import {
+    assertionExpectedTypes,
+    datasetFieldTypes,
+    type DatasetDocument,
     assetSourceBytes,
     canonicalBytes,
     resolveBinding,
@@ -19,6 +22,7 @@ import {
     type ParameterTypes,
     type JsonValue,
 } from "@veriq/contracts";
+import { validateDataset } from "./dataset.js";
 import { accepts, pointerKey, sha256, valueType, wireId, resolvePointer, type ValidationIssue } from "./dependency.js";
 /**
  * 断言展开预算同时计入模板调用与叶子节点，在每个用例或独立库的分析中累计，限制重复模板图的访问量。
@@ -29,6 +33,7 @@ import type { CompiledAssertion, CompiledStep, CompiledCase } from "@veriq/contr
  * 从契约包再导出编译计划类型，使编译器调用方和执行端共享步骤阶段、源路径及模板参数栈的结构定义。
  */
 export type { CompiledAssertion, CompiledStep, CompiledCase } from "@veriq/contracts";
+export { validateDataset };
 /**
  * 符号仅描述静态类型及属性可见性，联合候选与沿路径传播的可选标记用于拒绝可能缺值或类型不兼容的绑定。
  * properties 保存可推断的对象属性；它不承载实际数据，也不替代运行时的存在性与模式校验。
@@ -49,11 +54,13 @@ interface Scope {
     pages?: Set<string>;
     data: Map<string, SymbolType>;
     vars: Map<string, SymbolType>;
+    datasets?: Map<string, DatasetDocument>;
     catalog?: Set<string>;
     locatorBindings?: Map<string, unknown[]>;
     library?: boolean;
     localDefinitions?: Set<string>;
     externalObservers?: boolean;
+    observedFields?: Map<SymbolType, { source: string; pointer: string }>;
     assertionBudget?: {
         count: number;
     };
@@ -109,6 +116,19 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
         else if (found.kind !== kind) fail("REFERENCE_KIND_MISMATCH", p, `Expected ${kind}`);
         else return found;
     }
+    /**
+     * 独立发布允许空的参考数据集。CASE 默认引用或 SUITE 覆盖真正用作矩阵时，零行会使执行任务消失，须明确拒绝。
+     * 引用缺失和种类不匹配由引用校验处理，这里只报告合法数据集不能驱动矩阵这一问题。
+     */
+    function checkMatrixDataset(dataset: AssetVersionV1 | undefined, path: string) {
+        if (
+            dataset?.kind === "DATASET" &&
+            dataset.document.schemaVersion === "2.0" &&
+            (dataset.document.source.kind === "HTTP" || dataset.document.source.rows.length === 0)
+        )
+            fail(dataset.document.source.kind === "HTTP" ? "DATASET_HTTP_MATRIX" : "DATASET_EMPTY_MATRIX", path);
+    }
+
     const unique = (values: string[], p: string, code = "DUPLICATE_ID") => {
         const seen = new Set<string>();
         for (const v of values) {
@@ -508,16 +528,68 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
                 fail("UNKNOWN_PAGE_KEY", path + "/pageKey");
             if ("target" in a) target(a.target, scope, path + "/target");
             if (a.type === "responseSchema") checkJsonSchema(a.expected, path + "/expected");
-            if ("expected" in a && a.type !== "responseSchema")
-                binding(
-                    a.expected,
+            if ("expected" in a && a.type !== "responseSchema") {
+                const field = a.type === "responseField" || a.type === "requestField" ? a : undefined;
+                const candidates = field?.operator === "in" && Array.isArray(a.expected) ? a.expected : undefined;
+                for (const [index, value] of (candidates ?? [a.expected]).entries()) {
+                    const at = path + "/expected" + (candidates ? "/" + index : "");
+                    const expected = binding(
+                        value,
+                        scope,
+                        at,
+                        (a.type === "ui" && ["textEquals", "textContains", "valueEquals"].includes(a.operator)) ||
+                            a.type === "url"
+                            ? "string"
+                            : undefined,
+                    );
+                    const observed = expected && scope.observedFields?.get(expected);
+                    if (field && observed?.source === field.source && observed.pointer === field.pointer)
+                        fail("SELF_REFERENTIAL_EXPECTED", at);
+                }
+            }
+            if ("datasetExpected" in a) {
+                const q = a.datasetExpected;
+                const at = path + "/datasetExpected";
+                const dataset = scope.datasets?.get(q.alias);
+                if (!dataset && !scope.library) fail("UNKNOWN_DATASET_ALIAS", at + "/alias");
+                const argument = q.op === "filter" ? "equals" : q.op === "children" ? "parentKey" : "key";
+                const input = binding(
+                    q.op === "filter" ? q.equals : q.op === "children" ? q.parentKey : q.key,
                     scope,
-                    path + "/expected",
-                    (a.type === "ui" && ["textEquals", "textContains", "valueEquals"].includes(a.operator)) ||
-                        a.type === "url"
-                        ? "string"
-                        : undefined,
+                    at + "/" + argument,
                 );
+                const argumentTypes = input?.alternatives ?? (input ? [input.type] : []);
+                if (
+                    q.op !== "filter" &&
+                    argumentTypes.some((t) => t !== "string" && !(q.op === "children" && t === "null"))
+                )
+                    fail("DATASET_KEY_TYPE", at + "/" + argument);
+                if (dataset) {
+                    const http =
+                        dataset.schemaVersion === "2.0" && dataset.source.kind === "HTTP" ? dataset.source : undefined;
+                    params(http?.parameters, q.parameters, scope, at + "/parameters");
+                    const fields = dataset.schemaVersion === "1.0" ? dataset.columns : dataset.fields;
+                    const types = (field: string, key: string): ValueType[] => {
+                        if (!Object.hasOwn(fields, field)) {
+                            fail("UNKNOWN_DATASET_FIELD", at + "/" + key);
+                            return [];
+                        }
+                        return datasetFieldTypes(fields[field]!);
+                    };
+                    let output: ValueType[] = ["array"];
+                    if (q.op === "filter") {
+                        const match = types(q.field, "field");
+                        types(q.select, "select");
+                        if (!argumentTypes.every((t) => match.some((m) => accepts(m, t))))
+                            fail("DATASET_FILTER_TYPE", at);
+                    } else if (q.op === "field") output = types(q.field, "field");
+                    else if (q.op === "contains") output = ["boolean"];
+                    else if (dataset.schemaVersion === "1.0" || dataset.shape !== "TREE")
+                        fail("DATASET_TREE_REQUIRED", at);
+                    const accepted = assertionExpectedTypes(a);
+                    if (!output.every((t) => accepted.some((e) => accepts(e, t)))) fail("DATASET_EXPECTED_TYPE", at);
+                }
+            }
             if (a.type === "eventually") binding(a.query, scope, path + "/query");
             result.push({
                 assertion: { ...a, id: wireId(path) },
@@ -627,13 +699,23 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
             }
             /**
              * 流程内提取已通过共享变量表对后续分析可见，包装步骤的提取在子流程之后登记，并按必填声明标记是否可能缺值。
+             * 当前展开的步骤只将自身提取符号交给后置断言；模板完整传参沿用同一符号，字面值或内层覆盖会另建符号。
              */
+            const observedFields = new Map<SymbolType, { source: string; pointer: string }>();
             for (const [j, e] of (s.extract ?? []).entries()) {
                 source(e.source, obs, path + "/extract/" + j);
                 if (scope.vars.has(e.to)) fail("DUPLICATE_VARIABLE", path + "/extract/" + j, e.to);
-                scope.vars.set(e.to, { type: e.valueType, optional: !e.required });
+                const symbol = { type: e.valueType, optional: !e.required };
+                scope.vars.set(e.to, symbol);
+                observedFields.set(symbol, e);
             }
-            const after = assertions(s.afterAssertions ?? [], owner, scope, obs, path + "/afterAssertions");
+            const after = assertions(
+                s.afterAssertions ?? [],
+                owner,
+                { ...scope, observedFields },
+                obs,
+                path + "/afterAssertions",
+            );
             /**
              * 写用例关键步骤须有非警告响应字段业务断言，允许相等、集合归属或包含操作；状态码或界面断言不满足此处。
              */
@@ -661,6 +743,7 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
                       : !!value && typeof value === "object" && Object.values(value).some(usesExtract);
             const dependent = (a: CompiledAssertion): boolean =>
                 usesExtract(a.parameters) ||
+                ("datasetExpected" in a.assertion && usesExtract(a.assertion.datasetExpected)) ||
                 (a.assertion.type !== "responseSchema" &&
                     "expected" in a.assertion &&
                     usesExtract(a.assertion.expected)) ||
@@ -687,17 +770,28 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
         if (a.kind === "CASE") {
             const d = a.document;
             const c = ref(a.versionId, d.catalogVersionId, "ELEMENT_CATALOG", p + "/catalogVersionId");
-            if (d.datasetVersionId) ref(a.versionId, d.datasetVersionId, "DATASET", p + "/datasetVersionId");
             /**
              * 同一用例可能由套件覆盖为多种数据上下文，每种有效数据集都重新分析类型与变量；最终只保留第一份用例计划。
              */
             const variants = suiteRoot?.document.cases.filter((c) => c.versionId === a.versionId);
+            if (d.datasetVersionId) {
+                const inputPath = p + "/datasetVersionId";
+                const dataset = ref(a.versionId, d.datasetVersionId, "DATASET", inputPath);
+                if (!variants?.length || variants.some((variant) => !variant.datasetVersionId))
+                    checkMatrixDataset(dataset, inputPath);
+            }
+            const named = new Map<string, DatasetDocument>();
+            for (const [alias, id] of Object.entries(d.datasetBindings ?? {})) {
+                const version = ref(a.versionId, id, "DATASET", p + "/datasetBindings/" + pointerKey(alias));
+                if (version?.kind === "DATASET") named.set(alias, version.document);
+            }
             const datasets = variants?.length
                 ? [...new Set(variants.map((c) => c.datasetVersionId ?? d.datasetVersionId))]
                 : [d.datasetVersionId];
             let compiled: CompiledCase | undefined;
             for (const datasetVersionId of datasets) {
                 const scope: Scope = {
+                    datasets: named,
                     data: new Map(),
                     vars: new Map(Object.entries(d.initialVariables ?? {}).map(([key, type]) => [key, { type }])),
                     ...(c?.kind === "ELEMENT_CATALOG"
@@ -721,18 +815,40 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
                         scope.locatorBindings.set(e.key, values);
                     }
                 }
-                if (datasetVersionId) {
-                    const ds = assets.get(datasetVersionId);
-                    if (ds?.kind === "DATASET")
-                        for (const [k, v] of Object.entries(ds.document.columns))
-                            scope.data.set(k, {
-                                ...dataSymbol(
-                                    ds.document.rows
-                                        .filter((row) => Object.hasOwn(row.values, k))
-                                        .map((row) => row.values[k]!),
-                                ),
-                                type: v,
-                            });
+                const selected = datasetVersionId ? assets.get(datasetVersionId) : undefined;
+                const dataset = selected?.kind === "DATASET" ? selected.document : undefined;
+                const rows =
+                    dataset?.schemaVersion === "1.0"
+                        ? dataset.rows
+                        : dataset?.source.kind === "STATIC"
+                          ? dataset.source.rows
+                          : undefined;
+                if (dataset?.schemaVersion === "1.0") {
+                    for (const [key, type] of Object.entries(dataset.columns)) {
+                        const present = dataset.rows.filter((row) => Object.hasOwn(row.values, key));
+                        scope.data.set(key, { ...dataSymbol(present.map((row) => row.values[key]!)), type });
+                    }
+                } else if (dataset?.source.kind === "STATIC") {
+                    /**
+                     * 冻结行决定矩阵中的可能值：缺失字段使绑定可缺失，显式空值保留为联合成员，声明类型仍约束取值。
+                     * 按实际值收集列，避免为大量稀疏字段重复扫描整个行数组。
+                     */
+                    const columns = new Map<string, JsonValue[]>();
+                    for (const row of dataset.source.rows)
+                        for (const [key, value] of Object.entries(row.values)) {
+                            const column = columns.get(key);
+                            if (column) column.push(value);
+                            else columns.set(key, [value]);
+                        }
+                    for (const [key, field] of Object.entries(dataset.fields)) {
+                        const values = columns.get(key) ?? [];
+                        scope.data.set(key, {
+                            ...dataSymbol(values),
+                            type: field.type,
+                            optional: values.length !== dataset.source.rows.length,
+                            ...(values.includes(null) ? { alternatives: [field.type, "null"] } : {}),
+                        });
+                    }
                 }
                 /**
                  * 夹具输入只能使用数据行和已声明的初始变量，先检查输入再引入输出属性；输出模式须能声明单一对象类型。
@@ -742,9 +858,8 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
                     if (f?.kind === "FIXTURE") {
                         binding(d.fixtureInput ?? {}, scope, p + "/fixtureInput");
                         try {
-                            const ds = datasetVersionId ? assets.get(datasetVersionId) : undefined;
-                            const rows = ds?.kind === "DATASET" ? ds.document.rows.map((r) => r.values) : [{}];
-                            for (const data of rows)
+                            const values = rows?.map((row) => row.values) ?? [{}];
+                            for (const data of values)
                                 fixtureInput(
                                     d.fixtureInput ?? {},
                                     f.document.inputSchema,
@@ -816,18 +931,7 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
             }
             if (compiled) cases.push(compiled);
         } else if (a.kind === "DATASET") {
-            unique(
-                a.document.rows.map((r) => r.key),
-                p + "/rows",
-            );
-            for (const [i, row] of a.document.rows.entries()) {
-                for (const [k, type] of Object.entries(a.document.columns))
-                    if (!Object.hasOwn(row.values, k) || !accepts(type, valueType(row.values[k])))
-                        fail("DATA_TYPE_MISMATCH", `${p}/rows/${i}/values/${pointerKey(k)}`);
-                for (const k of Object.keys(row.values))
-                    if (!Object.hasOwn(a.document.columns, k))
-                        fail("UNKNOWN_DATA_COLUMN", `${p}/rows/${i}/values/${pointerKey(k)}`);
-            }
+            for (const issue of validateDataset(a.document, p)) issues.push(issue);
         } else if (a.kind === "ELEMENT_CATALOG") {
             const entries = new Map(a.document.elements.map((e) => [e.key, e]));
             unique(
@@ -877,9 +981,12 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
                 [a.versionId],
             );
         } else if (a.kind === "SUITE") {
-            for (const c of a.document.cases) {
+            for (const [index, c] of a.document.cases.entries()) {
                 ref(a.versionId, c.versionId, "CASE", p + "/cases");
-                if (c.datasetVersionId) ref(a.versionId, c.datasetVersionId, "DATASET", p + "/cases");
+                if (c.datasetVersionId) {
+                    const dataset = ref(a.versionId, c.datasetVersionId, "DATASET", p + "/cases");
+                    checkMatrixDataset(dataset, `${p}/cases/${index}/datasetVersionId`);
+                }
             }
         } else if (a.kind === "ENVIRONMENT") {
             unique(

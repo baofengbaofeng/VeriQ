@@ -4,7 +4,16 @@
  */
 
 import { tx, useAppLocale } from "../../locale";
-import type { ResourceDocumentV1, ResourceKind, CatalogElementV1, JsonValue } from "@veriq/contracts";
+import type {
+    ResourceDocumentV1,
+    ResourceKind,
+    CatalogElementV1,
+    JsonValue,
+    DatasetDocument,
+    DatasetV2,
+} from "@veriq/contracts";
+import { HttpDatasetFields, newHttpDataset, type HttpPreview } from "./HttpDatasetFields";
+import { DatasetFields, newStaticDataset } from "./DatasetFields";
 import { CaseEditor } from "../cases/CaseEditor";
 import { AssertionEditor, newAssertion } from "../assertions/AssertionEditor";
 import { EnvironmentFields } from "../environments/EnvironmentFields";
@@ -40,7 +49,12 @@ const placeholder = "00000000-0000-4000-8000-000000000000";
  * 按 kind/key/name 构造空 ResourceDocumentV1，供创建表单写入草稿初始 content。各 kind 默认字段集不同。不访问网络；调用
  * 方随后 CloudResourceAdapter.create。
  */
-export function newDocument(kind: ResourceKind, key: string, name: string): ResourceDocumentV1 {
+export function newDocument(
+    kind: ResourceKind,
+    key: string,
+    name: string,
+    datasetFormat: "V1" | "HTTP_TABLE" | "HTTP_TREE" | DatasetV2["shape"] = "V1",
+): ResourceDocumentV1 {
     const base = { schemaVersion: "1.0" as const };
     switch (kind) {
         case "CASE":
@@ -67,6 +81,9 @@ export function newDocument(kind: ResourceKind, key: string, name: string): Reso
         case "ASSERTION_TEMPLATE":
             return { kind, document: { ...base, assertions: [newAssertion()] } };
         case "DATASET":
+            if (datasetFormat === "HTTP_TABLE" || datasetFormat === "HTTP_TREE")
+                return { kind, document: newHttpDataset(datasetFormat === "HTTP_TABLE" ? "TABLE" : "TREE") };
+            if (datasetFormat !== "V1") return { kind, document: newStaticDataset(datasetFormat) };
             return {
                 kind,
                 document: {
@@ -130,7 +147,15 @@ export function newDocument(kind: ResourceKind, key: string, name: string): Reso
  * 根据当前草稿 kind 渲染对应字段集，并接入 AssertionEditor/CaseEditor/EnvironmentFields。版本选项用于固定引用；不持有
  * Workspace 选择状态。
  */
-export function ResourceForms({ kind, versions }: { kind: ResourceKind; versions: VersionOption[] }) {
+export function ResourceForms({
+    kind,
+    versions,
+    preview,
+}: {
+    kind: ResourceKind;
+    versions: VersionOption[];
+    preview?: HttpPreview;
+}) {
     useAppLocale();
     if (kind === "CASE" || kind === "FLOW") return <CaseEditor versions={versions} flow={kind === "FLOW"} />;
     if (kind === "ENVIRONMENT") return <EnvironmentFields />;
@@ -160,27 +185,7 @@ export function ResourceForms({ kind, versions }: { kind: ResourceKind; versions
                 {(path) => <ElementFields path={path} />}
             </List>
         );
-    if (kind === "DATASET")
-        return (
-            <>
-                <TypeMap name="content.document.columns" label={tx("数据列类型 / Column types")} />
-                <List
-                    name="content.document.rows"
-                    title={tx("数据行 / Dataset rows")}
-                    initial={() => ({
-                        key: "row_" + crypto.randomUUID().slice(0, 8),
-                        values: {},
-                    })}
-                >
-                    {(path) => (
-                        <>
-                            <Field name={`${path}.key`} label={tx("数据行 key / Row key")} />
-                            <DatasetValues path={`${path}.values`} />
-                        </>
-                    )}
-                </List>
-            </>
-        );
+    if (kind === "DATASET") return <DatasetForm preview={preview} />;
     if (kind === "SUITE")
         return (
             <List
@@ -226,6 +231,34 @@ export function ResourceForms({ kind, versions }: { kind: ResourceKind; versions
             <Field name="content.document.ttlSeconds" label={tx("TTL 秒 / TTL seconds")} number />
             <SchemaFields path="content.document.inputSchema" label={tx("输入 Schema / Input schema")} />
             <SchemaFields path="content.document.outputSchema" label={tx("输出 Schema / Output schema")} />
+        </>
+    );
+}
+function DatasetForm({ preview }: { preview?: HttpPreview }) {
+    const dataset = useValue<DatasetDocument>("content.document");
+    if (dataset?.schemaVersion === "2.0") {
+        if (dataset.source.kind === "HTTP")
+            return <HttpDatasetFields dataset={dataset} source={dataset.source} preview={preview} />;
+        return <DatasetFields dataset={dataset as Extract<DatasetV2, { source: { kind: "STATIC" } }>} />;
+    }
+    return (
+        <>
+            <TypeMap name="content.document.columns" label={tx("数据列类型 / Column types")} />
+            <List
+                name="content.document.rows"
+                title={tx("数据行 / Dataset rows")}
+                initial={() => ({
+                    key: "row_" + crypto.randomUUID().slice(0, 8),
+                    values: {},
+                })}
+            >
+                {(path) => (
+                    <>
+                        <Field name={`${path}.key`} label={tx("数据行 key / Row key")} />
+                        <DatasetValues path={`${path}.values`} />
+                    </>
+                )}
+            </List>
         </>
     );
 }

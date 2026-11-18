@@ -39,6 +39,9 @@ async def main():
         bundle_issuer_path=str(issuer_path),
         approved_engine_inventory_path=os.environ.get("VERIQ_TEST_ENGINE_INVENTORY"),
     )
+    from http_dataset_fixture import install
+
+    install(settings)
     db = Database(settings)
     owned = {
         "veriq_execution_plans",

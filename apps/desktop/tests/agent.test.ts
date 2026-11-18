@@ -21,6 +21,8 @@ test("independent Node24 agent reports an idle durable profile", async () => {
         assert.equal((status as { active: unknown }).active, null);
         assert.deepEqual((status as { bundles: unknown[] }).bundles, []);
         assert(!JSON.stringify(status).includes("deviceToken"));
+        for (const operation of ["run", "upload", "download"])
+            await assert.rejects(agent.dispatch({ operation }), /AGENT_OPERATION_DENIED/);
     } finally {
         await rm(root, { recursive: true, force: true });
     }

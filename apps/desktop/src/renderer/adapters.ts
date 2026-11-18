@@ -5,7 +5,6 @@ import {
     CloudReportAdapter,
     LocalReportAdapter,
     CloudAiAdapter,
-    CloudBundleAdapter,
     type LocalResourceSnapshot,
     type LocalReportSnapshot,
     type ReportAdapter,
@@ -111,16 +110,11 @@ export function installDesktopTransport(): void {
  * 云端页面复用已有业务适配器，证据按钮转为宿主确认后的 native 操作，签名包按钮直接下载并验签；业务资源的编辑与 AI 调用
  * 仍然经过当前成员的普通会话授权。
  */
-export function cloudAdapters(workspaceId: string, debug: boolean) {
+export function cloudAdapters(workspaceId: string) {
     const resources = new CloudResourceAdapter(workspaceId);
     const reports = new CloudReportAdapter(workspaceId);
     const reportAdapter = nativeCloudReports(workspaceId, reports, (input) => bridge.artifact(input));
-    const bundles = Object.assign(new CloudBundleAdapter(workspaceId), {
-        install: async (bundleId: string) => {
-            await bridge.local({ operation: "download", bundleId, debug });
-        },
-    });
-    return { resources, reports: reportAdapter, bundles, ai: new CloudAiAdapter(workspaceId) };
+    return { resources, reports: reportAdapter, ai: new CloudAiAdapter(workspaceId) };
 }
 
 /**

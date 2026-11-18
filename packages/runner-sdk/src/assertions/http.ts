@@ -7,6 +7,10 @@ import { expect } from "@playwright/test";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import {
+    accepts,
+    assertionExpectedTypes,
+    valueType,
+    validateSchema,
     resolvePointer,
     type CompiledAssertion,
     type JsonValue,
@@ -52,6 +56,12 @@ export function fieldMatches(actual: Presence, operator: string, expected: JsonV
     }
 }
 /**
+ * 受保护断言只发送固定标记，服务端根据实际冻结来源生成最终出处；普通断言保留作者说明。
+ */
+export function assertionExpectedSource(item: CompiledAssertion, ctx: StepContext): string {
+    return ctx.datasetProtected ? "PROTECTED_CASE" : item.assertion.expectedSource;
+}
+/**
  * 公开函数 runAssertion 在 Exchange/数据上下文上执行单条编译断言：返回 AssertionResult。不把原始密钥写入结果。
  */
 export async function runAssertion(
@@ -62,8 +72,10 @@ export async function runAssertion(
     const start = Date.now(),
         a = item.assertion;
     let actual: Presence = { present: false },
-        expected: JsonValue = a.expected,
+        expected: JsonValue = "expected" in a ? a.expected : null,
         ctx = outer;
+    let sample: import("@veriq/contracts").HttpDatasetSample | undefined;
+    let queryError = "datasetExpected" in a;
     let errorCode: string | undefined;
     try {
         budget(ctx, 1);
@@ -73,7 +85,30 @@ export async function runAssertion(
             if (!page) throw new Error("UNKNOWN_PAGE_KEY");
             ctx = { ...ctx, page: await interruptible(ctx, () => page) };
         }
-        expected = a.type === "responseSchema" ? a.expected : binding(a.expected, ctx);
+        if ("datasetExpected" in a) {
+            if (!ctx.datasets) throw new Error("DATASET_RESOLVER_REQUIRED");
+            expected = await interruptible(ctx, () =>
+                ctx.datasets!.read(
+                    a.datasetExpected,
+                    { data: ctx.data, vars: ctx.vars },
+                    ctx.signal ?? new AbortController().signal,
+                    (metadata) => {
+                        sample = metadata;
+                    },
+                ),
+            );
+            if (!assertionExpectedTypes(a).some((t) => accepts(t, valueType(expected))))
+                throw new Error("DATASET_EXPECTED_TYPE");
+            if (
+                ["httpStatus", "duration", "requestCount", "request"].includes(a.type) ||
+                a.operator === "countEquals"
+            ) {
+                const { datasetExpected: _query, ...literal } = a;
+                if (validateSchema("AssertionV1", { ...literal, expected }).length)
+                    throw new Error("DATASET_EXPECTED_TYPE");
+            }
+            queryError = false;
+        } else expected = a.type === "responseSchema" ? a.expected : binding(a.expected, ctx);
         let pass = false;
         if (a.type === "ui" || a.type === "url") {
             actual = await interruptible(ctx, () => assertUI(a, expected, ctx));
@@ -153,8 +188,13 @@ export async function runAssertion(
         if (!pass) errorCode = "ASSERTION_FAILED";
     } catch (e) {
         if (e instanceof ExecutionCancelled) throw e;
-        errorCode = e instanceof Error && /^[A-Z_]+$/.test(e.message) ? e.message : "ASSERTION_FAILED";
-        if (a.type === "ui" || a.type === "url") {
+        errorCode =
+            e instanceof Error && /^[A-Z_]+$/.test(e.message)
+                ? e.message
+                : queryError
+                  ? "DATASET_READ_ERROR"
+                  : "ASSERTION_FAILED";
+        if (!queryError && (a.type === "ui" || a.type === "url")) {
             try {
                 actual = await uiActual(a, ctx);
             } catch {
@@ -167,11 +207,12 @@ export async function runAssertion(
     return {
         id: a.id,
         sourcePath: item.sourcePath,
-        status: errorCode ? (a.severity === "WARN" ? "WARN" : "FAILED") : "PASSED",
+        status: queryError ? "ERROR" : errorCode ? (a.severity === "WARN" ? "WARN" : "FAILED") : "PASSED",
         severity: a.severity,
-        expectedSource: a.expectedSource,
-        expected,
-        actual,
+        expectedSource: assertionExpectedSource(item, ctx),
+        expected: ctx.datasetProtected || "datasetExpected" in a ? null : expected,
+        actual: ctx.datasetProtected || "datasetExpected" in a ? { present: false } : actual,
+        ...(sample ? { sample } : {}),
         durationMs: Date.now() - start,
         ...(errorCode ? { errorCode } : {}),
     };

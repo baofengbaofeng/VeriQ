@@ -4,6 +4,7 @@
 PublishService 接续。所有突变要求 Workspace 编辑权限并持安装护栏至提交。
 """
 
+from copy import deepcopy
 from hashlib import sha256
 from typing import Any, Protocol
 from uuid import NAMESPACE_URL, uuid4, uuid5
@@ -13,6 +14,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.authorization import Permission, WorkspaceScope
 from ..contracts import canonical_bytes, asset_source_hash, validate_schema
+from ..datasets.bindings import authorize_dataset
+from ..datasets.connection import literal_header
+from ..datasets.policy import scoped_connection
+from ..settings import Settings
 from ..db import Resource, ResourceDraft, ResourceVersion, User, Job
 from ..repositories.resource import ResourceRepository
 from ..service import Problem, audit, now, stamp
@@ -78,6 +83,13 @@ def document_hash(content: dict[str, Any]) -> str:
     return sha256(canonical_bytes(content)).hexdigest()
 
 
+def _forbidden_header() -> Problem:
+    """草稿写入与结构校验共用不含头名或值的诊断，避免通过保存失败回显用户凭证或部署方的认证配置。"""
+    return Problem(
+        422, "DATASET_HEADER_FORBIDDEN", "Authentication headers must use a credential binding"
+    )
+
+
 def check_document(kind: str, content: dict[str, Any]) -> None:
     """按资源 kind 选择契约校验文档，失败抛出带问题列表的 Problem，check_document 遵守本文件边界。
     check_document 实现于 apps/srv/src/veriq_server/services/resource.py：请按该符号的输入校验、错误码与调用方契约阅读，
@@ -87,6 +99,11 @@ def check_document(kind: str, content: dict[str, Any]) -> None:
         raise Problem(
             422, "INVALID_RESOURCE_DOCUMENT", "Document must match the immutable resource kind"
         )
+    source = content["document"].get("source", {}) if kind == "DATASET" else {}
+    if source.get("kind") == "HTTP":
+        declared = source["auth"].get("header", "").lower()
+        if any(not literal_header(h) or h.lower() == declared for h in source["headers"]):
+            raise _forbidden_header()
     try:
         raw = canonical_bytes(content)
     except ValueError:
@@ -105,6 +122,7 @@ def asset_references(content: dict[str, Any]) -> list[tuple[str, str]]:
     kind, doc = content["kind"], content["document"]
     result: list[tuple[str, str]] = []
     if kind == "CASE":
+        result.extend((version, "DATASET") for version in doc.get("datasetBindings", {}).values())
         for key, target in [
             ("catalogVersionId", "ELEMENT_CATALOG"),
             ("datasetVersionId", "DATASET"),
@@ -210,6 +228,7 @@ class ResourceService:
         registry: IdentityReferenceRegistry | None = None,
         *,
         engine_version: str = ENGINE_VERSION,
+        settings: Settings | None = None,
     ):
         """注入会话、用户、设置与身份注册表，供授权与冻结引用，ResourceService.__init__ 遵守本文件边界，失败返回稳定
         Problem。
@@ -221,6 +240,7 @@ class ResourceService:
         # 选择值只用于当前服务创建的新快照与任务要求，冻结 sourceHash 随版本变化而变化；这里不修改已有发布对象，
         # 也不把候选选择解释为已获批准的执行发行。
         self.engine_version = engine_version
+        self.settings = settings
 
     async def authorize(
         self,
@@ -255,13 +275,69 @@ class ResourceService:
             raise Problem(409, "RESOURCE_ARCHIVED", "Resource is archived")
         return resource
 
+    async def dataset_copy_source(
+        self, target: WorkspaceScope, source_id: str
+    ) -> ResourceRepository:
+        """先检查目标可编辑性和来源下载权限，再返回仅能查询来源工作区的仓储，发现和复制共用这个入口。"""
+        await self.authorize(target, "DATASET")
+        source = WorkspaceScope(source_id)
+        await self.authorize(source, "DATASET", Permission.DOWNLOAD, write=False)
+        return ResourceRepository(self.session, source)
+
+    async def copy_dataset(self, scope: WorkspaceScope, data: dict[str, Any]) -> dict[str, Any]:
+        """以源版本冻结的正文建立独立的目标修订，并在同一事务中为新资源记录可追溯的来源版本标识。"""
+        repo = await self.dataset_copy_source(scope, data["sourceWorkspaceId"])
+        version = await repo.version(data["sourceDatasetVersionId"])
+        resource = await repo.resource(version.resource_id)
+        if resource.kind != "DATASET":
+            raise Problem(404, "VERSION_NOT_FOUND", "Dataset version not found")
+        content = deepcopy(version.document_json)
+        source = content["document"].get("source", {})
+        if source.get("kind") == "HTTP":
+            source.update(connectionRef=None, environmentVersionId=None)
+            if source["auth"]["kind"] != "NONE":
+                source["auth"].update(secretRef=None, secretVersionId=None)
+        result = await self.create(
+            scope,
+            {
+                "kind": "DATASET",
+                "key": data["key"],
+                "name": data["name"],
+                "content": content,
+            },
+        )
+        audit(
+            self.session,
+            "dataset.copied",
+            self.user.id,
+            result["id"],
+            workspace_id=scope.workspace_id,
+            source_version_id=version.id,
+        )
+        return result
+
+    def _check_draft(self, scope: WorkspaceScope, kind: str, content: dict[str, Any]) -> None:
+        """在草稿首次入库和修订前先检查声明的认证头，再对已选择的精确连接版本检查部署方保留的头名。"""
+        check_document(kind, content)
+        source = content["document"].get("source", {}) if kind == "DATASET" else {}
+        if source.get("kind") == "HTTP" and source["headers"] and source["connectionRef"]:
+            target = scoped_connection(
+                self.settings.dataset_connections if self.settings else {},
+                scope.workspace_id,
+                self.user.id,
+                source["environmentVersionId"],
+                source["connectionRef"],
+            )
+            if any(h.lower() == target.signature_header.lower() for h in source["headers"]):
+                raise _forbidden_header()
+
     async def create(self, scope: WorkspaceScope, data: dict[str, Any]) -> dict[str, Any]:
         """在 Workspace 内创建资源头与初始草稿，key 冲突返回 Problem，ResourceService.create 遵守本文件边界。
         create 实现于 apps/srv/src/veriq_server/services/resource.py：请按该符号的输入校验、错误码与调用方契约阅读，
         勿假设通用成功默认值。
         """
         await self.authorize(scope, data["kind"])
-        check_document(data["kind"], data["content"])
+        self._check_draft(scope, data["kind"], data["content"])
         existing = (
             await self.session.execute(
                 select(Resource.id).where(
@@ -316,7 +392,7 @@ class ResourceService:
         错误码与调用方契约阅读，勿假设通用成功默认值。
         """
         resource = await self.editable(scope, resource_id)
-        check_document(resource.kind, document)
+        self._check_draft(scope, resource.kind, document)
         draft = await ResourceRepository(self.session, scope).draft(resource_id)
         self.require_revision(draft, expected_revision)
         if draft.revision >= 9007199254740991:
@@ -382,6 +458,16 @@ class ResourceService:
             source_size += len(canonical_bytes(asset))
             if source_size > SNAPSHOT_LIMIT:
                 raise Problem(413, "SNAPSHOT_TOO_LARGE", "Dependency snapshot exceeds 16 MiB")
+            doc = content["document"]
+            if content["kind"] == "DATASET" and doc.get("source", {}).get("kind") == "HTTP":
+                await authorize_dataset(
+                    self.session,
+                    self.settings,
+                    scope.workspace_id,
+                    self.user.id,
+                    doc["source"]["environmentVersionId"],
+                    doc,
+                )
             if content["kind"] == "ENVIRONMENT":
                 identities = [*content["document"]["roles"]]
                 if content["document"].get("fixtureIdentity"):
@@ -485,11 +571,14 @@ class ResourceService:
             return job_dto(existing)
         job_id = str(uuid4())
         snapshot_hash = await repo.store(canonical_bytes(snapshot))
+        from .connected_datasets import http_capabilities, project_source
+
+        projected = project_source(snapshot)
         manifest = {
             "schemaVersion": "1.0",
             "workspaceId": scope.workspace_id,
             "jobId": job_id,
-            "snapshotSha256": snapshot_hash,
+            "snapshotSha256": await repo.store(canonical_bytes(projected)),
             "engineVersion": self.engine_version,
             "kind": "VALIDATE",
             "resourceId": resource_id,
@@ -506,7 +595,12 @@ class ResourceService:
             snapshot_hash=snapshot_hash,
             manifest_hash=manifest_hash,
             validation_key=key,
-            required_capabilities={"engineVersion": self.engine_version, "compileAssets": True},
+            required_capabilities={
+                "engineVersion": self.engine_version,
+                "compileAssets": True,
+                **({"connectedDatasets": "2.0"} if projected is not snapshot else {}),
+                **http_capabilities(snapshot),
+            },
             created_by=self.user.id,
             created_at=now(),
         )

@@ -75,6 +75,8 @@ async def site(request, monkeypatch):
         ],
         approved_engine_inventory_path=env.get("approved_engine_inventory_path"),
     )
+    if "dataset_deployment" in request.fixturenames:
+        settings.dataset_connections = request.getfixturevalue("dataset_deployment")
     db = Database(settings)
     async with db.engine.begin() as conn:
         tables = (await conn.execute(text("SHOW TABLES"))).scalars().all()

@@ -60,3 +60,41 @@ test("shared release doctor advertises the verified engine identity", async () =
     assert.equal(wrongBrowser.checks.find((item) => item.name === "browser version")?.ok, false);
     await assert.rejects(diagnoseRelease({ ...options, engineVersion: "9.9.9-absent" }), /ENGINE_NOT_APPROVED/);
 });
+
+test("connected capability requires both component declarations from the selected release", async () => {
+    const executablePath = process.env.VERIQ_TEST_CHROMIUM;
+    const versions = { compilerVersion: "0.1.0", runnerSdkVersion: "0.1.0" };
+    for (const features of [
+        {},
+        { compilerConnectedDatasets: "2.0" },
+        { runnerSdkConnectedDatasets: "2.0" },
+        { compilerConnectedDatasets: "2.0", runnerSdkConnectedDatasets: "2.0" },
+    ] as const) {
+        const result = await doctor({ executablePath, distribution: { ...versions, ...features } });
+        assert.equal(result.ok, true);
+        assert.equal(
+            result.capabilities?.connectedDatasets,
+            "compilerConnectedDatasets" in features && "runnerSdkConnectedDatasets" in features ? "2.0" : undefined,
+        );
+    }
+});
+
+test("live dataset capability requires both verified HTTP components", async () => {
+    const distribution = {
+        compilerVersion: "0.1.0",
+        runnerSdkVersion: "0.1.0",
+        compilerConnectedDatasets: "2.0",
+        runnerSdkConnectedDatasets: "2.0",
+        compilerHttpDatasets: "1.0",
+    } as const;
+    for (const http of [false, true]) {
+        const r = await doctor({
+            executablePath: process.env.VERIQ_TEST_CHROMIUM,
+            distribution: {
+                ...distribution,
+                ...(http ? { runnerSdkHttpDatasets: "1.0" as const } : {}),
+            },
+        });
+        assert.equal(r.capabilities?.httpDatasets, http ? "1.0" : undefined);
+    }
+});

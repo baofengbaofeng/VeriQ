@@ -3,6 +3,7 @@
  * 。
  */
 
+import type { DatasetPhase } from "./datasets.js";
 import { armEvent, type EventHandle } from "./observers/events.js";
 import type { Dialog } from "@playwright/test";
 import { expect } from "@playwright/test";
@@ -28,7 +29,7 @@ import {
     type StepResult,
 } from "./context.js";
 import { apiRequest, authorizedURL } from "./http.js";
-import { runAssertion } from "./assertions/http.js";
+import { assertionExpectedSource, runAssertion } from "./assertions/http.js";
 /**
  * 公开函数 executeStep 按 ResolvedStep 执行动作、观察器与断言：预算耗尽或取消时中断：子步骤递归推进。
  */
@@ -57,6 +58,11 @@ export async function executeStep(plan: ResolvedStep, outer: StepContext): Promi
         children: [],
         events: [],
     };
+    let datasetPhase: DatasetPhase | undefined;
+    function beginPhase() {
+        datasetPhase = outer.datasets?.phase?.();
+        if (datasetPhase) ctx.datasets = datasetPhase;
+    }
     const deferred: CompiledAssertion[] = [];
     let blocker: string | undefined;
     await ctx.onEvent?.({ type: "STEP_STARTED", stepId: s.id });
@@ -75,8 +81,13 @@ export async function executeStep(plan: ResolvedStep, outer: StepContext): Promi
                 assertionId: id,
                 result: payload,
             });
+            if (r.status === "ERROR") {
+                result.status = "ERROR";
+                blocker = r.id;
+                throw new Error(r.errorCode);
+            }
             if (r.status === "FAILED") {
-                result.status = "FAILED";
+                if (result.status !== "ERROR") result.status = "FAILED";
                 if (r.severity === "BLOCK") {
                     blocker = r.id;
                     throw new Error(r.errorCode ?? "ASSERTION_FAILED");
@@ -91,7 +102,11 @@ export async function executeStep(plan: ResolvedStep, outer: StepContext): Promi
             if (!page) throw new Error("UNKNOWN_PAGE_KEY");
             ctx = { ...ctx, page: await interruptible(ctx, () => page) };
         }
+        beginPhase();
         await assertions(plan.before);
+        datasetPhase?.close();
+        datasetPhase = undefined;
+        if (outer.datasets) ctx.datasets = outer.datasets;
         if (
             s.action !== "callFlow" &&
             !ctx.dialogObservers.has(ctx.page) &&
@@ -206,12 +221,10 @@ export async function executeStep(plan: ResolvedStep, outer: StepContext): Promi
                 for (const child of plan.children) {
                     const r = await executeStep(child, childCtx);
                     result.children.push(r);
-                    if (r.cancelled) {
-                        if (r.status === "FAILED") result.status = "FAILED";
-                        throw new ExecutionCancelled();
-                    }
                     if (r.status !== "PASSED") {
-                        result.status = r.status;
+                        if (result.status !== "ERROR" && r.status !== "CANCELLED") result.status = r.status;
+                        if (r.status === "ERROR" && r.errorCode) result.errorCode ??= r.errorCode;
+                        if (r.cancelled) throw new ExecutionCancelled();
                         if (child.step.failurePolicy !== "CONTINUE") {
                             for (const remaining of plan.children.slice(plan.children.indexOf(child) + 1))
                                 await skipStep(remaining, ctx, child.step.id);
@@ -239,6 +252,7 @@ export async function executeStep(plan: ResolvedStep, outer: StepContext): Promi
                 },
             });
         }
+        beginPhase();
         await assertions(plan.responseAssertions);
         if (result.assertions.some((a) => a.status === "FAILED")) throw new Error("RESPONSE_ASSERTION_FAILED");
         const extracted: JsonObject = {};
@@ -273,8 +287,8 @@ export async function executeStep(plan: ResolvedStep, outer: StepContext): Promi
             result.status === "FAILED" ||
             result.assertions.some((a) => a.status === "FAILED") ||
             result.children.some((child) => ["FAILED", "ERROR"].includes(child.status));
-        result.status = cancelled && !failed ? "CANCELLED" : "FAILED";
-        result.errorCode =
+        result.status = result.status === "ERROR" ? "ERROR" : cancelled && !failed ? "CANCELLED" : "FAILED";
+        result.errorCode ??=
             cancelled && !failed
                 ? "CANCELLED"
                 : e instanceof Error && /^[A-Z][A-Z_]+$/.test(e.message)
@@ -298,7 +312,7 @@ export async function executeStep(plan: ResolvedStep, outer: StepContext): Promi
                     sourcePath: item.sourcePath,
                     status: "SKIPPED" as const,
                     severity: item.assertion.severity,
-                    expectedSource: item.assertion.expectedSource,
+                    expectedSource: assertionExpectedSource(item, ctx),
                     expected: null,
                     actual: { present: false as const },
                     durationMs: 0,
@@ -318,6 +332,7 @@ export async function executeStep(plan: ResolvedStep, outer: StepContext): Promi
                 for (const child of plan.children ?? []) await skipStep(child, ctx, s.id, blocker);
         }
     } finally {
+        datasetPhase?.close();
         ctx.page.off("dialog", dismiss);
         await Promise.all(eventHandles.map((h) => h.dispose()));
         for (const h of handles) h.dispose();

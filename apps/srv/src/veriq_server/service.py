@@ -96,6 +96,7 @@ def audit(
     target: str | None = None,
     *,
     workspace_id: str | None = None,
+    source_version_id: str | None = None,
 ) -> None:
     """向当前事务追加一条审计行；可绑定 Workspace，失败不单独提交，随调用方事务一起回滚，audit 的失败路径返回稳定错误。
     audit 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
@@ -107,6 +108,7 @@ def audit(
             target_id=target,
             workspace_id=workspace_id,
             action=action,
+            source_version_id=source_version_id,
             created_at=now(),
         )
     )

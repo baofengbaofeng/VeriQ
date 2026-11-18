@@ -61,6 +61,8 @@ export function actualDistribution(root: string): EngineDistribution {
                 JSON.stringify({
                     name,
                     version: pkg.version,
+                    ...(pkg.veriqHttpDatasets ? { veriqHttpDatasets: pkg.veriqHttpDatasets } : {}),
+                    ...(pkg.veriqConnectedDatasets ? { veriqConnectedDatasets: pkg.veriqConnectedDatasets } : {}),
                     type: "module",
                     exports: {
                         ".": { types: "./src/index.d.ts", default: "./src/index.js" },

@@ -41,6 +41,20 @@ export type CloudOperation =
           data: S["ResourceCreate"];
       }
     | {
+          operation: "listDatasetCopySources";
+          params: {
+              workspaceId: string;
+          };
+          query?: Record<string, string | number | boolean>;
+      }
+    | {
+          operation: "copyDataset";
+          params: {
+              workspaceId: string;
+          };
+          data: S["DatasetCopyRequest"];
+      }
+    | {
           operation: "getResource";
           params: {
               workspaceId: string;
@@ -69,6 +83,14 @@ export type CloudOperation =
               resourceId: string;
           };
           data: S["DraftWrite"];
+      }
+    | {
+          operation: "previewHttpDataset";
+          params: {
+              workspaceId: string;
+              resourceId: string;
+          };
+          data: S["HttpDatasetPreviewRequest"];
       }
     | {
           operation: "validateResource";
@@ -244,14 +266,6 @@ export type CloudOperation =
           data: S["EnrollmentApprove"];
       }
     | {
-          operation: "createBundle";
-          params: {
-              workspaceId: string;
-          };
-          data: S["BundleCreate"];
-          idempotencyKey: string;
-      }
-    | {
           operation: "listBundles";
           params: {
               workspaceId: string;
@@ -260,13 +274,6 @@ export type CloudOperation =
       }
     | {
           operation: "getBundle";
-          params: {
-              workspaceId: string;
-              bundleId: string;
-          };
-      }
-    | {
-          operation: "getBundleManifest";
           params: {
               workspaceId: string;
               bundleId: string;

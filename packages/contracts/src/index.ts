@@ -5,6 +5,7 @@
 import canonicalizeModule from "canonicalize";
 // canonicalize 2.x 为 CommonJS 导出提供 ESM 默认声明，这里将默认导入收敛为契约层使用的调用签名。
 const canonicalize = canonicalizeModule as unknown as (value: unknown) => string | undefined;
+import { pointerKey } from "./bindings.js";
 import { schemaValidator } from "./validators.js";
 import schema from "../schemas/platform-v1.schema.json" with { type: "json" };
 
@@ -39,16 +40,20 @@ function portableJson(value: unknown, ancestors = new Set<object>()): boolean {
 
 /**
  * 不做强制转换、默认填充、删字段或语义引用解析，只报告 schema 违例。公开函数 validateSchema 按 schema
- * 名对值做严格校验：无强制、无默认、无删字段：也不做语义引用解析。
+ * 名对值做严格校验。调用方显式请求属性路径时，缺失和额外的属性名会转义并附加到错误指针。
  */
-export function validateSchema(schemaName: string, value: unknown): ValidationIssue[] {
+export function validateSchema(schemaName: string, value: unknown, propertyPaths = false): ValidationIssue[] {
     if (!Object.hasOwn(schema.$defs, schemaName)) throw new Error(`Unknown contract schema: ${schemaName}`);
     if (!portableJson(value))
         return [{ path: "", code: "INVALID_JSON", message: "Expected finite, portable JSON values" }];
     const validate = schemaValidator(schemaName);
     if (validate(value)) return [];
     return (validate.errors ?? []).map((error) => ({
-        path: error.instancePath,
+        path:
+            error.instancePath +
+            (propertyPaths && (error.keyword === "required" || error.keyword === "additionalProperties")
+                ? "/" + pointerKey(error.params.missingProperty ?? error.params.additionalProperty)
+                : ""),
         code: "SCHEMA_VIOLATION",
         message: error.message ?? error.keyword,
     }));
@@ -129,4 +134,5 @@ export function assetSourceBytes(snapshot: Record<string, unknown>): Uint8Array 
 }
 
 export * from "./bindings.js";
-export type * from "./compiled.js";
+export * from "./compiled.js";
+export { datasetFieldTypes, validateDataset } from "./dataset.js";

@@ -40,7 +40,15 @@ from ..db import (
 )
 from ..repositories.resource import ResourceRepository
 from ..service import Problem, now, lock_installation
-from .bundle import BundleService, safe_path, MAX_ARCHIVE, MAX_FILE, MAX_OUTPUT, MAX_FILES
+from .bundle import (
+    BundleService,
+    safe_path,
+    require_legacy_datasets,
+    MAX_ARCHIVE,
+    MAX_FILE,
+    MAX_OUTPUT,
+    MAX_FILES,
+)
 from .workspace import WorkspaceRepository
 from .results import aggregate, reduce_test
 from .completion import retry_is_safe
@@ -96,6 +104,7 @@ def verify_archive(raw: bytes, manifest_hash: str, public: dict[str, Any]) -> di
             or snapshot["workspaceId"] != manifest["workspaceId"]
         ):
             raise ValueError()
+        require_legacy_datasets(snapshot["assets"])
         return {
             "manifest": manifest,
             "snapshot": snapshot,
@@ -123,7 +132,9 @@ def expected_variants(checked: dict[str, Any], result: dict[str, Any]) -> dict[s
 
     重复提交不得制造双份业务副作用。
     """
-    assets = {a["versionId"]: a for a in checked["snapshot"]["assets"]}
+    snapshot_assets = checked["snapshot"]["assets"]
+    require_legacy_datasets(snapshot_assets)
+    assets = {a["versionId"]: a for a in snapshot_assets}
     selection, files = checked["selection"], checked["files"]
     draft = "draft/source.json" in files
     target = checked["snapshot"].get("validationTarget", {}).get("versionId")

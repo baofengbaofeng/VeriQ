@@ -391,3 +391,71 @@ test("a changed ownership nonce cannot authorize signalling or reuse a later pro
         await rm(directory, { recursive: true, force: true });
     }
 });
+
+test("an unresponsive platform loses its lease, closes its HTTP sample and drains the owned process", async () => {
+    const { Heartbeat } = await import("../src/agent/heartbeat.ts");
+    const { HttpDatasetTransfers } = await import("../src/execution/broker.ts");
+    const { createServer } = await import("node:http");
+    const { randomUUID } = await import("node:crypto");
+    const { default: EventEmitter } = await import("node:events");
+    const directory = await mkdtemp(join(tmpdir(), "veriq-live-loss-"));
+    const processes = new ProcessSupervisor(directory, 100);
+    const controller = new AbortController();
+    const server = createServer();
+    const arrived = EventEmitter.once(server, "request");
+    server.listen(0, "127.0.0.1");
+    await EventEmitter.once(server, "listening");
+    const url = "http://127.0.0.1:" + (server.address() as { port: number }).port;
+    const source = new HttpDatasetTransfers(
+        async (_selection, signal) => new Uint8Array(await (await fetch(url, { signal })).arrayBuffer()),
+        controller.signal,
+    );
+    let heartbeat: InstanceType<typeof Heartbeat> | undefined;
+    try {
+        const child = await processes.start("sample-loss", {
+            executable: process.execPath,
+            args: ["-e", "console.log('ready');setInterval(()=>{},1000)"],
+            cwd: directory,
+        });
+        await child.firstLine();
+        const pending = source.receive({ id: randomUUID(), selection: { versionId: randomUUID(), parameters: {} } });
+        const [, response] = await arrived;
+        const closed = EventEmitter.once(response, "close");
+        const stopped = new Promise<string>((resolve, reject) => {
+            const start = performance.now();
+            heartbeat = new Heartbeat(
+                {} as ConstructorParameters<typeof Heartbeat>[0],
+                {
+                    attemptId: "sample-loss",
+                    serverTime: "2026-01-01T00:00:00Z",
+                    expiresAt: "2026-01-01T00:00:02Z",
+                    leaseDurationMs: 2000,
+                } as ConstructorParameters<typeof Heartbeat>[1],
+                start,
+                start,
+                (reason) => {
+                    controller.abort();
+                    void processes
+                        .terminateAttempt("sample-loss", reason)
+                        .then((receipt) => {
+                            assert.equal(receipt.processStopScope, "FULL_DESCENDANT_TREE");
+                            resolve(reason);
+                        })
+                        .catch(reject);
+                },
+            );
+            heartbeat.start();
+        });
+        assert.equal(await stopped, "LEASE_LOST");
+        await closed;
+        assert.deepEqual(await pending, { errorCode: "DATASET_READ_ERROR" });
+        assert.equal(await processes.isRunning(child.pid), false);
+    } finally {
+        heartbeat?.close();
+        source.close();
+        server.closeAllConnections();
+        server.close();
+        await processes.terminateAttempt("sample-loss", "TEST_FINALLY");
+        await rm(directory, { recursive: true, force: true });
+    }
+});

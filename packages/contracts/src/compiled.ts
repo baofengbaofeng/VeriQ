@@ -44,3 +44,19 @@ export interface CompiledCase {
     steps: CompiledStep[];
     persistenceCheckpointStepId?: string;
 }
+
+/**
+ * 给编译器与执行器提供统一的预期值类型约束，保持数据集返回的 JSON 类型，不对字符串、真假或数字做隐式转换。
+ */
+export function assertionExpectedTypes(a: CompiledAssertion["assertion"]): import("./types.generated.js").ValueType[] {
+    if (a.type === "ui") {
+        if (a.operator === "countEquals") return ["integer"];
+        return ["textEquals", "textContains", "valueEquals"].includes(a.operator) ? ["string"] : ["boolean"];
+    }
+    if (a.type === "url" || a.type === "request") return ["string"];
+    if (["duration", "requestCount", "httpStatus"].includes(a.type)) return ["integer"];
+    if (a.operator === "exists") return ["boolean"];
+    if (a.operator === "in") return ["array"];
+    if (a.operator === "contains") return ["string", "array"];
+    return ["string", "number", "boolean", "object", "array", "null"];
+}

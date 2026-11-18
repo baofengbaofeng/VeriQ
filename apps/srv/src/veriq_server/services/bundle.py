@@ -12,7 +12,7 @@ import zipfile
 from datetime import timedelta
 from hashlib import sha256
 from typing import Any
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterable
 from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,6 +32,19 @@ MAX_ARCHIVE = 64 * 1024 * 1024
 MAX_OUTPUT = 128 * 1024 * 1024
 MAX_FILE = 16 * 1024 * 1024
 MAX_FILES = 4096
+
+
+def require_legacy_datasets(assets: Iterable[dict[str, Any]]) -> None:
+    """离线包携带整个冻结闭包的正文及源码，因此套件覆盖的默认数据集也必须检查，任何新版数据集都应阻止归档。
+    已校验的旧版资产仍沿用原签名和导入流程。
+    """
+    if any(
+        asset["kind"] == "DATASET" and asset["document"].get("schemaVersion") == "2.0"
+        for asset in assets
+    ):
+        raise Problem(
+            422, "OFFLINE_DATASET_VERSION_UNSUPPORTED", "Dataset v2 requires connected execution"
+        )
 
 
 def safe_path(path: str) -> bool:
@@ -280,6 +293,7 @@ class BundleService:
                 or asset_source_hash(draft_source) != draft_source["sourceHash"]
             ):
                 raise Problem(409, "INVALID_SNAPSHOT", "Original draft source differs")
+            require_legacy_datasets(draft_source["assets"])
             draft_root = next(
                 a
                 for a in draft_source["assets"]
@@ -329,6 +343,7 @@ class BundleService:
             check_document(expected_kind, content)
             if version.kind != expected_kind or document_hash(content) != version.sha256:
                 raise Problem(422, "INVALID_REFERENCE", "Published dependency integrity differs")
+            require_legacy_datasets((content,))
             if engine_version and engine_version != version.engine_version:
                 raise Problem(409, "ENGINE_MISMATCH", "Dependency engine versions differ")
             engine_version = version.engine_version
@@ -358,6 +373,7 @@ class BundleService:
                 != asset
             ):
                 raise Problem(409, "INVALID_RECEIPT", "Original source provenance differs")
+            require_legacy_datasets(source["assets"])
             descriptor_raw = (await repo.artifact(metadata["descriptorSha256"])).content
             descriptor = json.loads(descriptor_raw)
             prefix = f"provenance/{version.id}"

@@ -36,7 +36,8 @@ test("historical reconciliation preserves the exact newer lost claim request", a
     const { claimLoop } = await import("../src/agent/claim-loop.ts");
     const directory = await mkdtemp(join(tmpdir(), "veriq-t10-claim-recovery-"));
     const runnerId = "11111111-1111-4111-8111-111111111111",
-        requestId = "22222222-2222-4222-8222-222222222222";
+        requestId = "22222222-2222-4222-8222-222222222222",
+        attemptId = "33333333-3333-4333-8333-333333333333";
     const capabilities = {
         engineVersion: "0.1.0",
         os: "linux",
@@ -55,11 +56,11 @@ test("historical reconciliation preserves the exact newer lost claim request", a
     try {
         await mkdir(join(directory, "attempts"), { mode: 0o700 });
         await writeFile(
-            join(directory, "attempts/old.json"),
+            join(directory, "attempts", attemptId + ".json"),
             JSON.stringify({
                 state: "ALLOCATED",
                 work: directory,
-                claim: { attemptId: "33333333-3333-4333-8333-333333333333", fencingToken: 1 },
+                claim: { attemptId, fencingToken: 1 },
             }),
             { mode: 0o600 },
         );
@@ -96,7 +97,8 @@ test("only the correlated acknowledged recovery clears its own pending claim req
     const { claimLoop } = await import("../src/agent/claim-loop.ts");
     const directory = await mkdtemp(join(tmpdir(), "veriq-t10-claim-recovery-"));
     const runnerId = "11111111-1111-4111-8111-111111111111",
-        requestId = "22222222-2222-4222-8222-222222222222";
+        requestId = "22222222-2222-4222-8222-222222222222",
+        attemptId = "33333333-3333-4333-8333-333333333333";
     const capabilities = {
         engineVersion: "0.1.0",
         os: "linux",
@@ -115,12 +117,12 @@ test("only the correlated acknowledged recovery clears its own pending claim req
     try {
         await mkdir(join(directory, "attempts"), { mode: 0o700 });
         await writeFile(
-            join(directory, "attempts/old.json"),
+            join(directory, "attempts", attemptId + ".json"),
             JSON.stringify({
                 claimRequestId: requestId,
                 state: "ALLOCATED",
                 work: directory,
-                claim: { attemptId: "33333333-3333-4333-8333-333333333333", fencingToken: 1 },
+                claim: { attemptId, fencingToken: 1 },
             }),
             { mode: 0o600 },
         );

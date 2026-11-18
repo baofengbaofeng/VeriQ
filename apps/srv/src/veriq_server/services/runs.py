@@ -16,9 +16,10 @@ from ..credentials.registry import IdentityRegistry
 from ..db import Run, CaseExecution, Job, User, ResourceVersion, Attempt
 from ..repositories.resource import ResourceRepository
 from ..service import Problem, now, stamp
+from .connected_datasets import http_capabilities, project_execution, revalidate_bundle
 from .runtime import RuntimeService
 from .workspace import WorkspaceRepository
-from .snapshots import validate_initial_variables
+from .snapshots import dataset_matrix_rows, execution_data_row, validate_initial_variables
 from .results import aggregate
 from .execution_principal import ServicePrincipal
 
@@ -210,7 +211,19 @@ class RunService:
                     if (await repo.artifact(file["sha256"])).size_bytes != file["sizeBytes"]:
                         raise Problem(409, "COMPILED_PROVENANCE_REQUIRED", "Compiled bytes differ")
                 root = next(a for a in source["assets"] if a["versionId"] == version.id)
-                selections.append((root, source, validation, receipt.compiled_bundle_sha256))
+                validation, bundle_hash = await revalidate_bundle(
+                    repo,
+                    validation,
+                    source,
+                    bundle,
+                    receipt,
+                    requester=self.attribution,
+                    service_token=(
+                        self.actor.token_id if isinstance(self.actor, ServicePrincipal) else None
+                    ),
+                    plan_id=self.plan_id,
+                )
+                selections.append((root, source, validation, bundle_hash))
         # 先按冻结来源中的数据行、角色和浏览器数量计算矩阵，超过既有上限立即拒绝，避免在安装锁内逐个创建大量快照和数据库
         # 对象后才回滚事务。
         cardinality = 0
@@ -224,7 +237,7 @@ class RunService:
             for variant in variants:
                 document = assets[variant["versionId"]]["document"]
                 dataset = variant.get("datasetVersionId", document.get("datasetVersionId"))
-                row_count = len(assets[dataset]["document"]["rows"]) if dataset else 1
+                row_count = len(dataset_matrix_rows(assets[dataset]["document"])) if dataset else 1
                 roles = len(
                     [
                         r
@@ -266,7 +279,7 @@ class RunService:
                 variables = data.get("variables", {})
                 validate_initial_variables(document.get("initialVariables", {}), variables)
                 dataset_id = variant.get("datasetVersionId", document.get("datasetVersionId"))
-                rows = assets[dataset_id]["document"]["rows"] if dataset_id else [None]
+                rows = dataset_matrix_rows(assets[dataset_id]["document"]) if dataset_id else [None]
                 roles = variant.get("roleKeys", [document["roleKey"]])
                 browsers = variant.get("browsers", data["browsers"])
                 for role_key in [r for r in roles if r in data["roleKeys"]]:
@@ -333,6 +346,11 @@ class RunService:
                                 "roleKey": role_key,
                                 "browser": browser,
                                 "variables": variables,
+                                **(
+                                    {"datasetBindings": document["datasetBindings"]}
+                                    if document.get("datasetBindings")
+                                    else {}
+                                ),
                                 "secretVersions": [
                                     {"secretRef": r["secretRef"], "versionId": r["secretVersionId"]}
                                     for r in identities
@@ -341,12 +359,20 @@ class RunService:
                                 "namespace": "attempt_" + execution.id.replace("-", ""),
                                 "attemptNo": 1,
                                 "suiteEntryIndex": ordinal,
-                                **({"dataRow": row, "datasetVersionId": dataset_id} if row else {}),
+                                **(
+                                    {
+                                        "dataRow": execution_data_row(row),
+                                        "datasetVersionId": dataset_id,
+                                    }
+                                    if row
+                                    else {}
+                                ),
                             }
                             if validate_schema("ExecutionSnapshotV1", frozen):
                                 raise Problem(
                                     422, "INVALID_SNAPSHOT", "Frozen execution context is invalid"
                                 )
+                            frozen = project_execution(frozen, source)
                             snapshot_hash = await repo.store(canonical_bytes(frozen))
                             jid = str(uuid4())
                             manifest = {
@@ -422,6 +448,12 @@ class RunService:
                                     max_retries=data.get("maxRetries", 0),
                                     required_capabilities={
                                         "engineVersion": source["engineVersion"],
+                                        **(
+                                            {"connectedDatasets": "2.0"}
+                                            if frozen["schemaVersion"] == "2.0"
+                                            else {}
+                                        ),
+                                        **http_capabilities(source),
                                         "browser": browser,
                                         "environmentVersionId": environment_version.id,
                                         "resourceKeys": resource_keys,

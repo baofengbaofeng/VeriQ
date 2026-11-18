@@ -188,10 +188,10 @@ test("actual Provider preserves scopes and releases the latest committed scope",
 });
 
 /**
- * 四个入口先完成导航与真实列表查询，再用合成可见性事件触发现有焦点刷新；持有当前入口的新响应后切换空间并保留草稿，
+ * 三个入口先完成导航与真实列表查询，再用合成可见性事件触发现有焦点刷新；持有当前入口的新响应后切换空间并保留草稿，
  * 此处不把入口交接时淘汰的请求误认为稳定页面的刷新，也不声明操作系统焦点验收。
  */
-test("four GUI entry selectors retain manual selection across real list refetch", async ({ page }, testInfo) => {
+test("three GUI entry selectors retain manual selection across real list refetch", async ({ page }, testInfo) => {
     const protocolEvents: WorkspaceOwnershipEvent[] = [];
     const requestIds = new WeakMap<Request, number>();
     const pendingLists = new Set<Request>();
@@ -343,7 +343,7 @@ test("four GUI entry selectors retain manual selection across real list refetch"
             }
             /**
              * 站点已初始化不能证明本例操作者存在；独立管理员会话创建活跃系统管理员，页面仍须正常登录，并由该身份
-             * 在界面创建自己的两个空间，避免共享管理员列表污染四个入口。
+             * 在界面创建自己的两个空间，避免共享管理员列表污染三个入口。
              */
             const actorEmail = `w2b-${randomUUID()}@example.com`;
             const administrator = await request.newContext({ baseURL: "http://127.0.0.1:5173" });
@@ -423,13 +423,6 @@ test("four GUI entry selectors retain manual selection across real list refetch"
                     heading: "Execution plans",
                     picker: "Plan Workspace",
                     input: page.getByLabel("Plan name"),
-                },
-                {
-                    link: "Bundles",
-                    pathname: "/bundles",
-                    heading: "Offline bundles",
-                    picker: "Bundle Workspace",
-                    input: page.getByLabel("Selection"),
                 },
             ]) {
                 const path = "http://127.0.0.1:5173/api/v1/workspaces";
@@ -545,9 +538,8 @@ test("four GUI entry selectors retain manual selection across real list refetch"
                         await ownedPicker.selectOption(beta);
                         expect(await pickerIsCurrent()).toBe(true);
                         await markPhase(`${entry.link}:write unsaved value`);
-                        if (entry.link === "Bundles") await input.selectOption("SUITE");
-                        else
-                            await input.fill(entry.link === "Runtimes" ? "ABCDEFGH2345" : "Beta unsaved " + entry.link);
+                        const unsaved = entry.link === "Runtimes" ? "ABCDEFGH2345" : "Beta unsaved " + entry.link;
+                        await input.fill(unsaved);
                         await markPhase(`${entry.link}:release held list`);
                         release();
                         await finished;
@@ -560,19 +552,12 @@ test("four GUI entry selectors retain manual selection across real list refetch"
                         expect(aborted).toEqual([]);
                         expect(await pickerIsCurrent()).toBe(true);
                         await expect(selector).toHaveValue(beta);
-                        await expect(input).toHaveValue(
-                            entry.link === "Bundles"
-                                ? "SUITE"
-                                : entry.link === "Runtimes"
-                                  ? "ABCDEFGH2345"
-                                  : "Beta unsaved " + entry.link,
-                        );
+                        await expect(input).toHaveValue(unsaved);
                         if (entry.link === "Workspaces")
                             await expect(page.getByRole("article")).toContainText("W2B Beta");
                         await markPhase(`${entry.link}:select Alpha`);
                         await ownedPicker.selectOption(alpha);
                         if (entry.link === "Runtimes" || entry.link === "Plans") await expect(input).toHaveValue("");
-                        if (entry.link === "Bundles") await expect(input).toHaveValue("CASE");
                     },
                     async () => {
                         await withCleanup(
@@ -589,17 +574,17 @@ test("four GUI entry selectors retain manual selection across real list refetch"
                     },
                 );
             }
-            await markPhase("Bundles:session reset");
-            await page.getByRole("combobox", { name: "Bundle Workspace" }).selectOption(beta);
-            await page.getByLabel("Selection").selectOption("SUITE");
+            await markPhase("Plans:session reset");
+            await page.getByRole("combobox", { name: "Plan Workspace" }).selectOption(beta);
+            await page.getByLabel("Plan name").fill("Beta unsaved Plan");
             await page.getByRole("button", { name: "Sign out", exact: true }).click();
             await page.getByRole("textbox", { name: "Email" }).fill(actorEmail);
             await page.getByLabel("Password").fill("Workspace password 123!");
             await page.getByRole("button", { name: "Sign in" }).click();
             await expect(page.locator("dl")).toBeVisible();
-            await page.getByRole("link", { name: "Bundles", exact: true }).click();
-            await expect(page.getByRole("combobox", { name: "Bundle Workspace" })).toHaveValue(alpha);
-            await expect(page.getByLabel("Selection")).toHaveValue("CASE");
+            await page.getByRole("link", { name: "Plans", exact: true }).click();
+            await expect(page.getByRole("combobox", { name: "Plan Workspace" })).toHaveValue(alpha);
+            await expect(page.getByLabel("Plan name")).toHaveValue("");
         },
         async () => {
             let browser: { events: WorkspaceOwnershipEvent[]; overflow: number; phase: string } | null = null;

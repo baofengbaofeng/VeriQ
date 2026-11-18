@@ -15,6 +15,113 @@ export type Id = string;
  */
 export type Sha256 = string;
 /**
+ * Bounded engine codes accepted in protected execution events.
+ *
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "ProtectedExecutionErrorCode".
+ */
+export type ProtectedExecutionErrorCode =
+  | "ACTION_FAILED"
+  | "AMBIGUOUS_EVENT"
+  | "AMBIGUOUS_REQUEST"
+  | "ASSERTION_FAILED"
+  | "AUTHENTICATED_REQUEST_ABORT_FAILED"
+  | "AUTHENTICATION_FAILED"
+  | "AUTH_ADAPTER_HASH_MISMATCH"
+  | "AUTH_ADAPTER_REQUIRED"
+  | "AUTH_CLEANUP_FAILED"
+  | "AUTH_PROVIDER_REQUIRED"
+  | "BEFORE_ASSERTION_FAILED"
+  | "BINDING_TYPE_MISMATCH"
+  | "BLOCKED"
+  | "BUSINESS_TIMEOUT"
+  | "CANCELLED"
+  | "CATALOG_REQUIRED"
+  | "CATALOG_SCOPE_CYCLE"
+  | "CHILD_STEP_FAILED"
+  | "CLEANUP_FAILED"
+  | "CLEANUP_RESPONSE_INVALID"
+  | "COMPILED_CHILDREN_REQUIRED"
+  | "CONTEXT_CLOSE_FAILED"
+  | "COOKIE_ORIGIN_NOT_ALLOWED"
+  | "CREDENTIAL_EVIDENCE_FORBIDDEN"
+  | "CREDENTIAL_PROVIDER_REQUIRED"
+  | "CREDENTIAL_SHAPE_INVALID"
+  | "DATASET_BUSY"
+  | "DATASET_CONNECTION_UNAVAILABLE"
+  | "DATASET_PAGINATION_INCOMPLETE"
+  | "DATASET_REQUEST_TIMEOUT"
+  | "DATASET_RESPONSE_INVALID"
+  | "DATASET_RESPONSE_LIMIT"
+  | "DATASET_TRANSPORT_FAILED"
+  | "DATASET_UPSTREAM_REJECTED"
+  | "DATASET_NOT_ASSIGNED"
+  | "STALE_FENCE"
+  | "LEASE_EXPIRED"
+  | "REQUESTER_REVOKED"
+  | "DATASET_TRANSFER_LIMIT"
+  | "DATASET_BINDINGS_MISMATCH"
+  | "DATASET_EXPECTED_TYPE"
+  | "DATASET_FIELD_MISSING"
+  | "DATASET_KEY_TYPE"
+  | "DATASET_PROVIDER_REQUIRED"
+  | "DATASET_READ_ERROR"
+  | "DATASET_RESOLVER_REQUIRED"
+  | "DATASET_RESULT_LIMIT"
+  | "DATASET_ROW_MISSING"
+  | "DATASET_TREE_CYCLE"
+  | "DATASET_TREE_REQUIRED"
+  | "DATASET_VERSION_MISSING"
+  | "DIALOG_MISMATCH"
+  | "DOWNLOAD_FAILED"
+  | "DOWNLOAD_PROVIDER_REQUIRED"
+  | "DUPLICATE_LOCAL_CREDENTIAL"
+  | "DUPLICATE_PAGE_KEY"
+  | "EVENT_TIMEOUT"
+  | "EXECUTION_CONTEXT_MISMATCH"
+  | "EXECUTION_CONTEXT_PROVIDER_REQUIRED"
+  | "EXECUTION_ERROR"
+  | "EXTRACTION_MISSING"
+  | "EXTRACTION_TYPE_MISMATCH"
+  | "FILE_PROVIDER_REQUIRED"
+  | "FIXTURE_CONFLICT"
+  | "FIXTURE_IDENTITY_REQUIRED"
+  | "FIXTURE_INPUT_INVALID"
+  | "FIXTURE_OUTPUT_INVALID"
+  | "FIXTURE_PROVIDER_REQUIRED"
+  | "FIXTURE_REQUEST_FAILED"
+  | "FIXTURE_REQUIRED"
+  | "FIXTURE_RESPONSE_INVALID"
+  | "IDENTITY_NOT_ALLOWED"
+  | "INVALID_EXECUTION_CONTEXT"
+  | "INVALID_OBSERVER"
+  | "INVALID_PATH"
+  | "INVALID_REDIRECT"
+  | "LOCAL_CREDENTIAL_REQUIRED"
+  | "NETWORK_TIMEOUT"
+  | "OBSERVER_DISPOSED"
+  | "OBSERVER_WINDOW_REQUIRED"
+  | "ORIGIN_NOT_ALLOWED"
+  | "PERSISTENCE_CHECKPOINT_FAILED"
+  | "READ_ONLY_QUERY_REQUIRED"
+  | "REDACTION_PROVIDER_REQUIRED"
+  | "REDIRECT_LIMIT"
+  | "REQUEST_COUNT_MISMATCH"
+  | "RESPONSE_ASSERTION_FAILED"
+  | "ROLE_NOT_FOUND"
+  | "SECRET_VERSION_MISMATCH"
+  | "SOURCE_UNAVAILABLE"
+  | "TARGET_NOT_FOUND"
+  | "UNEXPECTED_DIALOG"
+  | "UNKNOWN_DATASET_ALIAS"
+  | "UNKNOWN_DATASET_FIELD"
+  | "UNKNOWN_PAGE_KEY"
+  | "UNKNOWN_TARGET"
+  | "VERIQ_BROWSER_CONNECTION_FAILED"
+  | "VERIQ_BROWSER_GUARD_RESTORE_CONFLICT"
+  | "VERIQ_BROWSER_GUARD_RESTORE_FAILED"
+  | "WRITE_REDIRECT_FORBIDDEN";
+/**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
  * via the `definition` "Key".
  */
@@ -446,6 +553,250 @@ export type AssertionV1 =
       pointer: Pointer;
       operator: "exists";
       expected: boolean;
+    }
+  | {
+      id: Key;
+      severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+      expectedSource: string;
+      timeoutMs?: Timeout;
+      type: "ui";
+      target: Key;
+      operator: "visible" | "enabled" | "checked" | "attached" | "editable";
+      pageKey?: Key;
+      datasetExpected: DatasetQuery;
+    }
+  | {
+      id: Key;
+      severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+      expectedSource: string;
+      timeoutMs?: Timeout;
+      type: "ui";
+      target: Key;
+      operator: "textEquals" | "textContains" | "valueEquals";
+      pageKey?: Key;
+      datasetExpected: DatasetQuery;
+    }
+  | {
+      id: Key;
+      severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+      expectedSource: string;
+      timeoutMs?: Timeout;
+      type: "ui";
+      target: Key;
+      operator: "countEquals";
+      pageKey?: Key;
+      datasetExpected: DatasetQuery;
+    }
+  | {
+      id: Key;
+      severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+      expectedSource: string;
+      timeoutMs?: Timeout;
+      type: "url";
+      source: "page";
+      operator: "equals" | "contains";
+      pageKey?: Key;
+      datasetExpected: DatasetQuery;
+    }
+  | {
+      id: Key;
+      severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+      expectedSource: string;
+      timeoutMs?: Timeout;
+      type: "httpStatus";
+      source: ResponseRef;
+      operator: "equals";
+      datasetExpected: DatasetQuery;
+    }
+  | {
+      id: Key;
+      severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+      expectedSource: string;
+      timeoutMs?: Timeout;
+      type: "request";
+      source: RequestRef;
+      operator: "methodEquals";
+      datasetExpected: DatasetQuery;
+    }
+  | {
+      id: Key;
+      severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+      expectedSource: string;
+      timeoutMs?: Timeout;
+      type: "request";
+      source: RequestRef;
+      operator: "pathEquals";
+      datasetExpected: DatasetQuery;
+    }
+  | {
+      id: Key;
+      severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+      expectedSource: string;
+      timeoutMs?: Timeout;
+      type: "duration";
+      source: SourceRef;
+      operator: "lessThanOrEqual";
+      datasetExpected: DatasetQuery;
+    }
+  | {
+      id: Key;
+      severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+      expectedSource: string;
+      timeoutMs?: Timeout;
+      type: "requestCount";
+      source: RequestRef;
+      operator: "equals";
+      datasetExpected: DatasetQuery;
+    }
+  | {
+      id: Key;
+      severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+      expectedSource: string;
+      timeoutMs?: Timeout;
+      type: "eventually";
+      query: {
+        method: "GET";
+        /**
+         * Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL
+         * substitution the SDK must recheck the path and WHATWG-resolved origin against the frozen authorized
+         * base/allowedOrigins before any request/navigation, and enforce policy on redirects.
+         *
+         * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+         * via the `definition` "Path".
+         */
+        path: SafeString & Path;
+        query?: BindingJsonObject;
+      };
+      pointer: Pointer;
+      operator: "equals";
+      intervalMs?: number;
+      datasetExpected: DatasetQuery;
+    }
+  | {
+      id: Key;
+      severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+      expectedSource: string;
+      timeoutMs?: Timeout;
+      type: "responseField";
+      source: ResponseRef;
+      pointer: Pointer;
+      operator: "equals" | "notEquals";
+      datasetExpected: DatasetQuery;
+    }
+  | {
+      id: Key;
+      severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+      expectedSource: string;
+      timeoutMs?: Timeout;
+      type: "responseField";
+      source: ResponseRef;
+      pointer: Pointer;
+      operator: "contains";
+      datasetExpected: DatasetQuery;
+    }
+  | {
+      id: Key;
+      severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+      expectedSource: string;
+      timeoutMs?: Timeout;
+      type: "responseField";
+      source: ResponseRef;
+      pointer: Pointer;
+      operator: "in";
+      datasetExpected: DatasetQuery;
+    }
+  | {
+      id: Key;
+      severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+      expectedSource: string;
+      timeoutMs?: Timeout;
+      type: "responseField";
+      source: ResponseRef;
+      pointer: Pointer;
+      operator: "exists";
+      datasetExpected: DatasetQuery;
+    }
+  | {
+      id: Key;
+      severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+      expectedSource: string;
+      timeoutMs?: Timeout;
+      type: "requestField";
+      source: RequestRef;
+      pointer: Pointer;
+      operator: "equals" | "notEquals";
+      datasetExpected: DatasetQuery;
+    }
+  | {
+      id: Key;
+      severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+      expectedSource: string;
+      timeoutMs?: Timeout;
+      type: "requestField";
+      source: RequestRef;
+      pointer: Pointer;
+      operator: "contains";
+      datasetExpected: DatasetQuery;
+    }
+  | {
+      id: Key;
+      severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+      expectedSource: string;
+      timeoutMs?: Timeout;
+      type: "requestField";
+      source: RequestRef;
+      pointer: Pointer;
+      operator: "in";
+      datasetExpected: DatasetQuery;
+    }
+  | {
+      id: Key;
+      severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+      expectedSource: string;
+      timeoutMs?: Timeout;
+      type: "requestField";
+      source: RequestRef;
+      pointer: Pointer;
+      operator: "exists";
+      datasetExpected: DatasetQuery;
+    };
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "DatasetQuery".
+ */
+export type DatasetQuery =
+  | {
+      parameters?: BindingJsonObject;
+      alias: Key;
+      op: "field";
+      key: BindingJsonValue;
+      field: Key;
+    }
+  | {
+      parameters?: BindingJsonObject;
+      alias: Key;
+      op: "contains";
+      key: BindingJsonValue;
+    }
+  | {
+      parameters?: BindingJsonObject;
+      alias: Key;
+      op: "filter";
+      field: Key;
+      equals: BindingJsonValue;
+      select: Key;
+    }
+  | {
+      parameters?: BindingJsonObject;
+      alias: Key;
+      op: "path";
+      key: BindingJsonValue;
+    }
+  | {
+      parameters?: BindingJsonObject;
+      alias: Key;
+      op: "children";
+      parentKey: BindingJsonValue;
     };
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -777,6 +1128,262 @@ export type LocatorV1 =
     };
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "DataRowV2".
+ */
+export type DataRowV2 = DataRowV1 | TreeDataRowV2;
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "DatasetSignatureInput".
+ */
+export type DatasetSignatureInput =
+  | {
+      op: "QUERY" | "PATH" | "BODY" | "METHOD" | "TIMESTAMP";
+    }
+  | {
+      op: "PARAMETER";
+      name: Key;
+    }
+  | {
+      op: "LITERAL";
+      value: string;
+    }
+  | {
+      op: "PERCENT_ENCODE" | "SHA256" | "BASE64";
+      input: DatasetSignatureInput;
+    }
+  | {
+      op: "JOIN";
+      separator: string;
+      /**
+       * @maxItems 16
+       */
+      parts:
+        | []
+        | [DatasetSignatureInput]
+        | [DatasetSignatureInput, DatasetSignatureInput]
+        | [DatasetSignatureInput, DatasetSignatureInput, DatasetSignatureInput]
+        | [DatasetSignatureInput, DatasetSignatureInput, DatasetSignatureInput, DatasetSignatureInput]
+        | [
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput
+          ]
+        | [
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput
+          ]
+        | [
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput
+          ]
+        | [
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput
+          ]
+        | [
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput
+          ]
+        | [
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput
+          ]
+        | [
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput
+          ]
+        | [
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput
+          ]
+        | [
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput
+          ]
+        | [
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput
+          ]
+        | [
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput
+          ]
+        | [
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput,
+            DatasetSignatureInput
+          ];
+    }
+  | {
+      op: "SORTED_QUERY";
+      /**
+       * @maxItems 64
+       */
+      names?: string[];
+    };
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "DatasetHttpAuth".
+ */
+export type DatasetHttpAuth =
+  | {
+      kind: "NONE";
+    }
+  | {
+      kind: "BEARER" | "BASIC";
+      secretRef: Key | null;
+      secretVersionId: Id | null;
+    }
+  | {
+      kind: "SIGNED";
+      secretRef: Key | null;
+      secretVersionId: Id | null;
+      header: string;
+      algorithm: "HMAC_SHA256" | "AES256_GCM";
+      input: DatasetSignatureInput;
+    }
+  | {
+      kind: "API_KEY";
+      header: string;
+      secretRef: Key | null;
+      secretVersionId: Id | null;
+    };
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "DatasetV2".
+ */
+export type DatasetV2 =
+  | {
+      schemaVersion: "2.0";
+      shape: "TABLE";
+      fields: DatasetFieldsV2;
+      source: {
+        kind: "STATIC";
+        rows: DataRowV1[];
+      };
+    }
+  | {
+      schemaVersion: "2.0";
+      shape: "TREE";
+      fields: DatasetFieldsV2;
+      source: {
+        kind: "STATIC";
+        rows: TreeDataRowV2[];
+      };
+    }
+  | {
+      schemaVersion: "2.0";
+      shape: "TABLE" | "TREE";
+      fields: DatasetFieldsV2;
+      source: DatasetHttpSource;
+    };
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "DatasetDocument".
+ */
+export type DatasetDocument = DatasetV1 | DatasetV2;
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
  * via the `definition` "ResourceDocumentV1".
  */
 export type ResourceDocumentV1 =
@@ -794,7 +1401,7 @@ export type ResourceDocumentV1 =
     }
   | {
       kind: "DATASET";
-      document: DatasetV1;
+      document: DatasetDocument;
     }
   | {
       kind: "FLOW";
@@ -843,7 +1450,7 @@ export type AssetVersionV1 =
       versionId: Id;
       kind: "DATASET";
       sha256: Sha256;
-      document: DatasetV1;
+      document: DatasetDocument;
     }
   | {
       resourceId: Id;
@@ -984,6 +1591,8 @@ export type RuntimeCapabilitiesV1 = {
    * @minItems 1
    */
   jobKinds?: ["TEST" | "VALIDATE" | "CLEANUP", ...("TEST" | "VALIDATE" | "CLEANUP")[]];
+  httpDatasets?: "1.0";
+  connectedDatasets?: "2.0";
 } & RuntimeCapabilitiesV11;
 export type RuntimeCapabilitiesV11 =
   | {
@@ -1234,10 +1843,159 @@ export type BundleSelectionV11 =
   | {
       draftValidationJobId: unknown;
     };
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "ConnectedSourceSnapshotV2".
+ */
+export type ConnectedSourceSnapshotV2 = {
+  [k: string]: unknown;
+} & {
+  schemaVersion: "2.0";
+  workspaceId: Id;
+  sourceHash: Sha256;
+  engineVersion: Version;
+  /**
+   * @minItems 0
+   */
+  entryCaseVersionIds: Id[];
+  /**
+   * @minItems 1
+   */
+  assets: [
+    (
+      | {
+          resourceId: Id;
+          versionId: Id;
+          kind: "CASE";
+          sha256: Sha256;
+          document: CaseDslV1;
+        }
+      | {
+          resourceId: Id;
+          versionId: Id;
+          kind: "ELEMENT_CATALOG";
+          sha256: Sha256;
+          document: ElementCatalogV1;
+        }
+      | {
+          resourceId: Id;
+          versionId: Id;
+          kind: "ASSERTION_TEMPLATE";
+          sha256: Sha256;
+          document: AssertionTemplateV1;
+        }
+      | {
+          resourceId: Id;
+          versionId: Id;
+          kind: "FLOW";
+          sha256: Sha256;
+          document: FlowV1;
+        }
+      | {
+          resourceId: Id;
+          versionId: Id;
+          kind: "FIXTURE";
+          sha256: Sha256;
+          document: FixtureV1;
+        }
+      | {
+          resourceId: Id;
+          versionId: Id;
+          kind: "SUITE";
+          sha256: Sha256;
+          document: SuiteV1;
+        }
+      | {
+          resourceId: Id;
+          versionId: Id;
+          kind: "ENVIRONMENT";
+          sha256: Sha256;
+          document: EnvironmentV1;
+        }
+      | ConnectedDatasetV2
+    ),
+    ...(
+      | {
+          resourceId: Id;
+          versionId: Id;
+          kind: "CASE";
+          sha256: Sha256;
+          document: CaseDslV1;
+        }
+      | {
+          resourceId: Id;
+          versionId: Id;
+          kind: "ELEMENT_CATALOG";
+          sha256: Sha256;
+          document: ElementCatalogV1;
+        }
+      | {
+          resourceId: Id;
+          versionId: Id;
+          kind: "ASSERTION_TEMPLATE";
+          sha256: Sha256;
+          document: AssertionTemplateV1;
+        }
+      | {
+          resourceId: Id;
+          versionId: Id;
+          kind: "FLOW";
+          sha256: Sha256;
+          document: FlowV1;
+        }
+      | {
+          resourceId: Id;
+          versionId: Id;
+          kind: "FIXTURE";
+          sha256: Sha256;
+          document: FixtureV1;
+        }
+      | {
+          resourceId: Id;
+          versionId: Id;
+          kind: "SUITE";
+          sha256: Sha256;
+          document: SuiteV1;
+        }
+      | {
+          resourceId: Id;
+          versionId: Id;
+          kind: "ENVIRONMENT";
+          sha256: Sha256;
+          document: EnvironmentV1;
+        }
+      | ConnectedDatasetV2
+    )[]
+  ];
+  validationTarget?: ValidationTargetV1;
+  /**
+   * @maxItems 100
+   */
+  authAdapters?: AuthAdapterVersionV1[];
+  originalSha256: Sha256;
+};
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "StaticDatasetSelection".
+ */
+export type StaticDatasetSelection =
+  | {
+      selection: "VALIDATION_SOURCE";
+    }
+  | {
+      selection: "DATASET";
+      versionId: Id;
+    }
+  | {
+      selection: "ROW";
+      versionId: Id;
+      rowKey: Key;
+    };
 
 export interface ContractDefinitions {
   Id?: Id;
   Sha256?: Sha256;
+  ProtectedExecutionErrorCode?: ProtectedExecutionErrorCode;
   Key?: Key;
   Version?: Version;
   SafeString?: SafeString;
@@ -1284,6 +2042,16 @@ export interface ContractDefinitions {
   AssertionTemplateV1?: AssertionTemplateV1;
   DataRowV1?: DataRowV1;
   DatasetV1?: DatasetV1;
+  DataFieldV2?: DataFieldV2;
+  DatasetFieldsV2?: DatasetFieldsV2;
+  TreeDataRowV2?: TreeDataRowV2;
+  DataRowV2?: DataRowV2;
+  DatasetSignatureInput?: DatasetSignatureInput;
+  DatasetHttpAuth?: DatasetHttpAuth;
+  DatasetHttpMapping?: DatasetHttpMapping;
+  DatasetHttpSource?: DatasetHttpSource;
+  DatasetV2?: DatasetV2;
+  DatasetDocument?: DatasetDocument;
   FlowV1?: FlowV1;
   FixtureEndpointV1?: FixtureEndpointV1;
   FixtureV1?: FixtureV1;
@@ -1358,6 +2126,15 @@ export interface ContractDefinitions {
   OfflineArtifactV1?: OfflineArtifactV1;
   OfflineExecutionChoicesV1?: OfflineExecutionChoicesV1;
   ProcessStopScope?: ProcessStopScope;
+  DatasetBindings?: DatasetBindings;
+  DatasetQuery?: DatasetQuery;
+  ConnectedDatasetV2?: ConnectedDatasetV2;
+  ConnectedSourceSnapshotV2?: ConnectedSourceSnapshotV2;
+  ConnectedExecutionSnapshotV2?: ConnectedExecutionSnapshotV2;
+  HttpDatasetSelection?: HttpDatasetSelection;
+  HttpDatasetSample?: HttpDatasetSample;
+  HttpDatasetResponse?: HttpDatasetResponse;
+  StaticDatasetSelection?: StaticDatasetSelection;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -1456,6 +2233,14 @@ export interface CaseDslV1 {
   steps: [StepV1, ...StepV1[]];
   fixtureInput?: BindingJsonObject;
   initialVariables?: ParameterTypes;
+  datasetBindings?: DatasetBindings;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "DatasetBindings".
+ */
+export interface DatasetBindings {
+  [k: string]: Id;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -1509,6 +2294,109 @@ export interface DatasetV1 {
    * @minItems 1
    */
   rows: [DataRowV1, ...DataRowV1[]];
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "DataFieldV2".
+ */
+export interface DataFieldV2 {
+  type: "string" | "number" | "integer" | "boolean" | "object" | "array";
+  required: boolean;
+  nullable: boolean;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "DatasetFieldsV2".
+ */
+export interface DatasetFieldsV2 {
+  [k: string]: DataFieldV2;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "TreeDataRowV2".
+ */
+export interface TreeDataRowV2 {
+  key: Key;
+  values: JsonObject;
+  parentKey: Key | null;
+  order: number;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "DatasetHttpMapping".
+ */
+export interface DatasetHttpMapping {
+  rows: string;
+  key: string;
+  values: {
+    [k: string]: string;
+  };
+  parentKey?: string;
+  order?: string;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "DatasetHttpSource".
+ */
+export interface DatasetHttpSource {
+  kind: "HTTP";
+  connectionRef: Id | null;
+  environmentVersionId: Id | null;
+  method: "GET" | "POST";
+  path: string;
+  /**
+   * @maxItems 64
+   */
+  query: {
+    name: string;
+    value:
+      | string
+      | {
+          parameter: Key;
+        };
+  }[];
+  headers: {
+    [k: string]: string;
+  };
+  parameters: {
+    [k: string]: ValueType;
+  };
+  body:
+    | {
+        json: JsonValue;
+      }
+    | null
+    | {
+        parameter: Key;
+      }
+    | {
+        raw:
+          | string
+          | {
+              parameter: Key;
+            };
+      }
+    | {
+        /**
+         * @maxItems 64
+         */
+        form: {
+          name: string;
+          value:
+            | string
+            | {
+                parameter: Key;
+              };
+        }[];
+      };
+  auth: DatasetHttpAuth;
+  mapping: DatasetHttpMapping;
+  pagination?: {
+    kind: "PAGE" | "CURSOR";
+    parameter: Key;
+    next: string;
+    maxPages: number;
+  };
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -1710,6 +2598,7 @@ export interface ExecutionSnapshotV1 {
   authAdapters?: AuthAdapterVersionV1[];
   datasetVersionId?: Id;
   suiteEntryIndex?: number;
+  datasetBindings?: DatasetBindings;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -1810,7 +2699,8 @@ export interface StepFinishedPayloadV1 {
  * via the `definition` "AssertionResultPayloadV1".
  */
 export interface AssertionResultPayloadV1 {
-  status: "PASSED" | "FAILED" | "WARN" | "SKIPPED";
+  sample?: HttpDatasetSample;
+  status: "PASSED" | "FAILED" | "WARN" | "SKIPPED" | "ERROR";
   severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
   expectedSource: string;
   expected: JsonValue;
@@ -1819,6 +2709,14 @@ export interface AssertionResultPayloadV1 {
   errorCode?: Key;
   blockedByStepId?: Key;
   blockedByAssertionId?: Key;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "HttpDatasetSample".
+ */
+export interface HttpDatasetSample {
+  sourceVersionId: Id;
+  fetchedAt: string;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -2131,6 +3029,7 @@ export interface ExpectedPlansV1 {
       assertions: {
         id: Key;
         severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+        datasetExpected?: true;
         stage: "BEFORE" | "RESPONSE" | "AFTER" | "FINALIZE";
       }[];
       /**
@@ -2165,6 +3064,10 @@ export interface ApprovedEngineInventoryV1 {
      * @maxItems 1000
      */
     files: FileEntry[];
+    compilerConnectedDatasets?: "2.0";
+    runnerSdkHttpDatasets?: "1.0";
+    compilerHttpDatasets?: "1.0";
+    runnerSdkConnectedDatasets?: "2.0";
     /**
      * @maxItems 1000
      */
@@ -2399,6 +3302,85 @@ export interface BundleResourcesV1 {
    * @maxItems 1000
    */
   versions: ResourceVersionDTO[];
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "ConnectedDatasetV2".
+ */
+export interface ConnectedDatasetV2 {
+  kind: "DATASET";
+  resourceId: Id;
+  versionId: Id;
+  sha256: Sha256;
+  schema:
+    | {
+        schemaVersion: "1.0";
+        columns: ParameterTypes;
+      }
+    | {
+        schemaVersion: "2.0";
+        shape: "TABLE" | "TREE";
+        fields: DatasetFieldsV2;
+      };
+  contentSha256: Sha256;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "ConnectedExecutionSnapshotV2".
+ */
+export interface ConnectedExecutionSnapshotV2 {
+  schemaVersion: "2.0";
+  workspaceId: Id;
+  runId: Id;
+  caseExecutionId: Id;
+  assetSourceHash: Sha256;
+  environmentVersionId: Id;
+  environment: EnvironmentV1;
+  roleKey: Key;
+  browser: Browser;
+  variables: JsonObject;
+  /**
+   * @minItems 0
+   */
+  secretVersions: {
+    secretRef: Key;
+    versionId: Id;
+  }[];
+  namespace: Key;
+  attemptNo: number;
+  caseVersionId: Id;
+  /**
+   * @maxItems 100
+   */
+  authAdapters?: AuthAdapterVersionV1[];
+  datasetVersionId?: Id;
+  suiteEntryIndex?: number;
+  datasetBindings?: DatasetBindings;
+  selectedRow?: {
+    versionId: Id;
+    rowKey: Key;
+    rowSha256: Sha256;
+  };
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "HttpDatasetSelection".
+ */
+export interface HttpDatasetSelection {
+  versionId: Id;
+  parameters: JsonObject;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "HttpDatasetResponse".
+ */
+export interface HttpDatasetResponse {
+  sourceVersionId: Id;
+  fetchedAt: Timestamp;
+  /**
+   * @maxItems 10000
+   */
+  rows: DataRowV2[];
 }
 
 export type SnapshotV1 = AssetSnapshotV1;

@@ -4,7 +4,7 @@
 import { createHash } from "node:crypto";
 import { RuntimeError } from "../enrollment.ts";
 import { DeviceSession } from "./credentials.ts";
-import type { PlatformComponents } from "@veriq/contracts";
+import { validateSchema, type PlatformComponents } from "@veriq/contracts";
 type S = PlatformComponents["schemas"];
 /**
  * 公开类型 Claim 即平台 ClaimDTO，包含 attempt、租约令牌、围栏令牌与过期时间，供执行路径与心跳共用。
@@ -45,12 +45,18 @@ export class AgentClient {
      * 公开方法 binary 以租约与围栏头读写有界二进制内容，禁止重定向与 Cookie，
      * 超额则取消流式读取（binary/CHUNK_TOO_LARGE）。
      */
-    async binary(path: string, proof: Proof, signal: AbortSignal, bytes?: Uint8Array): Promise<Uint8Array> {
+    async binary(
+        path: string,
+        proof: Proof,
+        signal: AbortSignal,
+        bytes?: Uint8Array,
+        selection?: S["StaticDatasetSelection"] | S["HttpDatasetSelection"],
+    ): Promise<Uint8Array> {
         const url = this.path(path);
         if (bytes && bytes.length > 1024 * 1024) throw new Error("CHUNK_TOO_LARGE");
         return this.session.withCredential(async (config) => {
             const response = await fetch(url, {
-                method: bytes ? "PUT" : "GET",
+                method: selection ? "POST" : bytes ? "PUT" : "GET",
                 redirect: "error",
                 credentials: "omit",
                 signal: AbortSignal.any([signal, AbortSignal.timeout(15000)]),
@@ -58,10 +64,15 @@ export class AgentClient {
                     Authorization: `Bearer ${config.deviceToken}`,
                     "X-VeriQ-Lease-Token": proof.leaseToken,
                     "X-VeriQ-Fencing-Token": String(proof.fencingToken),
-                    ...(bytes ? { "Content-Type": "application/octet-stream" } : {}),
+                    ...(selection
+                        ? { "Content-Type": "application/json" }
+                        : bytes
+                          ? { "Content-Type": "application/octet-stream" }
+                          : {}),
                 },
-                ...(bytes ? { body: Buffer.from(bytes) } : {}),
+                ...(selection ? { body: JSON.stringify(selection) } : bytes ? { body: Buffer.from(bytes) } : {}),
             });
+            const live = !!selection && "parameters" in selection;
             const reader = response.body?.getReader();
             const parts: Uint8Array[] = [];
             let size = 0;
@@ -70,12 +81,22 @@ export class AgentClient {
                     const next = await reader.read();
                     if (next.done) break;
                     size += next.value.length;
-                    if (size > (bytes ? 65536 : 32 * 1024 * 1024)) {
+                    if (size > (bytes || !response.ok ? 65536 : (live ? 3 : selection ? 16 : 32) * 1024 * 1024)) {
                         await reader.cancel();
                         throw new Error("CONTENT_LIMIT");
                     }
                     parts.push(next.value);
                 }
+            if (live && !response.ok) {
+                let code = "DATASET_READ_ERROR";
+                try {
+                    const value = JSON.parse(Buffer.concat(parts).toString("utf8")).code;
+                    if (!validateSchema("ProtectedExecutionErrorCode", value).length) code = value;
+                } catch {
+                    // 当控制面返回反向代理的错误页时只交付固定分类，响应正文和异常消息均不能传播至执行报告。
+                }
+                throw new Error(code);
+            }
             if (!response.ok) throw new RuntimeError("CONTROL_REQUEST_FAILED", response.status);
             return Buffer.concat(parts);
         });

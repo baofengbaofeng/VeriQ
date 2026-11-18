@@ -98,3 +98,61 @@ for (const fixture of rejected) {
         );
     });
 }
+
+test("static body crosses 32 KiB chunks and checks bytes before Unicode decode", async (t) => {
+    const { createHash } = await import("node:crypto");
+    const { canonicalBytes } = await import("@veriq/contracts");
+    const { copyFile, writeFile, symlink } = await import("node:fs/promises");
+    const { pathToFileURL, fileURLToPath } = await import("node:url");
+    const root = await mkdtemp(join(tmpdir(), "vq-provider-"));
+    t.after(() => rm(root, { recursive: true, force: true }));
+    await copyFile(new URL("../src/execution/provider.mjs", import.meta.url), join(root, "provider.mjs"));
+    await writeFile(join(root, "invocation.json"), "{}");
+    await symlink(fileURLToPath(new URL("../node_modules", import.meta.url)), join(root, "node_modules"), "dir");
+    const { readStaticDataset } = await import(pathToFileURL(join(root, "provider.mjs")).href);
+    const document = { text: "正文😀".repeat(9000) };
+    const raw = Buffer.from(canonicalBytes(document));
+    const digest = createHash("sha256").update(raw).digest("hex");
+    const selection = { selection: "VALIDATION_SOURCE" };
+    const chunk = (message: { offset?: number }) => {
+        const offset = message.offset ?? 0;
+        return {
+            id: "synthetic",
+            size: raw.length,
+            offset,
+            part: raw.subarray(offset, offset + 32768).toString("base64"),
+        };
+    };
+    assert(raw.length > 65536);
+    assert.deepEqual(await readStaticDataset(selection, digest, chunk), document);
+    await assert.rejects(readStaticDataset(selection, "0".repeat(64), chunk), /DATASET_HASH_MISMATCH/);
+    await assert.rejects(
+        readStaticDataset(selection, digest, chunk, { remaining: raw.length - 1 }),
+        /DATASET_TRANSFER_LIMIT/,
+    );
+    await assert.rejects(
+        readStaticDataset(selection, digest, () => ({
+            ...chunk({}),
+            part: raw.subarray(0, 32769).toString("base64"),
+        })),
+        /INVALID_DATASET_CHUNK/,
+    );
+});
+
+test("private HTTP transfer cancels pending reads and never exposes remote error text", async () => {
+    const broker = await import("../src/execution/broker.ts");
+    const { randomUUID } = await import("node:crypto");
+    let started = false;
+    const transfers = new broker.HttpDatasetTransfers(async (_input, signal) => {
+        started = true;
+        return new Promise<Uint8Array>((_resolve, reject) =>
+            signal.addEventListener("abort", () => reject(new Error("PRIVATE-RESPONSE-SENTINEL")), { once: true }),
+        );
+    }, new AbortController().signal);
+    const id = randomUUID();
+    const pending = transfers.receive({ id, selection: { versionId: randomUUID(), parameters: {} } });
+    assert.equal(started, true);
+    await transfers.receive({ id, cancel: true });
+    assert.deepEqual(await pending, { errorCode: "DATASET_READ_ERROR" });
+    await assert.rejects(transfers.receive({ id, offset: 0 }), /INVALID_DATASET_TRANSFER/);
+});

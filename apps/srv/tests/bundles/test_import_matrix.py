@@ -67,3 +67,39 @@ def test_direct_cases_preserve_selected_order_and_default_chromium():
         ("case", 1),
     ]
     assert all(r["selection"]["browser"] == "chromium" for r in rows)
+
+
+def test_legacy_import_rejects_new_dataset_matrix():
+    """新版数据集只提供联网矩阵。历史结果导入若遇到这类数据集，需要在推导变体之前返回稳定拒绝原因。"""
+    checked = selected([])
+    checked["snapshot"]["assets"][1]["document"] = {
+        "schemaVersion": "2.0",
+        "shape": "TABLE",
+        "fields": {},
+        "source": {"kind": "STATIC", "rows": [{"key": "one", "values": {}}]},
+    }
+    with pytest.raises(Problem) as rejected:
+        expected_variants(checked, {})
+    assert rejected.value.code == "OFFLINE_DATASET_VERSION_UNSUPPORTED"
+
+
+def test_legacy_import_rejects_overridden_new_dataset_from_signed_closure():
+    """即使套件覆盖项使用旧版矩阵，结果导入仍须拒绝冻结闭包中供默认用例引用的任何新版数据集正文。"""
+    checked = selected([{"key": "legacy_row", "values": {}}])
+    assets = checked["snapshot"]["assets"]
+    assets[0]["document"]["datasetVersionId"] = "connected"
+    assets.append(
+        {
+            "versionId": "connected",
+            "kind": "DATASET",
+            "document": {
+                "schemaVersion": "2.0",
+                "shape": "TABLE",
+                "fields": {},
+                "source": {"kind": "STATIC", "rows": [{"key": "connected_row", "values": {}}]},
+            },
+        }
+    )
+    with pytest.raises(Problem) as rejected:
+        expected_variants(checked, {})
+    assert rejected.value.code == "OFFLINE_DATASET_VERSION_UNSUPPORTED"

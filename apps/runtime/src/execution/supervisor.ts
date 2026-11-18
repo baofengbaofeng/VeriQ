@@ -9,7 +9,6 @@ import {
     writeFile,
     copyFile,
     readdir,
-    rm,
     rename,
     open,
     lstat,
@@ -17,7 +16,7 @@ import {
     type FileHandle,
 } from "node:fs/promises";
 import { constants } from "node:fs";
-import { join, dirname, resolve } from "node:path";
+import { basename, join, dirname, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
 import { randomUUID } from "node:crypto";
@@ -29,6 +28,8 @@ import {
     type CompletionManifestV1,
     type CompiledAssetBundle,
     type ExecutionSnapshotV1,
+    type ConnectedExecutionSnapshotV2,
+    type StaticDatasetSelection,
     type EvidenceFileEntryV1,
     type CleanupStatus,
 } from "@veriq/contracts";
@@ -41,11 +42,11 @@ import { isPreSpawnState } from "./pre-spawn.ts";
 import { ProcessRecords } from "./records.ts";
 import { ProcessSupervisor, type StopReceipt, type OwnedProcess } from "./processes.ts";
 import { EventBuffer } from "./events.ts";
-import { AttemptBroker, createDarwinBrokerDirectory } from "./broker.ts";
+import { HttpDatasetTransfers, AttemptBroker, createDarwinBrokerDirectory } from "./broker.ts";
 import { requireDarwinSource, type DarwinSourceCapability, type DarwinSourceState } from "./darwin-source.ts";
 import { matchesControlledClaim } from "./darwin-proof.ts";
 import { WindowsAttemptJournal } from "./windows-journal.ts";
-import { monitorStorage } from "./storage.ts";
+import { allocateScratch, monitorStorage, retireScratch, type DataCleanup, type TaskAllocation } from "./storage.ts";
 import { loadRelease, sha256 } from "./release.ts";
 import { developmentExecutionPaths, containedPath, type ExecutionPaths } from "./paths.ts";
 import { offlineWorkerEnvironment } from "../offline/worker-environment.ts";
@@ -96,6 +97,8 @@ export interface SupervisorOptions {
     execution?: ExecutionPaths;
 }
 interface AttemptJournal {
+    allocation?: TaskAllocation;
+    dataCleanup?: DataCleanup;
     claimRequestId?: string;
     claim: Claim;
     state: "ALLOCATED" | "ACTIVATING" | "ACTIVATED" | "SPAWNING" | "RUNNING" | "STOPPED";
@@ -278,6 +281,7 @@ export class ExecutionSupervisor {
             for (const name of names) {
                 if (!name.endsWith(".json")) continue;
                 const record = (await records.read(name, 65536)) as AttemptJournal;
+                if (name !== record.claim.attemptId + ".json") throw new Error("ATTEMPT_JOURNAL_ID_MISMATCH");
                 /**
                  * 临时对象可能包含尚未结清的 SPAWNING，即便旧正式日志仍是前置状态也不能走未派生快捷路径；只隔离受影响
                  * Attempt，其余正式日志继续执行原有内核停止核验和对账。
@@ -305,6 +309,12 @@ export class ExecutionSupervisor {
                 )
                     stop.reason = "JOURNAL_STAGING_UNCONFIRMED";
                 if (stop.processStopped && stop.processStopScope !== "NO_PROCESS_SPAWNED") record.state = "STOPPED";
+                record.dataCleanup = await retireScratch(
+                    this.options.root,
+                    this.source?.temporaryDirectory ?? tmpdir(),
+                    record,
+                    stop,
+                );
                 record.stop = stop;
                 try {
                     await this.journal(record);
@@ -365,6 +375,12 @@ export class ExecutionSupervisor {
                     (await this.unspawned(record, true)) ??
                     (await this.terminateAttempt(record.claim.attemptId, "AGENT_RECOVERY"));
                 if (stop.processStopped && stop.processStopScope !== "NO_PROCESS_SPAWNED") record.state = "STOPPED";
+                record.dataCleanup = await retireScratch(
+                    this.options.root,
+                    this.source?.temporaryDirectory ?? tmpdir(),
+                    record,
+                    stop,
+                );
                 record.stop = stop;
                 journal.save(record);
                 await this.reconcile(record.claim, stop, "PENDING");
@@ -432,8 +448,9 @@ export class ExecutionSupervisor {
             throw new Error("UNSUPPORTED_PROCESS_PLATFORM");
         const executionPaths = this.options.execution ?? developmentExecutionPaths();
         const work = join(this.options.root, "work", claim.attemptId);
-        if (this.source) this.source.native.openPrivateDirectory(work, true).close();
-        else await mkdir(work, { recursive: true, mode: 0o700 });
+        await privateDirectory(dirname(work));
+        await mkdir(work, { mode: 0o700 });
+        await privateDirectory(work);
         const brokerDirectory = this.source ? await createDarwinBrokerDirectory() : undefined;
         let tmp: string;
         try {
@@ -446,6 +463,7 @@ export class ExecutionSupervisor {
         const record: AttemptJournal = {
             claim,
             state: "ALLOCATED",
+            allocation: await allocateScratch(this.options.root, work, tmp),
             work,
             ...(assignment.claimRequestId ? { claimRequestId: assignment.claimRequestId } : {}),
         };
@@ -463,11 +481,8 @@ export class ExecutionSupervisor {
         try {
             await commit();
         } catch (error) {
-            try {
-                await brokerDirectory?.close();
-            } finally {
-                await rm(tmp, { recursive: true, force: true });
-            }
+            // 持久分配尚未确认，保留这个空的私有暂存目录，避免按可能已替换的路径递归删除。
+            await brokerDirectory?.close();
             throw error;
         }
         const client = this.options.client,
@@ -475,6 +490,7 @@ export class ExecutionSupervisor {
             controller = new AbortController();
         let reason: string | undefined,
             child: OwnedProcess | undefined,
+            liveTransfers: HttpDatasetTransfers | undefined,
             broker: AttemptBroker | undefined,
             monitor: ReturnType<typeof monitorStorage> | undefined;
         let stop: StopReceipt | undefined, caseResult: CaseResult | undefined, manifest: JobManifestV1 | undefined;
@@ -538,41 +554,60 @@ export class ExecutionSupervisor {
                 throw new Error("ASSIGNMENT_MISMATCH");
             const release = await loadRelease(this.options.releaseDirectory, manifest.engineVersion);
             const subject = await download(manifest.snapshotSha256);
-            await write("subject.json", subject);
-            let execution: ExecutionSnapshotV1 | undefined, bundle: CompiledAssetBundle | undefined;
+            const incoming = JSON.parse(Buffer.from(subject).toString());
+            if (incoming.workspaceId !== manifest.workspaceId) throw new Error("WORKSPACE_MISMATCH");
+            if (
+                manifest.kind === "VALIDATE" &&
+                (incoming.schemaVersion === "2.0"
+                    ? validateSchema("ConnectedSourceSnapshotV2", incoming).length
+                    : validateSchema("AssetSnapshotV1", incoming).length ||
+                      incoming.assets.some((asset: { kind: string }) => asset.kind === "DATASET"))
+            )
+                throw new Error("CONNECTED_SOURCE_REQUIRED");
+            let execution: ExecutionSnapshotV1 | ConnectedExecutionSnapshotV2 | undefined,
+                bundle: CompiledAssetBundle | undefined;
             if (manifest.kind === "TEST") {
-                execution = JSON.parse(
-                    Buffer.from(await download(manifest.executionSnapshotSha256)).toString(),
-                ) as ExecutionSnapshotV1;
+                if (manifest.executionSnapshotSha256 !== manifest.snapshotSha256)
+                    throw new Error("EXECUTION_BINDING_MISMATCH");
+                execution = incoming as ExecutionSnapshotV1 | ConnectedExecutionSnapshotV2;
                 if (
-                    validateSchema("ExecutionSnapshotV1", execution).length ||
+                    (execution.schemaVersion === "2.0"
+                        ? validateSchema("ConnectedExecutionSnapshotV2", execution).length
+                        : validateSchema("ExecutionSnapshotV1", execution).length ||
+                          execution.dataRow ||
+                          execution.datasetVersionId ||
+                          execution.datasetBindings) ||
                     execution.workspaceId !== manifest.workspaceId ||
                     execution.caseExecutionId !== manifest.caseExecutionId ||
                     execution.caseVersionId !== manifest.caseVersionId
                 )
                     throw new Error("EXECUTION_BINDING_MISMATCH");
-                await write("execution.json", canonicalBytes(execution));
+
                 const descriptor = await download(manifest.compiledBundleSha256);
                 bundle = JSON.parse(Buffer.from(descriptor).toString()) as CompiledAssetBundle;
                 if (validateSchema("CompiledAssetBundle", bundle).length) throw new Error("INVALID_COMPILED_BUNDLE");
+                const member = bundle.files.find((file) => file.path === "source/asset-snapshot.json");
+                if (!member) throw new Error("SOURCE_CONTEXT_REQUIRED");
+                const sourceBytes = await download(member.sha256);
+                const source = JSON.parse(Buffer.from(sourceBytes).toString());
+                if (
+                    sourceBytes.length !== member.sizeBytes ||
+                    source.workspaceId !== manifest.workspaceId ||
+                    source.sourceHash !== execution.assetSourceHash ||
+                    bundle.sourceHash !== source.sourceHash ||
+                    (execution.schemaVersion === "2.0"
+                        ? validateSchema("ConnectedSourceSnapshotV2", source).length
+                        : validateSchema("AssetSnapshotV1", source).length ||
+                          source.assets.some((asset: { kind: string }) => asset.kind === "DATASET"))
+                )
+                    throw new Error("CONNECTED_SOURCE_REQUIRED");
+                await write("source/asset-snapshot.json", sourceBytes);
+                await write("execution.json", subject);
                 await write("bundle.json", descriptor);
-                for (const file of bundle.files) {
-                    const bytes = await download(file.sha256);
-                    if (bytes.length !== file.sizeBytes) throw new Error("CONTENT_SIZE_MISMATCH");
-                    await write(file.path, bytes);
-                }
-                for (const [path, bytes] of Object.entries(release.files)) {
-                    if (path === "engine/compiler.tgz") {
-                        await write(path, bytes);
-                        continue;
-                    }
-                    if (sha256(await readFile(join(work, path))) !== sha256(bytes))
-                        throw new Error("UNAPPROVED_ENGINE_BYTES");
-                }
-            } else {
-                for (const [path, bytes] of Object.entries(release.files)) await write(path, bytes);
-                if (manifest.kind === "VALIDATE") await write("source/asset-snapshot.json", subject);
-            }
+            } else if (manifest.kind === "VALIDATE") await write("source/asset-snapshot.json", subject);
+            // 本地生成的用例文件只允许来自已批准发行的重新编译，远端旧包中的上下文与附加文件不会被直接写入任务目录。
+            for (const [path, bytes] of Object.entries(release.files)) await write(path, bytes);
+            await write("subject.json", subject);
             const frozen = execution ?? JSON.parse(Buffer.from(subject).toString());
             if (frozen.workspaceId !== manifest.workspaceId) throw new Error("WORKSPACE_MISMATCH");
             if (manifest.kind === "CLEANUP") {
@@ -589,7 +624,73 @@ export class ExecutionSupervisor {
                 )
                     throw new Error("INVALID_CLEANUP_SUBJECT");
             }
+            const datasetProtected = !!(
+                execution?.datasetVersionId || Object.keys(execution?.datasetBindings ?? {}).length
+            );
+            let loading = false,
+                compiled = false;
+            let transfer: { bytes: Uint8Array; id: string; next: number } | undefined;
+            liveTransfers = new HttpDatasetTransfers(async (selection, signal) => {
+                if (
+                    !compiled ||
+                    manifest?.kind !== "TEST" ||
+                    !datasetProtected ||
+                    !Object.values(execution?.datasetBindings ?? {}).includes(selection.versionId)
+                )
+                    throw new Error("DATASET_NOT_ASSIGNED");
+                return client.binary(
+                    `/internal/v1/attempts/${claim.attemptId}/datasets/http`,
+                    claim,
+                    signal,
+                    undefined,
+                    selection,
+                );
+            }, controller.signal);
             broker = new AttemptBroker(join(brokerDirectory?.path ?? tmp, "control.sock"), async (message) => {
+                if (message.type === "compiled" && manifest!.kind === "TEST") {
+                    compiled = true;
+                    return {};
+                }
+                if (message.type === "httpDataset") return liveTransfers!.receive(message);
+                if (message.type === "dataset") {
+                    if (controller.signal.aborted || frozen.schemaVersion !== "2.0")
+                        throw new Error("ATTEMPT_STOPPING");
+                    if (message.selection) {
+                        if (loading || transfer || validateSchema("StaticDatasetSelection", message.selection).length)
+                            throw new Error("INVALID_DATASET_TRANSFER");
+                        const selection = message.selection as StaticDatasetSelection;
+                        if ((manifest!.kind === "VALIDATE") !== (selection.selection === "VALIDATION_SOURCE"))
+                            throw new Error("DATASET_NOT_ASSIGNED");
+                        if (
+                            compiled &&
+                            selection.selection === "DATASET" &&
+                            !Object.values(execution?.datasetBindings ?? {}).includes(selection.versionId)
+                        )
+                            throw new Error("DATASET_NOT_ASSIGNED");
+                        loading = true;
+                        let bytes: Uint8Array;
+                        try {
+                            bytes = await client.binary(
+                                `/internal/v1/attempts/${claim.attemptId}/datasets/static`,
+                                claim,
+                                controller.signal,
+                                undefined,
+                                selection,
+                            );
+                        } finally {
+                            loading = false;
+                        }
+                        if (controller.signal.aborted || !bytes.length || bytes.length > 16 * 1024 * 1024)
+                            throw new Error("DATASET_TRANSFER_LIMIT");
+                        transfer = { bytes, id: randomUUID(), next: 0 };
+                    } else if (!transfer || message.id !== transfer.id || message.offset !== transfer.next)
+                        throw new Error("INVALID_DATASET_TRANSFER");
+                    const { bytes, id, next } = transfer!;
+                    const part = Buffer.from(bytes.subarray(next, next + 32768)).toString("base64");
+                    transfer!.next = Math.min(next + 32768, bytes.length);
+                    if (transfer!.next === bytes.length) transfer = undefined;
+                    return { id, size: bytes.length, offset: next, part };
+                }
                 if (message.type === "credential") {
                     if (controller.signal.aborted) throw new Error("ATTEMPT_STOPPING");
                     const reference = message.reference as {
@@ -623,6 +724,7 @@ export class ExecutionSupervisor {
                         sensitivity: "CREDENTIAL_RESTRICTED";
                     };
                     if (
+                        datasetProtected ||
                         evidence.kind !== "DOWNLOAD" ||
                         evidence.sensitivity !== "CREDENTIAL_RESTRICTED" ||
                         !containedPath(this.source ? join(work, "downloads") : tmp, resolve(evidence.path))
@@ -651,6 +753,8 @@ export class ExecutionSupervisor {
             });
             await broker.open();
             const invocation = {
+                online: true,
+                datasetProtected,
                 kind: manifest.kind,
                 work,
                 tmp,
@@ -678,18 +782,21 @@ export class ExecutionSupervisor {
                     testMatch: entry.path.split("/").pop(),
                     workers: 1,
                     retries: 0,
-                    reporter: [
-                        ["json", { outputFile: join(tmp, "playwright.json") }],
-                        ["junit", { outputFile: join(tmp, "junit.xml") }],
-                        ["html", { outputFolder: join(tmp, "html"), open: "never" }],
-                    ],
+                    reporter: datasetProtected
+                        ? [["null"]]
+                        : [
+                              ["json", { outputFile: join(tmp, "playwright.json") }],
+                              ["junit", { outputFile: join(tmp, "junit.xml") }],
+                              ["html", { outputFolder: join(tmp, "html"), open: "never" }],
+                          ],
                     outputDir: join(tmp, "test-results"),
                     use: {
                         browserName: execution.browser,
                         locale: execution.environment.locale,
                         timezoneId: execution.environment.timezone,
                         serviceWorkers: "block",
-                        trace: "on",
+                        trace: datasetProtected ? "off" : "on",
+                        acceptDownloads: !datasetProtected,
                         launchOptions: {
                             executablePath: this.options.browserExecutable,
                             args: ["--no-sandbox"],
@@ -739,15 +846,19 @@ export class ExecutionSupervisor {
                     executable: executionPaths.runnerExecutable,
                     args: [executionPaths.workerEntry, join(work, "invocation.json")],
                     cwd: work,
-                    env: offlineWorkerEnvironment(tmp, join(work, "provider.mjs"), true, process.env, {
-                        runnerExecutable: executionPaths.runnerExecutable,
-                    }),
+                    env: {
+                        ...offlineWorkerEnvironment(tmp, join(work, "provider.mjs"), true, process.env, {
+                            runnerExecutable: executionPaths.runnerExecutable,
+                        }),
+                        ...(datasetProtected ? { VERIQ_DATASET_PROTECTED: "1", PLAYWRIGHT_NO_COPY_PROMPT: "1" } : {}),
+                    },
                 },
                 this.source
                     ? {
                           kind: manifest.kind,
                           ownerGeneration: claim.fencingToken,
                           downloadsPath: invocation.downloads,
+                          ...(datasetProtected ? { protectedTemporaryName: basename(tmp) } : {}),
                           prepare: (context) => {
                               if (controller.signal.aborted) throw new Error("ATTEMPT_STOPPING");
                               context.publish(
@@ -772,15 +883,17 @@ export class ExecutionSupervisor {
                                       Buffer.from(
                                           `export default ${JSON.stringify({
                                               ...playwrightConfig,
-                                              reporter: [
-                                                  ...(playwrightConfig.reporter as unknown[]),
-                                                  [
-                                                      privacyReporter,
-                                                      {
-                                                          outputFile: join(tmp, "playwright.json"),
-                                                      },
-                                                  ],
-                                              ],
+                                              reporter: datasetProtected
+                                                  ? playwrightConfig.reporter
+                                                  : [
+                                                        ...(playwrightConfig.reporter as unknown[]),
+                                                        [
+                                                            privacyReporter,
+                                                            {
+                                                                outputFile: join(tmp, "playwright.json"),
+                                                            },
+                                                        ],
+                                                    ],
                                               use,
                                           })};`,
                                       ),
@@ -820,7 +933,7 @@ export class ExecutionSupervisor {
              * JSON，再允许下载证据读取、附件复制、哈希、元数据或完成提交，任何未知状态保留私有原始
              * 报告而失败关闭。
              */
-            if (this.source && manifest.kind === "TEST") {
+            if (this.source && manifest.kind === "TEST" && !datasetProtected) {
                 if (controller.signal.aborted) throw new Error(reason ?? "ATTEMPT_STOPPING");
                 try {
                     this.source.native.openPrivateDirectory(tmp, false).close();
@@ -892,7 +1005,7 @@ export class ExecutionSupervisor {
                     },
                 });
             };
-            if (manifest.kind === "TEST") {
+            if (manifest.kind === "TEST" && !datasetProtected) {
                 for (const [relative, name, kind] of [
                     ["junit.xml", "junit.xml", "JUNIT"],
                     ["html/index.html", "report.html", "HTML"],
@@ -942,6 +1055,14 @@ export class ExecutionSupervisor {
                     payload: { artifactId, file: file.file, kind: file.kind },
                 });
             }
+            record.dataCleanup = await retireScratch(
+                this.options.root,
+                this.source?.temporaryDirectory ?? tmpdir(),
+                record,
+                stop,
+            );
+            await commit();
+            if (record.dataCleanup === "STOP_UNCONFIRMED") throw new Error("TASK_DATA_CLEANUP_UNCONFIRMED");
             const evidence = files.map((f) => f.file),
                 requiredEvidence = files.filter((f) => ["TRACE", "LOG"].includes(f.kind)).map((f) => f.file.sha256);
             const common = {
@@ -1055,16 +1176,17 @@ export class ExecutionSupervisor {
             monitor?.close();
             signal.removeEventListener("abort", aborted);
             try {
+                liveTransfers?.close();
                 await broker?.close();
             } finally {
                 await brokerDirectory?.close();
             }
-            // 仅在确认本次尝试停止后才移除可重建的依赖和缓存，保留结果与证据供后续确认和恢复。
-            // 临时目录另受私有报告保留标记控制。
-            if (stop?.processStopped)
-                for (const path of ["node_modules", "tmp/npm-cache"])
-                    await rm(join(work, path), { recursive: true, force: true });
-            if (stop?.processStopped && !retainPrivateReports) await rm(tmp, { recursive: true, force: true });
+            if (stop && record.dataCleanup === undefined) {
+                record.dataCleanup = retainPrivateReports
+                    ? "REPORT_RETAINED"
+                    : await retireScratch(this.options.root, this.source?.temporaryDirectory ?? tmpdir(), record, stop);
+                await commit();
+            }
         }
     }
     private async resolveCredential(

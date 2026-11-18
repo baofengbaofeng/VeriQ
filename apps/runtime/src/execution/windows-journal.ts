@@ -6,6 +6,7 @@
 import { DatabaseSync } from "node:sqlite";
 import { join } from "node:path";
 import { canonicalBytes, validateSchema } from "@veriq/contracts";
+import type { DataCleanup, TaskAllocation } from "./storage.ts";
 import type { Claim } from "../agent/transport.ts";
 import type { StopReceipt } from "./processes.ts";
 import { windowsNative } from "../native/windows.ts";
@@ -16,6 +17,8 @@ import { ProcessRecords } from "./records.ts";
  * 状态与停止回执同一事务保存，恢复不得用丢失内存句柄推导没有产生过进程。
  */
 export interface WindowsAttemptRecord {
+    allocation?: TaskAllocation;
+    dataCleanup?: DataCleanup;
     claimRequestId?: string;
     claim: Claim;
     state: "ALLOCATED" | "ACTIVATING" | "ACTIVATED" | "SPAWNING" | "RUNNING" | "STOPPED";
@@ -42,7 +45,9 @@ function checked(root: string, value: unknown): WindowsAttemptRecord {
     if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("WINDOWS_JOURNAL_CORRUPT");
     const record = value as WindowsAttemptRecord;
     if (
-        Object.keys(record).some((key) => !["claim", "claimRequestId", "state", "work", "stop"].includes(key)) ||
+        Object.keys(record).some(
+            (key) => !["claim", "claimRequestId", "state", "work", "stop", "allocation", "dataCleanup"].includes(key),
+        ) ||
         validateSchema("ClaimDTO", record.claim).length ||
         !states.includes(record.state) ||
         record.work !== join(root, "work", record.claim.attemptId) ||

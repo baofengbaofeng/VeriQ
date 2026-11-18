@@ -30,11 +30,16 @@ def upgrade() -> None:
     )
 
 
+def require_empty_artifact_history() -> None:
+    """在删除年龄列或更早的不可逆结构操作前使用同一只读检查，保留拒绝原因与历史制品事实。"""
+    if op.get_bind().execute(sa.text("SELECT 1 FROM veriq_artifacts LIMIT 1")).first():
+        raise RuntimeError("Artifact retention history must be retained; downgrade refused")
+
+
 def downgrade() -> None:
     """降级会丢弃回收安全所依赖的年龄事实，因此只允许完全没有制品的空安装回退，生产恢复必须使用匹配版本的完整快照，
     不能移除时间列后继续猜测历史对象的有效保留窗口。
     """
-    if op.get_bind().execute(sa.text("SELECT 1 FROM veriq_artifacts LIMIT 1")).first():
-        raise RuntimeError("Artifact retention history must be retained; downgrade refused")
+    require_empty_artifact_history()
     op.drop_index("ix_veriq_artifact_retention", table_name="veriq_artifacts")
     op.drop_column("veriq_artifacts", "created_at")

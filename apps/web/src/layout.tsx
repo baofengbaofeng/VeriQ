@@ -45,7 +45,6 @@ const execution: MenuGroup = {
     items: [
         { path: "/execution-plans", label: "Plans" },
         { path: "/runtimes", label: "Runtimes" },
-        { path: "/bundles", label: "Bundles" },
     ],
 };
 const administration: MenuGroup = {

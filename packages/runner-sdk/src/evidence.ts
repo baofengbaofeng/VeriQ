@@ -3,10 +3,14 @@
  */
 
 import type { BrowserContext, Page } from "@playwright/test";
-import type { JsonValue } from "@veriq/contracts";
+import { validateSchema, type JsonValue } from "@veriq/contracts";
 import { mkdir, chmod } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
+/**
+ * 可信编译桥在开始受保护任务前要求当前 SDK 明确提供写前证据策略，旧归档不会仅因支持连接数据传输而获准启动浏览器用例。
+ */
+export const datasetEvidencePolicyVersion = 2;
 /**
  * 公开接口 RestrictedEvidence 描述受控证据句柄：含制品标识与访问策略：普通报告只保留元数据（RestrictedEvidence）。
  */
@@ -19,6 +23,7 @@ export interface RestrictedEvidence {
  * 公开类 EvidencePolicy 管理敏感值保护与受限证据采集：截图/Trace 写入 mode-0700 目录（EvidencePolicy）。
  */
 export class EvidencePolicy {
+    constructor(private readonly datasetProtected = false) {}
     private readonly values = new Set<string>();
     /**
      * 公开方法 protect 登记敏感字符串：后续投影时脱敏：避免密钥进入普通事件（protect），说明 protect 在 evidence
@@ -74,6 +79,16 @@ export class EvidencePolicy {
     readonly redactProtocol = (value: JsonValue): JsonValue => {
         if (Array.isArray(value)) return value.map(this.redactProtocol);
         if (!value || typeof value !== "object") return this.redact(value);
+        // 数据集任务的观察窗口仅上报计数及状态；URL、弹窗、请求与下载名称都可能由上游派生。
+        if (this.datasetProtected) {
+            const { message, ...safe } = value;
+            value = safe;
+            if ("errorCode" in value && validateSchema("ProtectedExecutionErrorCode", value.errorCode).length)
+                value.errorCode = "EXECUTION_ERROR";
+            for (const field of ["requests", "events"]) if (field in value) value[field] = [];
+            if ("expected" in value) value.expected = null;
+            if ("actual" in value) value.actual = { present: false };
+        }
         const identifiers = new Set([
             "type",
             "schemaVersion",
@@ -102,6 +117,9 @@ export class EvidencePolicy {
             "handling",
             "pageKey",
         ]);
+        if (this.datasetProtected && value.sample && !validateSchema("HttpDatasetSample", value.sample).length)
+            identifiers.add("sample");
+        if (this.datasetProtected && value.expectedSource === "PROTECTED_CASE") identifiers.add("expectedSource");
         const dynamic = new Set(["expected", "value", "data", "vars", "variables", "headers"]);
         const restricted = value.sensitivity === "CREDENTIAL_RESTRICTED" || value.kind === "download";
         return Object.fromEntries(

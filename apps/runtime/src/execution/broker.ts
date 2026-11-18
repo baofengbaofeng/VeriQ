@@ -8,6 +8,7 @@ import { randomBytes, createHash, randomUUID } from "node:crypto";
 import { resolve, dirname } from "node:path";
 import { darwinNative, type DarwinPrivateDirectory } from "../native/darwin.ts";
 import { windowsNative } from "../native/windows.ts";
+import { validateSchema, type HttpDatasetSelection } from "@veriq/contracts";
 /**
  * Mac 业务调用显式申请系统固定短临时根下的独占目录，B 锚点与随机 owner 标记共同约束关闭清理；只删除同一 inode
  * 的自有标记和空目录，陌生成员、路径替换或未关闭 socket 都保留原现场，不静默规范化任何用户配
@@ -90,6 +91,11 @@ export class AttemptBroker {
         if (!Number.isSafeInteger(socketTimeoutMs) || socketTimeoutMs < 1 || socketTimeoutMs > 60000)
             throw new Error("IPC_TIMEOUT_INVALID");
     }
+    private response(value: unknown): string {
+        const frame = JSON.stringify({ ok: true, value }) + "\n";
+        if (Buffer.byteLength(frame) > 65536) throw new Error("IPC_RESPONSE_LIMIT");
+        return frame;
+    }
     /**
      * 公开方法 open 创建 Attempt 私有套接字并开始监听：将文件权限收紧为 0600：只接受以换行结束的单行控制消息。
      */
@@ -107,7 +113,7 @@ export class AttemptBroker {
                     try {
                         const message = JSON.parse(frame) as Record<string, unknown>;
                         if (message.nonce !== this.nonce) throw new Error("IPC_UNAUTHORIZED");
-                        response = JSON.stringify({ ok: true, value: await this.receive(message) }) + "\n";
+                        response = this.response(await this.receive(message));
                     } catch {
                         response = JSON.stringify({ ok: false, error: "ATTEMPT_IPC_FAILED" }) + "\n";
                     }
@@ -154,7 +160,7 @@ export class AttemptBroker {
                         const message = JSON.parse(text) as Record<string, unknown>;
                         if (message.nonce !== this.nonce) throw new Error("IPC_UNAUTHORIZED");
                         const value = await this.receive(message);
-                        socket.end(JSON.stringify({ ok: true, value }) + "\n");
+                        socket.end(this.response(value));
                     } catch {
                         socket.end(JSON.stringify({ ok: false, error: "ATTEMPT_IPC_FAILED" }) + "\n");
                     }
@@ -211,5 +217,83 @@ export class AttemptBroker {
         await unlink(this.path).catch((e: NodeJS.ErrnoException) => {
             if (e.code !== "ENOENT") throw e;
         });
+    }
+}
+
+/**
+ * 每个 Attempt 独占有界的分片表，读操作只持自己的取消句柄；过期、丢租或消费者结束都会丢弃未发送的字节。
+ */
+export class HttpDatasetTransfers {
+    private readonly live = new Map<
+        string,
+        { controller: AbortController; timer: NodeJS.Timeout; next: number; bytes?: Uint8Array; digest?: string }
+    >();
+    constructor(
+        private readonly fetch: (selection: HttpDatasetSelection, signal: AbortSignal) => Promise<Uint8Array>,
+        private readonly signal: AbortSignal,
+    ) {
+        signal.addEventListener("abort", () => this.close(), { once: true });
+    }
+    private drop(id: string) {
+        const transfer = this.live.get(id);
+        if (!transfer) return;
+        clearTimeout(transfer.timer);
+        transfer.controller.abort();
+        this.live.delete(id);
+    }
+    /**
+     * 工作进程报告取消或监督器完成本次 Attempt 后立即回收全部响应，不等待后续续读或下一次轮询清理。
+     */
+    close() {
+        for (const id of this.live.keys()) this.drop(id);
+    }
+    /**
+     * 首帧携带封闭的读取正文，之后只接受同一标识和精确偏移；上游错误仅保留协议允许的分类，原始正文不会进入 IPC。
+     */
+    async receive(message: Record<string, unknown>) {
+        const id = message.id;
+        if (typeof id !== "string" || validateSchema("Id", id).length) throw new Error("INVALID_DATASET_TRANSFER");
+        if (message.cancel === true) {
+            this.drop(id);
+            return {};
+        }
+        this.signal.throwIfAborted();
+        let transfer = this.live.get(id);
+        if (message.selection !== undefined) {
+            if (transfer || this.live.size >= 4 || validateSchema("HttpDatasetSelection", message.selection).length)
+                throw new Error("INVALID_DATASET_TRANSFER");
+            const state = { controller: new AbortController(), timer: setTimeout(() => this.drop(id), 15000), next: 0 };
+            state.timer.unref();
+            this.live.set(id, state);
+            transfer = state;
+            try {
+                const bytes = await this.fetch(message.selection as HttpDatasetSelection, state.controller.signal);
+                state.controller.signal.throwIfAborted();
+                if (!bytes.length || bytes.length > 3 * 1024 * 1024) throw new Error("DATASET_TRANSFER_LIMIT");
+                transfer.bytes = bytes;
+                transfer.digest = createHash("sha256").update(bytes).digest("hex");
+            } catch (error) {
+                this.drop(id);
+                return {
+                    errorCode:
+                        error instanceof Error && !validateSchema("ProtectedExecutionErrorCode", error.message).length
+                            ? error.message
+                            : "DATASET_READ_ERROR",
+                };
+            }
+        } else if (!transfer || message.offset !== transfer.next) throw new Error("INVALID_DATASET_TRANSFER");
+        const bytes = transfer.bytes;
+        if (!bytes) throw new Error("INVALID_DATASET_TRANSFER");
+        const offset = transfer.next;
+        transfer.next = Math.min(offset + 32768, bytes.length);
+        const frame = {
+            id,
+            offset,
+            size: bytes.length,
+            sha256: transfer.digest,
+            part: Buffer.from(bytes.subarray(offset, transfer.next)).toString("base64"),
+        };
+        if (transfer.next === bytes.length) this.drop(id);
+        return frame;
     }
 }

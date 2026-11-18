@@ -104,10 +104,12 @@ def reduce_test(
         actual = assertions.get((blocker["id"], aid))
         if (
             expected
-            and expected["severity"] == "BLOCK"
             and actual
-            and actual["payload"]["status"] == "FAILED"
-            and actual["payload"]["severity"] == "BLOCK"
+            and expected["severity"] == actual["payload"]["severity"]
+            and (
+                (expected.get("datasetExpected") is True and actual["payload"]["status"] == "ERROR")
+                or (expected["severity"] == "BLOCK" and actual["payload"]["status"] == "FAILED")
+            )
             and before(actual, fact)
         ):
             return blocker, expected
@@ -129,11 +131,13 @@ def reduce_test(
                 return assertion is not None and rank(blocker, expected) < rank(step, assertion)
             if ancestor(blocker["id"], step["id"]):
                 return bool(expected["stage"] == "BEFORE")
-            return True
+        # 跨步骤的阻塞必须来自已经结束且要求停止的同级步骤；其退出只影响当前调用中的后继步骤及这些步骤的后代。
+        scope = blocker.get("parentId")
         actual = finished.get(blocker["id"])
         return bool(
             blocker["order"] < step["order"]
             and not ancestor(blocker["id"], step["id"])
+            and (scope is None or ancestor(scope, step["id"]))
             and blocker["failurePolicy"] != "CONTINUE"
             and actual
             and actual["payload"]["status"] in {"FAILED", "ERROR"}
@@ -177,6 +181,9 @@ def reduce_test(
             seen_assertions.append((rank(step, assertion), positions[id(actual)]))
             if actual["payload"]["status"] == "SKIPPED":
                 valid &= skipped(step, actual, assertion)
+            elif actual["payload"]["status"] == "ERROR":
+                outcomes.append("ERROR")
+                valid &= assertion.get("datasetExpected") is True and status == "ERROR"
             elif actual["payload"]["status"] == "FAILED" and assertion["severity"] != "WARN":
                 outcomes.append("FAILED")
             # 对实际执行的父断言，BEFORE 必须早于已开始的直接子步骤，AFTER 等其它阶段须等子步骤结束。

@@ -21,6 +21,14 @@ import {
 const hash = (b: Uint8Array) => createHash("sha256").update(b).digest("hex");
 const equal = (a: unknown, b: unknown) => Buffer.from(canonicalBytes(a)).equals(Buffer.from(canonicalBytes(b)));
 /**
+ * 离线安装和执行都会重读快照。检查完整资产集合，以便识别套件覆盖隐藏的新版默认数据集，并保护来源快照中的同类依赖。
+ */
+function requireLegacyDatasets(snapshot: AssetSnapshotV1): void {
+    if (snapshot.assets.some((asset) => asset.kind === "DATASET" && asset.document.schemaVersion === "2.0"))
+        throw new Error("OFFLINE_DATASET_VERSION_UNSUPPORTED");
+}
+
+/**
  * 公开函数 validateContent 核对清单、快照与成员哈希的交叉引用：发现漂移立即拒绝安装：防止签名通过但内容不一致的包落地。
  */
 export function validateContent(
@@ -35,6 +43,7 @@ export function validateContent(
         if (schema && validateSchema(schema, value).length) throw new Error("INVALID_BUNDLE_SCHEMA");
         return value as T;
     }
+    requireLegacyDatasets(snapshot);
     const selection = read<{
         caseVersionIds?: string[];
         suiteVersionId?: string;
@@ -84,6 +93,7 @@ export function validateContent(
         const metadata = read<{ frozenAt: string }>("draft/metadata.json");
         if (validateSchema("Timestamp", metadata.frozenAt).length) throw new Error("BUNDLE_PROVENANCE_MISMATCH");
         draft = read<AssetSnapshotV1>("draft/source.json", "AssetSnapshotV1");
+        requireLegacyDatasets(draft);
         if (
             !draft.validationTarget ||
             !equal(draft.validationTarget, snapshot.validationTarget) ||
@@ -192,6 +202,7 @@ export function validateContent(
             throw new Error("BUNDLE_ASSET_MISMATCH");
         const prefix = `provenance/${asset.versionId}`;
         const source = read<AssetSnapshotV1>(prefix + "/source.json", "AssetSnapshotV1");
+        requireLegacyDatasets(source);
         const descriptor = read<CompiledAssetBundle>(prefix + "/descriptor.json", "CompiledAssetBundle");
         const receipt = read<{
             sourceHash: string;

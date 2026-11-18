@@ -19,6 +19,7 @@ from ..db import Attempt, AttemptEvent, AttemptUpload, Job, ValidationReceipt, C
 from ..repositories.resource import ResourceRepository
 from ..service import Problem
 from ..settings import Settings
+from .connected_datasets import protected_test, protected_event_context, protected_event
 from .capacity import CapacityService
 from .engines import ApprovedEngines
 from .jobs import require_requester, database_time
@@ -48,10 +49,28 @@ class CompletionService:
         events 实现于 apps/srv/src/veriq_server/services/completion.py：请按该符号的输入校验、错误码与调用方契约阅读，
         勿假设通用成功默认值。
         """
-        attempt, _, _, _ = await LeaseService(self.session, self.settings).proof(attempt_id, proof)
+        attempt, job, _, _ = await LeaseService(self.session, self.settings).proof(
+            attempt_id, proof
+        )
+        protected = await protected_event_context(
+            ResourceRepository(self.session, WorkspaceScope(attempt.workspace_id)), attempt, job
+        )
         for event in events:
             if event["attemptId"] != attempt_id or validate_schema("ExecutionEventV1", event):
                 raise Problem(400, "INVALID_EVENT", "Event does not match assigned Attempt")
+            if (protected is not None and not protected_event(protected, event)) or (
+                protected is None
+                and event["type"] == "ASSERTION_RESULT"
+                and "sample" in event["payload"]
+            ):
+                raise Problem(
+                    409,
+                    "DATASET_EVIDENCE_FORBIDDEN",
+                    "Protected event contains unapproved evidence",
+                )
+            if protected is not None and event["type"] == "ASSERTION_RESULT":
+                source, _ = protected["sources"][event["stepId"], event["assertionId"]]
+                event = {**event, "payload": {**event["payload"], "expectedSource": source}}
             digest = sha256(canonical_bytes(event)).hexdigest()
             existing = await self.session.get(AttemptEvent, (attempt_id, event["sequence"]))
             if existing:
@@ -210,7 +229,12 @@ class CompletionService:
                 manifest["cleanupStatus"],
             )
             evidence_kinds = {u.metadata_json["kind"] for u in matched_evidence}
-            evidence_complete &= set(plan["requiredEvidenceKinds"]) <= evidence_kinds
+            required = set(plan["requiredEvidenceKinds"])
+            if await protected_test(repo, job, attempt.snapshot_hash):
+                # 矩阵与命名依赖取自本次 Attempt 冻结的服务端快照，禁止用设备声明放宽普通任务的证据要求。
+                required.discard("TRACE")
+                evidence_complete &= not evidence_kinds
+            evidence_complete &= required <= evidence_kinds
             evidence_complete &= any(
                 e["type"] == "ATTEMPT_STARTED"
                 and e["payload"]["engineVersion"] == assignment["engineVersion"]
@@ -391,6 +415,10 @@ class CompletionService:
             if source["entryCaseVersionIds"]
             else source
         )
+        if job.required_capabilities.get("connectedDatasets"):
+            from .connected_datasets import project_source
+
+            expected_source = project_source(expected_source)
         if (
             not source_file
             or (await repo.artifact(source_file["sha256"])).content

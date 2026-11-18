@@ -159,14 +159,15 @@ function variants(checked: Checked, runId: string, config: OfflineConfig): Execu
             fixtureVersionId?: string;
         };
         const datasetId = entry.datasetVersionId ?? document.datasetVersionId;
-        const rows = datasetId
-            ? (
-                  source.assets.find((a) => a.versionId === datasetId)?.document as unknown as {
-                      rows: ExecutionSnapshotV1["dataRow"][];
-                  }
-              )?.rows
-            : [undefined];
-        if (!rows) throw new Error("BUNDLE_DATASET_MISSING");
+        /**
+         * 旧签名包只解释旧版数据行。新版静态数据集必须通过联网准入冻结，种类不符仍报缺失数据集。
+         */
+        const dataset = datasetId ? source.assets.find((candidate) => candidate.versionId === datasetId) : undefined;
+        const datasetDocument = dataset?.kind === "DATASET" ? dataset.document : undefined;
+        if (datasetId && !datasetDocument) throw new Error("BUNDLE_DATASET_MISSING");
+        if (datasetDocument && datasetDocument.schemaVersion !== "1.0")
+            throw new Error("OFFLINE_DATASET_VERSION_UNSUPPORTED");
+        const rows = datasetDocument?.rows ?? [undefined];
         const original = checked.dslOnly
             ? (JSON.parse(checked.contents.get("draft/source.json")!.toString()) as AssetSnapshotV1)
             : (JSON.parse(

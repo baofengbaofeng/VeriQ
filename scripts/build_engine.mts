@@ -92,7 +92,15 @@ try {
     if (program.emit().emitSkipped) throw new Error("Engine TypeScript emission failed");
     const collected = new Map<
         string,
-        { dir: string; pkg: { version: string; dependencies?: Record<string, string> } }
+        {
+            dir: string;
+            pkg: {
+                version: string;
+                veriqConnectedDatasets?: string;
+                veriqHttpDatasets?: string;
+                dependencies?: Record<string, string>;
+            };
+        }
     >();
 
     /**
@@ -122,6 +130,10 @@ try {
                 JSON.stringify({
                     name,
                     version: manifest.version,
+                    ...(manifest.veriqHttpDatasets ? { veriqHttpDatasets: manifest.veriqHttpDatasets } : {}),
+                    ...(manifest.veriqConnectedDatasets
+                        ? { veriqConnectedDatasets: manifest.veriqConnectedDatasets }
+                        : {}),
                     type: "module",
                     license: manifest.license,
                     exports: { ".": { types: "./src/index.d.ts", default: "./src/index.js" } },
@@ -224,9 +236,14 @@ try {
     ];
     const sdk = collected.get("@veriq/runner-sdk");
     if (!sdk) throw new Error("Runner SDK is missing from the engine closure");
+    const compilerPackage = JSON.parse(readFileSync(join(packages, "compiler/package.json"), "utf8"));
     const engine = {
         engineVersion: version,
         compilerVersion: COMPILER_VERSION,
+        ...(compilerPackage.veriqHttpDatasets === "1.0" ? { compilerHttpDatasets: "1.0" } : {}),
+        ...(sdk.pkg.veriqHttpDatasets === "1.0" ? { runnerSdkHttpDatasets: "1.0" } : {}),
+        ...(compilerPackage.veriqConnectedDatasets === "2.0" ? { compilerConnectedDatasets: "2.0" } : {}),
+        ...(sdk.pkg.veriqConnectedDatasets === "2.0" ? { runnerSdkConnectedDatasets: "2.0" } : {}),
         runnerSdkVersion: sdk.pkg.version,
         dependencies,
         files: members.sort().map((path) => {

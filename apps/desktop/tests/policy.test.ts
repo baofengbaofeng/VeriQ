@@ -5,6 +5,9 @@ import addFormats from "ajv-formats";
 import { resolveOperation } from "../src/main/policy.ts";
 import desktopSchema from "../src/shared/validation.generated.json" with { type: "json" };
 
+import httpDataset from "../../../packages/contracts/fixtures/http-dataset.json" with { type: "json" };
+import datasetFixtures from "../../../packages/contracts/fixtures/datasets.json" with { type: "json" };
+
 const validator = new Ajv2020({ strict: true, allErrors: true });
 addFormats.default(validator);
 validator.addSchema(desktopSchema);
@@ -53,6 +56,10 @@ test("arbitrary transport fields and device-token operations are rejected", () =
         assert.throws(() => resolveOperation(value, undefined), /IPC_OPERATION_DENIED|IPC_PAYLOAD_INVALID/);
 });
 
+test("connected desktop has no bundle export capability", () => {
+    assert.throws(() => resolveOperation({ operation: "createBundle" }, undefined), /IPC_OPERATION_DENIED/);
+});
+
 test("foreign workspace is rejected before a resource request", () => {
     assert.throws(
         () =>
@@ -75,6 +82,21 @@ test("generated locator accepts veriqId and rejects the retired testId spelling"
     assert.ok(validate);
     assert.equal(validate({ by: "veriqId", value: "checkout-submit" }), true);
     assert.equal(validate({ by: "testId", value: "checkout-submit" }), false);
+});
+
+/**
+ * 通过桌面白名单里的真实草稿操作验证数据集信封，合法表格通过，树形元数据不全的正文在发送网络请求之前被拒绝。
+ */
+test("desktop draft writes apply the V2 dataset schema", () => {
+    const workspaceId = "00000000-0000-4000-8000-000000000001";
+    const resourceId = "00000000-0000-4000-8000-000000000002";
+    for (const fixture of datasetFixtures) {
+        const data = { revision: 1, content: { kind: "DATASET", document: fixture.document } };
+        const request = { operation: "updateDraft", params: { workspaceId, resourceId }, data };
+        if (fixture.invalidStructure)
+            assert.throws(() => resolveOperation(request, workspaceId), /IPC_PAYLOAD_INVALID/, fixture.name);
+        else assert.deepEqual(resolveOperation(request, workspaceId).data, data, fixture.name);
+    }
 });
 
 /**
@@ -104,4 +126,145 @@ test("generated maintenance token metadata admits the five allowed scopes", () =
     assert.ok(validate.errors?.some(({ keyword }) => keyword === "uniqueItems"));
     assert.equal(validate({ ...token, operations: [...operations, "extra-scope"] }), false);
     assert.ok(validate.errors?.some(({ keyword }) => keyword === "maxItems"));
+});
+
+test("dataset copy discovery and creation bind the selected target workspace", () => {
+    const workspaceId = "00000000-0000-4000-8000-000000000001";
+    const sourceWorkspaceId = "00000000-0000-4000-8000-000000000002";
+    const data = { sourceWorkspaceId, sourceDatasetVersionId: workspaceId, key: "copy", name: "copy" };
+    const params = { workspaceId };
+    const query = { sourceWorkspaceId };
+    const path = `/api/v1/workspaces/${workspaceId}/resources/dataset-copies`;
+    const list = { operation: "listDatasetCopySources", params, query };
+    const copy = { operation: "copyDataset", params, data };
+    assert.equal(resolveOperation(list, workspaceId).path, path + "?sourceWorkspaceId=" + sourceWorkspaceId);
+    assert.deepEqual(resolveOperation(copy, workspaceId), { method: "POST", path, data, kind: "json" });
+    for (const request of [list, copy]) {
+        assert.throws(() => resolveOperation(request, sourceWorkspaceId), /WORKSPACE_SCOPE_MISMATCH/);
+    }
+});
+
+test("HTTP dataset previews stay within the selected workspace and reject credential material", () => {
+    const workspaceId = "00000000-0000-4000-8000-000000000001";
+    const resourceId = "00000000-0000-4000-8000-000000000002";
+    const item = {
+        operation: "previewHttpDataset",
+        params: { workspaceId, resourceId },
+        data: { document: httpDataset, arguments: {} },
+    };
+    assert.equal(
+        resolveOperation(item, workspaceId).path,
+        `/api/v1/workspaces/${workspaceId}/resources/${resourceId}/http-preview`,
+    );
+    assert.throws(() => resolveOperation(item, resourceId), /WORKSPACE_SCOPE_MISMATCH/);
+    const bad = { ...httpDataset, source: { ...httpDataset.source, auth: { kind: "BEARER", value: "fixture" } } };
+    assert.throws(() => resolveOperation({ ...item, data: { document: bad, arguments: {} } }, workspaceId));
+});
+
+test("updateDraft accepts CASE HTTP source arguments with a bound value", () => {
+    const workspaceId = "00000000-0000-4000-8000-000000000001";
+    const resourceId = "00000000-0000-4000-8000-000000000002";
+    const query = { alias: "remote", op: "field", key: "one", field: "label", parameters: { search: "{{data.name}}" } };
+    const data = {
+        revision: 1,
+        content: {
+            kind: "CASE",
+            document: {
+                schemaVersion: "1.0",
+                caseKey: "lookup",
+                title: "Lookup",
+                kind: "READ",
+                roleKey: "reader",
+                catalogVersionId: resourceId,
+                datasetBindings: { remote: resourceId },
+                steps: [
+                    {
+                        id: "home",
+                        action: "goto",
+                        path: "/",
+                        afterAssertions: [
+                            {
+                                id: "match",
+                                type: "url",
+                                source: "page",
+                                operator: "contains",
+                                severity: "WARN",
+                                expectedSource: "catalog",
+                                datasetExpected: query,
+                            },
+                        ],
+                    },
+                ],
+            },
+        },
+    };
+    assert.deepEqual(
+        resolveOperation({ operation: "updateDraft", params: { workspaceId, resourceId }, data }, workspaceId).data,
+        data,
+    );
+});
+
+/**
+ * 用真实创建及草稿保存路由验证内容恰好达到字节上限时可通过，超出一个多字节字符的文档不能借用信封余量。
+ */
+test("desktop dataset creates and updates admit 2 MiB of content and reject excess UTF-8 bytes", () => {
+    const workspaceId = "00000000-0000-4000-8000-000000000001";
+    const resourceId = "00000000-0000-4000-8000-000000000002";
+    const values = { text: "" };
+    const content = {
+        kind: "DATASET",
+        document: {
+            schemaVersion: "2.0",
+            shape: "TABLE",
+            fields: { text: { type: "string", required: true, nullable: false } },
+            source: { kind: "STATIC", rows: [{ key: "one", values }] },
+        },
+    };
+    const available = 2 * 1024 * 1024 - Buffer.byteLength(JSON.stringify(content));
+    const text = "文".repeat(Math.floor(available / 3)) + "x".repeat(available % 3);
+    for (const request of [
+        {
+            operation: "createResource",
+            params: { workspaceId },
+            data: { kind: "DATASET", key: "one", name: "表", content },
+        },
+        { operation: "updateDraft", params: { workspaceId, resourceId }, data: { revision: 1, content } },
+    ]) {
+        values.text = "a".repeat(1_229_000);
+        assert.equal(resolveOperation(request, workspaceId).data, request.data);
+        values.text = text;
+        assert.equal(Buffer.byteLength(JSON.stringify(content)), 2 * 1024 * 1024);
+        assert.equal(resolveOperation(request, workspaceId).data, request.data);
+        values.text += "x";
+        assert.throws(() => resolveOperation(request, workspaceId), /IPC_PAYLOAD_LIMIT/);
+    }
+    const large = {
+        kind: "ASSERTION_TEMPLATE",
+        document: {
+            schemaVersion: "1.0",
+            assertions: [
+                {
+                    id: "a",
+                    type: "url",
+                    source: "page",
+                    severity: "BLOCK",
+                    expectedSource: "source",
+                    operator: "equals",
+                    expected: "a".repeat(1024 * 1024),
+                },
+            ],
+        },
+    };
+    assert.throws(
+        () =>
+            resolveOperation(
+                {
+                    operation: "updateDraft",
+                    params: { workspaceId, resourceId },
+                    data: { revision: 1, content: large },
+                },
+                workspaceId,
+            ),
+        /IPC_PAYLOAD_LIMIT/,
+    );
 });

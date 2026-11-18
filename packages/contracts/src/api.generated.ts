@@ -260,6 +260,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspaceId}/resources/dataset-copies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listDatasetCopySources"];
+        put?: never;
+        post: operations["copyDataset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspaceId}/resources/{resourceId}": {
         parameters: {
             query?: never;
@@ -286,6 +302,25 @@ export interface paths {
         get: operations["getDraft"];
         put: operations["updateDraft"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspaceId}/resources/{resourceId}/http-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview masked mapped rows from an approved connection
+         */
+        post: operations["previewHttpDataset"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1129,6 +1164,48 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["reconcileAttempt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/v1/attempts/{attemptId}/datasets/http": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read a frozen HTTP dataset with current Attempt proof
+         * @description Authorize the frozen CASE, environment, actor, device and lease before each page and before
+         * delivery. The mapped sample is private and non-cacheable.
+         */
+        post: operations["fetchHttpDataset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/v1/attempts/{attemptId}/datasets/static": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Fetch canonical frozen bytes with current Attempt proof
+         * @description Return canonical bytes for the frozen selection after checking current workspace, device, lease
+         * and fence.
+         */
+        post: operations["fetchStaticDataset"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2135,6 +2212,76 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        0: {
+            resourceId: components["schemas"]["Id"];
+            versionId: components["schemas"]["Id"];
+            /**
+             * @constant
+             */
+            kind: "CASE";
+            sha256: components["schemas"]["Sha256"];
+            document: components["schemas"]["CaseDslV1"];
+        };
+        1: {
+            resourceId: components["schemas"]["Id"];
+            versionId: components["schemas"]["Id"];
+            /**
+             * @constant
+             */
+            kind: "ELEMENT_CATALOG";
+            sha256: components["schemas"]["Sha256"];
+            document: components["schemas"]["ElementCatalogV1"];
+        };
+        2: {
+            resourceId: components["schemas"]["Id"];
+            versionId: components["schemas"]["Id"];
+            /**
+             * @constant
+             */
+            kind: "ASSERTION_TEMPLATE";
+            sha256: components["schemas"]["Sha256"];
+            document: components["schemas"]["AssertionTemplateV1"];
+        };
+        4: {
+            resourceId: components["schemas"]["Id"];
+            versionId: components["schemas"]["Id"];
+            /**
+             * @constant
+             */
+            kind: "FLOW";
+            sha256: components["schemas"]["Sha256"];
+            document: components["schemas"]["FlowV1"];
+        };
+        5: {
+            resourceId: components["schemas"]["Id"];
+            versionId: components["schemas"]["Id"];
+            /**
+             * @constant
+             */
+            kind: "FIXTURE";
+            sha256: components["schemas"]["Sha256"];
+            document: components["schemas"]["FixtureV1"];
+        };
+        6: {
+            resourceId: components["schemas"]["Id"];
+            versionId: components["schemas"]["Id"];
+            /**
+             * @constant
+             */
+            kind: "SUITE";
+            sha256: components["schemas"]["Sha256"];
+            document: components["schemas"]["SuiteV1"];
+        };
+        7: {
+            resourceId: components["schemas"]["Id"];
+            versionId: components["schemas"]["Id"];
+            /**
+             * @constant
+             */
+            kind: "ENVIRONMENT";
+            sha256: components["schemas"]["Sha256"];
+            document: components["schemas"]["EnvironmentV1"];
+        };
         /**
          * Format: uuid
          * @description Hyphenated 8-4-4-4-12 hexadecimal UUID, case-insensitive; no URN, braces or surrounding
@@ -2628,6 +2775,354 @@ export interface components {
              */
             operator: "exists";
             expected: boolean;
+        } | {
+            id: components["schemas"]["Key"];
+            /**
+             * @enum {string}
+             */
+            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+            expectedSource: string;
+            timeoutMs?: components["schemas"]["Timeout"];
+            /**
+             * @constant
+             */
+            type: "ui";
+            target: components["schemas"]["Key"];
+            /**
+             * @enum {string}
+             */
+            operator: "visible" | "enabled" | "checked" | "attached" | "editable";
+            pageKey?: components["schemas"]["Key"];
+            datasetExpected: components["schemas"]["DatasetQuery"];
+        } | {
+            id: components["schemas"]["Key"];
+            /**
+             * @enum {string}
+             */
+            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+            expectedSource: string;
+            timeoutMs?: components["schemas"]["Timeout"];
+            /**
+             * @constant
+             */
+            type: "ui";
+            target: components["schemas"]["Key"];
+            /**
+             * @enum {string}
+             */
+            operator: "textEquals" | "textContains" | "valueEquals";
+            pageKey?: components["schemas"]["Key"];
+            datasetExpected: components["schemas"]["DatasetQuery"];
+        } | {
+            id: components["schemas"]["Key"];
+            /**
+             * @enum {string}
+             */
+            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+            expectedSource: string;
+            timeoutMs?: components["schemas"]["Timeout"];
+            /**
+             * @constant
+             */
+            type: "ui";
+            target: components["schemas"]["Key"];
+            /**
+             * @constant
+             */
+            operator: "countEquals";
+            pageKey?: components["schemas"]["Key"];
+            datasetExpected: components["schemas"]["DatasetQuery"];
+        } | {
+            id: components["schemas"]["Key"];
+            /**
+             * @enum {string}
+             */
+            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+            expectedSource: string;
+            timeoutMs?: components["schemas"]["Timeout"];
+            /**
+             * @constant
+             */
+            type: "url";
+            /**
+             * @constant
+             */
+            source: "page";
+            /**
+             * @enum {string}
+             */
+            operator: "equals" | "contains";
+            pageKey?: components["schemas"]["Key"];
+            datasetExpected: components["schemas"]["DatasetQuery"];
+        } | {
+            id: components["schemas"]["Key"];
+            /**
+             * @enum {string}
+             */
+            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+            expectedSource: string;
+            timeoutMs?: components["schemas"]["Timeout"];
+            /**
+             * @constant
+             */
+            type: "httpStatus";
+            source: components["schemas"]["ResponseRef"];
+            /**
+             * @constant
+             */
+            operator: "equals";
+            datasetExpected: components["schemas"]["DatasetQuery"];
+        } | {
+            id: components["schemas"]["Key"];
+            /**
+             * @enum {string}
+             */
+            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+            expectedSource: string;
+            timeoutMs?: components["schemas"]["Timeout"];
+            /**
+             * @constant
+             */
+            type: "request";
+            source: components["schemas"]["RequestRef"];
+            /**
+             * @constant
+             */
+            operator: "methodEquals";
+            datasetExpected: components["schemas"]["DatasetQuery"];
+        } | {
+            id: components["schemas"]["Key"];
+            /**
+             * @enum {string}
+             */
+            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+            expectedSource: string;
+            timeoutMs?: components["schemas"]["Timeout"];
+            /**
+             * @constant
+             */
+            type: "request";
+            source: components["schemas"]["RequestRef"];
+            /**
+             * @constant
+             */
+            operator: "pathEquals";
+            datasetExpected: components["schemas"]["DatasetQuery"];
+        } | {
+            id: components["schemas"]["Key"];
+            /**
+             * @enum {string}
+             */
+            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+            expectedSource: string;
+            timeoutMs?: components["schemas"]["Timeout"];
+            /**
+             * @constant
+             */
+            type: "duration";
+            source: components["schemas"]["SourceRef"];
+            /**
+             * @constant
+             */
+            operator: "lessThanOrEqual";
+            datasetExpected: components["schemas"]["DatasetQuery"];
+        } | {
+            id: components["schemas"]["Key"];
+            /**
+             * @enum {string}
+             */
+            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+            expectedSource: string;
+            timeoutMs?: components["schemas"]["Timeout"];
+            /**
+             * @constant
+             */
+            type: "requestCount";
+            source: components["schemas"]["RequestRef"];
+            /**
+             * @constant
+             */
+            operator: "equals";
+            datasetExpected: components["schemas"]["DatasetQuery"];
+        } | {
+            id: components["schemas"]["Key"];
+            /**
+             * @enum {string}
+             */
+            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+            expectedSource: string;
+            timeoutMs?: components["schemas"]["Timeout"];
+            /**
+             * @constant
+             */
+            type: "eventually";
+            query: {
+                /**
+                 * @constant
+                 */
+                method: "GET";
+                path: components["schemas"]["Path"];
+                query?: components["schemas"]["BindingJsonObject"];
+            };
+            pointer: components["schemas"]["Pointer"];
+            /**
+             * @constant
+             */
+            operator: "equals";
+            intervalMs?: number;
+            datasetExpected: components["schemas"]["DatasetQuery"];
+        } | {
+            id: components["schemas"]["Key"];
+            /**
+             * @enum {string}
+             */
+            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+            expectedSource: string;
+            timeoutMs?: components["schemas"]["Timeout"];
+            /**
+             * @constant
+             */
+            type: "responseField";
+            source: components["schemas"]["ResponseRef"];
+            pointer: components["schemas"]["Pointer"];
+            /**
+             * @enum {string}
+             */
+            operator: "equals" | "notEquals";
+            datasetExpected: components["schemas"]["DatasetQuery"];
+        } | {
+            id: components["schemas"]["Key"];
+            /**
+             * @enum {string}
+             */
+            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+            expectedSource: string;
+            timeoutMs?: components["schemas"]["Timeout"];
+            /**
+             * @constant
+             */
+            type: "responseField";
+            source: components["schemas"]["ResponseRef"];
+            pointer: components["schemas"]["Pointer"];
+            /**
+             * @constant
+             */
+            operator: "contains";
+            datasetExpected: components["schemas"]["DatasetQuery"];
+        } | {
+            id: components["schemas"]["Key"];
+            /**
+             * @enum {string}
+             */
+            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+            expectedSource: string;
+            timeoutMs?: components["schemas"]["Timeout"];
+            /**
+             * @constant
+             */
+            type: "responseField";
+            source: components["schemas"]["ResponseRef"];
+            pointer: components["schemas"]["Pointer"];
+            /**
+             * @constant
+             */
+            operator: "in";
+            datasetExpected: components["schemas"]["DatasetQuery"];
+        } | {
+            id: components["schemas"]["Key"];
+            /**
+             * @enum {string}
+             */
+            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+            expectedSource: string;
+            timeoutMs?: components["schemas"]["Timeout"];
+            /**
+             * @constant
+             */
+            type: "responseField";
+            source: components["schemas"]["ResponseRef"];
+            pointer: components["schemas"]["Pointer"];
+            /**
+             * @constant
+             */
+            operator: "exists";
+            datasetExpected: components["schemas"]["DatasetQuery"];
+        } | {
+            id: components["schemas"]["Key"];
+            /**
+             * @enum {string}
+             */
+            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+            expectedSource: string;
+            timeoutMs?: components["schemas"]["Timeout"];
+            /**
+             * @constant
+             */
+            type: "requestField";
+            source: components["schemas"]["RequestRef"];
+            pointer: components["schemas"]["Pointer"];
+            /**
+             * @enum {string}
+             */
+            operator: "equals" | "notEquals";
+            datasetExpected: components["schemas"]["DatasetQuery"];
+        } | {
+            id: components["schemas"]["Key"];
+            /**
+             * @enum {string}
+             */
+            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+            expectedSource: string;
+            timeoutMs?: components["schemas"]["Timeout"];
+            /**
+             * @constant
+             */
+            type: "requestField";
+            source: components["schemas"]["RequestRef"];
+            pointer: components["schemas"]["Pointer"];
+            /**
+             * @constant
+             */
+            operator: "contains";
+            datasetExpected: components["schemas"]["DatasetQuery"];
+        } | {
+            id: components["schemas"]["Key"];
+            /**
+             * @enum {string}
+             */
+            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+            expectedSource: string;
+            timeoutMs?: components["schemas"]["Timeout"];
+            /**
+             * @constant
+             */
+            type: "requestField";
+            source: components["schemas"]["RequestRef"];
+            pointer: components["schemas"]["Pointer"];
+            /**
+             * @constant
+             */
+            operator: "in";
+            datasetExpected: components["schemas"]["DatasetQuery"];
+        } | {
+            id: components["schemas"]["Key"];
+            /**
+             * @enum {string}
+             */
+            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+            expectedSource: string;
+            timeoutMs?: components["schemas"]["Timeout"];
+            /**
+             * @constant
+             */
+            type: "requestField";
+            source: components["schemas"]["RequestRef"];
+            pointer: components["schemas"]["Pointer"];
+            /**
+             * @constant
+             */
+            operator: "exists";
+            datasetExpected: components["schemas"]["DatasetQuery"];
         };
         StepV1: {
             id: components["schemas"]["Key"];
@@ -2857,6 +3352,7 @@ export interface components {
             steps: components["schemas"]["StepV1"][];
             fixtureInput?: components["schemas"]["BindingJsonObject"];
             initialVariables?: components["schemas"]["ParameterTypes"];
+            datasetBindings?: components["schemas"]["DatasetBindings"];
         };
         LocatorV1: {
             /**
@@ -2905,6 +3401,115 @@ export interface components {
             schemaVersion: "1.0";
             columns: components["schemas"]["ParameterTypes"];
             rows: components["schemas"]["DataRowV1"][];
+        };
+        DataFieldV2: {
+            /**
+             * @enum {unknown}
+             */
+            type: "string" | "number" | "integer" | "boolean" | "object" | "array";
+            required: boolean;
+            nullable: boolean;
+        };
+        DatasetFieldsV2: {
+            [key: string]: components["schemas"]["DataFieldV2"];
+        };
+        TreeDataRowV2: {
+            key: components["schemas"]["Key"];
+            values: components["schemas"]["JsonObject"];
+            parentKey: components["schemas"]["Key"] | null;
+            order: number;
+        };
+        DataRowV2: components["schemas"]["DataRowV1"] | components["schemas"]["TreeDataRowV2"];
+        DatasetV2: {
+            /**
+             * @constant
+             */
+            schemaVersion: "2.0";
+            /**
+             * @constant
+             */
+            shape: "TABLE";
+            fields: components["schemas"]["DatasetFieldsV2"];
+            source: {
+                /**
+                 * @constant
+                 */
+                kind: "STATIC";
+                rows: components["schemas"]["DataRowV1"][];
+            };
+        } | {
+            /**
+             * @constant
+             */
+            schemaVersion: "2.0";
+            /**
+             * @constant
+             */
+            shape: "TREE";
+            fields: components["schemas"]["DatasetFieldsV2"];
+            source: {
+                /**
+                 * @constant
+                 */
+                kind: "STATIC";
+                rows: components["schemas"]["TreeDataRowV2"][];
+            };
+        } | {
+            /**
+             * @constant
+             */
+            schemaVersion: "2.0";
+            /**
+             * @enum {unknown}
+             */
+            shape: "TABLE" | "TREE";
+            fields: components["schemas"]["DatasetFieldsV2"];
+            source: components["schemas"]["DatasetHttpSource"];
+        };
+        DatasetDocument: components["schemas"]["DatasetV1"] | components["schemas"]["DatasetV2"];
+        DatasetQuery: {
+            parameters?: components["schemas"]["BindingJsonObject"];
+            alias: components["schemas"]["Key"];
+            /**
+             * @constant
+             */
+            op: "field";
+            key: components["schemas"]["BindingJsonValue"];
+            field: components["schemas"]["Key"];
+        } | {
+            parameters?: components["schemas"]["BindingJsonObject"];
+            alias: components["schemas"]["Key"];
+            /**
+             * @constant
+             */
+            op: "contains";
+            key: components["schemas"]["BindingJsonValue"];
+        } | {
+            parameters?: components["schemas"]["BindingJsonObject"];
+            alias: components["schemas"]["Key"];
+            /**
+             * @constant
+             */
+            op: "filter";
+            field: components["schemas"]["Key"];
+            equals: components["schemas"]["BindingJsonValue"];
+            select: components["schemas"]["Key"];
+        } | {
+            parameters?: components["schemas"]["BindingJsonObject"];
+            alias: components["schemas"]["Key"];
+            /**
+             * @constant
+             */
+            op: "path";
+            key: components["schemas"]["BindingJsonValue"];
+        } | {
+            parameters?: components["schemas"]["BindingJsonObject"];
+            alias: components["schemas"]["Key"];
+            /**
+             * @constant
+             */
+            op: "children";
+            parentKey: components["schemas"]["BindingJsonValue"];
         };
         FlowV1: {
             /**
@@ -3002,7 +3607,7 @@ export interface components {
              * @constant
              */
             kind: "DATASET";
-            document: components["schemas"]["DatasetV1"];
+            document: components["schemas"]["DatasetDocument"];
         } | {
             /**
              * @constant
@@ -3063,7 +3668,7 @@ export interface components {
              */
             kind: "DATASET";
             sha256: components["schemas"]["Sha256"];
-            document: components["schemas"]["DatasetV1"];
+            document: components["schemas"]["DatasetDocument"];
         } | {
             resourceId: components["schemas"]["Id"];
             versionId: components["schemas"]["Id"];
@@ -3100,6 +3705,115 @@ export interface components {
             kind: "ENVIRONMENT";
             sha256: components["schemas"]["Sha256"];
             document: components["schemas"]["EnvironmentV1"];
+        };
+        ConnectedDatasetV2: {
+            /**
+             * @constant
+             */
+            kind: "DATASET";
+            resourceId: components["schemas"]["Id"];
+            versionId: components["schemas"]["Id"];
+            sha256: components["schemas"]["Sha256"];
+            schema: {
+                /**
+                 * @constant
+                 */
+                schemaVersion: "1.0";
+                columns: components["schemas"]["ParameterTypes"];
+            } | {
+                /**
+                 * @constant
+                 */
+                schemaVersion: "2.0";
+                /**
+                 * @enum {unknown}
+                 */
+                shape: "TABLE" | "TREE";
+                fields: components["schemas"]["DatasetFieldsV2"];
+            };
+            contentSha256: components["schemas"]["Sha256"];
+        };
+        ConnectedSourceSnapshotV2: {
+            /**
+             * @constant
+             */
+            schemaVersion: "2.0";
+            workspaceId: components["schemas"]["Id"];
+            sourceHash: components["schemas"]["Sha256"];
+            engineVersion: components["schemas"]["Version"];
+            entryCaseVersionIds: components["schemas"]["Id"][];
+            assets: (components["schemas"]["0"] | components["schemas"]["1"] | components["schemas"]["2"]
+                | components["schemas"]["4"] | components["schemas"]["5"] | components["schemas"]["6"]
+                | components["schemas"]["7"] | components["schemas"]["ConnectedDatasetV2"])[];
+            validationTarget?: components["schemas"]["ValidationTargetV1"];
+            authAdapters?: components["schemas"]["AuthAdapterVersionV1"][];
+            originalSha256: components["schemas"]["Sha256"];
+        } & unknown;
+        ConnectedExecutionSnapshotV2: {
+            /**
+             * @constant
+             */
+            schemaVersion: "2.0";
+            workspaceId: components["schemas"]["Id"];
+            runId: components["schemas"]["Id"];
+            caseExecutionId: components["schemas"]["Id"];
+            assetSourceHash: components["schemas"]["Sha256"];
+            environmentVersionId: components["schemas"]["Id"];
+            environment: components["schemas"]["EnvironmentV1"];
+            roleKey: components["schemas"]["Key"];
+            browser: components["schemas"]["Browser"];
+            variables: components["schemas"]["JsonObject"];
+            secretVersions: {
+                secretRef: components["schemas"]["Key"];
+                versionId: components["schemas"]["Id"];
+            }[];
+            namespace: components["schemas"]["Key"];
+            attemptNo: number;
+            caseVersionId: components["schemas"]["Id"];
+            authAdapters?: components["schemas"]["AuthAdapterVersionV1"][];
+            datasetVersionId?: components["schemas"]["Id"];
+            suiteEntryIndex?: number;
+            datasetBindings?: components["schemas"]["DatasetBindings"];
+            selectedRow?: {
+                versionId: components["schemas"]["Id"];
+                rowKey: components["schemas"]["Key"];
+                rowSha256: components["schemas"]["Sha256"];
+            };
+        };
+        HttpDatasetSelection: {
+            versionId: components["schemas"]["Id"];
+            parameters: components["schemas"]["JsonObject"];
+        };
+        HttpDatasetSample: {
+            sourceVersionId: components["schemas"]["Id"];
+            /**
+             * Format: date-time
+             */
+            fetchedAt: string;
+        };
+        HttpDatasetResponse: {
+            sourceVersionId: components["schemas"]["Id"];
+            fetchedAt: components["schemas"]["Timestamp"];
+            rows: components["schemas"]["DataRowV2"][];
+        };
+        StaticDatasetSelection: {
+            /**
+             * @constant
+             */
+            selection: "VALIDATION_SOURCE";
+        } | {
+            /**
+             * @constant
+             */
+            selection: "DATASET";
+            versionId: components["schemas"]["Id"];
+        } | {
+            /**
+             * @constant
+             */
+            selection: "ROW";
+            versionId: components["schemas"]["Id"];
+            rowKey: components["schemas"]["Key"];
         };
         AssetSnapshotV1: {
             /**
@@ -3140,6 +3854,7 @@ export interface components {
             authAdapters?: components["schemas"]["AuthAdapterVersionV1"][];
             datasetVersionId?: components["schemas"]["Id"];
             suiteEntryIndex?: number;
+            datasetBindings?: components["schemas"]["DatasetBindings"];
         };
         CompiledAssetBundle: {
             /**
@@ -3172,6 +3887,14 @@ export interface components {
             arch: "x64" | "arm64";
             browsers: components["schemas"]["Browser"][];
             jobKinds?: ("TEST" | "VALIDATE" | "CLEANUP")[];
+            /**
+             * @constant
+             */
+            httpDatasets?: "1.0";
+            /**
+             * @constant
+             */
+            connectedDatasets?: "2.0";
         } & ({
             /**
              * @constant
@@ -3744,6 +4467,49 @@ export interface components {
              */
             status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
             latestVersionId?: components["schemas"]["Id"];
+        };
+        HttpDatasetPreviewRequest: {
+            document: components["schemas"]["DatasetV2"];
+            arguments: components["schemas"]["JsonObject"];
+            verifySignature?: {
+                /**
+                 * Format: date-time
+                 */
+                at: string;
+                expected: string;
+            };
+        };
+        HttpDatasetPreviewResult: {
+            rowCount: number;
+            sample: {
+                fields: string[];
+            }[];
+        } | {
+            signatureMatches: boolean;
+        };
+        HttpDatasetPreviewEnvelope: {
+            data: components["schemas"]["HttpDatasetPreviewResult"];
+            requestId: string;
+        };
+        DatasetCopyRequest: {
+            sourceWorkspaceId: components["schemas"]["Id"];
+            sourceDatasetVersionId: components["schemas"]["Id"];
+            key: components["schemas"]["Key"];
+            name: string;
+        };
+        DatasetCopySource: {
+            resourceId: components["schemas"]["Id"];
+            key: components["schemas"]["Key"];
+            name: string;
+            versionId: components["schemas"]["Id"];
+            versionNo: number;
+        };
+        DatasetCopySourcePageEnvelope: {
+            data: {
+                items: components["schemas"]["DatasetCopySource"][];
+                nextCursor: string | null;
+            };
+            requestId: string;
         };
         ResourceCreate: {
             kind: components["schemas"]["ResourceKind"];
@@ -5208,6 +5974,141 @@ export interface components {
              */
             kind: "download";
         };
+        DatasetBindings: {
+            [key: string]: components["schemas"]["Id"];
+        };
+        DatasetSignatureInput: {
+            /**
+             * @enum {unknown}
+             */
+            op: "QUERY" | "PATH" | "BODY" | "METHOD" | "TIMESTAMP";
+        } | {
+            /**
+             * @constant
+             */
+            op: "PARAMETER";
+            name: components["schemas"]["Key"];
+        } | {
+            /**
+             * @constant
+             */
+            op: "LITERAL";
+            value: string;
+        } | {
+            /**
+             * @enum {unknown}
+             */
+            op: "PERCENT_ENCODE" | "SHA256" | "BASE64";
+            input: components["schemas"]["DatasetSignatureInput"];
+        } | {
+            /**
+             * @constant
+             */
+            op: "JOIN";
+            separator: string;
+            parts: components["schemas"]["DatasetSignatureInput"][];
+        } | {
+            /**
+             * @constant
+             */
+            op: "SORTED_QUERY";
+            names?: string[];
+        };
+        DatasetHttpAuth: {
+            /**
+             * @constant
+             */
+            kind: "NONE";
+        } | {
+            /**
+             * @enum {unknown}
+             */
+            kind: "BEARER" | "BASIC";
+            secretRef: components["schemas"]["Key"] | null;
+            secretVersionId: components["schemas"]["Id"] | null;
+        } | {
+            /**
+             * @constant
+             */
+            kind: "SIGNED";
+            secretRef: components["schemas"]["Key"] | null;
+            secretVersionId: components["schemas"]["Id"] | null;
+            header: string;
+            /**
+             * @enum {unknown}
+             */
+            algorithm: "HMAC_SHA256" | "AES256_GCM";
+            input: components["schemas"]["DatasetSignatureInput"];
+        } | {
+            /**
+             * @constant
+             */
+            kind: "API_KEY";
+            header: string;
+            secretRef: components["schemas"]["Key"] | null;
+            secretVersionId: components["schemas"]["Id"] | null;
+        };
+        DatasetHttpMapping: {
+            rows: string;
+            key: string;
+            values: {
+                [key: string]: string;
+            };
+            parentKey?: string;
+            order?: string;
+        };
+        DatasetHttpSource: {
+            /**
+             * @constant
+             */
+            kind: "HTTP";
+            connectionRef: components["schemas"]["Id"] | null;
+            environmentVersionId: components["schemas"]["Id"] | null;
+            /**
+             * @enum {unknown}
+             */
+            method: "GET" | "POST";
+            path: string;
+            query: {
+                name: string;
+                value: string | {
+                    parameter: components["schemas"]["Key"];
+                };
+            }[];
+            headers: {
+                [key: string]: string;
+            };
+            parameters: {
+                [key: string]: components["schemas"]["ValueType"];
+            };
+            body: {
+                json: components["schemas"]["JsonValue"];
+            } | null | {
+                parameter: components["schemas"]["Key"];
+            } | {
+                raw: string | {
+                    parameter: components["schemas"]["Key"];
+                };
+            } | {
+                form: {
+                    name: string;
+                    value: string | {
+                        parameter: components["schemas"]["Key"];
+                    };
+                }[];
+            };
+            auth: components["schemas"]["DatasetHttpAuth"];
+            mapping: components["schemas"]["DatasetHttpMapping"];
+            pagination?: {
+                /**
+                 * @enum {unknown}
+                 */
+                kind: "PAGE" | "CURSOR";
+                parameter: components["schemas"]["Key"];
+                next: string;
+                maxPages: number;
+            };
+        };
         FixtureIdentityV1: {
             authAdapterVersionId: components["schemas"]["Id"];
             secretRef: components["schemas"]["Key"];
@@ -5264,10 +6165,11 @@ export interface components {
             value: components["schemas"]["JsonValue"];
         };
         AssertionResultPayloadV1: {
+            sample?: components["schemas"]["HttpDatasetSample"];
             /**
              * @enum {string}
              */
-            status: "PASSED" | "FAILED" | "WARN" | "SKIPPED";
+            status: "PASSED" | "FAILED" | "WARN" | "SKIPPED" | "ERROR";
             /**
              * @enum {string}
              */
@@ -7662,6 +8564,238 @@ export interface operations {
             };
         };
     };
+    listDatasetCopySources: {
+        parameters: {
+            query: {
+                cursor?: string;
+                limit?: number;
+                sourceWorkspaceId: components["schemas"]["Id"];
+            };
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /**
+             * @description Success.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DatasetCopySourcePageEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    copyDataset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DatasetCopyRequest"];
+            };
+        };
+        responses: {
+            /**
+             * @description Success.
+             */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceDTOEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     getResource: {
         parameters: {
             query?: never;
@@ -8113,6 +9247,145 @@ export interface operations {
              * @description Stable JSON error; code is a machine-readable domain code.
              */
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    previewHttpDataset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["Id"];
+                resourceId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HttpDatasetPreviewRequest"];
+            };
+        };
+        responses: {
+            /**
+             * @description Masked preview
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HttpDatasetPreviewEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            504: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -15089,6 +16362,244 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReconcileDTOEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    fetchHttpDataset: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-VeriQ-Lease-Token": string;
+                "X-VeriQ-Fencing-Token": number;
+            };
+            path: {
+                attemptId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HttpDatasetSelection"];
+            };
+        };
+        responses: {
+            /**
+             * @description Complete mapped sample
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HttpDatasetResponse"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    fetchStaticDataset: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-VeriQ-Lease-Token": string;
+                "X-VeriQ-Fencing-Token": number;
+            };
+            path: {
+                attemptId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaticDatasetSelection"];
+            };
+        };
+        responses: {
+            /**
+             * @description Canonical UTF-8 JSON bytes
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
                 };
             };
             /**

@@ -2,6 +2,8 @@
  * 本文件注册并执行整案：注入凭证/夹具/生命周期：编排准备清理与取消并产出 CaseResult（register-case）。
  */
 
+import { connectedDatasetResolver, type HttpDatasetReader } from "./datasets.js";
+import { isDeepStrictEqual } from "node:util";
 import { RetryObservation, type RetrySafety } from "./retry-safety.js";
 import { EvidencePolicy, type RestrictedEvidence } from "./evidence.js";
 import { type Page, type TestInfo, type Route } from "@playwright/test";
@@ -14,6 +16,7 @@ import {
     resolveBinding,
     resolveInitialVariables,
     type AssetSnapshotV1,
+    type ConnectedSourceSnapshotV2,
     type CompiledCase,
     type ExecutionSnapshotV1,
     type JsonObject,
@@ -92,12 +95,15 @@ export type SdkEvent = { type: "STEP_FINISHED"; step: StepResult } | { type: "CA
  * 公开接口 ExecutionOptions 配置 executeCase 的上下文提供者、信号、事件回调与预算相关选项。
  */
 export interface ExecutionOptions {
+    datasetProtected?: boolean;
+    readHttpDataset?: HttpDatasetReader;
     /**
      * 可信回调负责关闭业务 BrowserContext，已有观察器始终结算，标记可能写入时优先返回 WRITE_POSSIBLE。
      * 只有回调成功、观察到上下文关闭且未标记可能写入时，才返回 READ_ONLY_OBSERVED。
      */
     finalizeExecution?: (context: import("@playwright/test").BrowserContext) => Promise<void>;
     page: Page;
+    hydrateSource?: (source: ConnectedSourceSnapshotV2, aliases: string[]) => Promise<AssetSnapshotV1>;
     execution: ExecutionSnapshotV1;
     lifecycle?: LifecycleProvider;
     credentials?: CredentialProvider;
@@ -155,7 +161,7 @@ export async function executeCase(
         cleanupStatus: "NOT_REQUIRED",
         steps: [],
     };
-    const evidence = new EvidencePolicy();
+    const evidence = new EvidencePolicy(options.datasetProtected);
     const execution = structuredClone(options.execution);
     let ctx: StepContext | undefined,
         fixture: FixtureV1 | undefined,
@@ -209,6 +215,15 @@ export async function executeCase(
             execution.caseVersionId !== plan.caseVersionId
         )
             throw new Error("EXECUTION_CONTEXT_MISMATCH");
+        if (!isDeepStrictEqual(plan.document.datasetBindings ?? {}, execution.datasetBindings ?? {}))
+            throw new Error("DATASET_BINDINGS_MISMATCH");
+        const documents = new Map(
+            Object.entries(plan.document.datasetBindings ?? {}).map(([alias, id]) => {
+                const version = source.assets.find((a) => a.versionId === id);
+                if (version?.kind !== "DATASET") throw new Error("DATASET_VERSION_MISSING");
+                return [alias, version.document] as const;
+            }),
+        );
         const catalog = source.assets.find((a) => a.versionId === plan.document.catalogVersionId);
         if (catalog?.kind !== "ELEMENT_CATALOG") throw new Error("CATALOG_REQUIRED");
         if (!options.lifecycle?.authenticate) throw new Error("AUTH_PROVIDER_REQUIRED");
@@ -252,6 +267,13 @@ export async function executeCase(
         }
         retryObservation = new RetryObservation(options.page.context(), plan.document.kind === "WRITE");
         ctx = createStepContext({
+            datasets: connectedDatasetResolver(
+                documents,
+                execution.datasetBindings ?? {},
+                execution.environmentVersionId,
+                options.readHttpDataset,
+            ),
+            datasetProtected: options.datasetProtected === true,
             onBusinessRequest: (method) => retryObservation!.method(method),
             page: options.page,
             onEvent: async (event) => {
@@ -287,18 +309,21 @@ export async function executeCase(
             await collect(r);
             result.steps.push(r);
             await emit({ type: "STEP_FINISHED", step: r });
-            if (r.cancelled) {
-                if (result.businessOutcome !== "FAILED")
-                    result.businessOutcome = r.status === "CANCELLED" ? "CANCELLED" : "FAILED";
-                break;
+            if (r.status === "ERROR") {
+                result.businessOutcome = "ERROR";
+                result.errorCode ??= r.errorCode ?? "DATASET_READ_ERROR";
+            } else if (
+                r.status !== "PASSED" &&
+                result.businessOutcome !== "ERROR" &&
+                result.businessOutcome !== "FAILED"
+            ) {
+                result.businessOutcome = r.status === "CANCELLED" ? "CANCELLED" : "FAILED";
             }
-            if (r.status !== "PASSED") {
-                result.businessOutcome = "FAILED";
-                if (step.step.failurePolicy !== "CONTINUE") {
-                    for (const remaining of plan.steps.slice(plan.steps.indexOf(step) + 1))
-                        await skipStep(remaining, ctx, step.step.id);
-                    break;
-                }
+            if (r.cancelled) break;
+            if (r.status !== "PASSED" && step.step.failurePolicy !== "CONTINUE") {
+                for (const remaining of plan.steps.slice(plan.steps.indexOf(step) + 1))
+                    await skipStep(remaining, ctx, step.step.id);
+                break;
             }
         }
         const allSteps = (steps: StepResult[]): StepResult[] => steps.flatMap((s) => [s, ...allSteps(s.children)]);
@@ -313,7 +338,7 @@ export async function executeCase(
                 result.errorCode = "PERSISTENCE_CHECKPOINT_FAILED";
             }
         }
-        if (originFailure) {
+        if (originFailure && result.businessOutcome !== "ERROR") {
             result.businessOutcome = "FAILED";
             result.errorCode = "ORIGIN_NOT_ALLOWED";
         }
@@ -387,7 +412,7 @@ export function configureExecution(contextProvider: ExecutionContextProvider): v
 /**
  * 公开函数 registerCase 把编译用例登记为可被 Playwright 调度的测试入口：实际执行委托 executeCase。
  */
-export function registerCase(plan: CompiledCase, source: AssetSnapshotV1): void {
+export function registerCase(plan: CompiledCase, source: AssetSnapshotV1 | ConnectedSourceSnapshotV2): void {
     test.describe(plan.caseVersionId, () => {
         test.describe.configure({ retries: 0 });
         test(plan.document.title, async ({ page }, info) => {
@@ -399,13 +424,19 @@ export function registerCase(plan: CompiledCase, source: AssetSnapshotV1): void 
                 provider = module.createExecutionContext;
             }
             if (!provider) throw new Error("EXECUTION_CONTEXT_PROVIDER_REQUIRED");
-            const options = await provider(info),
-                result = await executeCase(plan, source, { ...options, page });
+            const options = await provider(info);
+            const live =
+                source.schemaVersion === "2.0"
+                    ? await options.hydrateSource?.(source, Object.values(plan.document.datasetBindings ?? {}))
+                    : source;
+            if (!live) throw new Error("DATASET_PROVIDER_REQUIRED");
+            const result = await executeCase(plan, live, { ...options, page });
             if (!options.redact) throw new Error("REDACTION_PROVIDER_REQUIRED");
-            await info.attach("veriq-result", {
-                body: Buffer.from(JSON.stringify(options.redact(result as unknown as JsonValue))),
-                contentType: "application/json",
-            });
+            if (!options.datasetProtected)
+                await info.attach("veriq-result", {
+                    body: Buffer.from(JSON.stringify(options.redact(result as unknown as JsonValue))),
+                    contentType: "application/json",
+                });
             if (result.outcome !== "PASSED")
                 throw new Error(`VERIQ_${result.outcome}: ${result.errorCode ?? "CASE_FAILED"}`);
         });

@@ -1,9 +1,10 @@
-import { spawn } from "node:child_process";
+import { promisify } from "node:util";
+import { execFile, spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { mkdtemp, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
-import { chromium, test, expect } from "@playwright/test";
+import { chromium, test, expect, type Page } from "@playwright/test";
 import type { ResourceDocumentV1 } from "@veriq/contracts";
 import { cleanupCaseProfile, withCleanup } from "./support/case-profile-cleanup";
 import { holdValidationReceipt } from "./support/hold-validation-receipt";
@@ -1263,4 +1264,597 @@ test("primitive rows preserve focused survivors and persist only business values
             }),
         ).toBe(true);
     }
+});
+
+/**
+ * 通过真实发布接口为编辑流程建立可选择的固定版本，测试回执只负责准备夹具，断言覆盖可见控件和保存的草稿。
+ */
+async function publishWriterDataset(page: Page, scope: Awaited<ReturnType<typeof editorScope>>) {
+    const source = await createResource(page, "DATASET", "source-data");
+    await saveDraft(page);
+    const job = await queueValidation(page);
+    await promisify(execFile)(
+        "uv",
+        [
+            "run",
+            "--project",
+            "apps/srv",
+            "--no-sync",
+            "python",
+            "apps/srv/tests/resources/copy_browser_fixture.py",
+            job.id,
+        ],
+        { cwd: fileURLToPath(new URL("../../../", import.meta.url)) },
+    );
+    const base = "/api/v1/workspaces/" + scope.workspaceId;
+    const receipt = await page.request.get(base + "/jobs/" + job.id + "/validation-receipt");
+    expect(receipt.status(), await receipt.text()).toBe(200);
+    const frozen = (await receipt.json()).data;
+    const publication = await page.request.post(base + "/resources/" + source.id + "/publish", {
+        headers: scope.headers,
+        data: { revision: frozen.revision, validationReceiptId: frozen.id },
+    });
+    expect(publication.status(), await publication.text()).toBe(201);
+    return (await publication.json()).data;
+}
+
+test("copy dataset opens an independent target draft", async ({ page }) => {
+    test.setTimeout(180_000);
+    const scope = await editorScope(page, "copy-source");
+    const target = await page.request.post("/api/v1/workspaces", {
+        headers: scope.headers,
+        data: { key: "copy-target", name: "Copy target" },
+    });
+    expect(target.status()).toBe(201);
+    const targetId = (await target.json()).data.id;
+    await expect(page.getByRole("button", { name: "Copy dataset" })).toBeVisible();
+    const version = await publishWriterDataset(page, scope);
+    await page.reload();
+    await page.getByRole("combobox", { name: "Workspace", exact: true }).selectOption(targetId);
+    await page.getByRole("button", { name: "Copy dataset" }).click();
+    const dialog = page.getByRole("dialog", { name: "Copy dataset" });
+    await dialog.getByLabel("Source workspace").selectOption(scope.workspaceId);
+    await dialog.getByLabel("Published version").selectOption(version.id);
+    await dialog.getByLabel("Key", { exact: true }).fill("checkout.copied-data");
+    await dialog.getByLabel("Name", { exact: true }).fill("Copied data");
+    const response = page.waitForResponse(
+        (r) => r.url().endsWith("/dataset-copies") && r.request().method() === "POST",
+    );
+    await dialog.getByRole("button", { name: "Create draft" }).click();
+    const copied = await response;
+    expect(copied.status(), await copied.text()).toBe(201);
+    const resource = (await copied.json()).data;
+    expect(resource.id).not.toBe(version.resourceId);
+    expect(resource.key).toBe("checkout.copied-data");
+    await expect(page.getByRole("article").getByRole("heading", { name: "Copied data · DATASET" })).toBeVisible();
+    const draft = await page.request.get(`/api/v1/workspaces/${targetId}/resources/${resource.id}/draft`);
+    expect((await draft.json()).data.content).toEqual(version.content);
+});
+
+test("copy dataset respects viewer and editor roles in the shared dialog", async ({ page, browser }) => {
+    const target = await editorScope(page, "role-target");
+    const source = await page.request.post("/api/v1/workspaces", {
+        headers: target.headers,
+        data: { key: "role-source", name: "Read only source" },
+    });
+    expect(source.status()).toBe(201);
+    const sourceId = (await source.json()).data.id;
+    const email = "dataset-member@example.com";
+    const password = "Dataset member 123!";
+    const origin = "http://127.0.0.1:5173";
+    const member = await browser.newContext({ baseURL: origin });
+    try {
+        const user = await page.request.post("/api/v1/admin/users", {
+            headers: target.headers,
+            data: { email, displayName: "Dataset member", password, systemAdmin: false },
+        });
+        expect(user.status()).toBe(201);
+        const setup = await member.request.get("/api/v1/setup");
+        const login = await member.request.post("/api/v1/auth/login", {
+            headers: { Origin: origin, "X-CSRF-Token": (await setup.json()).data.csrfToken },
+            data: { email, password },
+        });
+        expect(login.status()).toBe(200);
+        const headers = { Origin: origin, "X-CSRF-Token": (await login.json()).data.csrfToken };
+        for (const [id, role] of [
+            [sourceId, "VIEWER"],
+            [target.workspaceId, "EDITOR"],
+        ]) {
+            const invite = await page.request.post(`/api/v1/workspaces/${id}/invitations`, {
+                headers: target.headers,
+                data: { email, role },
+            });
+            expect(invite.status()).toBe(201);
+            const fragment = new URL((await invite.json()).data.invitationUrl).hash;
+            const token = new URLSearchParams(fragment.slice(1)).get("token");
+            expect(
+                (await member.request.post("/api/v1/auth/invitations/accept", { headers, data: { token } })).status(),
+            ).toBe(200);
+        }
+        const view = await member.newPage();
+        await view.goto("/resources");
+        const select = view.getByRole("combobox", { name: "Workspace", exact: true });
+        await select.selectOption(sourceId);
+        await expect(view.getByRole("button", { name: "New resource", exact: true })).toBeDisabled();
+        await expect(view.getByRole("button", { name: "Copy dataset" })).toHaveCount(0);
+        await select.selectOption(target.workspaceId);
+        const loaded = view.waitForResponse((r) => new URL(r.url()).pathname === "/api/v1/workspaces");
+        await view.getByRole("button", { name: "Copy dataset" }).click();
+        // 首次打开会读取当前会话的成员关系。这里检查实际查询完成后的候选列表，防止空加载状态伪装成正确过滤。
+        const dialog = view.getByRole("dialog", { name: "Copy dataset" });
+        await expect(dialog).toBeVisible();
+        await loaded;
+        await expect(dialog.getByRole("status")).toHaveCount(0);
+        await expect(dialog.getByLabel("Source workspace").getByRole("option")).toHaveCount(1);
+        await expect(dialog.getByRole("option", { name: "Read only source" })).toHaveCount(0);
+    } finally {
+        await member.close();
+    }
+});
+
+/**
+ * 使用真实创建表单与草稿接口检验表格和树的两阶段导入，失败或成功预检均不得提前覆盖服务端数据。
+ */
+test("imports table and tree drafts with validation preview", async ({ page }) => {
+    test.setTimeout(90_000);
+    const scope = await editorScope(page, "static-import");
+    for (const shape of ["TABLE", "TREE"]) {
+        await closeResourceEditor(page);
+        await page.getByRole("button", { name: "New resource", exact: true }).click();
+        const form = resourceCreateForm(page);
+        await form.getByRole("combobox", { name: "Kind", exact: true }).selectOption("DATASET");
+        await expect(form.getByLabel("Dataset format")).toBeVisible();
+        await form.getByLabel("Dataset format").selectOption(shape);
+        const key = "static_" + shape;
+        await form.getByLabel("Key", { exact: true }).fill(key);
+        await form.getByLabel("Name", { exact: true }).fill(key);
+        const creating = page.waitForResponse((r) => r.url().endsWith("/resources") && r.request().method() === "POST");
+        await form.getByRole("button", { name: "Create resource" }).click();
+        const id = (await (await creating).json()).data.id;
+        const url = `/api/v1/workspaces/${scope.workspaceId}/resources/${id}/draft`;
+        const original = (await (await page.request.get(url)).json()).data;
+        const input = page.getByLabel("Import text");
+        const preview = page.getByRole("button", { name: "Preview import" });
+        const apply = page.getByRole("button", { name: "Apply import" });
+        const tree = shape === "TREE";
+        const header = tree ? "key,parentKey,order,name" : "key,name";
+        const row = tree ? "leaf,root,3," : "leaf,";
+        await input.fill(header + ",wrong\n" + row + "x,y");
+        await preview.click();
+        await expect(page.getByText("1 · wrong · DATASET_UNKNOWN_FIELD")).toBeVisible();
+        await expect(apply).toBeDisabled();
+        await input.fill(header + "\n" + row + "x\n" + row + "y");
+        await preview.click();
+        await expect(page.getByText("3 · key · DATASET_DUPLICATE_ROW_KEY")).toBeVisible();
+        if (tree) {
+            await input.fill(header + "\n" + row + "x");
+            await preview.click();
+            await expect(page.getByText("2 · parentKey · DATASET_ORPHAN_NODE")).toBeVisible();
+        }
+        const name = 'hello, "world"\r\n  again\n\tlast';
+        const csv = header + "\n" + row + '"hello, ""world""\r\n  again\n\tlast"' + (tree ? "\nroot,,0,root" : "");
+        await page
+            .getByLabel("Import file")
+            .setInputFiles({ name: "rows.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+        await expect(input).toHaveValue(csv.replaceAll("\r\n", "\n"));
+        await preview.click();
+        await expect(apply).toBeEnabled();
+        await expect(page.getByLabel("Row key", { exact: true }).first()).toHaveValue("row_1");
+        await apply.click();
+        await expect(page.getByLabel("Row key", { exact: true }).first()).toHaveValue("leaf");
+        expect((await (await page.request.get(url)).json()).data).toEqual(original);
+        const draft = await saveDraft(page);
+        expect(draft.content.document).toMatchObject({
+            shape,
+            source: {
+                rows: [
+                    { key: "leaf", values: { name }, ...(tree ? { parentKey: "root", order: 3 } : {}) },
+                    ...(tree ? [{ key: "root", values: { name: "root" }, parentKey: null, order: 0 }] : []),
+                ],
+            },
+        });
+        const cell = page.getByRole("article").getByRole("textbox", { name: "name", exact: true }).first();
+        await expect(cell).toBeEditable();
+        await expect(cell).toHaveValue(name.replaceAll("\r\n", "\n"));
+        await cell.focus();
+        await cell.press("Control+End");
+        await cell.pressSequentially(" edited");
+        const edited = await saveDraft(page);
+        expect(
+            (edited.content.document as { source: { rows: { values: { name: string } }[] } }).source.rows[0]!.values
+                .name,
+        ).toBe(name + " edited");
+        if (tree) {
+            // 父键的重命名必须同步子行引用；随后编辑排序再保存，检查编辑器没有靠重排数组模拟同级顺序。
+            const rootKey = page.getByLabel("Row key", { exact: true }).last();
+            await rootKey.fill("renamed");
+            await rootKey.press("Tab");
+            await expect(page.getByLabel("Parent node").first()).toHaveValue("renamed");
+            await page.getByLabel("Sibling order").first().fill("7");
+            expect((await saveDraft(page)).content.document).toMatchObject({
+                source: { rows: [{ parentKey: "renamed", order: 7 }, { key: "renamed" }] },
+            });
+        } else {
+            // 真实表单库会深拷贝对象，必须经过文件预检、应用和再次保存检查原型同名字段及带点字段的值。
+            const field = page.getByRole("textbox", { name: "Field name" });
+            await field.fill("__proto__");
+            await field.press("Tab");
+            await page.getByRole("button", { name: "Add field", exact: true }).click();
+            await field.last().fill("price.usd");
+            await field.last().press("Tab");
+            await page.getByRole("combobox", { name: "Field type" }).last().selectOption("number");
+            await page.getByLabel("Required", { exact: true }).last().uncheck();
+            await page.getByLabel("Nullable").last().check();
+            const imported = [
+                { key: "item", values: { ["__proto__"]: "typed", "price.usd": null } },
+                { key: "absent", values: { ["__proto__"]: "still here" } },
+            ];
+            await page.getByRole("combobox", { name: "Import format" }).selectOption("JSON");
+            const file = page.getByLabel("Import file");
+            await file.setInputFiles({
+                name: "large.json",
+                mimeType: "application/json",
+                buffer: Buffer.alloc(2097153),
+            });
+            await expect(page.getByRole("alert")).toContainText("DATASET_SIZE_LIMIT");
+            await file.setInputFiles({
+                name: "rows.json",
+                mimeType: "application/json",
+                buffer: Buffer.from(JSON.stringify(imported)),
+            });
+            await preview.click();
+            await expect(apply).toBeEnabled();
+            await apply.click();
+            const saved = (await saveDraft(page)).content;
+            expect(saved.document).toMatchObject({
+                fields: {
+                    ["__proto__"]: { type: "string", required: true, nullable: false },
+                    "price.usd": { type: "number", required: false, nullable: true },
+                },
+            });
+            expect((saved.document as { source: { rows: unknown[] } }).source.rows).toEqual(imported);
+        }
+    }
+});
+
+/**
+ * 稀疏资源的声明数量与行数可独立增长，检查只渲染当前页并仍能定位到后续行及字段，真实保存保留未显示数据。
+ */
+test("pages sparse static dataset rows and fields", async ({ page }) => {
+    test.setTimeout(90_000);
+    const scope = await editorScope(page, "sparse-form");
+    const fields = Object.fromEntries(
+        Array.from({ length: 97 }, (_, i) => ["f_" + i, { type: "string", required: false, nullable: false }]),
+    );
+    const rows = Array.from({ length: 113 }, (_, i) => ({ key: "r_" + i, values: i === 112 ? { f_96: "tail" } : {} }));
+    const created = await page.request.post(`/api/v1/workspaces/${scope.workspaceId}/resources`, {
+        headers: scope.headers,
+        data: {
+            kind: "DATASET",
+            key: "sparse",
+            name: "sparse",
+            content: {
+                kind: "DATASET",
+                document: { schemaVersion: "2.0", shape: "TABLE", fields, source: { kind: "STATIC", rows } },
+            },
+        },
+    });
+    expect(created.status(), await created.text()).toBe(201);
+    await page.reload();
+    await page.getByLabel("Workspace").selectOption(scope.workspaceId);
+    await page.getByRole("button", { name: "sparse", exact: true }).click();
+    await expect(page.getByRole("article").getByRole("heading", { name: "sparse · DATASET" })).toBeVisible();
+    const article = page.getByRole("article");
+    expect(await article.getByLabel("Row key", { exact: true }).count()).toBeLessThanOrEqual(20);
+    expect(await article.getByLabel("Field name", { exact: true }).count()).toBeLessThanOrEqual(20);
+    await article.getByRole("button", { name: "Last row page" }).click();
+    await article.getByRole("button", { name: "Last field page" }).click();
+    await expect(article.getByLabel("Row key", { exact: true }).last()).toHaveValue("r_112");
+    const tail = article.getByRole("textbox", { name: "f_96", exact: true });
+    await tail.fill("edited tail");
+    const saved = await saveDraft(page);
+    expect(saved.content.document).toMatchObject({
+        source: { rows: rows.map((r, i) => (i === 112 ? { ...r, values: { f_96: "edited tail" } } : r)) },
+    });
+});
+
+/**
+ * 通过实际键盘删除指定位置，区分两个看起来相同的换行符；另检查删除分隔字符后仍保留两个可见行界。
+ */
+test("deletes the selected physical line break in a static dataset", async ({ page }) => {
+    const scope = await editorScope(page, "line-edit");
+    const rows = [
+        { key: "adjacent", values: { body: "a\r\n\nb" } },
+        { key: "separate", values: { body: "a\rX\nb" } },
+    ];
+    const created = await page.request.post(`/api/v1/workspaces/${scope.workspaceId}/resources`, {
+        headers: scope.headers,
+        data: {
+            kind: "DATASET",
+            key: "text_rows",
+            name: "Text rows",
+            content: {
+                kind: "DATASET",
+                document: {
+                    schemaVersion: "2.0",
+                    shape: "TABLE",
+                    fields: { body: { type: "string", required: true, nullable: false } },
+                    source: { kind: "STATIC", rows: [] },
+                },
+            },
+        },
+    });
+    expect(created.status(), await created.text()).toBe(201);
+    await page.reload();
+    await page.getByLabel("Workspace").selectOption(scope.workspaceId);
+    await page.getByRole("button", { name: "text_rows", exact: true }).click();
+    await page.getByRole("combobox", { name: "Import format" }).selectOption("JSON");
+    await page.getByLabel("Import text").fill(JSON.stringify(rows));
+    await page.getByRole("button", { name: "Preview import" }).click();
+    await page.getByRole("button", { name: "Apply import" }).click();
+    const cells = page.getByRole("article").getByRole("textbox", { name: "body", exact: true });
+    const first = cells.first(),
+        second = cells.last();
+    await first.focus();
+    await first.press("Control+Home");
+    await first.press("ArrowRight");
+    await first.press("Delete");
+    await expect(first).toHaveValue("a\nb");
+    await second.focus();
+    await second.press("Control+Home");
+    await second.press("ArrowRight");
+    await second.press("ArrowRight");
+    await second.press("Delete");
+    expect.soft(await second.inputValue()).toBe("a\n\nb");
+    const saved = await saveDraft(page);
+    const [adjacent, separate] = (saved.content.document as { source: { rows: { values: { body: string } }[] } }).source
+        .rows;
+    expect.soft(adjacent!.values.body).toBe("a\nb");
+    expect(separate!.values.body.replace(/\r\n?/gu, "\n")).toBe("a\n\nb");
+});
+
+test("writes named dataset queries without changing the expected provenance", async ({ page }) => {
+    test.setTimeout(120_000);
+    const scope = await editorScope(page, "named-queries");
+    const version = await publishWriterDataset(page, scope);
+    await page.reload();
+    await page.getByRole("combobox", { name: "Workspace", exact: true }).selectOption(scope.workspaceId);
+    await createResource(page, "CASE", "named-case");
+    await expect(page.getByLabel("New dataset alias")).toBeVisible();
+    await applyDocument(page, {
+        kind: "CASE",
+        document: {
+            schemaVersion: "1.0",
+            caseKey: "read",
+            title: "Read",
+            kind: "READ",
+            roleKey: "reader",
+            catalogVersionId: randomUUID(),
+            steps: [
+                {
+                    id: "open",
+                    action: "goto",
+                    path: "/",
+                    afterAssertions: [
+                        {
+                            id: "match",
+                            type: "url",
+                            source: "page",
+                            operator: "equals",
+                            expected: "/",
+                            severity: "BLOCK",
+                            expectedSource: "policy",
+                        },
+                    ],
+                },
+            ],
+        },
+    });
+    await page.getByLabel("New dataset alias").fill("names");
+    await page.getByLabel("Named dataset version").selectOption(version.id);
+    await page.getByRole("button", { name: "Add alias", exact: true }).click();
+    await page.getByLabel("Expected value mode").selectOption("dataset");
+    await page.getByLabel("Query alias").fill("names");
+    await page.getByLabel("Query field").fill("path");
+    const saved = (await saveDraft(page)).content;
+    if (saved.kind !== "CASE") throw new Error("Expected CASE");
+    expect(saved.document.datasetBindings).toEqual({ names: version.id });
+    const assertion = saved.document.steps[0]!.afterAssertions![0]!;
+    expect(assertion).toMatchObject({
+        expectedSource: "policy",
+        datasetExpected: { alias: "names", op: "field", field: "path" },
+    });
+    expect(assertion).not.toHaveProperty("expected");
+    await page.getByLabel("Expected value mode").selectOption("literal");
+    const literal = (await saveDraft(page)).content;
+    if (literal.kind !== "CASE") throw new Error("Expected CASE");
+    expect(literal.document.steps[0]!.afterAssertions![0]).not.toHaveProperty("datasetExpected");
+});
+
+test("edits and previews HTTP datasets", async ({ page }) => {
+    test.setTimeout(90_000);
+    const scope = await editorScope(page, "remote-form");
+    await closeResourceEditor(page);
+    await page.getByRole("button", { name: "New resource", exact: true }).click();
+    const form = resourceCreateForm(page);
+    await form.getByRole("combobox", { name: "Kind", exact: true }).selectOption("DATASET");
+    await form.getByLabel("Dataset format").selectOption("HTTP_TABLE");
+    await form.getByLabel("Key", { exact: true }).fill("remote");
+    await form.getByLabel("Name", { exact: true }).fill("Remote catalog");
+    await form.getByRole("button", { name: "Create resource" }).click();
+    const editor = page.getByRole("article");
+    await expect(editor.getByLabel("HTTP path")).toHaveValue("/items");
+    await editor.getByLabel("HTTP method").selectOption("POST");
+    await editor.getByLabel("Body format").selectOption("RAW");
+    await editor.getByLabel("Raw UTF-8 body").fill("雪 +");
+    expect((await saveDraft(page)).content.document).toMatchObject({ source: { body: { raw: "雪 +" } } });
+    await editor.getByLabel("Body format").selectOption("FORM");
+    await editor.getByRole("button", { name: "Add form parameter" }).click();
+    await editor.getByLabel("Form name").fill("q");
+    await editor.getByLabel("Form value").fill("雪 +");
+    expect((await saveDraft(page)).content.document).toMatchObject({
+        source: { body: { form: [{ name: "q", value: "雪 +" }] } },
+    });
+    await editor.getByLabel("HTTP method").selectOption("GET");
+    await editor.getByRole("button", { name: "Add query parameter" }).click();
+    await editor.getByRole("button", { name: "Add query parameter" }).click();
+    await editor.getByLabel("Query name").nth(0).fill("q");
+    await editor.getByLabel("Query name").nth(1).fill("q");
+    await editor.getByLabel("Query value").nth(0).fill("first");
+    const saved = await saveDraft(page);
+    expect(saved.content.kind).toBe("DATASET");
+    const response = page.waitForResponse((item) => item.url().endsWith("/http-preview"));
+    await editor.getByRole("button", { name: "Preview mapped rows" }).click();
+    expect((await response).status()).toBe(422);
+    await expect(editor.getByText("DATASET_CONNECTION_UNAVAILABLE", { exact: true })).toBeVisible();
+    const base = "/api/v1/workspaces/" + scope.workspaceId;
+    const credential = await page.request.post(base + "/credentials", {
+        headers: scope.headers,
+        data: {
+            secretRef: "browser_catalog",
+            allowedIdentityIds: ["dataset-reader"],
+            value: { value: "browser-only-material" },
+        },
+    });
+    expect(credential.status(), await credential.text()).toBe(201);
+    const credentialId = (await credential.json()).data.versionId;
+    await editor.getByLabel("Connection version", { exact: true }).fill("00000000-0000-4000-8000-000000000001");
+    await editor.getByLabel("Environment version", { exact: true }).fill("00000000-0000-4000-8000-000000000002");
+    await editor.getByLabel("Authentication mode").selectOption("BEARER");
+    await editor.getByLabel("Credential reference").fill("browser_catalog");
+    await editor.getByLabel("Credential version").fill(credentialId);
+    const result = page.waitForResponse((item) => item.url().endsWith("/http-preview"));
+    await editor.getByRole("button", { name: "Preview mapped rows" }).click();
+    const ok = await result;
+    expect(ok.status(), await ok.text()).toBe(200);
+    await expect(editor.getByText("Mapped rows · 1", { exact: false })).toBeVisible();
+    expect(await ok.text()).not.toContain("browser-only-material");
+    await editor
+        .getByRole("heading", { name: "Declared parameters", exact: true })
+        .locator("..")
+        .getByLabel("Name")
+        .fill("search");
+    await editor.getByRole("button", { name: "Add Declared parameters" }).click();
+    const bound = await saveDraft(page);
+    expect(JSON.stringify(bound)).not.toContain("browser-only-material");
+    expect(bound.content.document).toMatchObject({
+        source: {
+            query: [
+                { name: "q", value: "first" },
+                { name: "q", value: "" },
+            ],
+        },
+    });
+    const job = await queueValidation(page);
+    await promisify(execFile)(
+        "uv",
+        [
+            "run",
+            "--project",
+            "apps/srv",
+            "--no-sync",
+            "python",
+            "apps/srv/tests/resources/copy_browser_fixture.py",
+            job.id,
+        ],
+        { cwd: fileURLToPath(new URL("../../../", import.meta.url)) },
+    );
+    const receipt = (await (await page.request.get(base + "/jobs/" + job.id + "/validation-receipt")).json()).data;
+    const pub = await page.request.post(base + "/resources/" + bound.resourceId + "/publish", {
+        headers: scope.headers,
+        data: { revision: receipt.revision, validationReceiptId: receipt.id },
+    });
+    expect(pub.status(), await pub.text()).toBe(201);
+    const target = (
+        await (
+            await page.request.post("/api/v1/workspaces", {
+                headers: scope.headers,
+                data: { key: "remote-copy", name: "remote-copy" },
+            })
+        ).json()
+    ).data.id;
+    const copy = await page.request.post("/api/v1/workspaces/" + target + "/resources/dataset-copies", {
+        headers: scope.headers,
+        data: {
+            sourceWorkspaceId: scope.workspaceId,
+            sourceDatasetVersionId: (await pub.json()).data.id,
+            key: "copy",
+            name: "copy",
+        },
+    });
+    expect(copy.status(), await copy.text()).toBe(201);
+    await closeResourceEditor(page);
+    await page.reload();
+    await page.getByLabel("Workspace").selectOption(target);
+    await page.getByRole("button", { name: "copy", exact: true }).click();
+    await expect(editor.getByLabel("Connection version", { exact: true })).toHaveValue("");
+    await expect(editor.getByLabel("Credential version")).toHaveValue("");
+    await expect(editor.getByLabel("Query value").nth(0)).toHaveValue("first");
+    await closeResourceEditor(page);
+    await page.getByLabel("Workspace").selectOption(scope.workspaceId);
+    const local = await publishWriterDataset(page, scope);
+    await page.reload();
+    await page.getByLabel("Workspace").selectOption(scope.workspaceId);
+    await createResource(page, "CASE", "http-source-arguments");
+    const remoteId = (await pub.json()).data.id;
+    await applyDocument(page, {
+        kind: "CASE",
+        document: {
+            schemaVersion: "1.0",
+            caseKey: "sample",
+            title: "Sample",
+            kind: "READ",
+            roleKey: "reader",
+            catalogVersionId: randomUUID(),
+            datasetBindings: { remote: remoteId },
+            steps: [
+                {
+                    id: "open",
+                    action: "goto",
+                    path: "/",
+                    afterAssertions: [
+                        {
+                            id: "match",
+                            type: "url",
+                            source: "page",
+                            operator: "equals",
+                            severity: "WARN",
+                            expectedSource: "catalog",
+                            datasetExpected: { op: "field", alias: "remote", key: "one", field: "label" },
+                        },
+                    ],
+                },
+            ],
+        },
+    });
+    const args = page.getByLabel("HTTP source arguments Field name");
+    await args.fill("search");
+    await args.locator("../..").getByRole("button", { name: "Add field" }).click();
+    await page.getByRole("textbox", { name: "HTTP source arguments.search", exact: true }).fill("{{data.name}}");
+    await page.getByLabel("Query operation").selectOption("contains");
+    const stored = (await saveDraft(page)).content;
+    expect(stored.document).toMatchObject({
+        steps: [
+            {
+                afterAssertions: [
+                    {
+                        datasetExpected: {
+                            op: "contains",
+                            alias: "remote",
+                            parameters: { search: "{{data.name}}" },
+                        },
+                    },
+                ],
+            },
+        ],
+    });
+    await page
+        .getByRole("group", { name: "Named datasets" })
+        .getByRole("combobox", { name: "remote", exact: true })
+        .selectOption(local.id);
+    const rebound = (await saveDraft(page)).content;
+    if (rebound.kind !== "CASE") throw new Error("Expected CASE");
+    const reboundAssertion = rebound.document.steps[0]!.afterAssertions![0]!;
+    expect(reboundAssertion).toHaveProperty("datasetExpected.alias", "remote");
+    expect(reboundAssertion).not.toHaveProperty("datasetExpected.parameters");
 });

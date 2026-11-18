@@ -41,7 +41,15 @@ export async function doctor(
          * 发行上下文只接受调用方已经整体核验库存后提取的组件版本，避免打包后源码包不可解析造成误报；
          * 此字段本身不是签名或哈希证明，未提供时仍使用原有包解析路径及兼容版本检查。
          */
-        distribution?: Pick<EngineRelease["entry"], "compilerVersion" | "runnerSdkVersion">;
+        distribution?: Pick<
+            EngineRelease["entry"],
+            | "compilerHttpDatasets"
+            | "runnerSdkHttpDatasets"
+            | "compilerVersion"
+            | "runnerSdkVersion"
+            | "compilerConnectedDatasets"
+            | "runnerSdkConnectedDatasets"
+        >;
         /**
          * Mac 自检只有在完整独立库存授予原生能力且固定发行 Node 的真实观察器探针成功后才开放平台分支；普通 engine
          * 版本字段、手工对象和源码 token 都不能单独改变既有 OS 拒绝行为。
@@ -149,6 +157,16 @@ export async function doctor(
             ? {
                   capabilities: {
                       engineVersion,
+                      ...(options.distribution?.compilerHttpDatasets === "1.0" &&
+                      options.distribution.runnerSdkHttpDatasets === "1.0" &&
+                      options.distribution.compilerConnectedDatasets === "2.0" &&
+                      options.distribution.runnerSdkConnectedDatasets === "2.0"
+                          ? { httpDatasets: "1.0" as const }
+                          : {}),
+                      ...(options.distribution?.compilerConnectedDatasets === "2.0" &&
+                      options.distribution.runnerSdkConnectedDatasets === "2.0"
+                          ? { connectedDatasets: "2.0" as const }
+                          : {}),
                       os: platform() as "linux" | "win32",
                       arch: "x64" as const,
                       browsers: ["chromium" as const],

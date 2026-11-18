@@ -28,6 +28,7 @@ import {
     type Receipt,
     type Job,
 } from "./adapters";
+import { formJson } from "./dataset-import";
 import { ResourceForms, newDocument, resourceKinds } from "./ResourceForms";
 import { Monaco, MonacoDiff } from "./Monaco";
 import { useEditorTranslationOptions } from "./i18n";
@@ -50,7 +51,7 @@ const schemas: Record<ResourceKind, string> = {
     CASE: "CaseDslV1",
     ELEMENT_CATALOG: "ElementCatalogV1",
     ASSERTION_TEMPLATE: "AssertionTemplateV1",
-    DATASET: "DatasetV1",
+    DATASET: "DatasetDocument",
     FLOW: "FlowV1",
     FIXTURE: "FixtureV1",
     SUITE: "SuiteV1",
@@ -242,9 +243,11 @@ export function ResourceWorkspaceView({
     }, [creating]);
     const keyHint = useId();
     const [kind, setKind] = useState<ResourceKind | "">(initialKind ?? ""),
+        [datasetFormat, setDatasetFormat] = useState<"V1" | "TABLE" | "TREE" | "HTTP_TABLE" | "HTTP_TREE">("V1"),
         [createKind, setCreateKind] = useState<ResourceKind>(initialKind ?? "CASE"),
         [key, setKey] = useState(""),
         [name, setName] = useState(""),
+        [copying, setCopying] = useState(false),
         [selected, setSelected] = useState<Resource | null>(null),
         [error, setError] = useState<Error | null>(null),
         [busy, setBusy] = useState(false);
@@ -363,6 +366,25 @@ export function ResourceWorkspaceView({
             </select>
         </label>
     );
+    const datasetFormatField = createKind === "DATASET" && (
+        <label>
+            {tx("Dataset format")}
+            <select value={datasetFormat} onChange={(e) => setDatasetFormat(e.target.value as typeof datasetFormat)}>
+                <option value="V1">{tx("Legacy table (V1)")}</option>
+                <option value="TABLE">{tx("Static table (V2)")}</option>
+                <option value="TREE">{tx("Static tree (V2)")}</option>
+                <option value="HTTP_TABLE">{tx("HTTP table (V2)")}</option>
+                <option value="HTTP_TREE">{tx("HTTP tree (V2)")}</option>
+            </select>
+        </label>
+    );
+    const canCopyDataset =
+        !adapter.readOnly && editableRole(workspace, "DATASET") && (!initialKind || initialKind === "DATASET");
+    const copyButton = canCopyDataset && (
+        <Button tone="secondary" onClick={() => setCopying(true)}>
+            {t("copyDataset")}
+        </Button>
+    );
     const nameField = (
         <label>
             {tx("名称 / Name")}
@@ -407,7 +429,7 @@ export function ResourceWorkspaceView({
                             kind: createKind,
                             key,
                             name,
-                            content: newDocument(createKind, key, name),
+                            content: newDocument(createKind, key, name, datasetFormat),
                         },
                         signal,
                     )
@@ -434,6 +456,7 @@ export function ResourceWorkspaceView({
                         <div>
                             {nameField}
                             {kindField}
+                            {datasetFormatField}
                             <div className="vq-resource-key">
                                 {keyField}
                                 <small id={keyHint}>{tx("Resource key format")}</small>
@@ -450,6 +473,7 @@ export function ResourceWorkspaceView({
             ) : (
                 <>
                     {kindField}
+                    {datasetFormatField}
                     {keyField}
                     {nameField}
                     {submit}
@@ -506,6 +530,7 @@ export function ResourceWorkspaceView({
                             <div className="vq-library-toolbar">
                                 {workspaceControls}
                                 {filter}
+                                {copyButton}
                             </div>
                             <section className="vq-library-table">
                                 <div className="vq-card-heading">
@@ -525,8 +550,25 @@ export function ResourceWorkspaceView({
                         {filter}
                         {rows}
                     </Section>
+                    {copyButton}
                     {!adapter.readOnly && <Section title={t("create")}>{form}</Section>}
                 </>
+            )}
+            {canCopyDataset && (
+                <Sheet open={copying} onOpenChange={setCopying} title={t("copyDataset")}>
+                    {copying && (
+                        <DatasetCopyForm
+                            target={workspace.id}
+                            adapter={adapter}
+                            parent={signal}
+                            onCopied={(resource) => {
+                                setCopying(false);
+                                setSelected(resource);
+                                void refresh();
+                            }}
+                        />
+                    )}
+                </Sheet>
             )}
             <Sheet
                 open={!!selected}
@@ -552,6 +594,133 @@ export function ResourceWorkspaceView({
         </div>
     );
 }
+/**
+ * 工作区列表按当前会话分页读取，只列出能够下载的来源工作区；版本查询和复制写入仍绑定目标适配器。
+ * 搜索结果不含正文，提交时使用所选发布版本标识，由服务端重新检查两个工作区的授权。
+ */
+function DatasetCopyForm({
+    target,
+    adapter,
+    parent,
+    onCopied,
+}: {
+    target: string;
+    adapter: ResourceAdapter;
+    parent: AbortSignal;
+    onCopied: (resource: Resource) => void;
+}) {
+    const { t } = useTranslation(undefined, useEditorTranslationOptions);
+    const signal = useLifetime(parent);
+    const [source, setSource] = useState("");
+    const [version, setVersion] = useState("");
+    const [error, setError] = useState<Error | null>(null);
+    const [busy, setBusy] = useState(false);
+    const spaces = useInfiniteQuery({
+        queryKey: ["workspace", target, "dataset-copy-workspaces"],
+        queryFn: ({ pageParam, signal: qs }) => api.workspaces(pageParam, AbortSignal.any([qs, signal])),
+        initialPageParam: undefined as string | undefined,
+        getNextPageParam: (p) => p.nextCursor ?? undefined,
+        gcTime: 0,
+    });
+    const versions = useInfiniteQuery({
+        queryKey: ["workspace", target, "dataset-copy-versions", source],
+        queryFn: ({ pageParam, signal: qs }) =>
+            adapter.listDatasetCopySources(source, pageParam, AbortSignal.any([qs, signal])),
+        initialPageParam: undefined as string | undefined,
+        getNextPageParam: (p) => p.nextCursor ?? undefined,
+        enabled: !!source,
+        gcTime: 0,
+    });
+    const options = spaces.data?.pages.flatMap((p) => p.items).filter((w) => w.id !== target && w.role !== "VIEWER");
+    const items = versions.data?.pages.flatMap((p) => p.items);
+    return (
+        <form
+            className="vq-create"
+            onSubmit={async (event) => {
+                event.preventDefault();
+                const fields = new FormData(event.currentTarget);
+                setBusy(true);
+                setError(null);
+                try {
+                    const resource = await adapter.copyDataset(
+                        {
+                            sourceWorkspaceId: source,
+                            sourceDatasetVersionId: version,
+                            key: String(fields.get("key")),
+                            name: String(fields.get("name")),
+                        },
+                        signal,
+                    );
+                    if (!signal.aborted) onCopied(resource);
+                } catch (reason) {
+                    if (!signal.aborted) setError(reason instanceof Error ? reason : new Error(String(reason)));
+                } finally {
+                    if (!signal.aborted) setBusy(false);
+                }
+            }}
+        >
+            <label>
+                {t("copySource")}
+                <select
+                    required
+                    disabled={busy}
+                    value={source}
+                    onChange={(event) => {
+                        setSource(event.target.value);
+                        setVersion("");
+                        setError(null);
+                    }}
+                >
+                    <option value="">{tx("选择 / Select")}</option>
+                    {options?.map((w) => (
+                        <option key={w.id} value={w.id}>
+                            {w.name}
+                        </option>
+                    ))}
+                </select>
+            </label>
+            {spaces.hasNextPage && (
+                <Button onClick={() => void spaces.fetchNextPage()}>{tx("更多空间 / More Workspaces")}</Button>
+            )}
+            {spaces.error && <ErrorState error={spaces.error} retry={() => void spaces.refetch()} />}
+            <label>
+                {t("copyVersion")}
+                <select
+                    required
+                    disabled={busy || !source}
+                    value={version}
+                    onChange={(event) => setVersion(event.target.value)}
+                >
+                    <option value="">{tx("选择 / Select")}</option>
+                    {items?.map((v) => (
+                        <option key={v.versionId} value={v.versionId}>
+                            {v.name} · {v.key} · v{v.versionNo}
+                        </option>
+                    ))}
+                </select>
+            </label>
+            {(spaces.isFetching || versions.isFetching) && <p role="status">{t("loading")}</p>}
+            {versions.isSuccess && !items?.length && <p>{t("copyNoVersions")}</p>}
+            {versions.hasNextPage && (
+                <Button onClick={() => void versions.fetchNextPage()}>{tx("更多版本 / More versions")}</Button>
+            )}
+            {versions.error && <ErrorState error={versions.error} retry={() => void versions.refetch()} />}
+            <label>
+                {t("columnKey")}
+                <input name="key" required maxLength={160} pattern="[A-Za-z_][A-Za-z0-9_.\-]*" />
+            </label>
+            <label>
+                {t("columnName")}
+                <input name="name" required maxLength={160} />
+            </label>
+            <Button type="submit" disabled={busy || !version}>
+                {t("copySubmit")}
+            </Button>
+            {error && <ErrorState error={error} />}
+        </form>
+    );
+}
+
 function DraftLoader(props: {
     resource: Resource;
     adapter: ResourceAdapter;
@@ -597,12 +766,13 @@ export function ResourceEditorView({
     const signal = useLifetime(parent),
         { t } = useTranslation(undefined, useEditorTranslationOptions);
     const form = useForm<EditorValues>({
-        defaultValues: { content: clean(initial.content) },
+        defaultValues: { content: formJson(initial.content) },
         shouldUnregister: false,
     });
     const watched = useWatch({ control: form.control, name: "content" }),
         content = clean(watched) as ResourceDocumentV1,
         serialized = pretty(content);
+
     const [saved, setSaved] = useState(initial),
         [mode, setMode] = useState<"form" | "json">("form"),
         [formLifetime, setFormLifetime] = useState(0),
@@ -746,7 +916,7 @@ export function ResourceEditorView({
     };
     const restore = (remote: Draft) => {
         invalidateValidation();
-        form.reset({ content: clean(remote.content) });
+        form.reset({ content: formJson(remote.content) });
         setFormLifetime((previous) => previous + 1);
         setSaved(remote);
         setBuffer(pretty(remote.content));
@@ -811,7 +981,12 @@ export function ResourceEditorView({
             <FormProvider {...form}>
                 <fieldset className="vq-editor-fields" disabled={!writable || busy}>
                     {mode === "form" ? (
-                        <ResourceForms key={formLifetime} kind={resource.kind} versions={allVersions.data ?? []} />
+                        <ResourceForms
+                            key={formLifetime}
+                            kind={resource.kind}
+                            versions={allVersions.data ?? []}
+                            preview={(data) => adapter.httpPreview(resource.id, data, signal)}
+                        />
                     ) : (
                         <>
                             <Monaco value={buffer} onChange={setBuffer} readOnly={!writable} label="JSON source" />
@@ -828,7 +1003,7 @@ export function ResourceEditorView({
                                             if ((next as ResourceDocumentV1).kind !== resource.kind)
                                                 throw new Error("RESOURCE_KIND_IMMUTABLE");
                                             invalidateValidation();
-                                            form.reset({ content: next as ResourceDocumentV1 });
+                                            form.reset({ content: formJson(next as ResourceDocumentV1) });
                                             setFormLifetime((previous) => previous + 1);
                                             setJsonBaseline(buffer);
                                             setError(null);

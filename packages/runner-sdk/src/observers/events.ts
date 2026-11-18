@@ -33,8 +33,8 @@ export type EventEvidence =
            * 下载的本地路径只在可信原始捕获中提供，供受限制品接收器使用，普通报告投影会删去这个字段。
            */
           path?: string;
-          sizeBytes: number;
-          suggestedFilename: string;
+          sizeBytes?: number;
+          suggestedFilename?: string;
       };
 /**
  * 公开接口 EventHandle 暴露等待事件与 dispose：步骤结束必须卸除监听（EventHandle/DOWNLOAD_PROVIDER_REQUIRED）。
@@ -52,7 +52,8 @@ export function armEvent(
     spec: DialogObserverV1 | NewPageObserverV1 | DownloadObserverV1,
     ctx: StepContext,
 ): EventHandle {
-    if (spec.kind === "download" && !ctx.downloads) throw new Error("DOWNLOAD_PROVIDER_REQUIRED");
+    if (spec.kind === "download" && !ctx.datasetProtected && !ctx.downloads)
+        throw new Error("DOWNLOAD_PROVIDER_REQUIRED");
     if (spec.kind === "newPage" && ctx.pages.has(spec.pageKey)) throw new Error("DUPLICATE_PAGE_KEY");
     const controller = new AbortController(),
         deadline = Date.now() + budget(ctx, spec.timeoutMs ?? 15000);
@@ -131,6 +132,10 @@ export function armEvent(
     const download = (d: Download) => {
         activeDownloads.add(d);
         const task = receive(async () => {
+            if (ctx.datasetProtected) {
+                // 受保护上下文拒绝浏览器保存下载，只确认真实事件；不请求数据流、文件名或磁盘副本。
+                return { kind: "download", observerId: spec.id, sensitivity: "CREDENTIAL_RESTRICTED" };
+            }
             const directory = ctx.downloads!.directory,
                 path = join(directory, `${randomUUID()}.bin`);
             try {

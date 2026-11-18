@@ -60,7 +60,10 @@ export async function requireStoppedHistory(root: string): Promise<void> {
                 Array.isArray(record) ||
                 typeof record.state !== "string" ||
                 Object.keys(record).some(
-                    (key) => !["claim", "claimRequestId", "state", "work", "stop"].includes(key),
+                    (key) =>
+                        !["claim", "claimRequestId", "state", "work", "stop", "allocation", "dataCleanup"].includes(
+                            key,
+                        ),
                 ) ||
                 !validStop(record.stop, id, record.state) ||
                 validateSchema("ClaimDTO", record.claim).length ||

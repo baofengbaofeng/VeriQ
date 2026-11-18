@@ -360,3 +360,252 @@ it("allows same-origin reads to redirect but never replays a redirected write", 
     expect(write.errorCode).toBe("WRITE_REDIRECT_FORBIDDEN");
     expect(f.requests.filter((r) => r.path === "/save" && r.method === "POST")).toHaveLength(writes);
 });
+it("distinguishes empty membership, missing field, and null", async () => {
+    const { staticDatasetResolver } = await import("../src/index.js");
+    const resolver = staticDatasetResolver(
+        new Map([
+            [
+                "names",
+                {
+                    schemaVersion: "2.0",
+                    shape: "TREE",
+                    fields: { name: { type: "string", required: false, nullable: true } },
+                    source: {
+                        kind: "STATIC",
+                        rows: [
+                            { key: "root", parentKey: null, order: 0, values: { name: null } },
+                            { key: "b", parentKey: "root", order: 0, values: {} },
+                            { key: "B", parentKey: "root", order: 0, values: { name: "{{data.input}}" } },
+                        ],
+                    },
+                },
+            ],
+        ]),
+    );
+    const read = (query: import("@veriq/contracts").DatasetQuery) =>
+        resolver.read(query, { data: { input: "root" }, vars: {} }, new AbortController().signal);
+    await expect(read({ alias: "names", op: "field", key: "{{data.input}}", field: "name" })).resolves.toBeNull();
+    await expect(read({ alias: "names", op: "field", key: "b", field: "name" })).rejects.toThrow(
+        "DATASET_FIELD_MISSING",
+    );
+    await expect(read({ alias: "names", op: "field", key: "B", field: "name" })).resolves.toBe("{{data.input}}");
+    await expect(read({ alias: "names", op: "contains", key: "absent" })).resolves.toBe(false);
+    await expect(read({ alias: "names", op: "path", key: "B" })).resolves.toEqual(["root", "B"]);
+    await expect(read({ alias: "names", op: "children", parentKey: "root" })).resolves.toEqual(["B", "b"]);
+    await expect(read({ alias: "names", op: "filter", field: "name", equals: null, select: "name" })).resolves.toEqual([
+        null,
+    ]);
+    const r = await executeStep(
+        step({ id: "get", action: "apiRequest", method: "GET", path: "/save" }, [
+            a({
+                type: "responseField",
+                source: "response:action",
+                pointer: "/nil",
+                operator: "equals",
+                severity: "WARN",
+                datasetExpected: { alias: "names", op: "field", key: "b", field: "name" },
+            }),
+        ]),
+        createStepContext({ ...f.options, datasets: resolver }),
+    );
+    expect(r.status).toBe("ERROR");
+    expect(r.errorCode).toBe("DATASET_FIELD_MISSING");
+});
+
+it("samples once per assertion phase across query operators and refreshes retry attempts", async () => {
+    const sdk = await import("../src/index.js");
+    const { default: fixture } = await import("../../contracts/fixtures/http-dataset.json", { with: { type: "json" } });
+    const version = "00000000-0000-4000-8000-000000000007";
+    const calls: string[] = [];
+    const read = async (_version: string, args: Record<string, unknown>) => {
+        calls.push(String(args.search));
+        return {
+            sourceVersionId: version,
+            fetchedAt: "2026-01-02T03:04:05.000Z",
+            rows: [{ key: "entry", values: { label: "/save" } }],
+        };
+    };
+    const q = (search: string) =>
+        a({
+            type: "url",
+            source: "page",
+            operator: "contains",
+            severity: "WARN",
+            datasetExpected: { op: "field", alias: "names", key: "entry", field: "label", parameters: { search } },
+        });
+    const plan = step({ id: "go", action: "goto", path: "/save" }, [], [q("a"), q("a"), q("b")]);
+    plan.before = plan.after.slice(0, 2);
+    for (let attempt = 0; attempt < 2; attempt++) {
+        const resolver = sdk.connectedDatasetResolver(
+            new Map([
+                ["names", { ...fixture, source: { ...fixture.source, parameters: { search: "string" } } } as never],
+            ]),
+            { names: version },
+            fixture.source.environmentVersionId,
+            read,
+        );
+        const ctx = createStepContext({ ...f.options, datasets: resolver, datasetProtected: true });
+        const result = await executeStep(plan, ctx);
+        expect(result.assertions.map((r) => r.sample?.sourceVersionId)).toEqual(Array(5).fill(version));
+        expect(result.assertions.at(-1)?.status).toBe("PASSED");
+        expect(JSON.stringify(result.assertions)).not.toContain("/save");
+        ctx.dispose();
+    }
+    expect(calls).toEqual(["a", "a", "b", "a", "a", "b"]);
+});
+
+it("coalesces pending reads across aliases and query shapes and releases them on abort", async () => {
+    const { connectedDatasetResolver } = await import("../src/datasets.js");
+    const { default: fixture } = await import("../../contracts/fixtures/http-dataset.json", { with: { type: "json" } });
+    const version = "00000000-0000-4000-8000-000000000007";
+    const source = { ...fixture, source: { ...fixture.source, parameters: { a: "string", b: "boolean" } } };
+    const documents = new Map([
+        ["first", source as never],
+        ["second", source as never],
+    ]);
+    const readers: AbortSignal[] = [];
+    let resume!: () => void;
+    const release = new Promise<void>((resolve) => {
+        resume = resolve;
+    });
+    const resolver = connectedDatasetResolver(
+        documents,
+        { first: version, second: version },
+        source.source.environmentVersionId,
+        async (_version, _args, signal) => {
+            readers.push(signal);
+            await release;
+            return { sourceVersionId: version, fetchedAt: "2026-01-02T03:04:05.000Z", rows: [] };
+        },
+    );
+    const open = resolver.phase!(),
+        signal = new AbortController().signal;
+    const member = open.read(
+        { op: "contains", alias: "first", key: "missing", parameters: { a: "one", b: false } },
+        {},
+        signal,
+    );
+    const filtered = open.read(
+        {
+            op: "filter",
+            alias: "second",
+            field: "label",
+            equals: "none",
+            select: "label",
+            parameters: { b: false, a: "one" },
+        },
+        {},
+        signal,
+    );
+    expect(readers).toHaveLength(1);
+    resume();
+    await expect(member).resolves.toBe(false);
+    await expect(filtered).resolves.toEqual([]);
+    open.close();
+    expect(readers[0]!.aborted).toBe(true);
+    await expect(open.read({ op: "contains", alias: "first", key: "one" }, {}, signal)).rejects.toThrow();
+});
+
+it.each(["DATASET_REQUEST_TIMEOUT", "DATASET_UPSTREAM_REJECTED", "DATASET_PAGINATION_INCOMPLETE"])(
+    "preserves %s as an assertion ERROR under WARN severity",
+    async (code) => {
+        const ctx = createStepContext({
+            ...f.options,
+            datasetProtected: true,
+            datasets: {
+                async read() {
+                    throw new Error(code);
+                },
+            },
+        });
+        const plan = step(
+            { id: "go", action: "goto", path: "/save" },
+            [],
+            [
+                a({
+                    type: "url",
+                    source: "page",
+                    operator: "contains",
+                    severity: "WARN",
+                    datasetExpected: { alias: "r", op: "field", key: "row", field: "label" },
+                }),
+            ],
+        );
+        const result = await executeStep(plan, ctx);
+        expect(result).toMatchObject({
+            status: "ERROR",
+            errorCode: code,
+            assertions: [{ status: "ERROR", errorCode: code, expected: null, actual: { present: false } }],
+        });
+        ctx.dispose();
+    },
+);
+
+it.each(["WARN", "BLOCK"] as const)("reports a pre-sampling deadline as ERROR for %s", async (severity) => {
+    const { runAssertion } = await import("../src/assertions/http.js");
+    const ctx = createStepContext({ ...f.options, datasetProtected: true });
+    const assertion = a({
+        type: "url",
+        source: "page",
+        operator: "contains",
+        severity,
+        datasetExpected: { alias: "remote", op: "field", key: "one", field: "label" },
+    });
+    const item = step({ id: "home", action: "goto", path: "/" }, [], [assertion]).after[0]!;
+    try {
+        const result = await runAssertion(item, { ...ctx, deadline: Date.now() - 1 });
+        expect(result).toMatchObject({
+            status: "ERROR",
+            errorCode: "BUSINESS_TIMEOUT",
+            expected: null,
+            actual: { present: false },
+            severity,
+        });
+        expect(result).not.toHaveProperty("sample");
+        const cancelled = new AbortController();
+        cancelled.abort();
+        await expect(runAssertion(item, { ...ctx, signal: cancelled.signal })).rejects.toThrow("CANCELLED");
+    } finally {
+        ctx.dispose();
+    }
+});
+
+/**
+ * 直接调用静态查询时按解析后的实参类型匹配声明，数字与整数维持兼容，显式空值仍只匹配允许为空的字段。
+ */
+it("checks resolved static filter operands before reporting an empty match", async () => {
+    const { staticDatasetResolver } = await import("../src/index.js");
+    const resolver = staticDatasetResolver(
+        new Map<string, import("@veriq/contracts").DatasetDocument>([
+            ["old", { schemaVersion: "1.0", columns: { n: "number" }, rows: [{ key: "r", values: { n: 2 } }] }],
+            [
+                "new",
+                {
+                    schemaVersion: "2.0",
+                    shape: "TABLE",
+                    fields: { n: { type: "integer", nullable: true, required: false } },
+                    source: {
+                        kind: "STATIC",
+                        rows: [
+                            { key: "a", values: {} },
+                            { key: "b", values: { n: null } },
+                        ],
+                    },
+                },
+            ],
+        ]),
+    );
+    const filter = (alias: string, operand: string | number | null) =>
+        resolver.read(
+            { alias, op: "filter", equals: "{{vars.operand}}", field: "n", select: "n" },
+            { vars: { operand } },
+            new AbortController().signal,
+        );
+    await expect(filter("old", "2")).rejects.toThrow("BINDING_TYPE_MISMATCH");
+    await expect(filter("old", null)).rejects.toThrow("BINDING_TYPE_MISMATCH");
+    await expect(filter("old", 2)).resolves.toEqual([2]);
+    await expect(filter("old", 0.5)).resolves.toEqual([]);
+    await expect(filter("new", 0.5)).rejects.toThrow("BINDING_TYPE_MISMATCH");
+    await expect(filter("new", 2)).resolves.toEqual([]);
+    await expect(filter("new", null)).resolves.toEqual([null]);
+});

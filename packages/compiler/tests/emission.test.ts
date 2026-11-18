@@ -856,3 +856,88 @@ it("shared verification preserves the canonical validation-only library", () => 
     delete files["validation.ts"];
     expect(() => verifyFiles(relocated, files)).toThrow("MISSING_VALIDATION_FILE");
 });
+
+/**
+ * 冷装配验证新版树行在旧执行快照中的投影，既接受正确字段值也拒绝任意篡改，即使行键仍匹配原始资产。
+ */
+it("checks a frozen tree matrix row using the existing execution row identity", () => {
+    const s = snapshot(
+        undefined,
+        [
+            asset(3, "DATASET", {
+                schemaVersion: "2.0",
+                shape: "TREE",
+                fields: { code: { type: "string", required: true, nullable: false } },
+                source: {
+                    kind: "STATIC",
+                    rows: [{ key: "root", values: { code: "01" }, parentKey: null, order: 0 }],
+                },
+            }),
+        ],
+        { datasetVersionId: id(3) },
+    );
+    const result = compileFiles(s, distribution());
+    const e = { ...execution(), assetSourceHash: s.sourceHash, dataRow: { key: "root", values: { code: "01" } } };
+    expect(assembleExecution(result.bundle, e, result.files).snapshot.dataRow).toEqual(e.dataRow);
+    e.dataRow.values.code = "1";
+    expect(() => assembleExecution(result.bundle, e, result.files)).toThrow("DATA_ROW_MISMATCH");
+});
+it("requires execution alias versions to match the CASE closure", () => {
+    const s = snapshot(
+        undefined,
+        [
+            asset(3, "DATASET", {
+                schemaVersion: "2.0",
+                shape: "TABLE",
+                fields: {},
+                source: { kind: "STATIC", rows: [] },
+            }),
+        ],
+        { datasetBindings: { reference: id(3) } },
+    );
+    const output = compileFiles(s, distribution());
+    const frozen = { ...execution(), assetSourceHash: s.sourceHash, datasetBindings: { reference: id(3) } };
+    expect(assembleExecution(output.bundle, frozen, output.files).snapshot.datasetBindings).toEqual(
+        frozen.datasetBindings,
+    );
+    expect(() => assembleExecution(output.bundle, { ...frozen, datasetBindings: {} }, output.files)).toThrow(
+        "DATASET_BINDINGS_MISMATCH",
+    );
+});
+
+it("connected snapshot never writes dataset marker in case and validation artifacts", async () => {
+    const { mkdtemp, mkdir, readFile, rm, writeFile } = await import("node:fs/promises");
+    const { tmpdir } = await import("node:os");
+    const { dirname, join } = await import("node:path");
+    const marker = "SYNTHETIC-PRIVATE-正文";
+    const data = asset(3, "DATASET", {
+        schemaVersion: "1.0",
+        columns: { sample: "string" },
+        rows: Array.from({ length: 120 }, (_, i) => ({ key: "row" + i, values: { sample: marker.repeat(30) } })),
+    });
+    const base = snapshot(undefined, [data], { datasetVersionId: id(3) });
+    const only = rehash({
+        ...base,
+        entryCaseVersionIds: [],
+        assets: [data],
+        validationTarget: { resourceId: data.resourceId, versionId: data.versionId, revision: 1 },
+    });
+    expect(canonicalBytes(data.document).length).toBeGreaterThan(65536);
+    for (const input of [base, only]) {
+        const output = compileFiles(input, distribution(), { connected: true });
+        const root = await mkdtemp(join(tmpdir(), "vq-connected-"));
+        try {
+            for (const [path, content] of Object.entries(output.files)) {
+                const file = join(root, path);
+                await mkdir(dirname(file), { recursive: true });
+                await writeFile(file, content);
+                expect((await readFile(file)).includes(Buffer.from(marker)), path).toBe(false);
+            }
+            const retained = JSON.parse(Buffer.from(output.files["source/asset-snapshot.json"]!).toString());
+            expect(retained.schemaVersion).toBe("2.0");
+            expect(retained.sourceHash).toBe(input.sourceHash);
+        } finally {
+            await rm(root, { recursive: true, force: true });
+        }
+    }
+});

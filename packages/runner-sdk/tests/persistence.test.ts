@@ -18,7 +18,7 @@ it("runs response assertions before checked extraction and dependent assertions 
                 action: "apiRequest",
                 method: "POST",
                 path: "/save",
-                body: { code: "{{data.name}}" },
+                body: { code: "{{data.name}}", expectedId: "saved-1" },
                 extract: [
                     {
                         source: "response:action",
@@ -46,9 +46,9 @@ it("runs response assertions before checked extraction and dependent assertions 
             ],
             [
                 a({
-                    type: "responseField",
-                    source: "response:action",
-                    pointer: "/id",
+                    type: "requestField",
+                    source: "request:action",
+                    pointer: "/body/expectedId",
                     operator: "equals",
                     expected: "{{vars.id}}",
                 }),
@@ -58,7 +58,9 @@ it("runs response assertions before checked extraction and dependent assertions 
     );
     expect(result.status).toBe("PASSED");
     expect(ctx.vars.id).toBe("saved-1");
-    expect(JSON.parse(f.requests.at(-1)!.body)).toEqual({ code: "attempt-1" });
+    const saves = f.requests.filter((r) => r.method === "POST" && r.path === "/save");
+    expect(saves).toHaveLength(1);
+    expect(JSON.parse(saves[0]!.body)).toEqual({ code: "attempt-1", expectedId: "saved-1" });
 });
 it("HTTP 200 with missing persistence is FAILED and eventual queries remain GET only", async () => {
     expect(sdk).toHaveProperty("executeStep");

@@ -1,4 +1,10 @@
+import json
 from typing import Any
+
+from ..auth.authorization import WorkspaceScope
+from ..contracts import canonical_bytes, validate_schema
+from ..repositories.resource import ResourceRepository
+from ..services.connected_datasets import protected_test
 
 from ..credentials.resolve import CredentialProofTransport
 from ..service import lock_installation, Problem
@@ -50,7 +56,7 @@ class ExecutionAPI(DeviceAPI):
 
         async with self.db.sessions.begin() as session:
             await lock_installation(session)
-            attempt, _, _, _ = await LeaseService(session, self.config).proof(
+            attempt, job, _, _ = await LeaseService(session, self.config).proof(
                 attempt_id, self.header_proof()
             )
             upload = await session.get(AttemptUpload, upload_id)
@@ -61,6 +67,32 @@ class ExecutionAPI(DeviceAPI):
                 or upload.workspace_id != attempt.workspace_id
             ):
                 raise Problem(404, "UPLOAD_NOT_FOUND", "Upload not assigned to Attempt")
+            if await protected_test(
+                ResourceRepository(session, WorkspaceScope(attempt.workspace_id)),
+                job,
+                attempt.snapshot_hash,
+            ):
+                # 原始二进制不可先写暂存再解析；受保护完成清单必须在一个有界块内完成结构、类型和任务身份核验。
+                try:
+                    manifest = (
+                        json.loads(self.request.body) if len(self.request.body) <= 65536 else None
+                    )
+                except (UnicodeDecodeError, ValueError, RecursionError):
+                    manifest = None
+                if (
+                    int(offset) != 0
+                    or len(self.request.body) != upload.size_bytes
+                    or upload.metadata_json["kind"] != "MANIFEST"
+                    or upload.metadata_json["filename"] != "completion.json"
+                    or validate_schema("CompletionManifestV1", manifest)
+                    or self.request.body != canonical_bytes(manifest)
+                    or manifest["kind"] != "TEST"
+                    or manifest["attemptId"] != attempt.id
+                    or manifest["jobManifestSha256"] != attempt.manifest_hash
+                    or manifest["evidence"]
+                    or manifest["requiredEvidence"]
+                ):
+                    raise Problem(409, "DATASET_EVIDENCE_FORBIDDEN", "Protected manifest required")
             prefix, complete, workspace = upload.content, upload.complete, attempt.workspace_id
             digest, size = upload.sha256, upload.size_bytes
             artifact = await session.get(Artifact, (workspace, digest))

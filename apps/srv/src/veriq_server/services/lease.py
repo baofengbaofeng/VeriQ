@@ -10,7 +10,10 @@ from datetime import timedelta
 from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..credentials.resolve import CredentialProofTransport, VerifiedAttempt
-from ..db import Attempt, Job, Runtime, RuntimeBinding, Run
+from ..db import Attempt, Job, Runtime, RuntimeBinding, Run, CaseExecution, ServiceToken
+from ..contracts import asset_source_hash
+from ..datasets.bindings import authorize_dataset
+from .connected_datasets import frozen_object, checksum
 from ..auth.authorization import WorkspaceScope
 from ..repositories.resource import ResourceRepository
 from ..service import Problem, digest, stamp
@@ -74,6 +77,71 @@ class LeaseService:
         if active and attempt.activated_at is None:
             raise Problem(409, "ACTIVATION_REQUIRED", "Activate before any execution side effect")
         return attempt, job, runtime, binding
+
+    async def http_dataset(
+        self, attempt_id: str, proof: CredentialProofTransport, vid: str, *, resolve=False
+    ):
+        """本方法只在短事务内检查当前证明与冻结配置，交给调用者的密钥解析器只针对这一版本且只服务本次读取。"""
+        denied = Problem(403, "DATASET_NOT_ASSIGNED", "Dataset is not assigned to this Attempt")
+        attempt, job, _, _ = await self.proof(attempt_id, proof)
+        if (
+            job.state != "RUNNING"
+            or job.kind != "TEST"
+            or job.workspace_id != attempt.workspace_id
+            or job.required_capabilities.get("httpDatasets") != "1.0"
+        ):
+            raise denied
+        repo = ResourceRepository(self.session, WorkspaceScope(job.workspace_id))
+        # 数据矩阵已经在准入时冻结；实时读取只查询具名来源，不能利用行版本替代查询所需的明确别名关联。
+        subject = await frozen_object(repo, attempt.snapshot_hash)
+        case = await self.session.get(CaseExecution, job.case_execution_id)
+        if (
+            not case
+            or case.workspace_id != job.workspace_id
+            or case.run_id != job.run_id
+            or subject.get("schemaVersion") != "2.0"
+            or case.id != subject.get("caseExecutionId")
+            or case.case_version_id != subject.get("caseVersionId")
+            or subject.get("runId") != job.run_id
+            or subject.get("workspaceId") != job.workspace_id
+            or vid not in subject.get("datasetBindings", {}).values()
+        ):
+            raise denied
+        # 测试主体必须与原始 CASE 声明同一组命名来源，套件其它成员或已知版本号不能充当当前任务的授权依据。
+        source = await frozen_object(repo, case.source_snapshot_hash)
+        versions = {asset["versionId"]: asset for asset in source["assets"]}
+        owner = versions.get(case.case_version_id, {})
+        asset = versions.get(vid, {})
+        if (
+            asset_source_hash(source) != subject.get("assetSourceHash")
+            or source.get("workspaceId") != job.workspace_id
+            or owner.get("kind") != "CASE"
+            or case.case_version_id not in source.get("entryCaseVersionIds", [])
+            or owner["document"].get("datasetBindings") != subject["datasetBindings"]
+            or asset.get("kind") != "DATASET"
+            or asset["document"].get("source", {}).get("kind") != "HTTP"
+            or checksum({"kind": "DATASET", "document": asset["document"]}) != asset["sha256"]
+            or subject.get("environmentVersionId")
+            != job.required_capabilities.get("environmentVersionId")
+        ):
+            raise denied
+        # 服务令牌先由租约证明校验计划、本次运行和设备派发权，再以账号自身检查出站连接的显式名单。
+        actor = job.created_by
+        if job.requester_service_token_id:
+            token = await self.session.get(ServiceToken, job.requester_service_token_id)
+            if not token:
+                raise denied
+            actor = token.service_account_id
+        return await authorize_dataset(
+            self.session,
+            self.settings,
+            job.workspace_id,
+            actor,
+            subject["environmentVersionId"],
+            asset["document"],
+            resolve=resolve,
+            service_account=bool(job.requester_service_token_id),
+        )
 
     async def activate(self, attempt_id: str, proof: CredentialProofTransport) -> dict[str, Any]:
         """写入 activated_at 与溯源，阶段 PREPARING；重复激活拒绝，LeaseService.activate 路径必须遵守 Workspace 作用域。

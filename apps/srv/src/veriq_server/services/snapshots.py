@@ -25,3 +25,20 @@ def validate_initial_variables(declarations: dict[str, str], values: dict[str, A
         raise Problem(
             422, "INITIAL_VARIABLE_INVALID", "Initial variables do not match CASE declarations"
         )
+
+
+def dataset_matrix_rows(document: dict[str, Any]) -> list[dict[str, Any]]:
+    """从已验证资产读取冻结矩阵行，兼容旧版行的正文层级；空参考集可以独立发布，但不能产生空的执行选择。
+    保留冻结数组顺序并延迟行投影，使矩阵基数检查无需先复制所有行。
+    """
+    if document.get("source", {}).get("kind") == "HTTP":
+        raise Problem(422, "DATASET_HTTP_MATRIX", "HTTP datasets cannot drive a run matrix")
+    rows = document["rows"] if document["schemaVersion"] == "1.0" else document["source"]["rows"]
+    if not rows:
+        raise Problem(422, "DATASET_EMPTY_MATRIX", "A matrix dataset requires at least one row")
+    return rows
+
+
+def execution_data_row(row: dict[str, Any]) -> dict[str, Any]:
+    """执行快照在两个数据集版本中统一保存 key 和 values，树的父节点与排序只用于完整资产文档，不能混入行身份。"""
+    return {"key": row["key"], "values": row["values"]}

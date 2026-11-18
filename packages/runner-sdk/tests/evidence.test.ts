@@ -180,6 +180,33 @@ test(
                         captured.push(evidence);
                     },
                 });
+                const page = await f.page.context().browser()!.newPage({ acceptDownloads: false });
+                const protectedContext = createStepContext({
+                    ...f.options,
+                    page,
+                    catalog: ctx.catalog,
+                    environment: ctx.environment,
+                    datasetProtected: true,
+                });
+                try {
+                    await page.goto(origin);
+                    const protectedDownload = await executeStep(
+                        step({
+                            id: "download",
+                            action: "click",
+                            target: "download",
+                            observers: [{ id: "file", kind: "download" }],
+                        }),
+                        protectedContext,
+                    );
+                    expect(protectedDownload.status).toBe("PASSED");
+                    expect(protectedDownload.events).toEqual([
+                        { kind: "download", observerId: "file", sensitivity: "CREDENTIAL_RESTRICTED" },
+                    ]);
+                } finally {
+                    protectedContext.dispose();
+                    await page.context().close();
+                }
                 expect(report.outcome).toBe("PASSED");
                 expect(captured).toHaveLength(1);
                 expect(captured[0]).toMatchObject({
@@ -198,3 +225,14 @@ test(
         }
     },
 );
+
+test("protected execution only emits reserved error codes", async () => {
+    const { EvidencePolicy } = await import("../src/evidence.js");
+    const event = { status: "FAILED", errorCode: "PRIVATE_BUSINESS_ECHO" };
+    expect(new EvidencePolicy(true).redactProtocol(event)).toEqual({ ...event, errorCode: "EXECUTION_ERROR" });
+    expect(new EvidencePolicy(true).redactProtocol({ ...event, errorCode: "ASSERTION_FAILED" })).toEqual({
+        ...event,
+        errorCode: "ASSERTION_FAILED",
+    });
+    expect(new EvidencePolicy().redactProtocol(event)).toEqual(event);
+});

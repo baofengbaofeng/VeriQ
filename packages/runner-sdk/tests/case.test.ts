@@ -1,6 +1,6 @@
 import { beforeAll, afterAll, it, expect } from "vitest";
 import * as sdk from "../src/index.js";
-import { snapshot, id } from "../../compiler/tests/helpers.js";
+import { snapshot, id, asset } from "../../compiler/tests/helpers.js";
 import { analyze } from "../../compiler/src/index.js";
 import { fixture } from "./helpers.js";
 import type { ExecutionSnapshotV1 } from "@veriq/contracts";
@@ -119,3 +119,132 @@ it("WRITE cannot pass solely on HTTP 200 or missing checkpoint results", async (
     expect(r.outcome).toBe("FAILED");
     expect(r.errorCode).toBe("PERSISTENCE_CHECKPOINT_FAILED");
 });
+it.each([
+    ["row", "PASSED"],
+    ["absent", "ERROR"],
+])("looks up %s through the calling CASE alias", async (key, outcome) => {
+    const bindings = { reference: id(5) };
+    const source = snapshot(
+        [
+            {
+                id: "open",
+                action: "goto",
+                path: "/",
+                afterAssertions: [
+                    {
+                        id: "call",
+                        type: "template",
+                        versionId: id(4),
+                        parameters: { key },
+                        severity: "WARN",
+                        expectedSource: "policy",
+                    },
+                ],
+            },
+        ],
+        [
+            asset(4, "ASSERTION_TEMPLATE", {
+                schemaVersion: "1.0",
+                parameters: { key: "string" },
+                assertions: [
+                    {
+                        id: "url",
+                        type: "url",
+                        source: "page",
+                        operator: "contains",
+                        severity: "BLOCK",
+                        expectedSource: "policy",
+                        datasetExpected: { alias: "reference", op: "field", key: "{{data.key}}", field: "path" },
+                    },
+                ],
+            }),
+            asset(5, "DATASET", {
+                schemaVersion: "1.0",
+                columns: { path: "string" },
+                rows: [{ key: "row", values: { path: "/" } }],
+            }),
+        ],
+        { datasetBindings: bindings },
+    );
+    const analysis = analyze(source);
+    expect(analysis.issues).toEqual([]);
+    const r = await sdk.executeCase(analysis.cases[0]!, source, {
+        page: f.page,
+        execution: { ...execution(source), datasetBindings: bindings },
+        lifecycle: { authenticate: async () => ({ identityId: "test-identity" }) },
+    });
+    expect(r.outcome).toBe(outcome);
+    expect(r.steps[0]?.assertions[0]).toMatchObject({ status: outcome, expected: null, actual: { present: false } });
+});
+it.each([false, true])(
+    "preserves a flow query ERROR when its next child is cancelled (wrapper=%s)",
+    async (wrapper) => {
+        const bindings = { reference: id(5) };
+        const call = { id: "flow", action: "callFlow" as const, versionId: id(3) };
+        const source = snapshot(
+            [wrapper ? { ...call, versionId: id(4) } : call],
+            [
+                ...(wrapper ? [asset(4, "FLOW", { schemaVersion: "1.0", steps: [call] })] : []),
+                asset(3, "FLOW", {
+                    schemaVersion: "1.0",
+                    steps: [
+                        {
+                            id: "lookup",
+                            action: "goto",
+                            path: "/",
+                            failurePolicy: "CONTINUE",
+                            beforeAssertions: [
+                                {
+                                    id: "missing",
+                                    type: "url",
+                                    source: "page",
+                                    operator: "contains",
+                                    severity: "WARN",
+                                    expectedSource: "policy",
+                                    datasetExpected: { alias: "reference", op: "field", key: "absent", field: "path" },
+                                },
+                            ],
+                        },
+                        { id: "cancel", action: "goto", path: "/" },
+                    ],
+                }),
+                asset(5, "DATASET", {
+                    schemaVersion: "1.0",
+                    columns: { path: "string" },
+                    rows: [{ key: "row", values: { path: "/" } }],
+                }),
+            ],
+            { datasetBindings: bindings },
+        );
+        const analysis = analyze(source);
+        expect(analysis.issues).toEqual([]);
+        const plan = analysis.cases[0]!;
+        const flow = wrapper ? plan.steps[0]!.children![0]! : plan.steps[0]!;
+        const cancelId = flow.children![1]!.step.id;
+        const controller = new AbortController();
+        const ctx = await f.page.context().browser()!.newContext();
+        try {
+            const result = await sdk.executeCase(plan, source, {
+                page: await ctx.newPage(),
+                execution: { ...execution(source), datasetBindings: bindings },
+                signal: controller.signal,
+                lifecycle: { authenticate: async () => ({ identityId: "test-identity" }) },
+                redact: (v) => v,
+                onEvent: async (event) => {
+                    if (event.type === "STEP_STARTED" && event.stepId === cancelId) controller.abort();
+                },
+            });
+            const outer = result.steps[0]!;
+            const children = wrapper ? outer.children[0]!.children : outer.children;
+            expect(children.map((s) => s.status)).toEqual(["ERROR", "CANCELLED"]);
+            expect(outer).toMatchObject({ status: "ERROR", cancelled: true });
+            expect(result).toMatchObject({
+                businessOutcome: "ERROR",
+                outcome: "ERROR",
+                errorCode: "DATASET_ROW_MISSING",
+            });
+        } finally {
+            await ctx.close();
+        }
+    },
+);

@@ -46,7 +46,7 @@ export function protectBrowserConnection(browserType: BrowserType): () => void {
  * 再进入测试级 artifacts；原 browser 的 use、cl
  * ose、页面认证、追踪与重试流程均由 Playwright 保留，本模块不创建替代 Browser 或结果。
  */
-export const controlledBrowserTest = baseTest.extend<{}, { veriqControlledBrowserReady: void }>({
+const connectedBrowserTest = baseTest.extend<{}, { veriqControlledBrowserReady: void }>({
     playwright: [
         async ({ playwright, browserName }, use) => {
             const restore = protectBrowserConnection(playwright[browserName]);
@@ -66,3 +66,30 @@ export const controlledBrowserTest = baseTest.extend<{}, { veriqControlledBrowse
         { scope: "worker", auto: true },
     ],
 });
+
+/**
+ * 固定 Playwright 1.65 的自动采集夹具在失败时会直接写入错误上下文，即使所有报告器与 Trace 已关闭；
+ * 受保护任务在登记用例前替换这个采集夹具，显式使用冻结的公开 Context 选项，仍由 Playwright 运行测试并记录真实失败。
+ */
+export const controlledBrowserTest =
+    process.env.VERIQ_DATASET_PROTECTED === "1"
+        ? connectedBrowserTest.extend<{ _setupArtifacts: void }>({
+              // biome-ignore lint/correctness/noEmptyPattern: Playwright 按对象解构读取夹具依赖。
+              _setupArtifacts: async ({}, use) => {
+                  await use();
+              },
+              context: async ({ browser, locale, timezoneId }, use) => {
+                  const context = await browser.newContext({
+                      acceptDownloads: false,
+                      serviceWorkers: "block",
+                      ...(locale ? { locale } : {}),
+                      ...(timezoneId ? { timezoneId } : {}),
+                  });
+                  try {
+                      await use(context);
+                  } finally {
+                      await context.close();
+                  }
+              },
+          })
+        : connectedBrowserTest;
