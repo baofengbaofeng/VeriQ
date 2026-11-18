@@ -37,9 +37,9 @@
 使用独占的专用 `veriq_test` 与原受保护夹具，在仓库根分别执行以下两个模块；数据库初始化沿用已有安全守护，不另建清理路径。真实环境配置应由操作者提供，禁止写入文档或提交。
 
 ```sh
-flock -w 20 /tmp/veriq-t12-db.lock uv run --project apps/srv pytest \
+flock -w 20 /tmp/veriq-t12-db.lock uv run --project apps/srv python -m pytest \
     -c apps/srv/pyproject.toml apps/srv/tests/bundles/test_bundle_import_metadata_expiry.py -q
-flock -w 20 /tmp/veriq-t12-db.lock uv run --project apps/srv pytest \
+flock -w 20 /tmp/veriq-t12-db.lock uv run --project apps/srv python -m pytest \
     -c apps/srv/pyproject.toml apps/srv/tests/ai/test_ai_metadata_expiry.py -q
 ```
 

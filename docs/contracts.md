@@ -12,7 +12,7 @@
 ```sh
 uv sync --project apps/srv --frozen --all-groups
 pnpm install --frozen-lockfile
-uv run --project apps/srv pytest -c apps/srv/pyproject.toml apps/srv/tests/contracts -q
+uv run --project apps/srv python -m pytest -c apps/srv/pyproject.toml apps/srv/tests/contracts -q
 pnpm test
 pnpm check
 uv run --project apps/srv ruff check --config apps/srv/pyproject.toml apps/srv/src apps/srv/tests

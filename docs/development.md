@@ -89,10 +89,12 @@ Vite 服务地址为 `http://127.0.0.1:5173`，将 `/api` 代理至 `127.0.0.1:8
 
 可用页面为 `/setup`、`/login`、`/reset`、`/reset/confirm`、`/account` 和 `/admin/users`。密码长度要求为 12～1024 字符。未配置 SMTP 时，公开重置请求对所有邮箱返回相同的通用响应，并说明由管理员提供链接。可选真实 SMTP 投递通过受保护配置文件，或 `VERIQ_SMTP_HOST`、`VERIQ_SMTP_PORT`、`VERIQ_SMTP_FROM`、`VERIQ_SMTP_USERNAME`、`VERIQ_SMTP_PASSWORD`、`VERIQ_SMTP_SECURITY`（默认 `starttls`，也可为 `tls`）及 `VERIQ_SMTP_TIMEOUT` 配置。用户名和密码必须同时提供；生产拒绝明文 SMTP。TLS 校验证书。公开重置请求在账户查询前即应答；已配置的投递作为受跟踪后台任务执行。投递失败时记录安全事件、审计失败并撤销该次签发的令牌；公开响应始终通用，绝不声称邮件已送达。正常关闭服务会排空待处理投递。这是进程内投递接缝，没有跨进程崩溃保留的持久队列。`delivery.Delivery.send(recipient, subject, body)` 也可用于 T03 邀请。获授权管理员签发可复制、30 分钟有效且一次性的重置链接，仅在获授权响应中传递。URL 将令牌放在 fragment 中，浏览器进入时移除，不会出现在发给服务端的 URL 中。密码修改/重置、停用、退出及撤销都会使会话失效。没有其他启用管理员时，不得停用或降权最后一位启用中的系统管理员。
 
+测试命令统一在仓库根目录使用 `uv run --project apps/srv python -m pytest`；模块入口为共享测试支持提供完整包命名空间，正式发行构建也采用这一方式。裸 `pytest` 控制台入口不作为这些仓库共享测试的支持入口。
+
 测试要求运维人员提供专用 MySQL 环境，在 `.superpowers/sdd/veriq-1/test-env.json` 中设置 `mysql_dsn`。测试明确拒绝 `veriq_test` 以外的数据库及未知表，只重置显式白名单内的 VeriQ 表与 `veriq_alembic_version`。绝不将该文件指向已有平台数据。Python 和浏览器套件共用此 Schema 及固定任务端口，须顺序执行：
 
 ```sh
-uv run --project apps/srv pytest -c apps/srv/pyproject.toml apps/srv/tests --cov=veriq_server --cov-config=apps/srv/pyproject.toml --cov-report=term-missing -q
+uv run --project apps/srv python -m pytest -c apps/srv/pyproject.toml apps/srv/tests --cov=veriq_server --cov-config=apps/srv/pyproject.toml --cov-report=term-missing -q
 pnpm test
 pnpm check
 pnpm --filter @veriq/runner-sdk test:coverage

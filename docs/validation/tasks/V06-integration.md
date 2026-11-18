@@ -58,7 +58,7 @@ PY
 
 ```sh
 pnpm --filter @veriq/runner-sdk test
-uv run --project apps/srv pytest -c apps/srv/pyproject.toml apps/srv/tests/execution/test_cleanup_mysql.py -q
+uv run --project apps/srv python -m pytest -c apps/srv/pyproject.toml apps/srv/tests/execution/test_cleanup_mysql.py -q
 mvn -f fixtures/integration/spring-boot-2.3.1/pom.xml package
 ```
 
