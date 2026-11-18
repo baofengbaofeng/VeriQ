@@ -141,7 +141,7 @@ async def test_managed_real_compilation_finishes_once_and_can_publish(site, tmp_
     Path(config["approved_engine_inventory_path"]).write_bytes(
         canonical_bytes(records["inventory"])
     )
-    # Registration does not confer compiler trust.
+    # 写入获准引擎清单后，仅完成注册的设备领取返回 204，把设备共享到工作区并设为 MANAGED 后才领到作业。
     assert (
         await c.post("/internal/v1/jobs/claim", json=claim_body(d), headers=auth(d))
     ).status_code == 204
@@ -184,8 +184,8 @@ async def test_managed_real_compilation_finishes_once_and_can_publish(site, tmp_
         "engineInventorySha256": records["inventoryHash"],
     }
     if kind == "ELEMENT_CATALOG":
-        # Actual non-CASE compiler emits two different metadata paths with identical canonical empty cases. Both
-        # upload/event identities must survive CAS sharing.
+        # 元素目录编译得到两份路径不同而内容哈希相同的元数据，按各自路径找到上传记录并分别提交证据事件。
+        # 重放事件时改路径应产生冲突，完结清单改证据路径也应被拒绝。
         from sqlalchemy import select
         from veriq_server.db import AttemptUpload
 
@@ -284,7 +284,7 @@ async def test_managed_real_compilation_finishes_once_and_can_publish(site, tmp_
         headers=auth(d),
     )
     assert stale.status_code == 409 and stale.json()["code"] == "STALE_FENCE"
-    # Even a MANAGED caller cannot attach unrelated source bytes to a valid descriptor.
+    # 由 MANAGED 设备提交指向无关源码快照的编译描述符，完结接口应返回 INVALID_COMPILED_SOURCE。
     wrong_source = canonical_bytes({"unrelated": True})
     wrong_source_hash = await upload(c, d, claim, wrong_source, "wrong-source.json")
     wrong_bundle = json.loads((output / "bundle.json").read_bytes())
@@ -430,7 +430,7 @@ async def exercise_test_protocol(
         )
         assert resolved.status_code == 200, resolved.text
         assert resolved.json()["data"]["value"] == {"token": "synthetic-business-secret"}
-        # Protocol fixture bytes are explicitly not a claim of a browser/Trace run.
+        # 用固定字节作为 TRACE 协议夹具，从上传记录取标识构造证据事件，以检查省略该事件时的完结结果。
         evidence = b"T09 opaque evidence protocol fixture"
         evidence_hash = await upload(c, d, claim, evidence, "trace.zip", "TRACE")
         async with db.sessions() as session:
@@ -489,7 +489,7 @@ async def exercise_test_protocol(
             "kind": "TEST",
             "caseVersionId": case_version,
             "expectedPlansSha256": expected["sha256"],
-            # Explicit protocol fixture; physical observations are covered by test_agent_mysql.
+            # 协议夹具直接填入 READ_ONLY_OBSERVED，浏览器实际发出的业务请求由 test_agent_mysql 中的用例核对。
             "retrySafety": "READ_ONLY_OBSERVED",
             "businessOutcome": status,
             "cleanupStatus": "NOT_REQUIRED",

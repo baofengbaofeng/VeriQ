@@ -89,7 +89,7 @@ async def test_published_selection_exports_secret_free_archive(
     assert (
         missing_key.status_code == 400 and missing_key.json()["code"] == "IDEMPOTENCY_KEY_REQUIRED"
     )
-    # Genuine service token, no Web session: public bundle APIs do not accept it.
+    # 在没有 Web 登录会话的独立客户端使用正式签发的 Runtime 注册令牌，导出列表和创建请求均应返回 401。
     import httpx
 
     accounts = f"/api/v1/workspaces/{ws}/service-accounts"
@@ -164,7 +164,7 @@ async def test_published_selection_exports_secret_free_archive(
     ).status_code == 200
     assert (await c.get(native, headers=headers)).status_code == 401
 
-    # Real concurrent authorization mutation while compression is outside DB locks.
+    # 等归档组装完成后暂缓返回，先撤销发起导出的编辑者成员资格，再放行组装并检查导出请求返回 403。
     import asyncio
     import threading
     from test_workspace import new_member, client
@@ -335,7 +335,7 @@ async def test_no_runtime_debug_dsl_only_requires_explicit_status_and_editor(sit
             json.loads(z.read("snapshot.json"))["validationTarget"]
             == json.loads(z.read("draft/source.json"))["validationTarget"]
         )
-    # Actual Node verifier consumes Python's exact signature, no self-trusting archive key.
+    # 先在 Runtime CLI 绑定从签发方单独取得的公钥及指纹，再验证 Python 生成的归档须开启调试选项。
     archive_path = tmp_path / "debug.zip"
     archive_path.write_bytes(archive.content)
     public = Issuer(tmp_path / "issuer" / "keys.json").public()
@@ -473,9 +473,9 @@ async def test_bundle_selection_and_download_require_current_workspace_authority
         denied = await executor.post(f"/api/v1/workspaces/{ws}/bundles", json=req)
         assert denied.status_code == 403
         download = f"/api/v1/workspaces/{ws}/bundles/{result.json()['data']['id']}/download"
-        # A DSL-only archive exposes draft content and requires EDIT on every read too.
+        # 调试归档包含草稿 DSL，测试用 EXECUTOR 会话创建归档收到 403 后，再下载已存在的调试归档也应收到 403。
         assert (await executor.get(download)).status_code == 403
-    # Duplicate/both/empty selections are canonical HTTP errors, never partial exports.
+    # 分别提交空用例列表、重复用例 ID 以及同时指定用例和套件的请求，三种无效选择均应返回 400。
     for data in [
         {"caseVersionIds": []},
         {"caseVersionIds": [catalog, catalog]},

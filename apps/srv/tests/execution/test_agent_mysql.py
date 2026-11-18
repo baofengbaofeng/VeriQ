@@ -60,7 +60,7 @@ async def business():
 
         async def post(self, path):
             if path == "write":
-                # Business accepted the write, but the caller cannot learn its result.
+                # 夹具把本次 POST 计入业务写入次数后立即关闭请求流，使调用方在连接断开前收不到业务响应。
                 facts["writes"] += 1
                 self.request.connection.stream.close()
                 return
@@ -435,7 +435,7 @@ async def test_agent_actual_compiler_completion_and_sanitized_no_bundle_failure(
         assert facts["cleanup"] == facts["prepare"]
         assert facts["cookies"] == ["", ""]
 
-        # A second real Run reaches Attempt2, then its owned worker crashes after prepare.
+        # 用同一发布版本再提交一次 Run，等待夹具准备事件并确认进入第二次 Attempt 后，终止 Worker 进程组。
         admitted = await c.post(
             f"/api/v1/workspaces/{ws}/runs",
             headers={"Idempotency-Key": str(uuid4())},
@@ -516,7 +516,7 @@ async def test_agent_actual_compiler_completion_and_sanitized_no_bundle_failure(
             assert subject["secretVersions"] == [
                 {"secretRef": "fixture", "versionId": secrets["fixture"]}
             ]
-        # An impossible browser executable proves this real CLEANUP does not launch one.
+        # 使用不存在的浏览器路径运行 CLEANUP，核对补偿作业仍然通过，且清理幂等键与第二次准备请求一致。
         await agent_once(
             profile, release, browser="/nonexistent/veriq-cleanup-must-not-launch-browser"
         )
@@ -525,7 +525,7 @@ async def test_agent_actual_compiler_completion_and_sanitized_no_bundle_failure(
             assert cleaned.outcome == "PASSED"
         assert facts["cleanup"][-1] == facts["prepare"][-1]
         assert facts["prepare"][-1].endswith(":2")
-        # User cancellation is observed by the real heartbeat while a request is unfinished.
+        # 让夹具延迟状态响应，等准备事件后从控制面取消 Run，再核对终局为 CANCELLED 且清理键匹配准备请求。
         facts["hold_status"] = True
         facts["prepared"].clear()
         cancelled = await c.post(
@@ -554,9 +554,9 @@ async def test_agent_actual_compiler_completion_and_sanitized_no_bundle_failure(
             assert run.state == "FINISHED" and run.outcome == "CANCELLED"
         assert facts["cleanup"][-1] == facts["prepare"][-1]
 
-        # Both cases use actual compilation/publication and the same approved release. No fixture exists to close a
-        # namespace: retry must depend on trusted source plus the complete physical business observation, never the
-        # exit code alone.
+        # 分别编译并发布无数据夹具的 POST 与 GET 用例，再用同一引擎发布目录运行，比较业务观察与重试结果。
+        # 写入后断连的请求记为 WRITE_POSSIBLE，只读分支记为 READ_ONLY_OBSERVED。
+        # 只读重试使用不同快照，两次请求页面时均未携带 Cookie。
         for method in ["POST", "GET"]:
             retry_doc = {k: v for k, v in doc.items() if k != "fixtureVersionId"}
             retry_doc["caseKey"] = "no-fixture-" + method.lower()
@@ -622,7 +622,7 @@ async def test_agent_actual_compiler_completion_and_sanitized_no_bundle_failure(
             )
             assert admitted.status_code == 202, admitted.text
             await agent_once(profile, release)
-            # GET takes a new Attempt; POST finds no queued business work to replay.
+            # 再次轮询后检查 Attempt 数量，GET 用例应有两次尝试，POST 用例应只有一次尝试且只记录一次业务写入。
             await agent_once(profile, release)
             async with db.sessions() as session:
                 run = await session.get(Run, admitted.json()["data"]["id"])

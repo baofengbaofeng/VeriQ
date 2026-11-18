@@ -48,7 +48,7 @@ async def test_published_source_exact_bytes_integrity_scope_and_current_membersh
     assert (
         await c.get(f"/api/v1/workspaces/{ws}/jobs/{job_id}/validation-receipt")
     ).status_code == 409
-    # Real locked release packaging is test-only; controller never imports Node tooling.
+    # 测试用 Node 打包脚本准备 Runtime 发布目录，再将其中的引擎库存写入获准清单，供 Agent 领取验证作业。
     process = await asyncio.create_subprocess_exec(
         "node",
         "apps/web/tests/prepare-editor-agent.mjs",
@@ -141,7 +141,7 @@ async def test_published_source_exact_bytes_integrity_scope_and_current_membersh
                 f"/resources/{rid}/", f"/resources/{second.json()['data']['id']}/"
             )
             assert (await raw.get(mismatched, params={"path": file["path"]})).status_code == 404
-            # Corrupt actual retained bytes, then length. The original descriptor and receipt stay untouched.
+            # 保持编译描述符和回执原样，先改保存的源码字节，再恢复字节并改记录长度，两次下载请求均应返回 409。
             async with db.sessions.begin() as session:
                 artifact = await session.get(Artifact, (ws, file["sha256"]))
                 artifact.content = actual + b"tampered"
@@ -162,7 +162,7 @@ async def test_published_source_exact_bytes_integrity_scope_and_current_membersh
             assert (await viewer.get(foreign, params={"path": file["path"]})).status_code == 403
             assert (await c.delete(f"/api/v1/workspaces/{ws}/members/{uid}")).status_code == 200
             assert (await viewer.get(source, params={"path": file["path"]})).status_code == 403
-        # Failed actual compilation projects a stable safe code and cannot create a receipt.
+        # 让 Agent 编译引用缺失元素的用例，检查公开错误码为 UNKNOWN_ELEMENT 且回执查询返回 409。
         bad = await c.post(
             f"/api/v1/workspaces/{ws}/resources",
             json={
@@ -200,7 +200,7 @@ async def test_published_source_exact_bytes_integrity_scope_and_current_membersh
             and (await c.get(failed_job + "/validation-receipt")).status_code == 409
         )
     finally:
-        # agent_once waits for the foreground Agent and native guardian before returning.
+        # 收尾时删除临时 Agent 配置目录，已有的获准引擎清单恢复为旧字节，原先无清单时则删除此次写入的文件。
         shutil.rmtree(profile)
         if previous is None:
             approved.unlink(missing_ok=True)

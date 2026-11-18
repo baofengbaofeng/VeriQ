@@ -69,7 +69,7 @@ async def test_workspace_isolation_roles_archival_and_owner(site):
     route = f"/api/v1/workspaces/{ws}/members/{own}"
     assert (await c.delete(route)).status_code == 409
     assert (await c.put(route, json={"role": "VIEWER", "status": "ACTIVE"})).status_code == 409
-    # Ownership transfer is explicit; admins cannot grant themselves ownership.
+    # 现任所有者先把成员设为 ADMIN，再验证该成员自行晋升为 OWNER 和移除现任所有者均返回 403。
     member_route = f"/api/v1/workspaces/{ws}/members/{uid}"
     assert (
         await c.put(member_route, json={"role": "ADMIN", "status": "ACTIVE"})
@@ -134,7 +134,7 @@ async def test_existing_account_invitation_never_resets_identity(site):
             await s.execute(select(User).where(User.email == "admin@example.com"))
         ).scalar_one()
         assert admin.display_name == "Administrator" and admin.system_admin
-    # Platform administrator is not implicitly a member of another Workspace.
+    # 创建一名拥有平台管理权限但未加入该 Workspace 的用户，用其独立会话读取工作区详情应返回 403。
     await c.post(
         "/api/v1/admin/users",
         json={
@@ -192,7 +192,7 @@ async def test_concurrent_owner_removal_demotion_and_global_disable(site):
     assert (
         await c.put(f"{route}/{uid}", json={"role": "OWNER", "status": "ACTIVE"})
     ).status_code == 200
-    # Keep a nonmember system admin available to exercise cross-service disable.
+    # 另建一名未加入该 Workspace 的平台管理员，由其会话发起与移除成员及所有者降级并发的全局停用请求。
     r = await c.post(
         "/api/v1/admin/users",
         json={
@@ -209,8 +209,8 @@ async def test_concurrent_owner_removal_demotion_and_global_disable(site):
             c.put(f"{route}/{owner}", json={"role": "VIEWER", "status": "ACTIVE"}),
             operator.patch(f"/api/v1/admin/users/{owner}", json={"disabled": True}),
         )
-        # Demotion and disable of the same user may both succeed; two owners must never both lose their enabled ACTIVE
-        # ownership.
+        # 降级和停用针对同一人，三项并发请求结束后，数据库须恰好保留一名账号已启用且成员状态为 ACTIVE 的所有者。
+        # 只允许一项或两项请求成功，至少一项返回 403 或 409。
         assert 1 <= sum(r.status_code == 200 for r in results) <= 2
         assert any(r.status_code in {403, 409} for r in results)
         assert all(r.status_code in {200, 403, 409} for r in results)
@@ -502,7 +502,7 @@ async def test_invitation_concurrent_single_use_and_password_hashes(site):
         assert (
             inv.consumed and user.password_hash.startswith("$argon2id$") and not user.system_admin
         )
-    # The inviter retains their own global session and cannot replace the member identity.
+    # 同一个邀请由邀请者的会话并发接受两次，随后读取当前账号，确认当前会话仍使用发出邀请的管理员身份。
     assert (await c.get("/api/v1/account")).json()["data"]["email"] == "admin@example.com"
 
 
