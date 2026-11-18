@@ -110,3 +110,16 @@ Ruff lint、块排版与归属空白检查均0。首次比较器阶段前缀失�
 coverageComplete=false、ratio=null、passed=false、exit1/4.620秒，支持子集约6.61218%。严格>40%继续硬门禁，
 没有通过增添空洞说明、减少代码或缩小范围改善比例。剩余普通正文、可信语言、完整静态/覆盖率/许可等继续。
 Windows Vite路径Minor仍未闭合；三ACL历史失败当前结果待重新采集，不与该质量断言问题混为同一根因。
+
+## 迁移摘要真实消费者保真已完成
+
+用户已确认保留英文运行 `__doc__`，中文开发说明独立；source3026258已独立SPEC/QUALITY通过（0C/I）。
+真实RED3通过/1正文失败，最终4通过0.39秒；Script、history、cmd_format及两方向离线真实INFO保持原英文。
+在原DDL入口前哨兵中止，不运行真实数据库/迁移/版本更新。精确AST/其他字面量/949保护保持，
+迁移C2/K409→C2/K410，正文2→0；旧82Pylint不增、新测试全静态0。
+Minor是pytest -v自己的RED diff省略，同BASE/SHA正式审计完整列两条；原始流未截断，45命令/90流/六清理均保留，不重跑旧RED。
+
+最新根审计绑定3026258：702/28/111、C10630/K150139、coverageComplete=false、ratio=null、passed=false，
+exit1/4.576秒，支持子集6.61197%不代表全仓。后续69TS普通、37Python普通及两个测试moduleDoc、三type-ignore。
+三指令已获真实mypy正反及CPython位置证据，辅助严格type-comments解析失败不得使普通Python语言计量回归。
+源码复制/保留注释emit/tar及缓存hash可能随TS说明变化，必须形成新候选，不改旧签名或冻结材料。

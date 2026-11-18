@@ -39,12 +39,12 @@
 
 **接口：** 对外仍是同值module.`__doc__`和原Alembic迁移对象；不新增产品API或审计字段。
 
-- [ ] 编写test_migration_description_preserves_alembic_consumers，以实际迁移和明确原英文常量验证Script.doc/longdoc、显示与日志。
-- [ ] 编写test_migration_description_passes_prose_audit，复制实际源码到公开repository夹具，断言真实审计violations为空。
-- [ ] 修改前运行新模块，记录语言约束的真实RED；原英文输出控制本来通过，不能虚构全红或生产DDL故障。
-- [ ] 实施唯一元数据表示和两处中文说明，保留原值及导入顺序，不运行upgrade/downgrade。
-- [ ] 最终新模块一次通过；原430/50/16及业务/DB/PW不重复，实际Alembic消费证据不冒称数据库迁移通过。
-- [ ] 比对指定迁移的精确AST/词元/其他字面量；触及Python的Black/Ruff/Pylint/mypy/正文/块/显示列检查不得新增诊断，记录旧债。
+- [x] 编写test_migration_description_preserves_alembic_consumers，以实际迁移和明确原英文常量验证Script.doc/longdoc、显示与日志。
+- [x] 编写test_migration_description_passes_prose_audit，复制实际源码到公开repository夹具，断言真实审计violations为空。
+- [x] 修改前运行新模块，记录语言约束的真实RED；原英文输出控制本来通过，不能虚构全红或生产DDL故障。
+- [x] 实施唯一元数据表示和两处中文说明，保留原值及导入顺序，不运行upgrade/downgrade。
+- [x] 最终新模块一次通过；原430/50/16及业务/DB/PW不重复，实际Alembic消费证据不冒称数据库迁移通过。
+- [x] 比对指定迁移的精确AST/词元/其他字面量；触及Python的Black/Ruff/Pylint/mypy/正文/块/显示列检查不得新增诊断，记录旧债。
 - [ ] root冻结完整补丁及保护清单，派独立SPEC/QUALITY审查；通过后源码提交、一次全仓审计、单独文档提交和推送dev。
 
 ## 自审与授权来源
@@ -55,3 +55,8 @@
 
 自审补充：Pylint使用正常模块文档；采用中文模块文档加英文元数据赋值，避免#头导致新增C0114。
 仅两个精确AST变化，仍须验证Alembic加载完成后的真实输出；不改日志过滤器或配置。
+
+## 实际结果
+
+source3026258已提交并独立通过，4项验收通过、原英文运行呈现不变。
+全仓702/28/111、ratio=null仍失败；最后一步中源码与一次审计已完成，文档提交/远端同步状态按Git历史核对。
