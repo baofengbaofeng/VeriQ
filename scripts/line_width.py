@@ -10,16 +10,15 @@ import subprocess
 import sys
 import unicodedata
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+# 发行入口和验收都允许按文件路径加载模块，因此先注册脚本目录再导入同级库存，避免依赖调用方当前目录。
+import source_inventory  # pylint: disable=wrong-import-position
 
 MAX_COLUMNS = 120
-SOURCE_EXTENSIONS = {
-    ".py", ".pyi", ".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs",
-    ".c", ".h", ".cc", ".hh", ".cxx", ".hxx", ".cpp", ".hpp", ".m", ".mm",
-    ".java", ".sh", ".bash", ".zsh", ".ps1", ".sql", ".css", ".scss", ".less",
-    ".html", ".swift", ".go", ".rs", ".nsh", ".nsi", ".tpl", ".cmake",
-}
-SOURCE_NAMES = {"Makefile", "CMakeLists.txt", "Dockerfile"}
-SOURCE_PATHS = {"deploy/desktop/macos/scripts/preinstall"}
+
+SOURCE_EXTENSIONS = source_inventory.SOURCE_EXTENSIONS
+SOURCE_NAMES = source_inventory.SOURCE_NAMES
+SOURCE_PATHS = source_inventory.SOURCE_PATHS
 
 
 def display_width(text: str) -> int:
@@ -39,22 +38,7 @@ def display_width(text: str) -> int:
 
 def source_paths(root: Path) -> list[Path]:
     """从真实 Git 索引和未忽略的新文件选择可编程源码，保留生成文件及所有已跟踪源码而不扫描依赖缓存目录。"""
-    output = subprocess.check_output(
-        ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
-        cwd=root,
-    )
-    names = {Path(name) for name in output.decode("utf-8").split("\0") if name}
-    return sorted(
-        path
-        for path in names
-        if (
-            path.suffix in SOURCE_EXTENSIONS
-            or path.name in SOURCE_NAMES
-            or path.name.startswith("Dockerfile.")
-            or path.as_posix() in SOURCE_PATHS
-        )
-        and (root / path).is_file()
-    )
+    return [entry["path"] for entry in source_inventory.inventory(root)]
 
 
 def check_sources(root: Path) -> list[tuple[str, int, int]]:

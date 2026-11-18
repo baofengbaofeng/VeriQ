@@ -1,8 +1,64 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
+import type { PlatformComponents } from "@veriq/contracts";
 import { spawn } from "node:child_process";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+
+/**
+ * 从真实分页响应读取下一游标并通过页面按钮加载已知空间，重复页或游标以及耗尽列表时均在启动命令行前明确失败。
+ */
+async function selectRuntimeWorkspace(page: Page, workspaceId: string) {
+    const firstPage = page.waitForResponse((response) => {
+        const url = new URL(response.url());
+        return (
+            response.request().method() === "GET" &&
+            url.pathname === "/api/v1/workspaces" &&
+            !url.searchParams.has("cursor")
+        );
+    });
+    await page.goto("/runtimes");
+    await expect(page.getByRole("heading", { name: "Runtimes", exact: true })).toBeVisible();
+    const picker = page.getByRole("combobox", { name: "Workspace", exact: true });
+    const target = picker.locator(`option[value="${workspaceId}"]`);
+    const seenIds = new Set<string>();
+    const seenCursors = new Set<string>();
+    let response = await firstPage;
+    for (let pageNumber = 0; pageNumber < 100; pageNumber++) {
+        expect(response.status()).toBe(200);
+        const body: PlatformComponents["schemas"]["WorkspaceDTOPageEnvelope"] = await response.json();
+        const { items, nextCursor } = body.data;
+        const last = items.at(-1);
+        if (!last) throw new Error("Workspace pages must contain new options");
+        for (const item of items) {
+            expect(seenIds.has(item.id), "Workspace pages must not repeat IDs").toBe(false);
+            seenIds.add(item.id);
+        }
+        await expect(picker.locator(`option[value="${last.id}"]`)).toBeAttached();
+        if ((await target.count()) === 1) {
+            await picker.selectOption(workspaceId);
+            await expect(picker).toHaveValue(workspaceId);
+            return;
+        }
+        if (!nextCursor) throw new Error("Known Runtime Workspace was absent from the complete list");
+        if (seenCursors.has(nextCursor)) throw new Error("Workspace pagination repeated a cursor");
+        seenCursors.add(nextCursor);
+        if (pageNumber === 99) break;
+        const more = page.getByRole("button", { name: "Load more Workspaces", exact: true });
+        await expect(more).toBeEnabled();
+        const nextPage = page.waitForResponse((candidate) => {
+            const url = new URL(candidate.url());
+            return (
+                candidate.request().method() === "GET" &&
+                url.pathname === "/api/v1/workspaces" &&
+                url.searchParams.get("cursor") === nextCursor
+            );
+        });
+        await more.click();
+        response = await nextPage;
+    }
+    throw new Error("Known Runtime Workspace was not loaded within 100 pages");
+}
 
 test("real CLI enrollment, owner consent, trust and revocation in Runtime UI", async ({ page }) => {
     test.setTimeout(60_000);
@@ -39,9 +95,7 @@ test("real CLI enrollment, owner consent, trust and revocation in Runtime UI", a
             })
         ).json()
     ).data.id;
-    await page.goto("/runtimes");
-    await expect(page.getByRole("heading", { name: "Runtimes", exact: true })).toBeVisible();
-    await page.getByLabel("Workspace").selectOption(ws);
+    await selectRuntimeWorkspace(page, ws);
     await expect(page.getByText("No registered Runtimes in this Workspace.")).toBeVisible();
     const directory = await mkdtemp(join(tmpdir(), "veriq-browser-device-"));
     const child = spawn(
@@ -126,9 +180,7 @@ test("deployment account UI registers a real service Runtime through CLI stdin a
             })
         ).json()
     ).data.id;
-    await page.goto("/runtimes");
-    await expect(page.getByRole("heading", { name: "Runtimes", exact: true })).toBeVisible();
-    await page.getByLabel("Workspace").selectOption(ws);
+    await selectRuntimeWorkspace(page, ws);
     await page.getByLabel("Name", { exact: true }).fill("Browser deployment");
     await page.getByRole("button", { name: "Create service account", exact: true }).click();
     const account = page.getByRole("article").filter({

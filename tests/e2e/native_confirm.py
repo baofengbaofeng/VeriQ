@@ -27,23 +27,25 @@ x.XFlush.argtypes = [c.c_void_p]
 x.XFree.argtypes = [c.c_void_p]
 x.XCloseDisplay.argtypes = [c.c_void_p]
 t.XTestFakeKeyEvent.argtypes = [c.c_void_p, c.c_uint, c.c_int, c.c_ulong]
+# 空显示句柄不能用于读焦点或关闭连接，零键码不能用于发送按键，显式判断使两道检查在优化模式下继续生效。
 display = x.XOpenDisplay(None)
-assert display, "Private test display unavailable"
+if not display:
+    raise RuntimeError("Private test display unavailable")
 try:
     target = int(sys.argv[1])
-    focus, revert = c.c_ulong(), c.c_int()
+    focus, revert = c.c_ulong(0), c.c_int(0)
     x.XGetInputFocus(display, c.byref(focus), c.byref(revert))
     window = focus.value
     matched = False
     for _ in range(20):
-        transient = c.c_ulong()
+        transient = c.c_ulong(0)
         if (
             x.XGetTransientForHint(display, window, c.byref(transient))
             and transient.value == target
         ):
             matched = True
             break
-        root, parent, count = c.c_ulong(), c.c_ulong(), c.c_uint()
+        root, parent, count = c.c_ulong(0), c.c_ulong(0), c.c_uint(0)
         children = c.POINTER(c.c_ulong)()
         if not x.XQueryTree(
             display,
@@ -59,12 +61,14 @@ try:
         if parent.value in (0, window):
             break
         window = parent.value
-    assert matched, "Owned native modal is not focused"
+    if not matched:
+        raise RuntimeError("Owned native modal is not focused")
     for key in (
         (b"Escape",) if len(sys.argv) > 2 and sys.argv[2] == "cancel" else (b"Right", b"Return")
     ):
         code = x.XKeysymToKeycode(display, x.XStringToKeysym(key))
-        assert code
+        if not code:
+            raise RuntimeError("Native modal keycode unavailable")
         t.XTestFakeKeyEvent(display, code, 1, 0)
         t.XTestFakeKeyEvent(display, code, 0, 0)
     x.XFlush(display)

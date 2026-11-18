@@ -14,7 +14,7 @@
         "contracts:generate": "pnpm --filter @veriq/contracts generate",
         "lint": "pnpm lint:width && pnpm lint:comments && biome lint apps packages scripts tests",
         "lint:width": "python3 scripts/line_width.py",
-        "lint:comments": "python3 scripts/comment_blocks.py",
+        "lint:comments": "uv run --project apps/srv --frozen --no-sync python scripts/comment_blocks.py",
         "format:check": "prettier --check apps packages scripts tests biome.json",
         "release": "./build.sh",
         "desktop:test": "pnpm --filter @veriq/desktop test:e2e"

@@ -12,7 +12,7 @@
 ```sh
 uv sync --project apps/srv --frozen --all-groups
 pnpm install --frozen-lockfile
-uv run --project apps/srv pytest -c apps/srv/pyproject.toml apps/srv/tests/contracts -q
+uv run --project apps/srv python -m pytest -c apps/srv/pyproject.toml apps/srv/tests/contracts -q
 pnpm test
 pnpm check
 uv run --project apps/srv ruff check --config apps/srv/pyproject.toml apps/srv/src apps/srv/tests
@@ -190,6 +190,7 @@ MISSING 的 `actual` 为 `{present:false}`；存在的值使用 `{present:true,v
 OpenAPI 覆盖认证/会话/重置/邀请，Workspace/成员，资源草稿/验证/发布/版本/依赖者，Runtime 登记/授权/信任/撤销，执行计划/触发、作业/Run/取消/重跑/事件/报告/产物，Bundle/导入，AI Provider/生成/评审，秘密引用，服务账户，外部维护，以及内部领取/心跳/事件/上传/完成/对账/凭据解析。
 
 成功 JSON 响应为 `{data, requestId}`；错误为 `{code, message, details, requestId}`，details 是 JSON 数据。稳定机器错误码与翻译后的用户消息分离。分页数据为 `{items, nextCursor}`，cursor 为不透明值或 null。草稿更新必须带 revision，冲突返回 409。触发、导入和维护操作必须带 Idempotency-Key，同键不同参数发生冲突。外部前缀为 `/api/v1`，设备前缀为 `/internal/v1`。
+成功与错误响应的 `X-Request-Id` 头均与 JSON 信封中的 `requestId` 相同。
 
 POST 资源 `/validate` 返回 JobDTO。轮询完成后，GET `/api/v1/workspaces/{workspaceId}/jobs/{jobId}/validation-receipt`（`getValidationReceipt`）向获授权的 Workspace 浏览器/服务调用方提供 `ValidationReceiptDTOEnvelope`。成功 VALIDATE 作业返回服务端创建的回执；待处理、失败、取消或非 VALIDATE 作业返回 409 `VALIDATION_RECEIPT_UNAVAILABLE`，不存在或不可访问的作业返回 404。回执绑定 id、workspaceId、jobId、resourceId、revision、sourceHash、engineVersion、compiledBundleSha256、validatedAt。以 `PublishRequest.validationReceiptId` 提交回执 id，并携带匹配 revision。发布必须重新授权调用方/资源，将所有绑定与当前草稿/引擎比较；已知但陈旧或外域的回执 ID 不能授权发布。
 
@@ -417,7 +418,13 @@ POST 使用 `Authorization: Bearer <DeviceToken>` 与 JSON 证明字段；PUT/GE
 
 签发既有 ValidationReceipt 前，必须验证实际上传的描述符与文件、不可变源码旁车字节、选定 CASE 入口、预期计划，以及当前有效 MANAGED 编译器证明。以前发布的可信回执继续作为不可变来源记录。T18/T20 将同一批实际发行字节晋升到操作员目录；T09 不合成生产目录。控制服务运行时无需 Node/Chrome。测试使用真实发射归档和仅供测试的生产器；TEST 生命周期/证据夹具只证明服务端协议，不能证明 T10 的真实浏览器、Agent 执行或 Trace 有效性。
 
-Workspace Owner/Admin 可通过既有服务令牌 API 签发 `purpose:MAINTENANCE`，显式允许 `expired-leases/reap`、`fixture-cleanups/reconcile`、`capacity/reconcile` 中的操作。令牌只保存散列，可在 24 小时内重复使用，按当前账号/Workspace 限定并可撤销。RUNTIME_ENROLLMENT 仍是单独的 10 分钟一次性秘密，不能授权这些操作。`POST /internal/v1/maintenance/{operation}` 要求对应 Bearer 令牌、显式 workspaceId、limit（1～10,000）、可选 cursor 和 Idempotency-Key。相同请求重放已保存结果，参数变化则冲突。
+Workspace Owner/Admin 可通过既有服务令牌 API 签发 `purpose:MAINTENANCE`，显式允许
+`expired-leases/reap`、`fixture-cleanups/reconcile`、`capacity/reconcile`、`artifacts/expire`、
+`lifecycle/expire` 中的操作；签发与令牌元数据列表均支持同时返回五项操作。
+令牌只保存散列，可在 24 小时内重复使用，按当前账号/Workspace 限定并可撤销。
+RUNTIME_ENROLLMENT 仍是单独的 10 分钟一次性秘密，不能授权这些操作。
+`POST /internal/v1/maintenance/{operation}` 要求对应 Bearer 令牌、显式 workspaceId、
+limit（1～10,000）、可选 cursor 和 Idempotency-Key。相同请求重放已保存结果，参数变化则冲突。
 
 租约回收分别以 limit 限制到期 Run 的 Job、到期 Attempt 和旧空回执的处理数量。未启动工作超过 30 分钟以 RUN_TIMEOUT 取消；到期的活跃执行授权被终止，未知活跃进程则保守隔离。fixture 与容量扫描返回 hasMore/nextCursor；调用方为每页或每次迭代使用新幂等键。容量核对按持有租约验证计数器，不盲目释放。
 

@@ -15,7 +15,6 @@ import sys
 
 import pytest
 
-
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -423,7 +422,9 @@ def _python_quality_checkout(tmp_path: Path, failed_tool: str) -> tuple[Path, Pa
         original = ROOT / "apps/srv" / name
         if original.exists():
             shutil.copy2(original, checkout / "apps/srv" / name)
-    documentation = "此模块提供发行门禁所需的最小有效源码，检查器发现错误后必须停止构建并保留原有输出产物。"
+    documentation = (
+        "此模块提供发行门禁所需的最小有效源码，检查器发现错误后必须停止构建并保留原有输出产物。"
+    )
     value = "missing_value" if failed_tool == "pylint" else '{"items":[1,2,3]}'
     (checkout / "scripts/quality_fixture.py").write_text(
         f'"""{documentation}"""\n\nVALUE = {value}\n', encoding="utf-8"
@@ -481,3 +482,84 @@ def test_python_quality_failure_stops_release_before_artifacts(
     assert not (checkout / "output").exists()
     assert not (checkout / "work/server-wheel").exists()
     assert not list(runs[0].rglob("release.json"))
+
+
+@pytest.mark.parametrize("invalid_format", [False, True], ids=["valid", "invalid"])
+@pytest.mark.parametrize("skip_tests", [False, True], ids=["normal", "skip-tests"])
+def test_ruff_format_uses_service_config_and_stops_before_artifacts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, skip_tests: bool, invalid_format: bool
+) -> None:
+    """发行格式门禁必须接受服务百列配置允许的根目录源码，并在实际格式错误时保留失败记录且阻断产物生成。
+
+    外部安装沿用轻量工具；真实检查器和进程监督保持运行。有效源码在后续缺少类型目录时停止，不代表完整发行成功。
+    """
+    spec = importlib.util.spec_from_file_location(
+        "veriq_format_build", ROOT / "scripts/build_release.py"
+    )
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    checkout = _python_quality_checkout(tmp_path, "ruff-format")[0]
+    source = (
+        '"""此模块提供发行门禁所需的最小有效源码，检查器发现错误后必须停止构建并保留原有输出产物。"""\n\n'
+        'VALUE = ("server-component-identifier", "runtime-component-identifier", "desktop-component-name")\n'
+    )
+    (checkout / "scripts/quality_fixture.py").write_text(source, encoding="utf-8")
+    implicit = subprocess.run(
+        [sys.executable, "-m", "ruff", "format", "--check", "apps/srv", "scripts", "tests"],
+        cwd=checkout,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert implicit.returncode == 1
+    assert "Would reformat: scripts/quality_fixture.py" in implicit.stdout
+    monkeypatch.setenv("PATH", str(tmp_path / "bin") + os.pathsep + os.environ["PATH"])
+    monkeypatch.setattr(module, "stage_web", lambda *arguments: {})
+    monkeypatch.setattr(module, "stage_examples", lambda *arguments: {})
+    run_process = sys.modules["release_processes"].ReleaseProcesses.run
+
+    def run_with_format_input(processes, argv, **kwargs):
+        """前置检查通过后才注入合法但排版错误的源码，让真实格式检查器独立证明该阶段能够失败关闭并阻断产物。"""
+        if invalid_format and argv[1:4] == ["-m", "ruff", "format"]:
+            (checkout / "scripts/quality_fixture.py").write_text(
+                source.replace("VALUE = ", "VALUE="), encoding="utf-8"
+            )
+        return run_process(processes, argv, **kwargs)
+
+    monkeypatch.setattr(
+        sys.modules["release_processes"].ReleaseProcesses, "run", run_with_format_input
+    )
+    failed_phase = "ruff-format" if invalid_format else "mypy"
+    with pytest.raises(RuntimeError, match=f"Release phase failed: {failed_phase};"):
+        module.build_release(
+            module.BuildOptions(checkout, skip_tests=skip_tests, reason="fixture validation")
+        )
+    run = next((checkout / "work").glob("release-*"))
+    records = json.loads((run / "commands.json").read_text())
+    assert records[-1]["name"] == failed_phase
+    assert records[-1]["exitCode"] != 0
+    assert all(record["exitCode"] == 0 for record in records[:-1])
+    assert all(record["cwd"] == str(checkout) for record in records)
+    records = {record["name"]: record for record in records}
+    assert records["ruff"]["argv"] == [
+        sys.executable,
+        "-m",
+        "ruff",
+        "check",
+        "apps/srv",
+        "scripts",
+        "tests",
+    ]
+    assert records["ruff-format"]["argv"][:4] == [sys.executable, "-m", "ruff", "format"]
+    assert records["ruff-format"]["argv"][4:7] == ["--config", "apps/srv/pyproject.toml", "--check"]
+    assert records["ruff-format"]["argv"][7:] == ["apps/srv", "scripts", "tests"]
+    if invalid_format:
+        assert "Would reformat: scripts/quality_fixture.py" in (run / "ruff-format.log").read_text()
+    else:
+        assert records["ruff-format"]["exitCode"] == 0
+        assert (checkout / "scripts/quality_fixture.py").read_text(encoding="utf-8") == source
+    assert not (checkout / "output").exists()
+    assert not (checkout / "work/server-wheel").exists()
+    assert not list(run.rglob("release.json"))

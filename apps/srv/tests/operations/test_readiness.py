@@ -2,9 +2,10 @@
 
 数据库沿用认证套件的专用库白名单和迁移流程，调用方必须持有共享 flock，不能与其它用库测试并发。
 每个应用使用独立的小型安装包库存、临时 FILE 根和随机 HTTP 端口；不访问真实对象存储或模型服务。
-故障在应用启动后、首次 readiness 请求前注入，因此不会命中先前成功结果的一秒缓存。
+普通故障在应用启动后、首次就绪请求前注入，每轮从空缓存独立探测。
+缓存用例先取得健康结果，再移除 FILE 根并控制监视器时钟，验证两个别名在同一边界刷新。
 响应只允许稳定契约字段，另检查配置中的数据库地址、口令、密钥及本地路径均没有出现在 HTTP 正文。
-这些场景只证明有界就绪回归，不替代超时并发、备份恢复、密钥轮换或正式发行的验收。
+调度用例在真实应用中控制探针入口并测量等待预算；备份恢复、密钥轮换及正式发行仍需另行验收。
 
 database 与 mysqlVersion 分别代表连接可用和版本匹配，schema 还要求迁移头与安装单例同时存在。
 这里保留三个独立字段，因此迁移行错误不能被误报成数据库连接故障。
@@ -16,110 +17,44 @@ storage 检查的是 FILE 目录中的实际读写能力，不能用配置字符
 "健康"只用于已有有效库存的生产应用，开发模式跳过静态库存的路径不在这些用例中。
 """
 
+import asyncio
+from collections import abc
+import contextlib
+import dataclasses
+import hashlib
+import json
+import logging
+import os
 import pathlib
-import runpy
+import threading
+import time
+import typing
+from unittest import mock
 
 import httpx
+import pydantic
 import pytest
 import sqlalchemy
-from tornado import httpserver, netutil
+from sqlalchemy.ext import asyncio as sqlalchemy_asyncio
+from tornado import escape, httputil
 
-from veriq_server import app, settings, validation
+from veriq_server import db, readiness, settings, validation
+from veriq_server.handlers import static
 
+from apps.srv.tests.operations import readiness_support
 
-# 复用唯一守卫夹具，避免另造清库算法或绕过专用库检查；新应用只借用该夹具已经迁移的数据库句柄。
-site = runpy.run_path(str(pathlib.Path(__file__).parents[1] / "auth" / "conftest.py"))["site"]
-
-
-@pytest.fixture
-async def readiness_site(site, static_package, tmp_path):
-    """每轮启动真实生产 HTTP 应用并显式提供已有 FILE 根，沿用静态安装库存而不修改生产探针或返回结果。
-
-    认证夹具先在真实隔离库迁移并创建 Installation；这里不伪造数据库成功，不需要管理员会话。
-    FILE 根在启动前创建，因为正式探针禁止静默创建丢失的目录。首次探针仍由各测试的实际 HTTP 请求触发。
-    端口由系统分配，避免与复用夹具的固定认证端口冲突。客户端仅替代外部 TLS 终结，不启动浏览器。
-    收尾等待监视器工作结束后再归还共享数据库，避免线程和连接池跨越 pytest 的事件循环。
-
-    runpy 返回既有 site 定义，pytest 仍负责它的正常建立和拆除，不在这里重复手动调用夹具。
-    新应用与 site 共用 Database，故必须先关闭本应用监视器，最后才让 site 释放连接池。
-    生产配置使用 site 的同一专用 DSN，迁移目标与探测目标不会因第二套环境变量而分离。
-    固定的合成加密密钥只满足应用配置，探针没有创建或读取任何业务密文。
-    HTTP 客户端不发送 Cookie，因而健康检查的成功不能来自认证绕过或管理员身份。
-    static_package 仅替换包资源定位，生产 load_published_site 仍校验真正落盘的库存与摘要。
-    字典同时保留文件根和数据库句柄，故障注入能精确修改当前应用实际使用的那个依赖。
-    关闭 reset_dispatcher 只回收此应用拥有的后台任务，不触碰外部服务或其它测试实例。
-    """
-    database = site[1]
-    artifacts = tmp_path / "readiness-artifacts"
-    artifacts.mkdir()
-    config = settings.Settings(
-        database_url=database.engine.url.render_as_string(hide_password=False),
-        public_url="https://veriq.example.com",
-        master_key="a" * 64,
-        signing_key="b" * 64,
-        artifact_directory=str(artifacts),
-    )
-    application = app.make_app(config, database)
-    sockets = netutil.bind_sockets(0, "127.0.0.1")
-    server = httpserver.HTTPServer(application)
-    server.add_sockets(sockets)
-    try:
-        async with httpx.AsyncClient(
-            base_url=f"http://127.0.0.1:{sockets[0].getsockname()[1]}"
-        ) as client:
-            yield {
-                "client": client,
-                "application": application,
-                "config": config,
-                "artifacts": artifacts,
-                "static": static_package,
-                "database": database,
-            }
-    finally:
-        server.stop()
-        await server.close_all_connections()
-        await application.settings["readiness_monitor"].close()
-        await application.settings["reset_dispatcher"].close()
+# 显式绑定两项公共夹具，让 pytest 在本模块发现同一守卫和启动器并正常解析它们的依赖关系。
+create_readiness_server = readiness_support.create_readiness_server
+site = readiness_support.site
 
 
-def _assert_public_response(response, config, failed=None):
-    """核对完整五项依赖与标准信封，并用固定失败消息报告潜在泄漏，避免断言重写再次打印私有配置内容。
-
-    正常结果必须精确包含五个布尔值；故障场景仅允许指定依赖变为 false，其余真实检查仍需成功。
-    校验现有 HealthDTOEnvelope，禁止多出任意异常字段。缓存头保持 no-store，代理不应持久缓存运行状态。
-    敏感项只在测试进程内比较；若泄漏，输出固定诊断而不把发现的私有地址、路径或口令放进失败日志。
-
-    顶层只允许 data 与 requestId，避免新增异常诊断键绕过 checks 的精确相等断言。
-    状态码与 data.status 同时比较，防止只改 JSON 文本却仍让负载均衡器把故障实例判为成功。
-    Schema 校验约束字段类型，完整字典相等还约束字段数量和每个探针的独立取值。
-    DSN 整串检查覆盖完整连接地址，另外提取口令，覆盖驱动只返回密码片段的泄漏方式。
-    FILE 根路径单独检查，因为文件系统异常通常不会携带数据库 DSN 或加密密钥。
-    两个合成密钥也参与比较，避免响应错误地序列化 Settings 的秘密字段。
-    私有值不作为 assert 的操作数，pytest 的表达式展开不能因检测到泄漏而再次回显秘密。
-    这里不检查服务日志或原始 Trace，HTTP 正文没有泄漏不能被推断为所有证据通道均已安全。
-    私有值筛查先于 JSON 解析、模式验证及所有响应断言，因为这些失败诊断可能包含完整原始输入。
-    字段布局未知或同时违反多个规则时，也必须优先给出固定消息，不能让模式错误抢先公开额外字段。
-    """
-    private = (
-        config.database_url.get_secret_value(),
-        sqlalchemy.engine.make_url(config.database_url.get_secret_value()).password,
-        config.master_key.get_secret_value(),
-        config.signing_key.get_secret_value(),
-        config.artifact_directory,
-    )
-    if any(value and value in response.text for value in private):
-        pytest.fail("Health response exposed private configuration")
-    checks = dict.fromkeys(("database", "mysqlVersion", "schema", "static", "storage"), True)
-    if failed:
-        checks[failed] = False
-    assert response.status_code == (503 if failed else 200)
-    validation.validate_api("HealthDTOEnvelope", response.json())
-    assert set(response.json()) == {"data", "requestId"}
-    assert response.json()["data"] == {
-        "status": "degraded" if failed else "ok",
-        "checks": checks,
-    }
-    assert response.headers["cache-control"] == "no-store"
+@pytest.fixture(name="readiness_site")
+async def _readiness_site(
+    readiness_server: readiness_support.ReadinessServer,
+) -> abc.AsyncIterator[readiness_support.ReadinessSite]:
+    """保留原就绪用例的夹具入口，进入共享应用上下文时使用默认 FILE 策略并由原认证夹具归还数据库。"""
+    async with readiness_server({}) as context:
+        yield context
 
 
 @pytest.mark.parametrize("location", ("top", "nested"))
@@ -146,15 +81,181 @@ def test_private_response_is_rejected_before_schema_diagnostics(location):
         signing_key="b" * 64,
         artifact_directory="/synthetic/readiness/artifacts",
     )
-    checks = {"database": True, "mysqlVersion": True, "schema": True, "static": True, "storage": True}
+    checks = {
+        "database": True,
+        "mysqlVersion": True,
+        "schema": True,
+        "static": True,
+        "storage": True,
+    }
     payload = {"data": {"status": "ok", "checks": checks}, "requestId": "synthetic-request"}
     target = payload if location == "top" else payload["data"]
     target["privateConfig"] = marker
     response = httpx.Response(200, json=payload, headers={"cache-control": "no-store"})
     with pytest.raises(pytest.fail.Exception) as caught:
-        _assert_public_response(response, config)
+        readiness_support.assert_public_response(response, config)
     assert str(caught.value) == "Health response exposed private configuration"
     assert marker not in str(caught.value)
+
+
+def _synthetic_health_config(
+    artifact_directory: str, password: str = "synthetic-unused-password"
+) -> settings.Settings:
+    """只使用函数内构造的合成连接参数和路径，确保测试失败诊断不会携带真实库凭据或者操作者配置。"""
+    url = sqlalchemy.engine.URL.create(
+        "mysql+asyncmy",
+        username="synthetic",
+        password=password,
+        host="127.0.0.1",
+        database="veriq_test",
+    )
+    return settings.Settings(
+        database_url=pydantic.SecretStr(url.render_as_string(hide_password=False)),
+        public_url="https://veriq.example.com",
+        master_key=pydantic.SecretStr("a" * 64),
+        signing_key=pydantic.SecretStr("b" * 64),
+        artifact_directory=artifact_directory,
+    )
+
+
+@pytest.mark.parametrize(
+    ("location", "marker"),
+    (
+        pytest.param("member", 'synthetic"quoted-password', id="quoted-top-value"),
+        pytest.param("key", "/synthetic/path\\nested-key", id="backslash-nested-key"),
+        pytest.param("item", "/synthetic/私有路径", id="unicode-list-value"),
+        pytest.param("request-id", "/synthetic/请求标记", id="unicode-request-id"),
+    ),
+)
+def test_json_escaped_private_response_is_rejected_before_diagnostics(
+    location: str, marker: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """与生产响应使用同一序列化器构造转义值，确认字段名、数组成员与请求号都不会先进入诊断路径。"""
+    config = _synthetic_health_config(marker)
+    request_id = "synthetic-request"
+    data: dict[str, object] = {
+        "status": "ok",
+        "checks": dict.fromkeys(("database", "mysqlVersion", "schema", "static", "storage"), True),
+    }
+    payload: dict[str, object] = {"data": data, "requestId": request_id}
+    match location:
+        case "member":
+            config = _synthetic_health_config("/synthetic/readiness", password=marker)
+            payload["privateConfig"] = marker
+        case "key":
+            data["extra"] = [{marker: True}]
+        case "item":
+            data["extra"] = [{"values": [marker]}]
+        case "request-id":
+            payload["requestId"] = marker
+    raw = escape.json_encode(payload).encode("utf-8")
+    response = httpx.Response(
+        200,
+        content=raw,
+        headers={
+            "content-type": "application/json",
+            "cache-control": "no-store",
+            "x-request-id": request_id,
+        },
+    )
+    assert marker not in response.text
+    validate = mock.Mock(side_effect=AssertionError("Schema validation preceded the privacy guard"))
+    monkeypatch.setattr(validation, "validate_api", validate)
+
+    with pytest.raises(pytest.fail.Exception) as caught:
+        readiness_support.assert_public_response(response, config)
+    assert str(caught.value) == "Health response exposed private configuration"
+    assert marker not in str(caught.value)
+    assert caught.value.__context__ is None
+    assert response.content == raw
+    validate.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("name", "tornado_headers", "expected_name", "reject"),
+    (
+        pytest.param(
+            "FAKE-V02-READINESS-ACCESS", False, "FAKE-V02-READINESS-ACCESS", True, id="uppercase"
+        ),
+        pytest.param(
+            "fake-v02-readiness-access", True, "Fake-V02-Readiness-Access", True, id="tornado-title"
+        ),
+        pytest.param("X-Readiness-Extra", True, "X-Readiness-Extra", False, id="ordinary-header"),
+    ),
+)
+def test_health_header_names_reject_private_markers_before_decoding(
+    name: str, tornado_headers: bool, expected_name: str, reject: bool
+) -> None:
+    """用真实头容器产生原始大写和标题式头名，验证其大小写规范化只用于隐私判定且不影响普通附加头。"""
+    marker = "FAKE-V02-READINESS-ACCESS"
+    config = _synthetic_health_config("/synthetic/readiness/artifacts")
+    headers = {
+        name: marker.lower(),
+        "content-type": "application/json",
+        "cache-control": "no-store",
+        "x-request-id": "synthetic-request",
+    }
+    if tornado_headers:
+        headers = dict(httputil.HTTPHeaders(headers).get_all())
+    raw = escape.json_encode(
+        {
+            "data": {
+                "status": "ok",
+                "checks": dict.fromkeys(
+                    ("database", "mysqlVersion", "schema", "static", "storage"), True
+                ),
+            },
+            "requestId": "synthetic-request",
+        },
+    ).encode("utf-8")
+    response = httpx.Response(200, content=raw, headers=headers)
+    original_headers = response.headers.raw
+    assert (expected_name.encode("ascii"), marker.lower().encode("ascii")) in original_headers
+    assert expected_name.lower() in tuple(response.headers)
+    if reject:
+        with mock.patch.object(response, "json", wraps=response.json) as parse:
+            with pytest.raises(pytest.fail.Exception) as caught:
+                readiness_support.assert_public_response(response, config, markers=(marker,))
+            parse.assert_not_called()
+        assert str(caught.value) == "Health response exposed private configuration"
+        assert marker.lower() not in str(caught.value).lower()
+        assert caught.value.__context__ is None
+    else:
+        readiness_support.assert_public_response(response, config, markers=(marker,))
+    assert response.content == raw
+    assert response.headers.raw == original_headers
+
+
+@pytest.mark.parametrize(
+    "raw",
+    (
+        pytest.param(b'{"synthetic-parse-failure":', id="malformed"),
+        pytest.param(b'["synthetic-non-object"]', id="non-object"),
+    ),
+)
+def test_invalid_health_payload_has_fixed_diagnostic(
+    raw: bytes, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """在不完整正文和非对象正文上核对相同固定诊断与空异常上下文，防止解码错误回显原响应实例。"""
+    config = _synthetic_health_config("/synthetic/readiness")
+    response = httpx.Response(
+        200,
+        content=raw,
+        headers={
+            "content-type": "application/json",
+            "cache-control": "no-store",
+            "x-request-id": "synthetic-request",
+        },
+    )
+    validate = mock.Mock(side_effect=AssertionError("Invalid JSON reached schema validation"))
+    monkeypatch.setattr(validation, "validate_api", validate)
+
+    with pytest.raises(pytest.fail.Exception) as caught:
+        readiness_support.assert_public_response(response, config)
+    assert str(caught.value) == "Health response did not contain a JSON object"
+    assert caught.value.__context__ is None
+    assert response.content == raw
+    validate.assert_not_called()
 
 
 async def test_healthy_readiness_checks_real_dependencies_and_removes_probe(readiness_site):
@@ -174,7 +275,7 @@ async def test_healthy_readiness_checks_real_dependencies_and_removes_probe(read
     """
     context = readiness_site
     response = await context["client"].get("/health/ready")
-    _assert_public_response(response, context["config"])
+    readiness_support.assert_public_response(response, context["config"])
     assert list(context["artifacts"].iterdir()) == []
     legacy = await context["client"].get("/api/v1/health/ready")
     assert legacy.status_code == 200
@@ -204,7 +305,9 @@ async def test_dependency_failure_degrades_ready_and_preserves_live(readiness_si
     elif failed == "schema":
         async with context["database"].engine.begin() as connection:
             await connection.execute(
-                sqlalchemy.text("UPDATE veriq_alembic_version SET version_num='invalid-readiness-head'")
+                sqlalchemy.text(
+                    "UPDATE veriq_alembic_version SET version_num='invalid-readiness-head'"
+                )
             )
     else:
         (context["static"] / "index.html").write_text("<html>Changed after startup</html>")
@@ -213,13 +316,219 @@ async def test_dependency_failure_degrades_ready_and_preserves_live(readiness_si
     assert live.status_code == 200
     assert live.json()["data"] == {"status": "ok", "checks": {"process": True}}
     response = await context["client"].get("/health/ready")
-    _assert_public_response(response, context["config"], failed)
+    readiness_support.assert_public_response(response, context["config"], failed)
     legacy = await context["client"].get("/api/v1/health/ready")
     assert legacy.status_code == 500
     assert set(legacy.json()) == {"code", "message", "details", "requestId"}
     assert legacy.json()["code"] == "READINESS_UNAVAILABLE"
     assert legacy.json()["message"] == "Readiness check failed"
     assert legacy.json()["details"] == {}
+
+
+@contextlib.asynccontextmanager
+async def _without_installation(database: db.Database) -> abc.AsyncIterator[None]:
+    """提交删除安装单例以便独立探测连接读到缺失，并在断言失败时仍用新事务恢复夹具的原始行内容。"""
+    installation = db.Installation
+    async with database.engine.begin() as connection:
+        original = (
+            (
+                await connection.execute(
+                    sqlalchemy.select(
+                        installation.id, installation.initialized, installation.setup_secret_hash
+                    ).where(installation.id == 1)
+                )
+            )
+            .mappings()
+            .one()
+        )
+        removal = await connection.execute(
+            sqlalchemy.delete(installation).where(installation.id == 1)
+        )
+    try:
+        assert removal.rowcount == 1
+        yield
+    finally:
+        async with database.engine.begin() as connection:
+            await connection.execute(sqlalchemy.insert(installation).values(dict(original)))
+
+
+@contextlib.contextmanager
+def _wrong_mysql_version(database: db.Database, marker: str) -> abc.Iterator[None]:
+    """只在专用引擎替换版本查询的结果来源，探测连接与迁移及安装查询仍交给真实数据库执行和提交。"""
+    rewrites = 0
+
+    def rewrite_version(*event_arguments: typing.Any) -> tuple[str, typing.Any]:
+        """按 SQLAlchemy 游标事件的参数顺序读取语句和绑定参数，无关查询原样传递给同一个专用引擎。"""
+        nonlocal rewrites
+        statement = event_arguments[2]
+        parameters = event_arguments[3]
+        if statement == "SELECT VERSION()":
+            rewrites += 1
+            return f"SELECT '5.7.0-{marker}'", parameters
+        return statement, parameters
+
+    engine = database.engine.sync_engine
+    sqlalchemy.event.listen(engine, "before_cursor_execute", rewrite_version, retval=True)
+    try:
+        yield
+        assert rewrites == 1
+    finally:
+        sqlalchemy.event.remove(engine, "before_cursor_execute", rewrite_version)
+
+
+def _replace_static_inventory(context: readiness_support.ReadinessSite, marker: str) -> None:
+    """保留发布路径与构建版本，仅替换图外公开文件并同步库存摘要，使实际加载器承认新库存且身份确实变更。"""
+    root = context["static"]
+    asset = root / "favicon.svg"
+    inventory_path = root / "static-manifest.json"
+    info_path = root / "build-info.json"
+    replacement = f'<svg xmlns="http://www.w3.org/2000/svg"><desc>{marker}</desc></svg>'.encode()
+    asset.write_bytes(replacement)
+    inventory = json.loads(inventory_path.read_bytes())
+    entry = next(item for item in inventory["files"] if item["path"] == asset.name)
+    entry["sizeBytes"] = len(replacement)
+    entry["sha256"] = hashlib.sha256(replacement).hexdigest()
+    inventory_bytes = json.dumps(inventory).encode()
+    inventory_path.write_bytes(inventory_bytes)
+    info = json.loads(info_path.read_bytes())
+    info["staticManifestHash"] = hashlib.sha256(inventory_bytes).hexdigest()
+    info_path.write_text(json.dumps(info), encoding="utf-8")
+
+    admitted = context["application"].settings["published_site"]
+    current = static.load_published_site(context["config"])
+    assert admitted is not None and current is not None
+    assert current.public_files == admitted.public_files
+    assert current.build_info["staticManifestHash"] != admitted.build_info["staticManifestHash"]
+
+
+@contextlib.contextmanager
+def _linked_file_root(artifacts: pathlib.Path) -> abc.Iterator[pathlib.Path]:
+    """只重定向夹具拥有的空根目录；探测后保留链接并检查目标未留下任何写入，以验证拒绝跟随的边界。"""
+    target = artifacts.with_name("readiness-linked-target")
+    target.mkdir()
+    artifacts.rmdir()
+    artifacts.symlink_to(target, target_is_directory=True)
+    yield target
+    assert artifacts.is_symlink()
+    assert artifacts.readlink() == target
+    assert not any(target.iterdir())
+
+
+@contextlib.contextmanager
+def _refuse_probe_creation(
+    artifacts: pathlib.Path, monkeypatch: pytest.MonkeyPatch, marker: str
+) -> abc.Iterator[None]:
+    """只在目录描述符确实属于当前 FILE 根时拒绝创建探针，沿途目录打开与其它文件操作继续调用真实系统边界。"""
+    original_open = os.open
+    expected = artifacts.stat()
+    refusals = 0
+
+    def refuse_open(
+        path: str | bytes | os.PathLike[str] | os.PathLike[bytes],
+        flags: int,
+        mode: int = 0o777,
+        *,
+        dir_fd: int | None = None,
+    ) -> int:
+        """同时核对创建标志、探针名前缀与已打开目录的设备及索引号，避免将合成权限故障传播到其它路径。"""
+        nonlocal refusals
+        if flags & os.O_CREAT and isinstance(path, str) and path.startswith(".veriq-readiness-"):
+            if dir_fd is not None and os.path.samestat(os.fstat(dir_fd), expected):
+                refusals += 1
+                raise PermissionError(marker)
+        return original_open(path, flags, mode, dir_fd=dir_fd)
+
+    with monkeypatch.context() as patch:
+        patch.setattr("veriq_server.readiness.os.open", refuse_open)
+        yield
+    assert refusals == 1
+    assert not any(artifacts.iterdir())
+
+
+@pytest.mark.parametrize(
+    ("fault", "failed", "marker"),
+    (
+        pytest.param("installation", "schema", "", id="missing-installation"),
+        pytest.param(
+            "version", "mysqlVersion", "synthetic-readiness-version-marker", id="wrong-version"
+        ),
+        pytest.param("manifest", "static", "synthetic-readiness-invalid-manifest", id="manifest"),
+        pytest.param(
+            "replacement", "static", "synthetic-readiness-static-replacement", id="replacement"
+        ),
+        pytest.param("symlink", "storage", "readiness-linked-target", id="linked-file-root"),
+        pytest.param(
+            "open", "storage", "synthetic-readiness-file-open-refusal", id="readonly-file-open"
+        ),
+    ),
+)
+async def test_readiness_new_dependency_fault(
+    readiness_site: readiness_support.ReadinessSite,
+    monkeypatch: pytest.MonkeyPatch,
+    fault: str,
+    failed: str,
+    marker: str,
+) -> None:
+    """在成功启动之后逐项破坏一个依赖，公开就绪必须精确归因，历史就绪保持错误信封且两个存活入口保持成功。"""
+    context = readiness_site
+    markers: tuple[str, ...] = (marker,) if marker else ()
+    async with contextlib.AsyncExitStack() as cleanup:
+        match fault:
+            case "installation":
+                await cleanup.enter_async_context(_without_installation(context["database"]))
+            case "version":
+                cleanup.enter_context(_wrong_mysql_version(context["database"], marker))
+            case "manifest":
+                (context["static"] / "static-manifest.json").write_text(marker, encoding="utf-8")
+            case "replacement":
+                _replace_static_inventory(context, marker)
+            case "symlink":
+                target = cleanup.enter_context(_linked_file_root(context["artifacts"]))
+                markers += (str(target),)
+            case "open":
+                cleanup.enter_context(
+                    _refuse_probe_creation(context["artifacts"], monkeypatch, marker)
+                )
+            case _:
+                pytest.fail("Unknown readiness dependency fault")
+        await readiness_support.assert_live_aliases(context, markers)
+        response = await context["client"].get("/health/ready")
+        readiness_support.assert_public_response(response, context["config"], failed, markers)
+        await readiness_support.assert_legacy_ready(context, ready=False, markers=markers)
+
+
+async def test_readiness_cache_expires_at_one_second(
+    readiness_site: readiness_support.ReadinessSite, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """用公开入口建立成功缓存后以历史入口读到同一结果，并在精确一秒时观察 FILE 故障和下一轮恢复。"""
+    context = readiness_site
+    started = 32.0
+    now = started
+    monkeypatch.setattr(readiness, "monotonic", lambda: now)
+    response = await context["client"].get("/health/ready")
+    readiness_support.assert_public_response(response, context["config"])
+
+    artifacts = context["artifacts"]
+    artifacts.rmdir()
+    try:
+        # 历史入口首次请求发生在根目录移除之后，因此成功只能来自共享缓存而非历史入口单独启动的健康探测。
+        now = started + 0.999
+        await readiness_support.assert_legacy_ready(context, ready=True)
+        response = await context["client"].get("/health/ready")
+        readiness_support.assert_public_response(response, context["config"])
+
+        now = started + 1.0
+        response = await context["client"].get("/health/ready")
+        readiness_support.assert_public_response(response, context["config"], "storage")
+        await readiness_support.assert_legacy_ready(context, ready=False)
+    finally:
+        artifacts.mkdir()
+
+    now = started + 2.0
+    await readiness_support.assert_legacy_ready(context, ready=True)
+    response = await context["client"].get("/health/ready")
+    readiness_support.assert_public_response(response, context["config"])
+    assert not any(artifacts.iterdir())
 
 
 async def test_liveness_never_calls_dependency_monitor(readiness_site, monkeypatch):
@@ -246,6 +555,324 @@ async def test_liveness_never_calls_dependency_monitor(readiness_site, monkeypat
 
 
 async def _unexpected_probe():
-    """任何存活请求触及此边界都立刻使测试失败，固定英文消息不会带入真实数据库地址或文件系统路径。
-    """
+    """任何存活请求触及此边界都立刻使测试失败，固定英文消息不会带入真实数据库地址或文件系统路径。"""
     pytest.fail("Liveness called the dependency monitor")
+
+
+_SCHEDULING_WATCHDOG = 10.0
+_GATE_CEILING = 30.0
+_DATABASE_CHECKS = ("database", "mysqlVersion", "schema")
+_READINESS_CHECKS = (*_DATABASE_CHECKS, "static", "storage")
+_LOGGER = logging.getLogger(__name__)
+
+
+@dataclasses.dataclass
+class _GatedDatabaseProbe:
+    """记录真正进入数据库探针的监视器任务，等待测试主动释放后再查真实库，供取消和外层截止测试复用。"""
+
+    entered: asyncio.Event = dataclasses.field(default_factory=asyncio.Event)
+    release: asyncio.Event = dataclasses.field(default_factory=asyncio.Event)
+    workers: list[asyncio.Task[dict[str, bool]]] = dataclasses.field(default_factory=list)
+
+    def install(self, monitor: readiness.ReadinessMonitor, patch: pytest.MonkeyPatch) -> None:
+        """只在当前应用的数据库边界控制开始时序，释放后仍由原探针执行版本、迁移头与安装单例的查询。"""
+        method = "_database"
+        original: abc.Callable[[], abc.Awaitable[dict[str, bool]]] = getattr(monitor, method)
+
+        async def probe() -> dict[str, bool]:
+            """把监视器启动的任务交给测试观察，等待上限只防止异常挂起，正常路径由测试明确释放事件。"""
+            worker = asyncio.current_task()
+            assert worker is not None
+            self.workers.append(worker)
+            self.entered.set()
+            async with asyncio.timeout(_GATE_CEILING):
+                await self.release.wait()
+            return await original()
+
+        patch.setattr(monitor, method, probe)
+
+
+@dataclasses.dataclass
+class _GatedFileProbe:
+    """用线程事件阻塞真实存储探针的入口，通过循环事件分别报告工作线程的开始与退出并记录实际返回值。"""
+
+    release: threading.Event = dataclasses.field(default_factory=threading.Event)
+    returned: asyncio.Event = dataclasses.field(default_factory=asyncio.Event)
+    calls: int = 0
+    results: list[bool] = dataclasses.field(default_factory=list)
+
+    def install(self, monitor: readiness.ReadinessMonitor, patch: pytest.MonkeyPatch) -> None:
+        """保留监视器创建线程及等待结果的逻辑，线程获得测试发出的释放信号后仍执行真实文件读写和清理。"""
+        method = "_storage"
+        original: abc.Callable[[], bool] = getattr(monitor, method)
+        loop = asyncio.get_running_loop()
+
+        def enter() -> None:
+            """跨线程通知交给事件循环计数，实际工作线程每次到达探针边界时均登记，供响应和关闭阶段核对。"""
+            self.calls += 1
+
+        def probe() -> bool:
+            """线程等待达到安全上限将直接失败，只有测试发出释放信号才执行真实探针并记录它的返回值。"""
+            loop.call_soon_threadsafe(enter)
+            try:
+                if not self.release.wait(_GATE_CEILING):
+                    raise AssertionError("FILE worker reached its test safety ceiling")
+                result = original()
+                self.results.append(result)
+                return result
+            finally:
+                loop.call_soon_threadsafe(self.returned.set)
+
+        patch.setattr(monitor, method, probe)
+
+
+@dataclasses.dataclass
+class _GatedQueryProbe:
+    """只推迟指定引擎连接上的首条连通性语句，记录取消是否到达真正的数据库任务与借出的连接上下文。"""
+
+    release: asyncio.Event = dataclasses.field(default_factory=asyncio.Event)
+    cancelled: asyncio.Event = dataclasses.field(default_factory=asyncio.Event)
+    calls: list[tuple[sqlalchemy_asyncio.AsyncConnection, asyncio.Task[dict[str, bool]]]] = (
+        dataclasses.field(default_factory=list)
+    )
+
+    def install(self, engine: sqlalchemy_asyncio.AsyncEngine, patch: pytest.MonkeyPatch) -> None:
+        """正常借出和归还数据库连接，只在该引擎的精确连通性语句处等待，其他执行全部根据原参数转发。"""
+        original = sqlalchemy_asyncio.AsyncConnection.execute
+
+        async def execute(
+            connection: sqlalchemy_asyncio.AsyncConnection,
+            statement: sqlalchemy.sql.Executable,
+            parameters: (
+                abc.Mapping[str, object] | abc.Sequence[abc.Mapping[str, object]] | None
+            ) = None,
+            *,
+            execution_options: abc.Mapping[str, object] | None = None,
+        ) -> sqlalchemy.CursorResult[tuple[object, ...]]:
+            """测试只观察生产超时传来的取消，然后原样抛出，让数据库探针自行完成超时转换与连接回收。"""
+            if (
+                connection.engine is engine
+                and isinstance(statement, sqlalchemy.sql.elements.TextClause)
+                and statement.text == "SELECT 1"
+            ):
+                worker = asyncio.current_task()
+                assert worker is not None
+                self.calls.append((connection, worker))
+                try:
+                    await self.release.wait()
+                except asyncio.CancelledError:
+                    self.cancelled.set()
+                    raise
+            return await original(
+                connection, statement, parameters, execution_options=execution_options
+            )
+
+        patch.setattr(sqlalchemy_asyncio.AsyncConnection, "execute", execute)
+
+
+def _observe_static_probe(
+    monitor: readiness.ReadinessMonitor, patch: pytest.MonkeyPatch
+) -> mock.Mock:
+    """记录真实静态探针的入口以区分缓存命中和新一轮检查，检查仍重新读取同一份启动时已验证的静态库存。"""
+    method = "_static"
+    observer = mock.Mock(wraps=getattr(monitor, method))
+    patch.setattr(monitor, method, observer)
+    return observer
+
+
+def _assert_scheduling_degraded(
+    response: httpx.Response, config: settings.Settings, failed: tuple[str, ...]
+) -> None:
+    """任何多项降级都先经过共享隐私筛查，再核对全部五项布尔值与公开信封，避免其他依赖的意外失败。"""
+    payload = readiness_support.health_payload(response, config)
+    assert response.status_code == 503
+    validation.validate_api("HealthDTOEnvelope", payload)
+    checks = {name: name not in failed for name in _READINESS_CHECKS}
+    assert payload == {
+        "data": {"status": "degraded", "checks": checks},
+        "requestId": response.headers["x-request-id"],
+    }
+
+
+async def _request_at_deadline(
+    client: httpx.AsyncClient, label: str, seconds: int
+) -> httpx.Response:
+    """独立单调时钟计时，留零点八秒调度余量，使两秒文件预算早于三秒外层兜底，十秒仅用于请求看门狗。"""
+    started = time.monotonic()
+    response = await client.get("/health/ready", timeout=_SCHEDULING_WATCHDOG)
+    elapsed = time.monotonic() - started
+    _LOGGER.info("Readiness %s deadline elapsed: %.3fs", label, elapsed)
+    assert seconds - 0.1 <= elapsed < seconds + 0.8
+    return response
+
+
+async def test_readiness_concurrent_waiters_share_probe(
+    readiness_site: readiness_support.ReadinessSite, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """两条真实就绪请求在同一探针等待期间均可读存活接口，明确取消第三个直接调用后，两条请求仍成功。"""
+    monitor = readiness_site["application"].settings["readiness_monitor"]
+    assert isinstance(monitor, readiness.ReadinessMonitor)
+    probe = _GatedDatabaseProbe()
+    probe.install(monitor, monkeypatch)
+    static_probe = _observe_static_probe(monitor, monkeypatch)
+    original_check = monitor.check
+    aliases_entered = asyncio.Event()
+    direct_entered = asyncio.Event()
+    alias_calls = 0
+
+    async def observe_alias() -> dict[str, bool]:
+        """通知第二条请求已抵达后直接执行原检查，在让出循环前两条就绪路径均已进入实际的共享等待。"""
+        nonlocal alias_calls
+        alias_calls += 1
+        if alias_calls == 2:
+            aliases_entered.set()
+        return await original_check()
+
+    async def direct_check() -> dict[str, bool]:
+        """从测试协程直接进入实际监视器，通知后运行到真实等待点才让出控制权，避免推断断开引发取消。"""
+        direct_entered.set()
+        return await original_check()
+
+    monkeypatch.setattr(monitor, "check", observe_alias)
+    async with asyncio.timeout(_SCHEDULING_WATCHDOG), asyncio.TaskGroup() as group:
+        public = group.create_task(readiness_site["client"].get("/health/ready"))
+        legacy = group.create_task(
+            readiness_support.assert_legacy_ready(readiness_site, ready=True)
+        )
+        try:
+            await aliases_entered.wait()
+            await probe.entered.wait()
+            await readiness_support.assert_live_aliases(readiness_site, ())
+            assert not public.done() and not legacy.done()
+            waiter = group.create_task(direct_check())
+            await direct_entered.wait()
+            assert not waiter.done()
+            waiter.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await waiter
+            assert len(probe.workers) == 1 and not probe.workers[0].done()
+        finally:
+            probe.release.set()
+    readiness_support.assert_public_response(public.result(), readiness_site["config"])
+    assert alias_calls == 2 and len(probe.workers) == 1
+    static_probe.assert_called_once_with()
+
+
+async def test_readiness_blocking_timeout_keeps_one_worker(
+    readiness_site: readiness_support.ReadinessSite, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """线程跨过真实两秒后仍由监视器持有，过期检查不得再次启动存储线程，关闭要等受控释放后才完成。"""
+    monitor = readiness_site["application"].settings["readiness_monitor"]
+    assert isinstance(monitor, readiness.ReadinessMonitor)
+    probe = _GatedFileProbe()
+    probe.install(monitor, monkeypatch)
+    static_probe = _observe_static_probe(monitor, monkeypatch)
+    now = 32.0
+    monkeypatch.setattr(readiness, "monotonic", lambda: now)
+    closing: asyncio.Task[None] | None = None
+    close_entered = asyncio.Event()
+
+    async def observe_close() -> None:
+        """先发出启动信号再执行原关闭方法，事件恢复时关闭任务已执行到真实等待点或已经过早结束。"""
+        close_entered.set()
+        await monitor.close()
+
+    try:
+        async with asyncio.timeout(_SCHEDULING_WATCHDOG):
+            response = await _request_at_deadline(readiness_site["client"], "FILE", 2)
+            readiness_support.assert_public_response(response, readiness_site["config"], "storage")
+            assert probe.calls == 1 and not probe.returned.is_set()
+
+            now += 1.0
+            response = await readiness_site["client"].get("/health/ready")
+            readiness_support.assert_public_response(response, readiness_site["config"], "storage")
+            assert static_probe.call_count == 2
+            assert probe.calls == 1 and not probe.returned.is_set()
+
+            closing = asyncio.create_task(observe_close())
+            await close_entered.wait()
+            assert not closing.done() and not probe.returned.is_set()
+    finally:
+        probe.release.set()
+        try:
+            if closing is not None:
+                await closing
+                assert probe.returned.is_set()
+        finally:
+            if probe.calls:
+                await asyncio.wait_for(probe.returned.wait(), _SCHEDULING_WATCHDOG)
+
+    assert probe.calls == 1 and probe.results == [True]
+    assert not any(readiness_site["artifacts"].iterdir())
+    response = await readiness_site["client"].get("/health/ready")
+    _assert_scheduling_degraded(response, readiness_site["config"], _READINESS_CHECKS)
+
+
+async def test_readiness_response_deadline_keeps_one_database_worker(
+    readiness_site: readiness_support.ReadinessSite, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """数据库协程晚于外层三秒完成时保留唯一工作者，晚到成功不会改写降级缓存，过期后真实查询可恢复。"""
+    monitor = readiness_site["application"].settings["readiness_monitor"]
+    assert isinstance(monitor, readiness.ReadinessMonitor)
+    probe = _GatedDatabaseProbe()
+    probe.install(monitor, monkeypatch)
+    static_probe = _observe_static_probe(monitor, monkeypatch)
+    now = 32.0
+    monkeypatch.setattr(readiness, "monotonic", lambda: now)
+
+    async with asyncio.timeout(_SCHEDULING_WATCHDOG):
+        try:
+            response = await _request_at_deadline(readiness_site["client"], "outer database", 3)
+            _assert_scheduling_degraded(response, readiness_site["config"], _DATABASE_CHECKS)
+            assert len(probe.workers) == 1 and not probe.workers[0].done()
+            worker = probe.workers[0]
+            await readiness_support.assert_legacy_ready(readiness_site, ready=False)
+            static_probe.assert_called_once_with()
+
+            now += 1.0
+            response = await readiness_site["client"].get("/health/ready")
+            _assert_scheduling_degraded(response, readiness_site["config"], _DATABASE_CHECKS)
+            assert static_probe.call_count == 2
+            assert probe.workers == [worker] and not worker.done()
+        finally:
+            probe.release.set()
+
+        assert await asyncio.shield(worker) == dict.fromkeys(_DATABASE_CHECKS, True)
+        response = await readiness_site["client"].get("/health/ready")
+        _assert_scheduling_degraded(response, readiness_site["config"], _DATABASE_CHECKS)
+        assert static_probe.call_count == 2 and probe.workers == [worker]
+
+        now += 1.0
+        response = await readiness_site["client"].get("/health/ready")
+        readiness_support.assert_public_response(response, readiness_site["config"])
+        assert static_probe.call_count == 3 and len(probe.workers) == 2
+        assert probe.workers[1] is not worker and probe.workers[1].done()
+
+
+async def test_readiness_database_query_deadline(
+    readiness_site: readiness_support.ReadinessSite, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """实际一秒数据库预算取消挂起的查询入口并归还连接，恢复原执行方法后下一次过期探测重新验证数据库。"""
+    engine = readiness_site["database"].engine
+    pool = engine.pool
+    assert isinstance(pool, sqlalchemy.pool.AsyncAdaptedQueuePool)
+    probe = _GatedQueryProbe()
+    now = 32.0
+    monkeypatch.setattr(readiness, "monotonic", lambda: now)
+
+    with monkeypatch.context() as patch:
+        probe.install(engine, patch)
+        try:
+            response = await _request_at_deadline(readiness_site["client"], "database query", 1)
+            _assert_scheduling_degraded(response, readiness_site["config"], _DATABASE_CHECKS)
+            assert probe.cancelled.is_set() and len(probe.calls) == 1
+            connection, worker = probe.calls[0]
+            assert worker.done() and not worker.cancelled()
+            assert connection.closed and pool.checkedout() == 0
+        finally:
+            probe.release.set()
+
+    now += 1.0
+    response = await readiness_site["client"].get("/health/ready")
+    readiness_support.assert_public_response(response, readiness_site["config"])
+    assert pool.checkedout() == 0 and not any(readiness_site["artifacts"].iterdir())

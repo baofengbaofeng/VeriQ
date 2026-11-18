@@ -213,8 +213,8 @@ class S3ArtifactStore:
         Trace。
         """
         if self._client is None:
-            import boto3  # type: ignore[import-untyped]
-            from botocore.config import Config  # type: ignore[import-untyped]
+            import boto3
+            from botocore.config import Config
 
             self._client = boto3.client(
                 "s3",
@@ -237,7 +237,7 @@ class S3ArtifactStore:
 
         避免越权下载 Trace。
         """
-        from botocore.exceptions import ClientError  # type: ignore[import-untyped]
+        from botocore.exceptions import ClientError
 
         verify(content, digest, len(content))
         object_key = key(workspace, digest, incarnation)

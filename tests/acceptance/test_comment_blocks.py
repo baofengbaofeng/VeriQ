@@ -11,13 +11,12 @@ from typing import Any
 
 import pytest
 
-
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts/comment_blocks.py"
 
 
-@pytest.fixture
-def formatter(monkeypatch: pytest.MonkeyPatch) -> Any:
+@pytest.fixture(name="formatter")
+def formatter_fixture(monkeypatch: pytest.MonkeyPatch) -> Any:
     """验收直接加载实际排版工具及其共享源码枚举器，保持输入处理与正式命令一致而不在测试中复制格式化算法。"""
     monkeypatch.syspath_prepend(str(ROOT / "scripts"))
     spec = importlib.util.spec_from_file_location("veriq_comment_blocks", SCRIPT)
@@ -70,7 +69,9 @@ def test_inline_annotations_and_tool_directives_are_preserved(formatter: Any, so
     "source",
     ["return /** explanation */ value;", "const value = 1; /* explanation */"],
 )
-def test_inline_explanations_are_reported_without_automatic_rewriting(formatter: Any, source: str) -> None:
+def test_inline_explanations_are_reported_without_automatic_rewriting(
+    formatter: Any, source: str
+) -> None:
     """不能自动换行的行内说明仍须被检查器报告违规，修复清单保持空以防 return 或预处理指令因插入换行改变行为。"""
     ranges = formatter.native_ranges(source)
     assert len(formatter.inline_violations(source, ranges)) == 1
@@ -87,7 +88,7 @@ def test_vite_directives_are_exempt_from_inline_relocation(formatter: Any) -> No
 @pytest.mark.parametrize(
     "literal",
     [
-        'const char* value = "\\\" /** literal */";',
+        'const char* value = "\\" /** literal */";',
         'const char* value = R"tag(/** literal */)tag";',
         'const char* value = u8R"tag(/** literal */)tag";',
         'NSString* value = @"/** literal */";',
@@ -99,7 +100,7 @@ def test_native_literals_do_not_become_comments(formatter: Any, literal: str) ->
     source = literal + "\n/** real comment */\n"
     spans = formatter.native_ranges(source)
     assert len(spans) == 1
-    assert source[spans[0]["offsetCodePoint"]:spans[0]["limitCodePoint"]] == "/** real comment */"
+    assert source[spans[0]["offsetCodePoint"] : spans[0]["limitCodePoint"]] == "/** real comment */"
 
 
 def test_stylesheet_urls_do_not_hide_following_comments(formatter: Any) -> None:
@@ -115,10 +116,10 @@ def test_typescript_parser_preserves_templates_regex_and_surrogate_offsets(
     """脚本中的模板、正则和补充字符必须由正式 TypeScript 桥接区分，码点坐标应准确定位真正的块注释并保留其余字节。"""
     source = (
         'const face = "😀";\n'
-        'const pattern = /\\/\\*\\* literal \\*\\//g;\n'
-        'const template = `/** literal */ ${1 + 2}`;\n'
-        '/** real comment */\n'
-        'export const value = 1;\n'
+        "const pattern = /\\/\\*\\* literal \\*\\//g;\n"
+        "const template = `/** literal */ ${1 + 2}`;\n"
+        "/** real comment */\n"
+        "export const value = 1;\n"
     )
     (tmp_path / "sample.ts").write_text(source)
     ranges = formatter.comment_ranges(tmp_path, [Path("sample.ts")])
@@ -131,8 +132,8 @@ def test_typescript_parser_preserves_templates_regex_and_surrogate_offsets(
     )
 
 
-@pytest.fixture
-def repository(tmp_path: Path) -> Path:
+@pytest.fixture(name="repository")
+def repository_fixture(tmp_path: Path) -> Path:
     """每项命令验收都创建真实临时 Git 仓库以验证文件选择和退出码，避免通过模拟枚举提前丢弃生成源码或未跟踪文件。"""
     subprocess.run(["git", "init", "-q", "--template=", str(tmp_path)], check=True)
     return tmp_path
@@ -144,6 +145,7 @@ def _run(root: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
         [sys.executable, str(SCRIPT), "--root", str(root), *arguments],
         capture_output=True,
         text=True,
+        check=False,
     )
 
 
@@ -212,3 +214,99 @@ def test_unsupported_block_languages_fail_explicitly(repository: Path, extension
     assert result.returncode == 2
     assert "unsupported source language requires a block-comment parser" in result.stderr
     assert source.read_text() == original
+
+
+def test_css_parser_preserves_unquoted_url_and_string_markers(
+    formatter: Any, repository: Path
+) -> None:
+    """样式排版必须消费成熟语法范围，普通未引号地址与字符串伪注释不可改写，只有独立真实说明进入分隔符修复。"""
+    source = (
+        'a { x: url(https://a/中//path); content: "/*数据😀*/"; }\r\n' + "/** real comment */\r\n"
+    )
+    path = repository / "sample.css"
+    path.write_bytes(source.encode())
+    spans = formatter.comment_ranges(repository, [Path("sample.css")])["sample.css"]
+    assert [item["text"] for item in spans] == ["/** real comment */"]
+    assert _run(repository, "--fix").returncode == 0
+    expected = source.replace("/** real comment */", "/**\n * real comment\n */")
+    assert path.read_bytes() == expected.encode()
+    assert _run(repository, "--fix").returncode == 0
+    assert path.read_bytes() == expected.encode()
+
+
+@pytest.mark.parametrize("source", ['/* valid */ a{x:"hidden_secret}', "/*hidden_secret"])
+def test_css_parse_failure_cannot_rewrite_earlier_comments(repository: Path, source: str) -> None:
+    """样式语法错误必须在任何修复写入前中止，即使前面已有可排版注释也保留原字节，英文诊断不得包含源码敏感标记。"""
+    path = repository / "broken.css"
+    path.write_bytes(source.encode())
+    result = _run(repository, "--fix")
+    assert result.returncode == 2
+    assert path.read_bytes() == source.encode()
+    assert "hidden_secret" not in result.stderr
+
+
+def test_css_ambiguous_url_refuses_all_rewrites(repository: Path) -> None:
+    """未引号地址的标记存在成熟语法歧义时修复器必须明确拒绝，前面的普通注释也不能先被改写后才发现范围不可信。"""
+    source = "/** safe */\na { x: url(foo/*hidden_secret*/bar); }\n"
+    path = repository / "ambiguous.css"
+    path.write_bytes(source.encode())
+    result = _run(repository, "--fix")
+    assert result.returncode == 2
+    assert "Unsupported CSS comment context" in result.stderr
+    assert "hidden_secret" not in result.stderr
+    assert path.read_bytes() == source.encode()
+
+
+@pytest.mark.parametrize(
+    ("source", "guard"),
+    [
+        ("//hidden_secret\\u000a class X {}", "Unsupported Java Unicode escape"),
+        ("/*safe*/ /*hidden_secret", None),
+        ('class X { String s = """\nhidden_secret', None),
+        ("class X {}\r/** hidden_secret */\rclass Y {}", "Unsupported Java bare carriage return"),
+    ],
+)
+def test_java_fix_rejects_guard_or_syntax_without_any_writes(
+    repository: Path, source: str, guard: str | None
+) -> None:
+    """修复入口在任何文件写入之前完成全体可信范围检查，坏 Java 不能触发旧原生扫描旁路或提前改写另一个有效文件。"""
+    good = repository / "a.java"
+    good.write_text("/** actual documentation */\nclass X {}\n")
+    bad = repository / "z.java"
+    bad.write_bytes(source.encode())
+    before = {path: path.read_bytes() for path in (good, bad)}
+    result = _run(repository, "--fix")
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert "hidden_secret" not in result.stderr
+    if guard is not None:
+        assert result.stderr == f'"z.java": {guard}; line 1\n'
+    assert {path: path.read_bytes() for path in before} == before
+
+
+@pytest.mark.parametrize("newline", ["\n", "\r\n"], ids=["lf", "crlf"])
+def test_java_block_cli_formats_lf_and_crlf(repository: Path, newline: str) -> None:
+    """独立说明块在常见两种换行中仍会实际排版，已经存在的块内换行种类以及相邻类声明原字节都应保留。"""
+    path = repository / "sample.java"
+    path.write_bytes(
+        newline.join(["class X {}", "/** documentation", " */", "class Y {}"]).encode()
+    )
+    result = _run(repository, "--fix")
+    assert result.returncode == 0, result.stderr
+    assert (
+        path.read_bytes()
+        == newline.join(["class X {}", "/**", " * documentation", " */", "class Y {}"]).encode()
+    )
+
+
+def test_java_textblock_and_emoji_keep_real_block_only(formatter: Any, tmp_path: Path) -> None:
+    """成熟语法必须跳过文本块中的伪注释并定位补充字符之后的独立真实块，排版修改只能影响正式注释而保留其他源字节。"""
+    source = 'class X { String s = """\r\n/*literal😀*/\r\n"""; }\r\n/**真实*/'
+    (tmp_path / "sample.java").write_bytes(source.encode())
+    spans = formatter.comment_ranges(tmp_path, [Path("sample.java")])["sample.java"]
+    assert len(spans) == 1
+    start, end, replacement = formatter.replacements(source, spans)[0]
+    assert source[start:end] == "/**真实*/"
+    assert source[:start] + replacement + source[end:] == source.replace(
+        "/**真实*/", "/**\n * 真实\n */"
+    )

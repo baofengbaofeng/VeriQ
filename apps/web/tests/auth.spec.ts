@@ -2,6 +2,54 @@ import { test, expect, type APIResponse, type Page, type Route } from "@playwrig
 import { writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { holdAuthResponse } from "./support/hold-auth-response";
+import { withCleanup } from "./support/case-profile-cleanup";
+import { restoreTestAdmin, type TestAdminRecovery } from "./support/restore-test-admin";
+
+const ownedCleanups = new Set<() => Promise<void>>();
+let pendingAdminRecovery: TestAdminRecovery | undefined;
+
+/**
+ * 屏障清理注册为单一可等待的承诺，正常 finally 与超时后的钩子复用同一结算，不能重复转发同一个已处理请求。
+ * 完成的任务立即退注册；失败仍原样抛出，不靠忽略路由错误或重试请求制造页面取消、退出或角色恢复的成功。
+ */
+function ownCleanup(action: () => Promise<void>): () => Promise<void> {
+    let completion: Promise<void> | undefined;
+    const cleanup = () => {
+        completion ??= action().finally(() => ownedCleanups.delete(cleanup));
+        return completion;
+    };
+    ownedCleanups.add(cleanup);
+    return cleanup;
+}
+
+/**
+ * 每项清理都须得到自己的执行机会，先前失败经既有结算器与后续失败合并，保留原始对象、顺序与首因而不覆盖正文异常。
+ * 这里仅串行释放测试自己的屏障和证据任务，不清空其它处理器，也不把任何真实后端失败降级为可忽略结果。
+ */
+async function settleCleanups(...actions: (() => Promise<void>)[]): Promise<void> {
+    const [next, ...remaining] = actions;
+    if (next) await withCleanup(next, () => settleCleanups(...remaining));
+}
+
+test.beforeEach(() => {
+    ownedCleanups.clear();
+    pendingAdminRecovery = undefined;
+});
+
+/**
+ * 失败恢复使用原生测试结束钩子的独立结算阶段，正文超时也不能跳过；正常 GUI 路径成功时不通过 API 替代角色恢复。
+ * 先释放并等待当前测试拥有的屏障，再用已经创建的备用管理员恢复已知目标；框架保留正文错误，辅助函数保留恢复与释放错误。
+ */
+test.afterEach(async ({ page: _page }, testInfo) => {
+    const recovery = pendingAdminRecovery;
+    pendingAdminRecovery = undefined;
+    await withCleanup(
+        () => settleCleanups(...ownedCleanups),
+        async () => {
+            if (testInfo.status !== testInfo.expectedStatus && recovery) await restoreTestAdmin(recovery);
+        },
+    );
+});
 
 /**
  * 屏障只延迟首个匹配路径及指定方法的真实本机响应，后续请求直接访问后端；持有的状态、头和正文原样交还浏览器，释放操作可
@@ -40,11 +88,11 @@ async function holdBackendResponse(page: Page, pathname: string, method = "GET")
     await page.route(match, handler);
     return {
         held,
-        release: async () => {
+        release: ownCleanup(async () => {
             releaseResponse();
             if (captured) await done;
             await page.unroute(match, handler);
-        },
+        }),
     };
 }
 
@@ -84,11 +132,11 @@ async function holdOutgoingRequest(page: Page, pathname = "/api/v1/auth/logout",
     await page.route(match, handler);
     return {
         held,
-        forward: async () => {
+        forward: ownCleanup(async () => {
             releaseRequest();
             if (captured) await done;
             await page.unroute(match, handler);
-        },
+        }),
     };
 }
 
@@ -188,7 +236,7 @@ test("real setup, login, account, administration and one-time reset", async ({ p
         fullPage: true,
         mask: [page.getByLabel("Reset link")],
     });
-    await page.getByRole("button", { name: "Sign out" }).click();
+    await page.getByRole("button", { name: "Sign out", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
     await page.goto(link);
     await expect(page.getByRole("heading", { name: "Choose a new password" })).toBeVisible();
@@ -253,6 +301,9 @@ test("real setup, login, account, administration and one-time reset", async ({ p
     await page.getByRole("checkbox", { name: "System administrator", exact: true }).check();
     await page.getByRole("button", { name: "Create user" }).click();
     await expect(page.getByRole("row", { name: "browser-second-admin@example.com" })).toBeVisible();
+    await expect(page.getByRole("row", { name: "browser-second-admin@example.com" })).toContainText(
+        "System administrator",
+    );
 
     /**
      * 查询次数只涵盖已握手的本次交互窗口；非受控草稿必须等 Apply 才生效，More 则继续使用先前提交的查询与游标，不能读取
@@ -308,6 +359,13 @@ test("real setup, login, account, administration and one-time reset", async ({ p
     const actorResponse = await page.request.get(`${origin}/api/v1/account`);
     expect(actorResponse.status()).toBe(200);
     const actorId = (await actorResponse.json()).data.id;
+    const recoveryOptions: TestAdminRecovery = {
+        origin,
+        targetId: actorId,
+        targetEmail: "browser-admin@example.com",
+        backupEmail: "browser-second-admin@example.com",
+        backupPassword: "Second password 123!",
+    };
     const mutationBarrier = await holdBackendResponse(page, `/api/v1/admin/users/${actorId}`, "PATCH");
     const outgoingLogout = await holdOutgoingRequest(page);
     const logoutIntentEvents: { event: string; path?: string; status?: number }[] = [];
@@ -324,7 +382,8 @@ test("real setup, login, account, administration and one-time reset", async ({ p
             logoutIntentEvents.push({ event: "response", path, status: response.status() });
     };
     page.on("response", recordIntentResponse);
-    try {
+    const verifyLogoutIntent = async () => {
+        pendingAdminRecovery = recoveryOptions;
         await page
             .getByRole("row", { name: "browser-admin@example.com" })
             .getByRole("button", { name: "Remove admin", exact: true })
@@ -333,8 +392,13 @@ test("real setup, login, account, administration and one-time reset", async ({ p
         expect(heldUpdate.status()).toBe(200);
         expect((await heldUpdate.json()).data.systemAdmin).toBe(false);
         logoutIntentEvents.push({ event: "real-self-update-held", status: heldUpdate.status() });
-        await expect(page.getByRole("button", { name: "Create user" })).toBeDisabled();
-        await page.getByRole("button", { name: "Sign out" }).click();
+        const createUserForm = page.locator("form").filter({
+            has: page.getByRole("checkbox", { name: "System administrator", exact: true }),
+        });
+        const createUserSubmit = createUserForm.getByRole("button");
+        await expect(createUserSubmit).toHaveText("Working…");
+        await expect(createUserSubmit).toBeDisabled();
+        await page.getByRole("button", { name: "Sign out", exact: true }).click();
         await outgoingLogout.held;
         logoutIntentEvents.push({ event: "outgoing-logout-held-before-backend" });
         const updateDelivered = page.waitForResponse(
@@ -358,19 +422,20 @@ test("real setup, login, account, administration and one-time reset", async ({ p
         logoutIntentEvents.push({ event: "logout-forwarded-to-real-backend" });
         expect((await completedLogout).status()).toBe(200);
         await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
-        await expect(page.getByRole("button", { name: "Sign out" })).toHaveCount(0);
+        await expect(page.getByRole("button", { name: "Sign out", exact: true })).toHaveCount(0);
         logoutIntentEvents.push({ event: "signed-out-ui-confirmed" });
-    } finally {
-        await mutationBarrier.release();
-        await outgoingLogout.forward();
-        page.off("response", recordIntentResponse);
-        const eventPath = testInfo.outputPath("logout-intent-events.json");
-        await writeFile(eventPath, JSON.stringify(logoutIntentEvents, null, 2));
-        await testInfo.attach("logout-intent-events", {
-            path: eventPath,
-            contentType: "application/json",
+    };
+    await withCleanup(verifyLogoutIntent, async () => {
+        await settleCleanups(mutationBarrier.release, outgoingLogout.forward, async () => {
+            page.off("response", recordIntentResponse);
+            const eventPath = testInfo.outputPath("logout-intent-events.json");
+            await writeFile(eventPath, JSON.stringify(logoutIntentEvents, null, 2));
+            await testInfo.attach("logout-intent-events", {
+                path: eventPath,
+                contentType: "application/json",
+            });
         });
-    }
+    });
     await page.getByRole("textbox", { name: "Email" }).fill("browser-second-admin@example.com");
     await page.getByLabel("Password").fill("Second password 123!");
     await page.getByRole("button", { name: "Sign in" }).click();
@@ -381,7 +446,8 @@ test("real setup, login, account, administration and one-time reset", async ({ p
         .getByRole("button", { name: "Make admin", exact: true })
         .click();
     await expect(page.getByRole("row", { name: "browser-admin@example.com" })).toContainText("System administrator");
-    await page.getByRole("button", { name: "Sign out" }).click();
+    pendingAdminRecovery = undefined;
+    await page.getByRole("button", { name: "Sign out", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
     await page.getByRole("textbox", { name: "Email" }).fill("browser-admin@example.com");
     await page.getByLabel("Password").fill("Browser password 123!");
@@ -414,7 +480,8 @@ test("real setup, login, account, administration and one-time reset", async ({ p
             ownershipEvents.push({ event: "navigation", path: new URL(frame.url()).pathname });
     };
     const accountBarrier = await holdBackendResponse(page, "/api/v1/account");
-    try {
+    const verifyAccountOwnership = async () => {
+        pendingAdminRecovery = recoveryOptions;
         await page
             .getByRole("row", { name: "browser-admin@example.com" })
             .getByRole("button", { name: "Remove admin", exact: true })
@@ -427,7 +494,7 @@ test("real setup, login, account, administration and one-time reset", async ({ p
         const expired = page.waitForResponse(
             (response) => new URL(response.url()).pathname === "/api/v1/auth/session" && response.status() === 401,
         );
-        await page.getByRole("button", { name: "Sign out" }).click();
+        await page.getByRole("button", { name: "Sign out", exact: true }).click();
         expect((await logout).status()).toBe(200);
         await expired;
         await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
@@ -446,17 +513,19 @@ test("real setup, login, account, administration and one-time reset", async ({ p
         page.off("framenavigated", recordStaleAccount);
         await page.getByRole("button", { name: "Sign in" }).click();
         await expect(page.locator("dl")).toContainText("Browser User");
-    } finally {
+    };
+    await withCleanup(verifyAccountOwnership, async () => {
         page.off("framenavigated", recordStaleAccount);
         page.off("response", recordOwnershipResponse);
-        await accountBarrier.release();
-        const eventPath = testInfo.outputPath("account-ownership-events.json");
-        await writeFile(eventPath, JSON.stringify(ownershipEvents, null, 2));
-        await testInfo.attach("account-ownership-events", {
-            path: eventPath,
-            contentType: "application/json",
+        await settleCleanups(accountBarrier.release, async () => {
+            const eventPath = testInfo.outputPath("account-ownership-events.json");
+            await writeFile(eventPath, JSON.stringify(ownershipEvents, null, 2));
+            await testInfo.attach("account-ownership-events", {
+                path: eventPath,
+                contentType: "application/json",
+            });
         });
-    }
+    });
 
     /**
      * 对首个精确会话列表请求只注入一次网络故障，以真实后端重试恢复首屏；随后持有实际分页响应并切换身份，验证旧列表不会
@@ -479,10 +548,10 @@ test("real setup, login, account, administration and one-time reset", async ({ p
     await expect(page.getByRole("list").getByRole("listitem")).toHaveCount(1);
     await expect(page.getByLabel("Sessions per page")).toBeEnabled();
     const sessionBarrier = await holdBackendResponse(page, "/api/v1/account/sessions");
-    try {
+    const verifySessionOwnership = async () => {
         await page.getByLabel("Sessions per page").selectOption("1");
         expect((await sessionBarrier.held).status()).toBe(200);
-        await page.getByRole("button", { name: "Sign out" }).click();
+        await page.getByRole("button", { name: "Sign out", exact: true }).click();
         await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
         await page.getByRole("textbox", { name: "Email" }).fill("browser-second-admin@example.com");
         await page.getByLabel("Password").fill("Second password 123!");
@@ -493,9 +562,10 @@ test("real setup, login, account, administration and one-time reset", async ({ p
         await expect(page.getByLabel("Sessions per page")).toHaveValue("25");
         await expect(page.getByRole("list").getByRole("listitem")).toHaveCount(1);
         await expect(page.getByRole("button", { name: "Load more sessions" })).toHaveCount(0);
-    } finally {
+    };
+    await withCleanup(verifySessionOwnership, async () => {
         await sessionBarrier.release();
-    }
+    });
 
     /**
      * 输入普通密码字段不会重新探测安装、身份或会话；最后使用当前管理员真实写入恢复原管理员权限，既验证当前 CSRF 可用，
@@ -522,12 +592,13 @@ test("real setup, login, account, administration and one-time reset", async ({ p
         .getByRole("button", { name: "Make admin", exact: true })
         .click();
     await expect(page.getByRole("row", { name: "browser-admin@example.com" })).toContainText("System administrator");
+    pendingAdminRecovery = undefined;
     await page
         .getByRole("row", { name: "browser-second-admin@example.com" })
         .getByRole("button", { name: "Remove admin", exact: true })
         .click();
     await expect(page.getByRole("heading", { name: "Access restricted" })).toBeVisible();
-    await page.getByRole("button", { name: "Sign out" }).click();
+    await page.getByRole("button", { name: "Sign out", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
 
     /**
@@ -542,6 +613,7 @@ test("real setup, login, account, administration and one-time reset", async ({ p
     await expect(page.getByLabel("Sessions per page")).toBeEnabled();
     const oldRead = await holdOutgoingRequest(page, "/api/v1/account/sessions", "GET");
     const oldLogoutResponse = await holdAuthResponse(page, "/api/v1/auth/logout", "POST");
+    const releaseOldLogout = ownCleanup(oldLogoutResponse.release);
     const newerLoginEvents: { event: string; path?: string; status?: number }[] = [];
     const recordNewerLogin = (response: import("@playwright/test").Response) => {
         const path = new URL(response.url()).pathname;
@@ -557,11 +629,11 @@ test("real setup, login, account, administration and one-time reset", async ({ p
             newerLoginEvents.push({ event: "response", path, status: response.status() });
     };
     page.on("response", recordNewerLogin);
-    try {
+    const verifyNewerLogin = async () => {
         await page.getByLabel("Sessions per page").selectOption("1");
         await oldRead.held;
         newerLoginEvents.push({ event: "old-sessions-get-held-before-backend" });
-        await page.getByRole("button", { name: "Sign out" }).click();
+        await page.getByRole("button", { name: "Sign out", exact: true }).click();
         const realLogout = await oldLogoutResponse.held;
         expect(realLogout.status).toBe(200);
         newerLoginEvents.push({
@@ -597,7 +669,7 @@ test("real setup, login, account, administration and one-time reset", async ({ p
         newerLoginEvents.push({ event: "new-account-visible-before-old-logout-release" });
         const cancelled = await cancelledLogout;
         expect(cancelled.failure()?.errorText).toMatch(/ABORTED|CANCELLED/i);
-        await oldLogoutResponse.release();
+        await releaseOldLogout();
         newerLoginEvents.push({
             event: "old-logout-cancelled-before-new-login-held-response-settled",
         });
@@ -627,15 +699,16 @@ test("real setup, login, account, administration and one-time reset", async ({ p
                 return (await api.session()).user.email;
             }),
         ).toBe("browser-user@example.com");
-    } finally {
-        await oldRead.forward();
-        await oldLogoutResponse.release();
-        page.off("response", recordNewerLogin);
-        const eventPath = testInfo.outputPath("newer-login-events.json");
-        await writeFile(eventPath, JSON.stringify(newerLoginEvents, null, 2));
-        await testInfo.attach("newer-login-events", {
-            path: eventPath,
-            contentType: "application/json",
+    };
+    await withCleanup(verifyNewerLogin, async () => {
+        await settleCleanups(oldRead.forward, releaseOldLogout, async () => {
+            page.off("response", recordNewerLogin);
+            const eventPath = testInfo.outputPath("newer-login-events.json");
+            await writeFile(eventPath, JSON.stringify(newerLoginEvents, null, 2));
+            await testInfo.attach("newer-login-events", {
+                path: eventPath,
+                contentType: "application/json",
+            });
         });
-    }
+    });
 });

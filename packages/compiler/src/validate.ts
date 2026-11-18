@@ -1,5 +1,6 @@
 /**
- * 本文件分析并校验钉选资产快照：展开断言上限、引用完整性与语义约束：产出稳定问题码供诊断投影，标注导出 validate。
+ * 将资产快照的模式、摘要与依赖语义检查汇合为问题列表，并构造供源码发射使用的类型化执行计划。
+ * 分析过程可在报告问题后继续构造计划；发射方必须先确认问题列表为空。
  */
 
 import { Ajv2020 } from "ajv/dist/2020.js";
@@ -20,21 +21,30 @@ import {
 } from "@veriq/contracts";
 import { accepts, pointerKey, sha256, valueType, wireId, resolvePointer, type ValidationIssue } from "./dependency.js";
 /**
- * 公开常量 MAX_EXPANDED_ASSERTIONS 限制模板断言展开后的上限：防止恶意或误配快照耗尽编译内存（MAX_EXPANDED_ASSERTIONS）
- * 。
+ * 断言展开预算同时计入模板调用与叶子节点，在每个用例或独立库的分析中累计，限制重复模板图的访问量。
  */
 export const MAX_EXPANDED_ASSERTIONS = 5000;
 import type { CompiledAssertion, CompiledStep, CompiledCase } from "@veriq/contracts";
 /**
- * 再导出校验过程所需的契约类型别名：供 analyze/validate 签名与测试共享而不重复定义（validate）。
+ * 从契约包再导出编译计划类型，使编译器调用方和执行端共享步骤阶段、源路径及模板参数栈的结构定义。
  */
 export type { CompiledAssertion, CompiledStep, CompiledCase } from "@veriq/contracts";
+/**
+ * 符号仅描述静态类型及属性可见性，联合候选与沿路径传播的可选标记用于拒绝可能缺值或类型不兼容的绑定。
+ * properties 保存可推断的对象属性；它不承载实际数据，也不替代运行时的存在性与模式校验。
+ */
 interface SymbolType {
     type: ValueType;
     alternatives?: ValueType[];
     optional?: boolean;
     properties?: Map<string, SymbolType>;
 }
+/**
+ * 作用域携带数据与变量符号、目录绑定和页面名称，递归调用按各字段的可见范围复制或共享这些分析状态。
+ * 参数调用复制 data，流程共享 vars 与断言预算；步骤递归另复制 pages，子流程页面声明不会回传父层。
+ * 独立库通过 library 容许调用方提供外部名称，localDefinitions 仍约束库内提取变量的定义顺序。
+ * externalObservers 使独立模板暂缓检查观察器来源，具体用例展开时再按当前步骤验证。
+ */
 interface Scope {
     pages?: Set<string>;
     data: Map<string, SymbolType>;
@@ -49,14 +59,15 @@ interface Scope {
     };
 }
 /**
- * 公开接口 Analysis 汇总 analyze 的问题列表与中间结构：供编译前决策是否继续发射（Analysis）。。
+ * 分析结果同时保存问题与已构造的用例计划；存在问题时计划可能不完整，调用方不能据此直接发射可执行产物。
  */
 export interface Analysis {
     issues: ValidationIssue[];
     cases: CompiledCase[];
 }
 /**
- * 公开函数 analyze 对 AssetSnapshotV1 做结构与引用分析：收集 ValidationIssue：不修改输入快照。
+ * 先校验快照模式，再核对源码及文档摘要并分析所有资产；返回问题与执行计划，供编译发射和诊断投影共用。
+ * 模式错误或源码规范化异常会提前返回；摘要不匹配则记入问题后继续收集语义错误。
  */
 export function analyze(snapshot: AssetSnapshotV1): Analysis {
     const issues: ValidationIssue[] = validateSchema("AssetSnapshotV1", snapshot);
@@ -73,6 +84,9 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
         fail("INVALID_JSON", "");
         return { issues, cases };
     }
+    /**
+     * 源码摘要覆盖契约定义的源投影，单份文档摘要另绑定资产种类与文档；两者分别核对并保留各自的问题位置。
+     */
     const assets = new Map<string, AssetVersionV1>();
     const edges = new Map<string, Set<string>>();
     const paths = new Map<string, string>();
@@ -85,6 +99,9 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
         if (sha256(canonicalBytes({ kind: a.kind, document: a.document })) !== a.sha256)
             fail("DOCUMENT_HASH_MISMATCH", p + "/sha256");
     }
+    /**
+     * 引用检查同时登记有向依赖边，缺失版本或种类不符仍保留边记录，末尾据根节点判断快照中资产是否可达。
+     */
     function ref(owner: string, id: string, kind: AssetVersionV1["kind"], p: string): AssetVersionV1 | undefined {
         edges.get(owner)?.add(id);
         const found = assets.get(id);
@@ -102,6 +119,9 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
     unique(snapshot.entryCaseVersionIds, "/entryCaseVersionIds", "DUPLICATE_ENTRY_CASE");
     for (const id of snapshot.entryCaseVersionIds)
         if (assets.get(id)?.kind !== "CASE") fail("INVALID_ENTRY_CASE", "/entryCaseVersionIds", id);
+    /**
+     * 验证目标将根资源与入口集合关联起来：用例要求唯一对应入口，套件比较去重后的用例集合，库目标要求零入口。
+     */
     if (snapshot.validationTarget) {
         const t = snapshot.validationTarget;
         const a = assets.get(t.versionId);
@@ -117,8 +137,9 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
         )
             fail("INVALID_VALIDATION_TARGET", "/validationTarget");
     }
-    // Select the same unambiguous SUITE root used by closure validation. CASE
-    // validation targets always retain their own declared data context.
+    /**
+     * 无显式验证目标时只接受一个与入口集合对应的套件根，以其变体数据分析用例；显式用例目标保留自身数据上下文。
+     */
     let suiteRoot: Extract<AssetVersionV1, { kind: "SUITE" }> | undefined;
     if (snapshot.validationTarget) {
         const root = assets.get(snapshot.validationTarget.versionId);
@@ -133,6 +154,9 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
         if (roots.length > 1) fail("AMBIGUOUS_SUITE_ROOT", "/assets");
         else suiteRoot = roots[0];
     }
+    /**
+     * 预收集流程内及有界嵌套流程的提取名称，让独立库能区分尚未定义的本地变量与允许由未来调用方提供的变量。
+     */
     function localDefinitions(list: StepV1[], seen = new Set<string>()): Set<string> {
         const names = new Set(list.flatMap((step) => (step.extract ?? []).map((e) => e.to)));
         if (seen.size >= 5) return names;
@@ -148,6 +172,9 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
     function sym(type: ValueType): SymbolType {
         return { type };
     }
+    /**
+     * 从模式声明与本地引用推断值类型，保留类型联合和对象必填属性信息；未写类型时以所有候选类型表达不确定性。
+     */
     function schemaSymbol(schema: unknown, root: unknown = schema, seen = new Set<string>()): SymbolType | undefined {
         if (!schema || typeof schema !== "object" || Array.isArray(schema)) return;
         const s = schema as Record<string, unknown>;
@@ -174,6 +201,9 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
         }
         return out;
     }
+    /**
+     * 逐行合并数据集实际值的嵌套属性类型，并把仅部分行存在的属性标为可选，避免单行样例掩盖其它冻结行的缺值。
+     */
     function dataSymbol(values: JsonValue[]): SymbolType {
         const types = [...new Set(values.map(valueType))];
         const result: SymbolType = {
@@ -192,6 +222,10 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
         }
         return result;
     }
+    /**
+     * 完整占位符保留符号路径原类型，嵌入文本拒绝对象、数组与空值；可选祖先传播缺值风险，预期类型须兼容全部候选。
+     * 数组与对象只递归检查显式绑定值；这里不执行表达式，也不读取运行时变量的实际内容。
+     */
     function binding(v: unknown, scope: Scope, p: string, expected?: ValueType): SymbolType | undefined {
         if (typeof v === "string") {
             const matches = [
@@ -237,10 +271,10 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
             fail("BINDING_TYPE_MISMATCH", p);
         return result;
     }
-    // Unknown initial values have no fabricated stand-ins. Ajv checks every
-    // resolved subtree against its original schema location (retaining local
-    // refs). Only unconditional structure/types are checked around unknowns;
-    // assembly and the SDK validate the complete schema with frozen values.
+    /**
+     * 夹具输入中的变量值在此尚未知，只校验可确定的类型与结构；不含变量的子树结合冻结数据行交给原模式位置验证。
+     * 本地引用保留在同一模式根下；依赖未知值的完整约束留待组装与执行端使用实际值验证。
+     */
     function fixtureInput(
         input: JsonValue,
         schema: JsonValue,
@@ -296,7 +330,9 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
                 const properties = definition.properties;
                 const declared =
                     properties && typeof properties === "object" && !Array.isArray(properties) ? properties : {};
-                // These constraints depend on the literal keys, never unknown values.
+                /**
+                 * 对象键由输入字面结构确定，即使某些属性值仍依赖变量，也能立即验证必填键、属性数量和键名等结构约束。
+                 */
                 const shape = Object.fromEntries(
                     ["required", "minProperties", "maxProperties", "propertyNames", "dependentRequired"]
                         .filter((k) => Object.hasOwn(definition, k))
@@ -305,7 +341,9 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
                             k === "propertyNames" ? { $ref: rootId + "#" + pointer + "/propertyNames" } : definition[k],
                         ]),
                 );
-                // Pattern properties may admit additional keys; Ajv handles matching.
+                /**
+                 * 额外键是否允许也受模式属性匹配影响，这里交给模式校验器，并在后续递归中验证每个命中的属性值约束。
+                 */
                 const patterns = definition.patternProperties;
                 const patternKeys =
                     patterns && typeof patterns === "object" && !Array.isArray(patterns) ? Object.keys(patterns) : [];
@@ -363,6 +401,9 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
         };
         visit(input, schema, "", path);
     }
+    /**
+     * 参数实参在调用方当前作用域检查，随后仅复制数据名称表并覆盖已声明参数，保留调用前的变量表和共享预算。
+     */
     function params(
         declared: ParameterTypes | undefined,
         supplied: Record<string, JsonValue> | undefined,
@@ -388,6 +429,9 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
             fail("INVALID_JSON_SCHEMA", path, String(error));
         }
     }
+    /**
+     * 目标键先受已固定目录的可见集合约束，再校验该元素及其祖先作用域的动态记录键与角色名称都能解析为字符串。
+     */
     function target(key: string, scope: Scope, p: string): void {
         if (scope.catalog && !scope.catalog.has(key)) fail("UNKNOWN_ELEMENT", p);
         for (const v of scope.locatorBindings?.get(key) ?? []) binding(v, scope, p, "string");
@@ -396,6 +440,10 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
         if (source !== "page" && !observers.has(source.slice(source.indexOf(":") + 1)))
             fail("UNKNOWN_OBSERVER", p, source);
     }
+    /**
+     * 模板展开保留外层到内层的实参栈与叶子源路径，执行端据此恢复断言数据作用域；模板警告级别会向叶子传播。
+     * 递归栈分别限制模板环与五层深度，所有调用和叶子在访问前消耗同一断言预算。
+     */
     function assertions(
         list: AssertionV1[],
         owner: string,
@@ -480,6 +528,10 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
         }
         return result;
     }
+    /**
+     * 步骤展开为每次流程调用保留包装节点和子计划，调用边界也消耗五百步预算；流程环与五层深度另行检查。
+     * 前置断言先分析，流程子步骤随后共享变量表，当前步骤提取再加入符号表，最后分析后置断言。
+     */
     function steps(
         list: StepV1[],
         owner: string,
@@ -511,9 +563,15 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
                 );
                 break;
             }
+            /**
+             * 仅网络观察器可作为请求或响应来源，事件监听器与其一起检查名称重复；前置断言使用尚未注册观察器的空集合。
+             */
             const obs = new Set((s.observers ?? []).filter((o) => "method" in o).map((o) => o.id));
             unique([...(s.observers ?? []).map((o) => o.id)], path + "/observers");
             const before = assertions(s.beforeAssertions ?? [], owner, scope, new Set(), path + "/beforeAssertions");
+            /**
+             * 动作所选页面必须来自此前声明，当前步骤的新页面监听名称随后才加入作用域，供其后置断言及后续步骤引用。
+             */
             if (s.pageKey && !scope.pages?.has(s.pageKey) && !scope.library)
                 fail("UNKNOWN_PAGE_KEY", path + "/pageKey");
             for (const o of s.observers ?? [])
@@ -567,12 +625,18 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
                         write,
                     );
             }
+            /**
+             * 流程内提取已通过共享变量表对后续分析可见，包装步骤的提取在子流程之后登记，并按必填声明标记是否可能缺值。
+             */
             for (const [j, e] of (s.extract ?? []).entries()) {
                 source(e.source, obs, path + "/extract/" + j);
                 if (scope.vars.has(e.to)) fail("DUPLICATE_VARIABLE", path + "/extract/" + j, e.to);
                 scope.vars.set(e.to, { type: e.valueType, optional: !e.required });
             }
             const after = assertions(s.afterAssertions ?? [], owner, scope, obs, path + "/afterAssertions");
+            /**
+             * 写用例关键步骤须有非警告响应字段业务断言，允许相等、集合归属或包含操作；状态码或界面断言不满足此处。
+             */
             if (
                 write &&
                 s.critical &&
@@ -584,6 +648,10 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
                 )
             )
                 fail("MISSING_BUSINESS_ASSERTION", path);
+            /**
+             * 后置断言按是否依赖本步新变量分流；实参栈、预期值、查询及继承目录绑定都参与检查，响应模式内容保持字面值。
+             * 无依赖项进入 responseAssertions，执行端先验证响应再提取；依赖项进入 after，在提取赋值后执行。
+             */
             const extracts = new Set((s.extract ?? []).map((e) => e.to));
             const usesExtract = (value: unknown): boolean =>
                 typeof value === "string"
@@ -598,6 +666,9 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
                     usesExtract(a.assertion.expected)) ||
                 (a.assertion.type === "eventually" && usesExtract(a.assertion.query)) ||
                 ("target" in a.assertion && usesExtract(scope.locatorBindings?.get(a.assertion.target) ?? []));
+            /**
+             * 动作载荷移除原断言列表以免执行端重复运行，步骤及断言传输标识均由展开路径派生，保留原标识供报告映射。
+             */
             const { beforeAssertions: _before, afterAssertions: _after, ...action } = s;
             out.push({
                 step: { ...action, id: wireId(path) },
@@ -617,6 +688,9 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
             const d = a.document;
             const c = ref(a.versionId, d.catalogVersionId, "ELEMENT_CATALOG", p + "/catalogVersionId");
             if (d.datasetVersionId) ref(a.versionId, d.datasetVersionId, "DATASET", p + "/datasetVersionId");
+            /**
+             * 同一用例可能由套件覆盖为多种数据上下文，每种有效数据集都重新分析类型与变量；最终只保留第一份用例计划。
+             */
             const variants = suiteRoot?.document.cases.filter((c) => c.versionId === a.versionId);
             const datasets = variants?.length
                 ? [...new Set(variants.map((c) => c.datasetVersionId ?? d.datasetVersionId))]
@@ -660,6 +734,9 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
                                 type: v,
                             });
                 }
+                /**
+                 * 夹具输入只能使用数据行和已声明的初始变量，先检查输入再引入输出属性；输出模式须能声明单一对象类型。
+                 */
                 if (d.fixtureVersionId) {
                     const f = ref(a.versionId, d.fixtureVersionId, "FIXTURE", p + "/fixtureVersionId");
                     if (f?.kind === "FIXTURE") {
@@ -694,6 +771,10 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
                     }
                 }
                 const expanded = steps(d.steps, a.versionId, scope, p + "/steps", [], { count: 0 }, d.kind === "WRITE");
+                /**
+                 * 持久化检查点按顶层定位，嵌套关键写入归入包装步骤排序；检查点不得早于最后写入，同位置须含最终查询。
+                 * 有效证明要求非警告断言：导航或重载后的界面检查、GET 请求的响应字段，或契约限定的最终一致性查询。
+                 */
                 if (d.kind === "WRITE") {
                     const index = d.steps.findIndex((s) => s.id === d.persistenceCheckpointStepId);
                     const checkpoint = expanded[index];
@@ -767,6 +848,9 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
                 }
             }
         } else if (a.kind === "FLOW") {
+            /**
+             * 独立流程按声明参数建立数据符号，目录及非本地变量可来自调用方；具体用例展开时再用实际调用上下文校验。
+             */
             const scope: Scope = {
                 data: new Map(Object.entries(a.document.parameters ?? {}).map(([k, v]) => [k, sym(v)])),
                 vars: new Map(),
@@ -826,6 +910,9 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
             }
         }
     }
+    /**
+     * 身份配置库存必须精确对应环境声明的适配器版本，同时核对所属空间与配置摘要；这里不解析秘密或校验外部账户。
+     */
     const expectedAdapters = new Set(
         snapshot.assets.flatMap((a) =>
             a.kind === "ENVIRONMENT"
@@ -848,6 +935,9 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
     }
     for (const id of expectedAdapters)
         if (!adapters.some((a) => a.versionId === id)) fail("AUTH_ADAPTER_REQUIRED", "/authAdapters");
+    /**
+     * 从验证目标或所选用例入口遍历已登记引用，并纳入唯一推断的套件根；未被任何根到达的资产作为多余闭包内容报告。
+     */
     const reachable = new Set<string>();
     const visit = (id: string) => {
         if (reachable.has(id)) return;
@@ -862,7 +952,7 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
     return { issues, cases };
 }
 /**
- * 公开函数 validate 在 analyze 基础上施加语义与上限约束：返回完整问题列表：空列表才允许进入 compileFiles。
+ * 只需问题列表的调用方使用此入口，它直接返回完整分析中的问题；编译发射另取同次分析计划并拒绝任何非空问题。
  */
 export function validate(snapshot: AssetSnapshotV1): ValidationIssue[] {
     return analyze(snapshot).issues;

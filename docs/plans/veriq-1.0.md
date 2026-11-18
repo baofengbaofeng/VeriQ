@@ -4,6 +4,8 @@
 
 # VeriQ 1.0
 
+> 当前测试入口（2026-11-18）：从仓库根目录使用 `uv run --project apps/srv python -m pytest`。正式构建也采用模块入口。下文已完成步骤的旧控制台命令保留为历史记录；继续未完成步骤时以当前入口为准。
+
 > **面向编码代理：** 必须使用 `superpowers:executing-plans` 技能逐任务实施；仅在明确选择后，才可采用子代理驱动的执行方式。步骤使用复选框语法。本文为完整产品的内部实施顺序，不把中间任务作为缩减 MVP 交付。
 
 **目标：** 完整交付规格F01-F14，达到安装、运行、云/本地/离线、管理、报告、升级运维均可用。
@@ -668,7 +670,7 @@ assert upgrade_preserves_external_config is True
 assert incompatible_rollback_is_rejected is True
 ```
 
-- [ ] **步骤 2：运行测试确认未实现时失败。** `uv run --project apps/srv pytest tests/acceptance/test_operations.py -q`；失败必须来自缺失行为，而非测试环境拼写错误。
+- [ ] **步骤 2：运行测试确认未实现时失败。** `uv run --project apps/srv python -m pytest tests/acceptance/test_operations.py -q`；失败必须来自缺失行为，而非测试环境拼写错误。
 - [ ] **步骤 3：实现上述接口与文件。** 单迁移job、主密钥备份、File/S3、保留期、容量/租约/清理指标、离线设备恢复、公开快速开始可照做；Compose可选Runtime profile与Linux服务安装，云端受管理设备真实执行并进入门禁。
 - [ ] **步骤 4：运行相同命令并检查实际结果。** 全部目标测试通过，再运行受影响的契约/集成检查；保存命令与输出，未运行明确标记。
 - [ ] **步骤 5：自查规格覆盖并提交。** 同步Schema/OpenAPI/客户端/文档，提交消息建议 `feat: complete t20 安装、升级、备份恢复与观测`。有新决策先更新ADR，不扩展到下一任务。

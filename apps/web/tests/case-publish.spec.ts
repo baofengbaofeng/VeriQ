@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { chromium, test, expect } from "@playwright/test";
 import type { ResourceDocumentV1 } from "@veriq/contracts";
 import { cleanupCaseProfile, withCleanup } from "./support/case-profile-cleanup";
+import { holdValidationReceipt } from "./support/hold-validation-receipt";
 import {
     editorScope,
     closeResourceEditor,
@@ -1068,73 +1069,77 @@ test("T11-R4 delayed real J1 receipt cannot validate a saved candidate or queued
     test.setTimeout(180_000);
     const scope = await editorScope(page, "fix1-receipt");
     const compiler = await managedCompiler(page, scope);
-    let release!: () => void;
-    let held!: () => void;
-    let delivered!: () => void;
-    const holding = new Promise<void>((resolve) => (held = resolve)),
-        delivery = new Promise<void>((resolve) => (delivered = resolve)),
-        released = new Promise<void>((resolve) => (release = resolve));
     let heldJob = "";
-    const receiptPath = `**/api/v1/workspaces/${scope.workspaceId}/jobs/*/validation-receipt`;
-    await page.route(receiptPath, async (route) => {
-        if (!route.request().url().includes(`/jobs/${heldJob}/`)) return route.continue();
-        const response = await route.fetch();
-        expect(response.status()).toBe(200);
-        held();
-        await released;
-        if (route.request().failure()) await response.dispose();
-        else await route.fulfill({ response });
-        delivered();
-    });
-    try {
-        await createResource(page, "ELEMENT_CATALOG", "receipt-catalog");
-        const firstDraft = await saveDraft(page);
-        const j1 = await queueValidation(page);
-        heldJob = j1.id;
-        await compiler.compile();
-        await holding;
-        await page.getByLabel("veriqId").fill("next-revision");
-        const next = await saveDraft(page);
-        expect(next.revision).toBe(firstDraft.revision + 1);
-        const j2 = await queueValidation(page);
-        expect(j2.id).not.toBe(j1.id);
-        release();
-        await delivery;
-        // 等待下一次真实 J2 状态轮询返回后再核对界面，使旧请求的回调已经获得完整的浏览器与渲染调度机会，避免仅凭切换后
-        // 立即出现的新内容误判迟到响应已被隔离。
-        await page.waitForResponse((response) => response.url().endsWith(`/jobs/${j2.id}`));
-        await expect(page.getByText(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12} · /)).toHaveCount(0);
-        await expect(page.getByRole("button", { name: "Publish version" })).toBeDisabled();
-        await page.unroute(receiptPath);
-        await compiler.compile();
-        await expect(page.getByText(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12} · /)).toBeVisible({
-            timeout: 20_000,
-        });
-        const receipt = (
-            await (
-                await page.request.get(`/api/v1/workspaces/${scope.workspaceId}/jobs/${j2.id}/validation-receipt`)
-            ).json()
-        ).data;
-        expect(receipt.revision).toBe(next.revision);
-        await expect(page.getByText(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12} · /)).toContainText(
-            receipt.id,
-        );
-        await expect(page.getByRole("button", { name: "Publish version" })).toBeEnabled();
-        if (next.content.kind !== "ELEMENT_CATALOG") throw new Error("Expected catalog");
-        await applyDocument(page, {
-            ...next.content,
-            document: {
-                ...next.content.document,
-                elements: [{ key: "name", locator: { by: "veriqId", value: "applied-only" } }],
-            },
-        });
-        await expect(page.getByText(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12} · /)).toHaveCount(0);
-        await expect(page.getByRole("button", { name: "Publish version" })).toBeDisabled();
-    } finally {
-        release?.();
-        await page.unroute(receiptPath);
-        await compiler.close();
-    }
+    let receipts: Awaited<ReturnType<typeof holdValidationReceipt>> | undefined;
+    await withCleanup(
+        async () => {
+            receipts = await holdValidationReceipt(
+                page,
+                (url) =>
+                    url.origin === "http://127.0.0.1:5173" &&
+                    url.pathname === `/api/v1/workspaces/${scope.workspaceId}/jobs/${heldJob}/validation-receipt`,
+            );
+            await createResource(page, "ELEMENT_CATALOG", "receipt-catalog");
+            const firstDraft = await saveDraft(page);
+            const j1 = await queueValidation(page);
+            heldJob = j1.id;
+            await compiler.compile();
+            await receipts.holding();
+            await page
+                .getByRole("dialog")
+                .filter({ has: page.getByRole("article") })
+                .getByRole("textbox", { name: "veriqId", exact: true })
+                .fill("next-revision");
+            const next = await saveDraft(page);
+            expect(next.revision).toBe(firstDraft.revision + 1);
+            const j2 = await queueValidation(page);
+            expect(j2.id).not.toBe(j1.id);
+            receipts.release();
+            await receipts.delivered();
+            // 等待下一次真实 J2 状态轮询再核对界面，使旧回调获得浏览器和渲染调度机会，避免凭切换后立即出现的新内容
+            // 误判迟到响应已被隔离；屏障只持有一次 J1 回执，后续 J2 请求仍正常到达服务器。
+            await page.waitForResponse((response) => response.url().endsWith(`/jobs/${j2.id}`));
+            await expect(
+                page.getByText(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12} · /),
+            ).toHaveCount(0);
+            await expect(page.getByRole("button", { name: "Publish version" })).toBeDisabled();
+            await compiler.compile();
+            await expect(
+                page.getByText(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12} · /),
+            ).toBeVisible({
+                timeout: 20_000,
+            });
+            const receipt = (
+                await (
+                    await page.request.get(`/api/v1/workspaces/${scope.workspaceId}/jobs/${j2.id}/validation-receipt`)
+                ).json()
+            ).data;
+            expect(receipt.revision).toBe(next.revision);
+            await expect(
+                page.getByText(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12} · /),
+            ).toContainText(receipt.id);
+            await expect(page.getByRole("button", { name: "Publish version" })).toBeEnabled();
+            if (next.content.kind !== "ELEMENT_CATALOG") throw new Error("Expected catalog");
+            await applyDocument(page, {
+                ...next.content,
+                document: {
+                    ...next.content.document,
+                    elements: [{ key: "name", locator: { by: "veriqId", value: "applied-only" } }],
+                },
+            });
+            await expect(
+                page.getByText(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12} · /),
+            ).toHaveCount(0);
+            await expect(page.getByRole("button", { name: "Publish version" })).toBeDisabled();
+        },
+        () =>
+            withCleanup(
+                async () => {
+                    await receipts?.close();
+                },
+                () => compiler.close(),
+            ),
+    );
 });
 
 /**

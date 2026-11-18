@@ -112,7 +112,7 @@ flowchart TB
 ```sh
 uv sync --project apps/srv --frozen --all-groups
 pnpm install --frozen-lockfile
-uv run --project apps/srv pytest -c apps/srv/pyproject.toml apps/srv/tests/contracts -q
+uv run --project apps/srv python -m pytest -c apps/srv/pyproject.toml apps/srv/tests/contracts -q
 pnpm test
 pnpm check
 ```
@@ -301,7 +301,7 @@ With Python 3.12.14, uv 0.13.5, Node 24.x (`>=24 <25`), and pnpm 11.25.0, from t
 ```sh
 uv sync --project apps/srv --frozen --all-groups
 pnpm install --frozen-lockfile
-uv run --project apps/srv pytest -c apps/srv/pyproject.toml apps/srv/tests/contracts -q
+uv run --project apps/srv python -m pytest -c apps/srv/pyproject.toml apps/srv/tests/contracts -q
 pnpm test
 pnpm check
 ```

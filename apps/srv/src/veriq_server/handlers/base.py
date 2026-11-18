@@ -95,9 +95,8 @@ class API(RequestHandler):
         self.write({"data": data, "requestId": self.request_id})
 
     def write_error(self, status_code: int, **kwargs: Any) -> None:
-        """把 Problem、IntegrityError 与通用 HTTP 状态映射为稳定 code/message，不泄露堆栈。
-        write_error 实现于 apps/srv/src/veriq_server/handlers/base.py：请按该符号的输入校验、错误码与调用方契约阅读，
-        勿假设通用成功默认值。
+        """错误响应恢复被请求框架清除的请求编号头，使其与错误信封使用相同标识，同时保持稳定错误码与脱敏消息。
+        Tornado 在发送错误前清空响应头，因此不能仅依赖准备阶段设置的关联标识。
         """
         exc = kwargs.get("exc_info", (None, None, None))[1]
         if isinstance(exc, Problem):
@@ -120,6 +119,7 @@ class API(RequestHandler):
                 413: "Request body exceeds limit",
             }.get(status_code, "An unexpected error occurred")
         self.set_status(status_code)
+        self.set_header("X-Request-Id", self.request_id)
         self.finish({"code": code, "message": message, "details": {}, "requestId": self.request_id})
 
     def _handle_request_exception(self, e: BaseException) -> None:

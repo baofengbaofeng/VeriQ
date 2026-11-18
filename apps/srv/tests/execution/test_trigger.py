@@ -266,8 +266,8 @@ async def test_service_scope_private_runtime_revoke_and_no_cookie_fallback(site)
     ).status_code == 204
 
 
-async def test_maintenance_four_operations_and_strict_purpose_scopes(site):
-    """完整四项维护权限应能一次签发，但重复、未知操作和跨用途混合都必须在契约校验时被拒绝；执行令牌独立要求计划范围，
+async def test_maintenance_five_operations_and_strict_purpose_scopes(site):
+    """完整五项维护权限应能一次签发，但重复、未知操作和跨用途混合都必须在契约校验时被拒绝；执行令牌独立要求计划范围，
     既有登记令牌不能通过额外字段获得触发或维护能力。
     """
     c, _ = site
@@ -283,6 +283,7 @@ async def test_maintenance_four_operations_and_strict_purpose_scopes(site):
         "fixture-cleanups/reconcile",
         "capacity/reconcile",
         "artifacts/expire",
+        "lifecycle/expire",
     ]
     issued = await c.post(path, json={"purpose": "MAINTENANCE", "operations": operations})
     assert issued.status_code == 201, issued.text

@@ -13,14 +13,96 @@ from typing import Any
 from pathlib import Path
 import re
 import subprocess
+import sys
 import tokenize
 
-GENERATED = {
-    "apps/desktop/src/shared/operations.generated.ts",
-    "packages/contracts/src/api.generated.ts",
-    "packages/contracts/src/types.generated.ts",
-}
-EXTENSIONS = {".py", ".ts", ".tsx", ".js", ".mjs", ".mts", ".c", ".sh"}
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+# 发行入口和验收都允许按文件路径加载模块，因此先注册脚本目录再导入同级库存，避免依赖调用方当前目录。
+import comment_syntax  # pylint: disable=wrong-import-position
+import source_inventory  # pylint: disable=wrong-import-position
+
+GENERATED = source_inventory.GENERATED
+
+
+def _is_shell(name: str) -> bool:
+    """只为已登记的脚本后缀和精确安装路径选择井号正文规则，避免类型脚本或样式正文中的普通井号被误作分隔符。"""
+    return Path(name).suffix == ".sh" or name in source_inventory.SOURCE_PATHS
+
+
+def _comment_body(name: str, raw: str) -> str:
+    """正文仅剥离所属语言的实际注释分隔符，脚本内字面的斜杠星号须保留，而旧脚本桥接继续使用既有剥离顺序。"""
+    if Path(name).suffix == ".java":
+        return _java_body(raw)
+    if _is_shell(name):
+        return raw.removeprefix("#").lstrip()
+    return raw.removeprefix("//").removeprefix("/*").removesuffix("*/").lstrip("* ")
+
+
+def _java_body(raw: str) -> str:
+    """行说明只移除正式双斜杠以保留前导物理分行和原始行偏移，块说明逐行去装饰星号，其他正文标记保留为文字。"""
+    if raw.startswith("//"):
+        return raw[2:]
+    opening = 3 if raw.startswith(("/**", "/*!")) and len(raw) > 4 else 2
+    rows = raw[opening:-2].splitlines()
+    return "\n".join(
+        row.lstrip().removeprefix("*").lstrip() if index else row.lstrip()
+        for index, row in enumerate(rows)
+    )
+
+
+def _first_comment_line(name: str, content: str) -> str:
+    """首行跳过纯空白分隔符但保留脚本正文的字面星号，块注释续行仍沿用原有星号前缀剥离和 Unicode 长度契约。"""
+    if Path(name).suffix == ".java":
+        return next((line.strip() for line in content.splitlines() if line.strip()), "")
+    return next(
+        (
+            line.strip() if _is_shell(name) else line.strip().lstrip("* ")
+            for line in content.splitlines()
+            if line.strip().strip("* ")
+        ),
+        "",
+    )
+
+
+def _read_source(root: Path, name: str, ranges: dict[str, Any]) -> str:
+    """读取源文时保留原始换行并为新增语言装入已验证区间，保证字节定位与后续码点遮罩来自同一份未经转换的文本。"""
+    if (
+        Path(name).suffix in {".css", ".java"}
+        or Path(name).suffix == ".sh"
+        or name in source_inventory.SOURCE_PATHS
+    ):
+        raw = (root / name).read_bytes()
+        language = Path(name).suffix[1:] if Path(name).suffix in {".css", ".java"} else "shell"
+        ranges[name] = comment_syntax.comment_ranges(raw, language, name)
+        return raw.decode("utf-8")
+    with (root / name).open(encoding="utf-8", newline="") as source:
+        return source.read()
+
+
+def _comment_lines(name: str, start: int, end: int, content: str, lines: list[str]) -> set[int]:
+    """新增语言只累计真实范围中的非空正文，旧语言保留既有关闭行规则，防止空注释旁的代码在新增适配中被错误计为说明。"""
+    if Path(name).suffix == ".java":
+        return {start + offset for offset, line in enumerate(content.splitlines()) if line.strip()}
+    if Path(name).suffix in {".sh", ".css"} or name in source_inventory.SOURCE_PATHS:
+        return {
+            start + offset
+            for offset, line in enumerate(content.splitlines())
+            if line.strip().strip("#/*\"' ")
+        }
+    return {index for index in range(start, end + 1) if lines[index - 1].strip().strip("#/*\"' ")}
+
+
+def _masked_source(name: str, text: str, spans: list[dict[str, Any]]) -> str:
+    """新增语言遮罩保留既有物理分行定义的全部边界，防止注释空行错移后吞掉代码；旧类型脚本仍保持原有回车换行规则。"""
+    line_breaks = "\r\n"
+    if _is_shell(name) or Path(name).suffix in {".css", ".java"}:
+        line_breaks += "\v\f\x1c\x1d\x1e\x85\u2028\u2029"
+    residual = list(text)
+    for item in spans:
+        for offset in range(item["offsetCodePoint"], item["limitCodePoint"]):
+            if residual[offset] not in line_breaks:
+                residual[offset] = " "
+    return "".join(residual)
 
 
 def audit(root: Path) -> dict[str, Any]:
@@ -30,42 +112,45 @@ def audit(root: Path) -> dict[str, Any]:
     空行不计入分子，单独的注释分隔符也不制造有效说明。大段字符串常量不会被当作文档串增加比例。自动检查不能判断内容是否灌
     水，报告明确保留人工审查责任。每个文件保留计数，便于 T22 按实际符号整改。
     """
-    names = subprocess.check_output(
-        ["git", "ls-files", "--cached", "--others", "--exclude-standard"],
-        cwd=root,
-        text=True,
-    ).splitlines()
-    selected = sorted(
+    entries = [
+        entry
+        for entry in source_inventory.inventory(root)
+        if not entry["generated"] and not entry["path"].as_posix().startswith(".superpowers/")
+    ]
+    unsupported = [
         {
-            name
-            for name in names
-            if Path(name).suffix in EXTENSIONS
-            and name not in GENERATED
-            and not name.startswith(".superpowers/")
-            and (root / name).is_file()
+            "path": entry["path"].as_posix(),
+            "language": entry["language"],
+            "reason": entry["unsupportedReason"],
         }
+        for entry in entries
+        if entry["unsupportedReason"] is not None
+    ]
+    selected = sorted(
+        entry["path"].as_posix() for entry in entries if entry["unsupportedReason"] is None
     )
-    js = [name for name in selected if Path(name).suffix not in {".py", ".sh"}]
-    ranges = json.loads(
-        subprocess.check_output(
-            ["node", "scripts/comment_ranges.mjs"],
-            cwd=root,
-            input=json.dumps(js),
-            text=True,
+    js = [name for name in selected if Path(name).suffix in source_inventory.TYPESCRIPT_EXTENSIONS]
+    ranges = (
+        json.loads(
+            subprocess.check_output(
+                ["node", "scripts/comment_ranges.mjs"],
+                cwd=root,
+                input=json.dumps(js),
+                text=True,
+            )
         )
+        if js
+        else {}
     )
     rows: list[dict[str, Any]] = []
     violations: list[dict[str, Any]] = []
     for name in selected:
-        # Node 使用原始 UTF8 文本定位注释，Python 必须保留相同的 CRLF 字符序列才能消费桥接坐标；若默认转换换行，
-        # 即使文件只有基本平面字符也会把遮罩错移到后续代码。
-        with (root / name).open(encoding="utf-8", newline="") as source:
-            text = source.read()
+        text = _read_source(root, name, ranges)
         lines = text.splitlines()
         blocks = []
         comments: set[int] = set()
         code: set[int] = set()
-        if name.endswith(".py"):
+        if Path(name).suffix in source_inventory.PYTHON_EXTENSIONS:
             # Python 分词器依赖逐个物理行读取，StringIO 必须启用通用换行以识别合法裸回车并与 AST 行号一致；
             # 转换仅作用于分词输入，供 Node 坐标遮罩使用的原始文本仍完整保留。
             for token in tokenize.generate_tokens(io.StringIO(text, newline=None).readline):
@@ -103,35 +188,13 @@ def audit(root: Path) -> dict[str, Any]:
                         )
                     )
                     code.difference_update(range(value.lineno, value.end_lineno + 1))
-        elif name.endswith(".sh"):
-            for index, line in enumerate(lines, 1):
-                if line.lstrip().startswith("#") and not line.startswith("#!"):
-                    blocks.append((index, index, line.lstrip().lstrip("# ")))
-                elif line.strip():
-                    code.add(index)
         else:
             blocks = [
-                (
-                    item["start"],
-                    item["end"],
-                    item["text"]
-                    .removeprefix("//")
-                    .removeprefix("/*")
-                    .removesuffix("*/")
-                    .lstrip("* "),
-                )
+                (item["start"], item["end"], _comment_body(name, item["text"]))
                 for item in ranges[name]
             ]
-            residual = list(text)
-            for item in ranges[name]:
-                for offset in range(item["offsetCodePoint"], item["limitCodePoint"]):
-                    if residual[offset] not in "\r\n":
-                        residual[offset] = " "
-            code = {
-                index
-                for index, line in enumerate("".join(residual).splitlines(), 1)
-                if line.strip()
-            }
+            residual = _masked_source(name, text, ranges[name])
+            code = {index for index, line in enumerate(residual.splitlines(), 1) if line.strip()}
         merged: list[tuple[int, int, str]] = []
         for start, end, content in sorted(blocks):
             if merged and start == merged[-1][1] + 1 and start == end:
@@ -139,26 +202,19 @@ def audit(root: Path) -> dict[str, Any]:
                 merged.append((previous[0], end, previous[2] + "\n" + content))
             else:
                 merged.append((start, end, content))
-            comments.update(
-                index
-                for index in range(start, end + 1)
-                if lines[index - 1].strip().strip("#/*\"' ")
-            )
+            comments.update(_comment_lines(name, start, end, content, lines))
         for start, _, content in merged:
-            first = next(
-                (
-                    line.strip().lstrip("* ")
-                    for line in content.splitlines()
-                    if line.strip().strip("* ")
-                ),
-                "",
-            )
-            if len(first) < 40 or not re.search(r"[\u3400-\u9fff]", first):
+            first = _first_comment_line(name, content)
+            if not 40 <= len(first) <= 120 or not re.search(r"[\u3400-\u9fff]", first):
                 violations.append(
                     {
                         "path": name,
                         "line": start,
-                        "reason": "Chinese comment first line must contain at least 40 characters",
+                        "reason": (
+                            "Chinese comment first line must contain 40 to 120 characters"
+                            if len(first) > 120
+                            else "Chinese comment first line must contain at least 40 characters"
+                        ),
                     }
                 )
         code.intersection_update(index for index, line in enumerate(lines, 1) if line.strip())
@@ -172,8 +228,11 @@ def audit(root: Path) -> dict[str, Any]:
         "method": "syntax-comments-v1",
         "generatedExclusions": sorted(GENERATED),
         "requiresHumanQualityReview": True,
-        "ratio": ratio,
-        "passed": ratio > 0.4 and not violations,
+        "ratio": ratio if not unsupported else None,
+        "observedRatio": ratio,
+        "coverageComplete": not unsupported,
+        "unsupportedPaths": unsupported,
+        "passed": not unsupported and ratio > 0.4 and not violations,
         "files": rows,
         "violations": violations,
     }
@@ -188,10 +247,20 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    report = audit(Path(__file__).resolve().parents[1])
+    try:
+        report = audit(Path(__file__).resolve().parents[1])
+    except comment_syntax.CommentSyntaxError as error:
+        print(str(error), file=sys.stderr)
+        raise SystemExit(2) from None
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(report, indent=2) + "\n")
-    print(f"Comment ratio: {report['ratio']:.4%}; violations: {len(report['violations'])}")
+    if report["coverageComplete"]:
+        print(f"Comment ratio: {report['ratio']:.4%}; violations: {len(report['violations'])}")
+    else:
+        print(
+            f"Comment ratio unavailable: {len(report['unsupportedPaths'])} unsupported source paths; "
+            f"violations: {len(report['violations'])}"
+        )
     raise SystemExit(0 if report["passed"] else 1)
 
 

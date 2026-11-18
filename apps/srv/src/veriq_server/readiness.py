@@ -172,9 +172,11 @@ class ReadinessMonitor:
             if config.readiness_s3_strategy == "head-bucket":
                 client.head_bucket(Bucket=config.artifact_s3_bucket)
                 return True
-            response = client.get_object(
-                Bucket=config.artifact_s3_bucket, Key=config.readiness_s3_object_key
-            )
+            # 读对象策略校验要求对象键；若绕过校验且键为 None，跳过对象请求并通过下方清理关闭客户端。
+            object_key = config.readiness_s3_object_key
+            if object_key is None:
+                return False
+            response = client.get_object(Bucket=config.artifact_s3_bucket, Key=object_key)
             body = response["Body"]
             try:
                 payload = body.read(config.readiness_s3_object_size + 1)
