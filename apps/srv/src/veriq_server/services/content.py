@@ -178,8 +178,16 @@ class ContentService:
         if workspace_id != attempt.workspace_id:
             raise Problem(404, "CONTENT_NOT_FOUND", "Content is not assigned to Attempt")
         repo = ResourceRepository(self.session, WorkspaceScope(workspace_id))
-        allowed = {job.snapshot_hash, job.manifest_hash}
-        manifest = json.loads((await repo.artifact(job.manifest_hash)).content)
+        from .connected_datasets import legacy_source
+
+        if await legacy_source(repo, job):
+            raise Problem(
+                409,
+                "CONNECTED_REVALIDATION_REQUIRED",
+                "Historical assignment requires connected validation",
+            )
+        manifest = json.loads((await repo.artifact(attempt.manifest_hash)).content)
+        allowed = {attempt.manifest_hash, manifest.get("snapshotSha256", attempt.snapshot_hash)}
         bundle_hash = manifest.get("compiledBundleSha256")
         if bundle_hash:
             allowed.add(bundle_hash)

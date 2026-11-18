@@ -149,6 +149,7 @@ export async function doctor(
             ? {
                   capabilities: {
                       engineVersion,
+                      connectedDatasets: "2.0" as const,
                       os: platform() as "linux" | "win32",
                       arch: "x64" as const,
                       browsers: ["chromium" as const],

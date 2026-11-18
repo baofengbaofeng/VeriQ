@@ -76,6 +76,32 @@ async def completed(db, job_id):
                 {"name": "@veriq/runner-sdk", "version": "0.1.0", "integrity": "sha256-" + digest}
             ],
         }
+        if any(a["kind"] == "DATASET" for a in snapshot["assets"]):
+            from veriq_server.auth.authorization import WorkspaceScope
+            from veriq_server.repositories.resource import ResourceRepository
+
+            repo = ResourceRepository(s, WorkspaceScope(job.workspace_id))
+            manifest = json.loads((await repo.artifact(job.manifest_hash)).content)
+            manifest["snapshotSha256"] = job.snapshot_hash
+            job.manifest_hash = await repo.store(canonical_bytes(manifest))
+            job.required_capabilities = {
+                k: v for k, v in job.required_capabilities.items() if k != "connectedDatasets"
+            }
+            # 发布夹具保留历史编译格式的精确源成员，联网准入需要重新验证这个已发布版本，不能借用未来的草稿。
+            retained = (
+                {k: v for k, v in snapshot.items() if k != "validationTarget"}
+                if snapshot["entryCaseVersionIds"]
+                else snapshot
+            )
+            source_bytes = canonical_bytes(retained)
+            source_digest = await repo.store(source_bytes)
+            bundle["files"].append(
+                {
+                    "path": "source/asset-snapshot.json",
+                    "sha256": source_digest,
+                    "sizeBytes": len(source_bytes),
+                }
+            )
         if not snapshot["entryCaseVersionIds"]:
             bundle["validationOnly"] = True
         raw = canonical_bytes(bundle)

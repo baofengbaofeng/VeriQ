@@ -16,6 +16,7 @@ from ..credentials.registry import IdentityRegistry
 from ..db import Run, CaseExecution, Job, User, ResourceVersion, Attempt
 from ..repositories.resource import ResourceRepository
 from ..service import Problem, now, stamp
+from .connected_datasets import project_execution, revalidate_bundle
 from .runtime import RuntimeService
 from .workspace import WorkspaceRepository
 from .snapshots import dataset_matrix_rows, execution_data_row, validate_initial_variables
@@ -210,7 +211,19 @@ class RunService:
                     if (await repo.artifact(file["sha256"])).size_bytes != file["sizeBytes"]:
                         raise Problem(409, "COMPILED_PROVENANCE_REQUIRED", "Compiled bytes differ")
                 root = next(a for a in source["assets"] if a["versionId"] == version.id)
-                selections.append((root, source, validation, receipt.compiled_bundle_sha256))
+                validation, bundle_hash = await revalidate_bundle(
+                    repo,
+                    validation,
+                    source,
+                    bundle,
+                    receipt,
+                    requester=self.attribution,
+                    service_token=(
+                        self.actor.token_id if isinstance(self.actor, ServicePrincipal) else None
+                    ),
+                    plan_id=self.plan_id,
+                )
+                selections.append((root, source, validation, bundle_hash))
         # 先按冻结来源中的数据行、角色和浏览器数量计算矩阵，超过既有上限立即拒绝，避免在安装锁内逐个创建大量快照和数据库
         # 对象后才回滚事务。
         cardinality = 0
@@ -359,6 +372,7 @@ class RunService:
                                 raise Problem(
                                     422, "INVALID_SNAPSHOT", "Frozen execution context is invalid"
                                 )
+                            frozen = project_execution(frozen, source)
                             snapshot_hash = await repo.store(canonical_bytes(frozen))
                             jid = str(uuid4())
                             manifest = {
@@ -434,6 +448,11 @@ class RunService:
                                     max_retries=data.get("maxRetries", 0),
                                     required_capabilities={
                                         "engineVersion": source["engineVersion"],
+                                        **(
+                                            {"connectedDatasets": "2.0"}
+                                            if frozen["schemaVersion"] == "2.0"
+                                            else {}
+                                        ),
                                         "browser": browser,
                                         "environmentVersionId": environment_version.id,
                                         "resourceKeys": resource_keys,

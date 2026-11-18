@@ -388,6 +388,10 @@ class CompletionService:
             if source["entryCaseVersionIds"]
             else source
         )
+        if job.required_capabilities.get("connectedDatasets"):
+            from .connected_datasets import project_source
+
+            expected_source = project_source(expected_source)
         if (
             not source_file
             or (await repo.artifact(source_file["sha256"])).content

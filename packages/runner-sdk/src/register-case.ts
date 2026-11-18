@@ -16,6 +16,7 @@ import {
     resolveBinding,
     resolveInitialVariables,
     type AssetSnapshotV1,
+    type ConnectedSourceSnapshotV2,
     type CompiledCase,
     type ExecutionSnapshotV1,
     type JsonObject,
@@ -99,6 +100,7 @@ export interface ExecutionOptions {
      */
     finalizeExecution?: (context: import("@playwright/test").BrowserContext) => Promise<void>;
     page: Page;
+    hydrateSource?: (source: ConnectedSourceSnapshotV2, aliases: string[]) => Promise<AssetSnapshotV1>;
     execution: ExecutionSnapshotV1;
     lifecycle?: LifecycleProvider;
     credentials?: CredentialProvider;
@@ -401,7 +403,7 @@ export function configureExecution(contextProvider: ExecutionContextProvider): v
 /**
  * 公开函数 registerCase 把编译用例登记为可被 Playwright 调度的测试入口：实际执行委托 executeCase。
  */
-export function registerCase(plan: CompiledCase, source: AssetSnapshotV1): void {
+export function registerCase(plan: CompiledCase, source: AssetSnapshotV1 | ConnectedSourceSnapshotV2): void {
     test.describe(plan.caseVersionId, () => {
         test.describe.configure({ retries: 0 });
         test(plan.document.title, async ({ page }, info) => {
@@ -413,8 +415,13 @@ export function registerCase(plan: CompiledCase, source: AssetSnapshotV1): void 
                 provider = module.createExecutionContext;
             }
             if (!provider) throw new Error("EXECUTION_CONTEXT_PROVIDER_REQUIRED");
-            const options = await provider(info),
-                result = await executeCase(plan, source, { ...options, page });
+            const options = await provider(info);
+            const live =
+                source.schemaVersion === "2.0"
+                    ? await options.hydrateSource?.(source, Object.values(plan.document.datasetBindings ?? {}))
+                    : source;
+            if (!live) throw new Error("DATASET_PROVIDER_REQUIRED");
+            const result = await executeCase(plan, live, { ...options, page });
             if (!options.redact) throw new Error("REDACTION_PROVIDER_REQUIRED");
             await info.attach("veriq-result", {
                 body: Buffer.from(JSON.stringify(options.redact(result as unknown as JsonValue))),

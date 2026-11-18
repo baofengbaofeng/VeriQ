@@ -521,11 +521,14 @@ class ResourceService:
             return job_dto(existing)
         job_id = str(uuid4())
         snapshot_hash = await repo.store(canonical_bytes(snapshot))
+        from .connected_datasets import project_source
+
+        projected = project_source(snapshot)
         manifest = {
             "schemaVersion": "1.0",
             "workspaceId": scope.workspace_id,
             "jobId": job_id,
-            "snapshotSha256": snapshot_hash,
+            "snapshotSha256": await repo.store(canonical_bytes(projected)),
             "engineVersion": self.engine_version,
             "kind": "VALIDATE",
             "resourceId": resource_id,
@@ -542,7 +545,11 @@ class ResourceService:
             snapshot_hash=snapshot_hash,
             manifest_hash=manifest_hash,
             validation_key=key,
-            required_capabilities={"engineVersion": self.engine_version, "compileAssets": True},
+            required_capabilities={
+                "engineVersion": self.engine_version,
+                "compileAssets": True,
+                **({"connectedDatasets": "2.0"} if projected is not snapshot else {}),
+            },
             created_by=self.user.id,
             created_at=now(),
         )

@@ -13,6 +13,7 @@ import {
     resolveInitialVariables,
     validateSchema,
     type AssetSnapshotV1,
+    type ConnectedSourceSnapshotV2,
     type CompiledAssetBundle,
     type DependencyVersion,
     type ExecutionSnapshotV1,
@@ -229,19 +230,44 @@ function registration(plan: CompiledCase): Uint8Array {
     return bytes(ts.createPrinter({ newLine: ts.NewLineKind.LineFeed }).printFile(file));
 }
 /**
- * 公开函数 compileFiles 将资产快照编译为不可变 TS/JSON 文件表：DSL 以 JSON 字面量嵌入：不发射可写执行上下文。
+ * 联网投影保持资产依赖顺序并锁定原始规范字节的摘要，两个静态数据版本只保留声明，行值由私有通道读取。
  */
-export function compileFiles(snapshot: AssetSnapshotV1, distribution?: EngineDistribution): CompiledOutput {
+export function projectConnectedSource(snapshot: AssetSnapshotV1): ConnectedSourceSnapshotV2 {
+    return {
+        ...snapshot,
+        schemaVersion: "2.0",
+        originalSha256: sha256(canonicalBytes(snapshot)),
+        assets: snapshot.assets.map((asset) => {
+            if (asset.kind !== "DATASET") return asset;
+            const { document, ...identity } = asset;
+            const schema =
+                document.schemaVersion === "1.0"
+                    ? { schemaVersion: document.schemaVersion, columns: document.columns }
+                    : { schemaVersion: document.schemaVersion, shape: document.shape, fields: document.fields };
+            return { ...identity, schema, contentSha256: sha256(canonicalBytes(document)) };
+        }) as ConnectedSourceSnapshotV2["assets"],
+    };
+}
+/**
+ * 联网编译仍对整份原始冻结源执行语义校验，仅在生成可落盘文件时替换数据正文，离线旧契约继续按原格式读取。
+ */
+export function compileFiles(
+    snapshot: AssetSnapshotV1,
+    distribution?: EngineDistribution,
+    options?: { connected: boolean },
+): CompiledOutput {
     const analysis = analyze(snapshot);
     if (analysis.issues.length) throw new Error("ASSET_VALIDATION_FAILED: " + JSON.stringify(analysis.issues));
     const files = distributionFiles(distribution, snapshot.engineVersion);
     const { validationTarget: _target, ...source } = snapshot;
     // Frozen identity projection is also the recoverable Workspace/source context for downloaded bundles.
-    files[SOURCE_SNAPSHOT_PATH] = canonicalBytes(snapshot.entryCaseVersionIds.length ? source : snapshot);
+    const retained = snapshot.entryCaseVersionIds.length ? (source as AssetSnapshotV1) : snapshot;
+    const persisted = options?.connected ? projectConnectedSource(retained) : retained;
+    files[SOURCE_SNAPSHOT_PATH] = canonicalBytes(persisted);
     if (snapshot.entryCaseVersionIds.length)
         files["source/context.ts"] = bytes(
             "export const source = JSON.parse(" +
-                JSON.stringify(new TextDecoder().decode(canonicalBytes(source))) +
+                JSON.stringify(new TextDecoder().decode(canonicalBytes(persisted))) +
                 ");\n",
         );
     const entrypoints = snapshot.entryCaseVersionIds.map((caseVersionId) => ({
@@ -253,7 +279,7 @@ export function compileFiles(snapshot: AssetSnapshotV1, distribution?: EngineDis
     if (!entrypoints.length)
         files["validation.ts"] = bytes(
             "export const validationOnly = true;\nexport const assets = JSON.parse(" +
-                JSON.stringify(new TextDecoder().decode(canonicalBytes(source.assets))) +
+                JSON.stringify(new TextDecoder().decode(canonicalBytes(persisted.assets))) +
                 ");\n",
         );
     const expectedCases = analysis.cases.map((plan) => {
@@ -420,6 +446,7 @@ export function assembleExecution(
     bundle: CompiledAssetBundle,
     snapshot: ExecutionSnapshotV1,
     files?: Record<string, Uint8Array>,
+    original?: AssetSnapshotV1,
 ): ExecutionPackage {
     checkSchema("CompiledAssetBundle", bundle);
     checkSchema("ExecutionSnapshotV1", snapshot);
@@ -431,7 +458,9 @@ export function assembleExecution(
     if (!selected) throw new Error("UNKNOWN_SELECTED_CASE");
     const raw = files[SOURCE_SNAPSHOT_PATH];
     if (!raw) throw new Error("SOURCE_CONTEXT_REQUIRED");
-    const source = parse(raw) as AssetSnapshotV1;
+    if (original && sha256(canonicalBytes(projectConnectedSource(original))) !== sha256(raw))
+        throw new Error("COMPILED_PROVENANCE_MISMATCH");
+    const source = original ?? (parse(raw) as AssetSnapshotV1);
     const problems = validate(source);
     if (problems.length) throw new Error("INVALID_SOURCE_CONTEXT: " + JSON.stringify(problems));
     if (source.workspaceId !== snapshot.workspaceId) throw new Error("WORKSPACE_MISMATCH");

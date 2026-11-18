@@ -92,6 +92,10 @@ class PublishService(ResourceService):
                 "revision": draft_revision,
                 "sourceHash": snapshot["sourceHash"],
             }
+            if job.required_capabilities.get("connectedDatasets"):
+                from .connected_datasets import checksum, project_source
+
+                expected["snapshotSha256"] = checksum(project_source(snapshot))
             if manifest != expected:
                 raise ValueError("Manifest changed")
             bundle = json.loads((await repo.artifact(receipt.compiled_bundle_sha256)).content)

@@ -29,6 +29,8 @@ import {
     type CompletionManifestV1,
     type CompiledAssetBundle,
     type ExecutionSnapshotV1,
+    type ConnectedExecutionSnapshotV2,
+    type StaticDatasetSelection,
     type EvidenceFileEntryV1,
     type CleanupStatus,
 } from "@veriq/contracts";
@@ -538,41 +540,60 @@ export class ExecutionSupervisor {
                 throw new Error("ASSIGNMENT_MISMATCH");
             const release = await loadRelease(this.options.releaseDirectory, manifest.engineVersion);
             const subject = await download(manifest.snapshotSha256);
-            await write("subject.json", subject);
-            let execution: ExecutionSnapshotV1 | undefined, bundle: CompiledAssetBundle | undefined;
+            const incoming = JSON.parse(Buffer.from(subject).toString());
+            if (incoming.workspaceId !== manifest.workspaceId) throw new Error("WORKSPACE_MISMATCH");
+            if (
+                manifest.kind === "VALIDATE" &&
+                (incoming.schemaVersion === "2.0"
+                    ? validateSchema("ConnectedSourceSnapshotV2", incoming).length
+                    : validateSchema("AssetSnapshotV1", incoming).length ||
+                      incoming.assets.some((asset: { kind: string }) => asset.kind === "DATASET"))
+            )
+                throw new Error("CONNECTED_SOURCE_REQUIRED");
+            let execution: ExecutionSnapshotV1 | ConnectedExecutionSnapshotV2 | undefined,
+                bundle: CompiledAssetBundle | undefined;
             if (manifest.kind === "TEST") {
-                execution = JSON.parse(
-                    Buffer.from(await download(manifest.executionSnapshotSha256)).toString(),
-                ) as ExecutionSnapshotV1;
+                if (manifest.executionSnapshotSha256 !== manifest.snapshotSha256)
+                    throw new Error("EXECUTION_BINDING_MISMATCH");
+                execution = incoming as ExecutionSnapshotV1 | ConnectedExecutionSnapshotV2;
                 if (
-                    validateSchema("ExecutionSnapshotV1", execution).length ||
+                    (execution.schemaVersion === "2.0"
+                        ? validateSchema("ConnectedExecutionSnapshotV2", execution).length
+                        : validateSchema("ExecutionSnapshotV1", execution).length ||
+                          execution.dataRow ||
+                          execution.datasetVersionId ||
+                          execution.datasetBindings) ||
                     execution.workspaceId !== manifest.workspaceId ||
                     execution.caseExecutionId !== manifest.caseExecutionId ||
                     execution.caseVersionId !== manifest.caseVersionId
                 )
                     throw new Error("EXECUTION_BINDING_MISMATCH");
-                await write("execution.json", canonicalBytes(execution));
+
                 const descriptor = await download(manifest.compiledBundleSha256);
                 bundle = JSON.parse(Buffer.from(descriptor).toString()) as CompiledAssetBundle;
                 if (validateSchema("CompiledAssetBundle", bundle).length) throw new Error("INVALID_COMPILED_BUNDLE");
+                const member = bundle.files.find((file) => file.path === "source/asset-snapshot.json");
+                if (!member) throw new Error("SOURCE_CONTEXT_REQUIRED");
+                const sourceBytes = await download(member.sha256);
+                const source = JSON.parse(Buffer.from(sourceBytes).toString());
+                if (
+                    sourceBytes.length !== member.sizeBytes ||
+                    source.workspaceId !== manifest.workspaceId ||
+                    source.sourceHash !== execution.assetSourceHash ||
+                    bundle.sourceHash !== source.sourceHash ||
+                    (execution.schemaVersion === "2.0"
+                        ? validateSchema("ConnectedSourceSnapshotV2", source).length
+                        : validateSchema("AssetSnapshotV1", source).length ||
+                          source.assets.some((asset: { kind: string }) => asset.kind === "DATASET"))
+                )
+                    throw new Error("CONNECTED_SOURCE_REQUIRED");
+                await write("source/asset-snapshot.json", sourceBytes);
+                await write("execution.json", subject);
                 await write("bundle.json", descriptor);
-                for (const file of bundle.files) {
-                    const bytes = await download(file.sha256);
-                    if (bytes.length !== file.sizeBytes) throw new Error("CONTENT_SIZE_MISMATCH");
-                    await write(file.path, bytes);
-                }
-                for (const [path, bytes] of Object.entries(release.files)) {
-                    if (path === "engine/compiler.tgz") {
-                        await write(path, bytes);
-                        continue;
-                    }
-                    if (sha256(await readFile(join(work, path))) !== sha256(bytes))
-                        throw new Error("UNAPPROVED_ENGINE_BYTES");
-                }
-            } else {
-                for (const [path, bytes] of Object.entries(release.files)) await write(path, bytes);
-                if (manifest.kind === "VALIDATE") await write("source/asset-snapshot.json", subject);
-            }
+            } else if (manifest.kind === "VALIDATE") await write("source/asset-snapshot.json", subject);
+            // 本地生成的用例文件只允许来自已批准发行的重新编译，远端旧包中的上下文与附加文件不会被直接写入任务目录。
+            for (const [path, bytes] of Object.entries(release.files)) await write(path, bytes);
+            await write("subject.json", subject);
             const frozen = execution ?? JSON.parse(Buffer.from(subject).toString());
             if (frozen.workspaceId !== manifest.workspaceId) throw new Error("WORKSPACE_MISMATCH");
             if (manifest.kind === "CLEANUP") {
@@ -589,7 +610,53 @@ export class ExecutionSupervisor {
                 )
                     throw new Error("INVALID_CLEANUP_SUBJECT");
             }
+            let loading = false,
+                compiled = false;
+            let transfer: { bytes: Uint8Array; id: string; next: number } | undefined;
             broker = new AttemptBroker(join(brokerDirectory?.path ?? tmp, "control.sock"), async (message) => {
+                if (message.type === "compiled" && manifest!.kind === "TEST") {
+                    compiled = true;
+                    return {};
+                }
+                if (message.type === "dataset") {
+                    if (controller.signal.aborted || frozen.schemaVersion !== "2.0")
+                        throw new Error("ATTEMPT_STOPPING");
+                    if (message.selection) {
+                        if (loading || transfer || validateSchema("StaticDatasetSelection", message.selection).length)
+                            throw new Error("INVALID_DATASET_TRANSFER");
+                        const selection = message.selection as StaticDatasetSelection;
+                        if ((manifest!.kind === "VALIDATE") !== (selection.selection === "VALIDATION_SOURCE"))
+                            throw new Error("DATASET_NOT_ASSIGNED");
+                        if (
+                            compiled &&
+                            selection.selection === "DATASET" &&
+                            !Object.values(execution?.datasetBindings ?? {}).includes(selection.versionId)
+                        )
+                            throw new Error("DATASET_NOT_ASSIGNED");
+                        loading = true;
+                        let bytes: Uint8Array;
+                        try {
+                            bytes = await client.binary(
+                                `/internal/v1/attempts/${claim.attemptId}/datasets/static`,
+                                claim,
+                                controller.signal,
+                                undefined,
+                                selection,
+                            );
+                        } finally {
+                            loading = false;
+                        }
+                        if (controller.signal.aborted || !bytes.length || bytes.length > 16 * 1024 * 1024)
+                            throw new Error("DATASET_TRANSFER_LIMIT");
+                        transfer = { bytes, id: randomUUID(), next: 0 };
+                    } else if (!transfer || message.id !== transfer.id || message.offset !== transfer.next)
+                        throw new Error("INVALID_DATASET_TRANSFER");
+                    const { bytes, id, next } = transfer!;
+                    const part = Buffer.from(bytes.subarray(next, next + 32768)).toString("base64");
+                    transfer!.next = Math.min(next + 32768, bytes.length);
+                    if (transfer!.next === bytes.length) transfer = undefined;
+                    return { id, size: bytes.length, offset: next, part };
+                }
                 if (message.type === "credential") {
                     if (controller.signal.aborted) throw new Error("ATTEMPT_STOPPING");
                     const reference = message.reference as {
@@ -651,6 +718,7 @@ export class ExecutionSupervisor {
             });
             await broker.open();
             const invocation = {
+                online: true,
                 kind: manifest.kind,
                 work,
                 tmp,

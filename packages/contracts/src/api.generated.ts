@@ -1151,6 +1151,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/internal/v1/attempts/{attemptId}/datasets/static": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Fetch canonical frozen bytes with current Attempt proof
+         * @description Return canonical bytes for the frozen selection after checking current workspace, device, lease
+         * and fence.
+         */
+        post: operations["fetchStaticDataset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/internal/v1/attempts/{attemptId}/credentials/resolve": {
         parameters: {
             query?: never;
@@ -2151,6 +2172,76 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        0: {
+            resourceId: components["schemas"]["Id"];
+            versionId: components["schemas"]["Id"];
+            /**
+             * @constant
+             */
+            kind: "CASE";
+            sha256: components["schemas"]["Sha256"];
+            document: components["schemas"]["CaseDslV1"];
+        };
+        1: {
+            resourceId: components["schemas"]["Id"];
+            versionId: components["schemas"]["Id"];
+            /**
+             * @constant
+             */
+            kind: "ELEMENT_CATALOG";
+            sha256: components["schemas"]["Sha256"];
+            document: components["schemas"]["ElementCatalogV1"];
+        };
+        2: {
+            resourceId: components["schemas"]["Id"];
+            versionId: components["schemas"]["Id"];
+            /**
+             * @constant
+             */
+            kind: "ASSERTION_TEMPLATE";
+            sha256: components["schemas"]["Sha256"];
+            document: components["schemas"]["AssertionTemplateV1"];
+        };
+        4: {
+            resourceId: components["schemas"]["Id"];
+            versionId: components["schemas"]["Id"];
+            /**
+             * @constant
+             */
+            kind: "FLOW";
+            sha256: components["schemas"]["Sha256"];
+            document: components["schemas"]["FlowV1"];
+        };
+        5: {
+            resourceId: components["schemas"]["Id"];
+            versionId: components["schemas"]["Id"];
+            /**
+             * @constant
+             */
+            kind: "FIXTURE";
+            sha256: components["schemas"]["Sha256"];
+            document: components["schemas"]["FixtureV1"];
+        };
+        6: {
+            resourceId: components["schemas"]["Id"];
+            versionId: components["schemas"]["Id"];
+            /**
+             * @constant
+             */
+            kind: "SUITE";
+            sha256: components["schemas"]["Sha256"];
+            document: components["schemas"]["SuiteV1"];
+        };
+        7: {
+            resourceId: components["schemas"]["Id"];
+            versionId: components["schemas"]["Id"];
+            /**
+             * @constant
+             */
+            kind: "ENVIRONMENT";
+            sha256: components["schemas"]["Sha256"];
+            document: components["schemas"]["EnvironmentV1"];
+        };
         /**
          * Format: uuid
          * @description Hyphenated 8-4-4-4-12 hexadecimal UUID, case-insensitive; no URN, braces or surrounding
@@ -3559,6 +3650,99 @@ export interface components {
             sha256: components["schemas"]["Sha256"];
             document: components["schemas"]["EnvironmentV1"];
         };
+        ConnectedDatasetV2: {
+            /**
+             * @constant
+             */
+            kind: "DATASET";
+            resourceId: components["schemas"]["Id"];
+            versionId: components["schemas"]["Id"];
+            sha256: components["schemas"]["Sha256"];
+            schema: {
+                /**
+                 * @constant
+                 */
+                schemaVersion: "1.0";
+                columns: components["schemas"]["ParameterTypes"];
+            } | {
+                /**
+                 * @constant
+                 */
+                schemaVersion: "2.0";
+                /**
+                 * @enum {unknown}
+                 */
+                shape: "TABLE" | "TREE";
+                fields: components["schemas"]["DatasetFieldsV2"];
+            };
+            contentSha256: components["schemas"]["Sha256"];
+        };
+        ConnectedSourceSnapshotV2: {
+            /**
+             * @constant
+             */
+            schemaVersion: "2.0";
+            workspaceId: components["schemas"]["Id"];
+            sourceHash: components["schemas"]["Sha256"];
+            engineVersion: components["schemas"]["Version"];
+            entryCaseVersionIds: components["schemas"]["Id"][];
+            assets: (components["schemas"]["0"] | components["schemas"]["1"] | components["schemas"]["2"]
+                | components["schemas"]["4"] | components["schemas"]["5"] | components["schemas"]["6"]
+                | components["schemas"]["7"] | components["schemas"]["ConnectedDatasetV2"])[];
+            validationTarget?: components["schemas"]["ValidationTargetV1"];
+            authAdapters?: components["schemas"]["AuthAdapterVersionV1"][];
+            originalSha256: components["schemas"]["Sha256"];
+        } & unknown;
+        ConnectedExecutionSnapshotV2: {
+            /**
+             * @constant
+             */
+            schemaVersion: "2.0";
+            workspaceId: components["schemas"]["Id"];
+            runId: components["schemas"]["Id"];
+            caseExecutionId: components["schemas"]["Id"];
+            assetSourceHash: components["schemas"]["Sha256"];
+            environmentVersionId: components["schemas"]["Id"];
+            environment: components["schemas"]["EnvironmentV1"];
+            roleKey: components["schemas"]["Key"];
+            browser: components["schemas"]["Browser"];
+            variables: components["schemas"]["JsonObject"];
+            secretVersions: {
+                secretRef: components["schemas"]["Key"];
+                versionId: components["schemas"]["Id"];
+            }[];
+            namespace: components["schemas"]["Key"];
+            attemptNo: number;
+            caseVersionId: components["schemas"]["Id"];
+            authAdapters?: components["schemas"]["AuthAdapterVersionV1"][];
+            datasetVersionId?: components["schemas"]["Id"];
+            suiteEntryIndex?: number;
+            datasetBindings?: components["schemas"]["DatasetBindings"];
+            selectedRow?: {
+                versionId: components["schemas"]["Id"];
+                rowKey: components["schemas"]["Key"];
+                rowSha256: components["schemas"]["Sha256"];
+            };
+        };
+        StaticDatasetSelection: {
+            /**
+             * @constant
+             */
+            selection: "VALIDATION_SOURCE";
+        } | {
+            /**
+             * @constant
+             */
+            selection: "DATASET";
+            versionId: components["schemas"]["Id"];
+        } | {
+            /**
+             * @constant
+             */
+            selection: "ROW";
+            versionId: components["schemas"]["Id"];
+            rowKey: components["schemas"]["Key"];
+        };
         AssetSnapshotV1: {
             /**
              * @constant
@@ -3631,6 +3815,10 @@ export interface components {
             arch: "x64" | "arm64";
             browsers: components["schemas"]["Browser"][];
             jobKinds?: ("TEST" | "VALIDATE" | "CLEANUP")[];
+            /**
+             * @constant
+             */
+            connectedDatasets?: "2.0";
         } & ({
             /**
              * @constant
@@ -15803,6 +15991,114 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReconcileDTOEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    fetchStaticDataset: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-VeriQ-Lease-Token": string;
+                "X-VeriQ-Fencing-Token": number;
+            };
+            path: {
+                attemptId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaticDatasetSelection"];
+            };
+        };
+        responses: {
+            /**
+             * @description Canonical UTF-8 JSON bytes
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
                 };
             };
             /**

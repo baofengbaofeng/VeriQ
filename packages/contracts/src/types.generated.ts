@@ -1256,6 +1256,7 @@ export type RuntimeCapabilitiesV1 = {
    * @minItems 1
    */
   jobKinds?: ["TEST" | "VALIDATE" | "CLEANUP", ...("TEST" | "VALIDATE" | "CLEANUP")[]];
+  connectedDatasets?: "2.0";
 } & RuntimeCapabilitiesV11;
 export type RuntimeCapabilitiesV11 =
   | {
@@ -1506,6 +1507,154 @@ export type BundleSelectionV11 =
   | {
       draftValidationJobId: unknown;
     };
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "ConnectedSourceSnapshotV2".
+ */
+export type ConnectedSourceSnapshotV2 = {
+  [k: string]: unknown;
+} & {
+  schemaVersion: "2.0";
+  workspaceId: Id;
+  sourceHash: Sha256;
+  engineVersion: Version;
+  /**
+   * @minItems 0
+   */
+  entryCaseVersionIds: Id[];
+  /**
+   * @minItems 1
+   */
+  assets: [
+    (
+      | {
+          resourceId: Id;
+          versionId: Id;
+          kind: "CASE";
+          sha256: Sha256;
+          document: CaseDslV1;
+        }
+      | {
+          resourceId: Id;
+          versionId: Id;
+          kind: "ELEMENT_CATALOG";
+          sha256: Sha256;
+          document: ElementCatalogV1;
+        }
+      | {
+          resourceId: Id;
+          versionId: Id;
+          kind: "ASSERTION_TEMPLATE";
+          sha256: Sha256;
+          document: AssertionTemplateV1;
+        }
+      | {
+          resourceId: Id;
+          versionId: Id;
+          kind: "FLOW";
+          sha256: Sha256;
+          document: FlowV1;
+        }
+      | {
+          resourceId: Id;
+          versionId: Id;
+          kind: "FIXTURE";
+          sha256: Sha256;
+          document: FixtureV1;
+        }
+      | {
+          resourceId: Id;
+          versionId: Id;
+          kind: "SUITE";
+          sha256: Sha256;
+          document: SuiteV1;
+        }
+      | {
+          resourceId: Id;
+          versionId: Id;
+          kind: "ENVIRONMENT";
+          sha256: Sha256;
+          document: EnvironmentV1;
+        }
+      | ConnectedDatasetV2
+    ),
+    ...(
+      | {
+          resourceId: Id;
+          versionId: Id;
+          kind: "CASE";
+          sha256: Sha256;
+          document: CaseDslV1;
+        }
+      | {
+          resourceId: Id;
+          versionId: Id;
+          kind: "ELEMENT_CATALOG";
+          sha256: Sha256;
+          document: ElementCatalogV1;
+        }
+      | {
+          resourceId: Id;
+          versionId: Id;
+          kind: "ASSERTION_TEMPLATE";
+          sha256: Sha256;
+          document: AssertionTemplateV1;
+        }
+      | {
+          resourceId: Id;
+          versionId: Id;
+          kind: "FLOW";
+          sha256: Sha256;
+          document: FlowV1;
+        }
+      | {
+          resourceId: Id;
+          versionId: Id;
+          kind: "FIXTURE";
+          sha256: Sha256;
+          document: FixtureV1;
+        }
+      | {
+          resourceId: Id;
+          versionId: Id;
+          kind: "SUITE";
+          sha256: Sha256;
+          document: SuiteV1;
+        }
+      | {
+          resourceId: Id;
+          versionId: Id;
+          kind: "ENVIRONMENT";
+          sha256: Sha256;
+          document: EnvironmentV1;
+        }
+      | ConnectedDatasetV2
+    )[]
+  ];
+  validationTarget?: ValidationTargetV1;
+  /**
+   * @maxItems 100
+   */
+  authAdapters?: AuthAdapterVersionV1[];
+  originalSha256: Sha256;
+};
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "StaticDatasetSelection".
+ */
+export type StaticDatasetSelection =
+  | {
+      selection: "VALIDATION_SOURCE";
+    }
+  | {
+      selection: "DATASET";
+      versionId: Id;
+    }
+  | {
+      selection: "ROW";
+      versionId: Id;
+      rowKey: Key;
+    };
 
 export interface ContractDefinitions {
   Id?: Id;
@@ -1638,6 +1787,10 @@ export interface ContractDefinitions {
   ProcessStopScope?: ProcessStopScope;
   DatasetBindings?: DatasetBindings;
   DatasetQuery?: DatasetQuery;
+  ConnectedDatasetV2?: ConnectedDatasetV2;
+  ConnectedSourceSnapshotV2?: ConnectedSourceSnapshotV2;
+  ConnectedExecutionSnapshotV2?: ConnectedExecutionSnapshotV2;
+  StaticDatasetSelection?: StaticDatasetSelection;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -2715,6 +2868,65 @@ export interface BundleResourcesV1 {
    * @maxItems 1000
    */
   versions: ResourceVersionDTO[];
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "ConnectedDatasetV2".
+ */
+export interface ConnectedDatasetV2 {
+  kind: "DATASET";
+  resourceId: Id;
+  versionId: Id;
+  sha256: Sha256;
+  schema:
+    | {
+        schemaVersion: "1.0";
+        columns: ParameterTypes;
+      }
+    | {
+        schemaVersion: "2.0";
+        shape: "TABLE" | "TREE";
+        fields: DatasetFieldsV2;
+      };
+  contentSha256: Sha256;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "ConnectedExecutionSnapshotV2".
+ */
+export interface ConnectedExecutionSnapshotV2 {
+  schemaVersion: "2.0";
+  workspaceId: Id;
+  runId: Id;
+  caseExecutionId: Id;
+  assetSourceHash: Sha256;
+  environmentVersionId: Id;
+  environment: EnvironmentV1;
+  roleKey: Key;
+  browser: Browser;
+  variables: JsonObject;
+  /**
+   * @minItems 0
+   */
+  secretVersions: {
+    secretRef: Key;
+    versionId: Id;
+  }[];
+  namespace: Key;
+  attemptNo: number;
+  caseVersionId: Id;
+  /**
+   * @maxItems 100
+   */
+  authAdapters?: AuthAdapterVersionV1[];
+  datasetVersionId?: Id;
+  suiteEntryIndex?: number;
+  datasetBindings?: DatasetBindings;
+  selectedRow?: {
+    versionId: Id;
+    rowKey: Key;
+    rowSha256: Sha256;
+  };
 }
 
 export type SnapshotV1 = AssetSnapshotV1;

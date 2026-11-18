@@ -14,7 +14,9 @@ async def published(c, db, ws, key, kind, document):
     return version["id"]
 
 
-async def environment(c, db, ws, with_fixture=False):
+async def environment(
+    c, db, ws, with_fixture=False, *, origin="https://business.test", identity_path="/me"
+):
     base = f"/api/v1/workspaces/{ws}"
     secret = (
         await c.post(
@@ -32,7 +34,7 @@ async def environment(c, db, ws, with_fixture=False):
             json={
                 "configuration": {
                     "kind": "HTTP_BEARER",
-                    "identityPath": "/me",
+                    "identityPath": identity_path,
                     "identityPointer": "/id",
                 }
             },
@@ -40,9 +42,9 @@ async def environment(c, db, ws, with_fixture=False):
     ).json()["data"]
     doc = {
         "schemaVersion": "1.0",
-        "baseURL": "https://business.test",
-        "apiBaseURL": "https://business.test",
-        "allowedOrigins": ["https://business.test"],
+        "baseURL": origin,
+        "apiBaseURL": origin,
+        "allowedOrigins": [origin],
         "locale": "en-US",
         "timezone": "UTC",
         "roles": [
@@ -204,10 +206,28 @@ async def test_suite_matrix_preserves_dataset_row_provenance_and_frozen_variable
         ]
         assert all(s["variables"] == data["variables"] and s["authAdapters"] for s in snapshots)
         assert all(s["datasetBindings"] == {"reference": reference} for s in snapshots)
-        assert {s["datasetVersionId"]: s["dataRow"] for s in snapshots} == {
-            datasets[0]: {"key": "same", "values": {"value": "A"}},
-            datasets[1]: {"key": "same", "values": {"value": "B"}},
+        from hashlib import sha256
+        from veriq_server.contracts import canonical_bytes, validate_schema
+
+        assert all(not validate_schema("ConnectedExecutionSnapshotV2", s) for s in snapshots)
+        assert {s["datasetVersionId"]: s["selectedRow"] for s in snapshots} == {
+            vid: {
+                "versionId": vid,
+                "rowKey": "same",
+                "rowSha256": sha256(
+                    canonical_bytes({"key": "same", "values": {"value": value}})
+                ).hexdigest(),
+            }
+            for vid, value in zip(datasets, ["A", "B"])
         }
+        dependency_ids = {j.required_capabilities["validationJobId"] for j in jobs}
+        assert len(dependency_ids) == 1
+        migration = await session.get(Job, dependency_ids.pop())
+        assert migration.snapshot_hash == executions[0].source_snapshot_hash
+        assert (
+            migration.kind == "VALIDATE"
+            and migration.required_capabilities["connectedDatasets"] == "2.0"
+        )
         assert all("synthetic-business-secret" not in json.dumps(s) for s in snapshots)
     empty = {k: v for k, v in data.items() if k != "suiteVersionId"}
     empty["caseVersionIds"] = []

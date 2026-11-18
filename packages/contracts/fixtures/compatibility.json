@@ -5856,5 +5856,197 @@
             "processStopScope": 7
         },
         "valid": false
+    },
+    {
+        "name": "connected-source-pins-document",
+        "schema": "ConnectedSourceSnapshotV2",
+        "value": {
+            "schemaVersion": "2.0",
+            "workspaceId": "00000000-0000-4000-8000-000000000002",
+            "engineVersion": "0.1.0",
+            "entryCaseVersionIds": [],
+            "assets": [
+                {
+                    "resourceId": "00000000-0000-4000-8000-000000000002",
+                    "versionId": "00000000-0000-4000-8000-000000000001",
+                    "kind": "DATASET",
+                    "sha256": "743537691923400804634d22b84817a63b01120db91e66de6369cf3334dcfb9e",
+                    "schema": {
+                        "schemaVersion": "1.0",
+                        "columns": {
+                            "name": "string"
+                        }
+                    },
+                    "contentSha256": "1fa251eddbc3ba9cf007292cd66279e572b2b204327c465ee6b1032274af5699"
+                }
+            ],
+            "sourceHash": "c7dc6cdefbfe57b1e543d709e5ca95d63674011793b1d44f938775799c7d95c1",
+            "validationTarget": {
+                "versionId": "00000000-0000-4000-8000-000000000001",
+                "resourceId": "00000000-0000-4000-8000-000000000002",
+                "revision": 1
+            },
+            "originalSha256": "2b6a8841649e93311f08f845eb26fc888452bffc927ee394f40164b4367d3bbd"
+        },
+        "valid": true
+    },
+    {
+        "name": "connected-source-refuses-embedded-document",
+        "schema": "ConnectedSourceSnapshotV2",
+        "value": {
+            "schemaVersion": "2.0",
+            "workspaceId": "00000000-0000-4000-8000-000000000002",
+            "engineVersion": "0.1.0",
+            "entryCaseVersionIds": [],
+            "assets": [
+                {
+                    "resourceId": "00000000-0000-4000-8000-000000000002",
+                    "versionId": "00000000-0000-4000-8000-000000000001",
+                    "kind": "DATASET",
+                    "document": {
+                        "schemaVersion": "1.0",
+                        "columns": {
+                            "name": "string"
+                        },
+                        "rows": [
+                            {
+                                "key": "first",
+                                "values": {
+                                    "name": "synthetic"
+                                }
+                            }
+                        ]
+                    },
+                    "sha256": "743537691923400804634d22b84817a63b01120db91e66de6369cf3334dcfb9e"
+                }
+            ],
+            "sourceHash": "c7dc6cdefbfe57b1e543d709e5ca95d63674011793b1d44f938775799c7d95c1",
+            "validationTarget": {
+                "versionId": "00000000-0000-4000-8000-000000000001",
+                "resourceId": "00000000-0000-4000-8000-000000000002",
+                "revision": 1
+            },
+            "originalSha256": "2b6a8841649e93311f08f845eb26fc888452bffc927ee394f40164b4367d3bbd"
+        },
+        "valid": false
+    },
+    {
+        "name": "connected-execution-pins-row",
+        "schema": "ConnectedExecutionSnapshotV2",
+        "value": {
+            "schemaVersion": "2.0",
+            "workspaceId": "11111111-1111-4111-8111-111111111111",
+            "runId": "11111111-1111-4111-8111-111111111111",
+            "caseExecutionId": "11111111-1111-4111-8111-111111111111",
+            "assetSourceHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "environmentVersionId": "11111111-1111-4111-8111-111111111111",
+            "environment": {
+                "schemaVersion": "1.0",
+                "baseURL": "https://example.com",
+                "apiBaseURL": "https://example.com",
+                "allowedOrigins": ["https://example.com"],
+                "locale": "zh-CN",
+                "timezone": "Asia/Shanghai",
+                "roles": [
+                    {
+                        "roleKey": "editor",
+                        "authAdapterVersionId": "11111111-1111-4111-8111-111111111111",
+                        "secretRef": "hr-account",
+                        "secretVersionId": "11111111-1111-4111-8111-111111111111"
+                    }
+                ],
+                "buildSha": "abc123"
+            },
+            "roleKey": "editor",
+            "browser": "chromium",
+            "variables": {},
+            "secretVersions": [
+                {
+                    "secretRef": "hr-account",
+                    "versionId": "11111111-1111-4111-8111-111111111111"
+                }
+            ],
+            "namespace": "veriq-run-1",
+            "attemptNo": 1,
+            "caseVersionId": "11111111-1111-4111-8111-111111111111",
+            "datasetVersionId": "00000000-0000-4000-8000-000000000001",
+            "selectedRow": {
+                "versionId": "00000000-0000-4000-8000-000000000001",
+                "rowKey": "first",
+                "rowSha256": "962b2214c7df7f97b09a5f78589ad35221c5ddebd6a09af35bc1c22557e3a27d"
+            }
+        },
+        "valid": true
+    },
+    {
+        "name": "connected-execution-refuses-embedded-row",
+        "schema": "ConnectedExecutionSnapshotV2",
+        "value": {
+            "schemaVersion": "2.0",
+            "workspaceId": "11111111-1111-4111-8111-111111111111",
+            "runId": "11111111-1111-4111-8111-111111111111",
+            "caseExecutionId": "11111111-1111-4111-8111-111111111111",
+            "assetSourceHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "environmentVersionId": "11111111-1111-4111-8111-111111111111",
+            "environment": {
+                "schemaVersion": "1.0",
+                "baseURL": "https://example.com",
+                "apiBaseURL": "https://example.com",
+                "allowedOrigins": ["https://example.com"],
+                "locale": "zh-CN",
+                "timezone": "Asia/Shanghai",
+                "roles": [
+                    {
+                        "roleKey": "editor",
+                        "authAdapterVersionId": "11111111-1111-4111-8111-111111111111",
+                        "secretRef": "hr-account",
+                        "secretVersionId": "11111111-1111-4111-8111-111111111111"
+                    }
+                ],
+                "buildSha": "abc123"
+            },
+            "roleKey": "editor",
+            "browser": "chromium",
+            "variables": {},
+            "secretVersions": [
+                {
+                    "secretRef": "hr-account",
+                    "versionId": "11111111-1111-4111-8111-111111111111"
+                }
+            ],
+            "namespace": "veriq-run-1",
+            "attemptNo": 1,
+            "caseVersionId": "11111111-1111-4111-8111-111111111111",
+            "datasetVersionId": "00000000-0000-4000-8000-000000000001",
+            "selectedRow": {
+                "versionId": "00000000-0000-4000-8000-000000000001",
+                "rowKey": "first",
+                "rowSha256": "962b2214c7df7f97b09a5f78589ad35221c5ddebd6a09af35bc1c22557e3a27d"
+            },
+            "dataRow": {
+                "key": "first",
+                "values": {
+                    "name": "synthetic"
+                }
+            }
+        },
+        "valid": false
+    },
+    {
+        "name": "connected-validation-source-selector",
+        "schema": "StaticDatasetSelection",
+        "value": {
+            "selection": "VALIDATION_SOURCE"
+        },
+        "valid": true
+    },
+    {
+        "name": "connected-validation-rejects-version-selector",
+        "schema": "StaticDatasetSelection",
+        "value": {
+            "selection": "VALIDATION_SOURCE",
+            "versionId": "00000000-0000-4000-8000-000000000001"
+        },
+        "valid": false
     }
 ]

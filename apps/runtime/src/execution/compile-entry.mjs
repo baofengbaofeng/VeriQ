@@ -27,14 +27,40 @@ let diagnostics;
 if (invocation.kind === "CLEANUP") result = { kind: "READY" };
 else
     try {
-        const source = JSON.parse(await readFile(join(root, "source/asset-snapshot.json"), "utf8"));
+        const projected = JSON.parse(await readFile(join(root, "source/asset-snapshot.json"), "utf8"));
+        const connected = projected.schemaVersion === "2.0";
+        if (connected && typeof compiler.projectConnectedSource !== "function")
+            throw new Error("CONNECTED_COMPILER_REQUIRED");
+        const provider = connected ? await import("./provider.mjs") : undefined;
+        const source = !connected
+            ? projected
+            : invocation.kind === "VALIDATE"
+              ? await provider.readStaticDataset({ selection: "VALIDATION_SOURCE" }, projected.originalSha256)
+              : await provider.hydrateSource(projected);
+        if (
+            connected &&
+            hash(canonicalBytes(compiler.projectConnectedSource(source))) !== hash(canonicalBytes(projected))
+        )
+            throw new Error("COMPILED_PROVENANCE_MISMATCH");
         // 旧版已批准引擎可能不提供结构化诊断，因此仅调用其自带编译器；缺少诊断接口时不能伪造分析详情。
         if (typeof compiler.safeDiagnostics === "function") {
             diagnostics = compiler.safeDiagnostics(compiler.analyze(source).issues);
             if (diagnostics.length) throw new Error("ASSET_VALIDATION_FAILED");
         }
-        const output = compiler.compileFiles(source, distribution);
-        if (invocation.kind === "VALIDATE" || invocation.localDraftCompile === true) {
+        const output = compiler.compileFiles(source, distribution, { connected });
+        if (invocation.online && invocation.kind === "TEST") {
+            const supplied = JSON.parse(await readFile(join(root, "bundle.json"), "utf8"));
+            if (hash(canonicalBytes(supplied)) !== hash(canonicalBytes(output.bundle)))
+                throw new Error("COMPILED_PROVENANCE_MISMATCH");
+            const frozen = JSON.parse(await readFile(join(root, "execution.json"), "utf8"));
+            compiler.assembleExecution(
+                supplied,
+                connected ? await provider.hydrateExecution(frozen) : frozen,
+                output.files,
+                connected ? source : undefined,
+            );
+        }
+        if (invocation.online || invocation.kind === "VALIDATE" || invocation.localDraftCompile === true) {
             for (const [path, bytes] of Object.entries(output.files)) {
                 await mkdir(dirname(join(root, path)), { recursive: true });
                 await writeFile(join(root, path), bytes, { mode: 0o600 });
@@ -45,6 +71,9 @@ else
         }
         if (invocation.kind === "VALIDATE") {
             result = { kind: "VALIDATE", businessOutcome: "PASSED", cleanupStatus: "NOT_REQUIRED" };
+        } else if (invocation.online) {
+            if (connected) await provider.contact({ type: "compiled" });
+            result = { kind: "READY" };
         } else {
             const supplied = JSON.parse(await readFile(join(root, "bundle.json"), "utf8"));
             if (hash(canonicalBytes(supplied)) !== hash(canonicalBytes(output.bundle)))

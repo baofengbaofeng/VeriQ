@@ -905,3 +905,40 @@ it("requires execution alias versions to match the CASE closure", () => {
         "DATASET_BINDINGS_MISMATCH",
     );
 });
+
+it("connected snapshot never writes dataset marker in case and validation artifacts", async () => {
+    const { mkdtemp, mkdir, readFile, rm, writeFile } = await import("node:fs/promises");
+    const { tmpdir } = await import("node:os");
+    const { dirname, join } = await import("node:path");
+    const marker = "SYNTHETIC-PRIVATE-正文";
+    const data = asset(3, "DATASET", {
+        schemaVersion: "1.0",
+        columns: { sample: "string" },
+        rows: Array.from({ length: 120 }, (_, i) => ({ key: "row" + i, values: { sample: marker.repeat(30) } })),
+    });
+    const base = snapshot(undefined, [data], { datasetVersionId: id(3) });
+    const only = rehash({
+        ...base,
+        entryCaseVersionIds: [],
+        assets: [data],
+        validationTarget: { resourceId: data.resourceId, versionId: data.versionId, revision: 1 },
+    });
+    expect(canonicalBytes(data.document).length).toBeGreaterThan(65536);
+    for (const input of [base, only]) {
+        const output = compileFiles(input, distribution(), { connected: true });
+        const root = await mkdtemp(join(tmpdir(), "vq-connected-"));
+        try {
+            for (const [path, content] of Object.entries(output.files)) {
+                const file = join(root, path);
+                await mkdir(dirname(file), { recursive: true });
+                await writeFile(file, content);
+                expect((await readFile(file)).includes(Buffer.from(marker)), path).toBe(false);
+            }
+            const retained = JSON.parse(Buffer.from(output.files["source/asset-snapshot.json"]!).toString());
+            expect(retained.schemaVersion).toBe("2.0");
+            expect(retained.sourceHash).toBe(input.sourceHash);
+        } finally {
+            await rm(root, { recursive: true, force: true });
+        }
+    }
+});

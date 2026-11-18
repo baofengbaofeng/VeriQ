@@ -90,6 +90,11 @@ export class AttemptBroker {
         if (!Number.isSafeInteger(socketTimeoutMs) || socketTimeoutMs < 1 || socketTimeoutMs > 60000)
             throw new Error("IPC_TIMEOUT_INVALID");
     }
+    private response(value: unknown): string {
+        const frame = JSON.stringify({ ok: true, value }) + "\n";
+        if (Buffer.byteLength(frame) > 65536) throw new Error("IPC_RESPONSE_LIMIT");
+        return frame;
+    }
     /**
      * 公开方法 open 创建 Attempt 私有套接字并开始监听：将文件权限收紧为 0600：只接受以换行结束的单行控制消息。
      */
@@ -107,7 +112,7 @@ export class AttemptBroker {
                     try {
                         const message = JSON.parse(frame) as Record<string, unknown>;
                         if (message.nonce !== this.nonce) throw new Error("IPC_UNAUTHORIZED");
-                        response = JSON.stringify({ ok: true, value: await this.receive(message) }) + "\n";
+                        response = this.response(await this.receive(message));
                     } catch {
                         response = JSON.stringify({ ok: false, error: "ATTEMPT_IPC_FAILED" }) + "\n";
                     }
@@ -154,7 +159,7 @@ export class AttemptBroker {
                         const message = JSON.parse(text) as Record<string, unknown>;
                         if (message.nonce !== this.nonce) throw new Error("IPC_UNAUTHORIZED");
                         const value = await this.receive(message);
-                        socket.end(JSON.stringify({ ok: true, value }) + "\n");
+                        socket.end(this.response(value));
                     } catch {
                         socket.end(JSON.stringify({ ok: false, error: "ATTEMPT_IPC_FAILED" }) + "\n");
                     }

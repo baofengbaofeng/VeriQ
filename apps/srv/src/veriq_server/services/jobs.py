@@ -62,6 +62,17 @@ async def require_requester(session: AsyncSession, job: Job, runtime_id: str) ->
     """每次领取、续租和结果提交都重验最初请求者的当前权限，执行令牌必须匹配冻结运行关联并保有计划与设备派发权；
     维护令牌继续走清理专用范围，普通用户仍通过原有成员和所有者检查。
     """
+    if (
+        job.requester_service_token_id
+        and job.kind == "VALIDATE"
+        and job.required_capabilities.get("revalidationPlanId")
+    ):
+        from .execution_principal import ServicePrincipal
+
+        await ServicePrincipal(job.requester_service_token_id, job.created_by).runtime(
+            session, job.workspace_id, job.required_capabilities["revalidationPlanId"], runtime_id
+        )
+        return None
     if job.requester_service_token_id and job.kind == "TEST":
         from .execution_principal import ServicePrincipal
 
@@ -269,6 +280,16 @@ class JobService:
         async for job in self.candidates(
             binding.workspace_id, runtime.id, runtime.location, runtime.capabilities, current
         ):
+            # 固定派发对象或联网格式已排除此设备时，可跳过这项任务的数据库授权查询；实际可领的任务仍须复核当前权限。
+            if (
+                job.required_capabilities.get("runtimeIds")
+                and runtime.id not in job.required_capabilities["runtimeIds"]
+            ):
+                continue
+            compatible = req["capabilities"].get("connectedDatasets") == "2.0"
+            if job.required_capabilities.get("connectedDatasets") and not compatible:
+                job.wait_reason = "NO_CAPABILITY"
+                continue
             run = await self.session.get(Run, job.run_id) if job.run_id else None
             if run and (
                 run.state in {"CANCEL_REQUESTED", "FINISHED"}
@@ -294,10 +315,11 @@ class JobService:
                 ):
                     job.wait_reason = "QUARANTINED"
                     continue
-            if (
-                job.required_capabilities.get("runtimeIds")
-                and runtime.id not in job.required_capabilities["runtimeIds"]
-            ):
+            repo = ResourceRepository(self.session, WorkspaceScope(job.workspace_id))
+            from .connected_datasets import upgrade_queued, revalidate_bundle
+
+            if await upgrade_queued(repo, job) and not compatible:
+                job.wait_reason = "NO_CAPABILITY"
                 continue
             if dependency := job.required_capabilities.get("validationJobId"):
                 compiled_receipt = (
@@ -339,6 +361,28 @@ class JobService:
                         "Draft validation receipt does not match frozen candidate",
                     )
                 manifest = json.loads((await repo.artifact(job.manifest_hash)).content)
+                if job.required_capabilities.get(
+                    "connectedDatasets"
+                ) and not dependency_job.required_capabilities.get("connectedDatasets"):
+                    source = json.loads((await repo.artifact(dependency_job.snapshot_hash)).content)
+                    bundle = json.loads(
+                        (await repo.artifact(compiled_receipt.compiled_bundle_sha256)).content
+                    )
+                    current, _ = await revalidate_bundle(
+                        repo,
+                        dependency_job,
+                        source,
+                        bundle,
+                        compiled_receipt,
+                        requester=job.created_by,
+                        service_token=job.requester_service_token_id,
+                        plan_id=run.plan_id if run else None,
+                    )
+                    job.required_capabilities = {
+                        **job.required_capabilities,
+                        "validationJobId": current.id,
+                    }
+                    continue
                 manifest.pop("pendingValidationJobId", None)
                 manifest["compiledBundleSha256"] = compiled_receipt.compiled_bundle_sha256
                 job.manifest_hash = await repo.store(canonical_bytes(manifest))
