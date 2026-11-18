@@ -23,6 +23,25 @@ class BoundDataset:
     connection: DatasetConnection
 
 
+def scoped_connection(
+    registry: dict[str, DatasetConnection],
+    workspace_id: str,
+    user_id: str,
+    environment_version_id: str,
+    ref: str,
+) -> DatasetConnection:
+    """先按不可变连接版本定位，再核对工作区、用户与环境；普通草稿和读取路径都不会披露其它部署信息。"""
+    target = registry.get(ref)
+    if (
+        target is None
+        or target.workspace_id != workspace_id
+        or target.environment_version_id != environment_version_id
+        or user_id not in target.user_ids
+    ):
+        raise unavailable()
+    return target
+
+
 def bind_connection(
     registry, workspace_id, user_id, environment_version_id, document
 ) -> BoundDataset:
@@ -31,13 +50,11 @@ def bind_connection(
         raise unavailable()
     source = document["source"]
     # 声明中的 UUID 只是索引，当前用户和运行环境都来自调用方的独立授权上下文，不能以一个工作区内的其它连接替代。
-    target = registry.get(source["connectionRef"])
+    target = scoped_connection(
+        registry, workspace_id, user_id, environment_version_id, source["connectionRef"]
+    )
     if (
-        target is None
-        or target.workspace_id != workspace_id
-        or user_id not in target.user_ids
-        or source["environmentVersionId"] != environment_version_id
-        or target.environment_version_id != environment_version_id
+        source["environmentVersionId"] != environment_version_id
         or source["method"] not in target.routes.get(source["path"], ())
         or (source["method"] == "GET" and source["body"] is not None)
     ):

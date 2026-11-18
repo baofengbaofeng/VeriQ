@@ -1,5 +1,6 @@
 """用隔离的 HTTP 传输夹具检查签名原始字节、授权和完整分页，响应中的私有字段绝不能出现在预览中。"""
 
+from copy import deepcopy
 from datetime import UTC, datetime
 import errno
 import hashlib
@@ -93,6 +94,37 @@ def test_custom_signature_matches_wire_bytes():
     assert (
         wire.url.host == "93.184.216.34" and wire.extensions["sni_hostname"] == "upstream.example"
     )
+
+
+@pytest.mark.parametrize(
+    ("op", "query"),
+    [("QUERY", b"q=abc&q=&page=1"), ("SORTED_QUERY", b"page=1&q=&q=abc")],
+)
+async def test_paged_signature_probe_matches_first_wire_request(op, query):
+    """用独立摘要对照实际发出的第一页及离线签名验证，排序视图保留分页参数而不改变线上参数顺序。"""
+    from veriq_server.datasets.request import fetch_rows, verify_signature
+
+    doc = config()
+    doc["source"]["auth"]["input"] = {"op": op}
+    doc["source"]["pagination"] = {
+        "kind": "PAGE",
+        "parameter": "page",
+        "next": "/more",
+        "maxPages": 2,
+    }
+    conf, args = bound(doc), {"search": "abc"}
+    expected = hmac.new(b"fixture", query, hashlib.sha256).hexdigest()
+
+    def upstream(req):
+        assert req.url.query == b"q=abc&q=&page=1" and req.headers["X-Signature"] == expected
+        return httpx.Response(200, stream=httpx.ByteStream(b'{"items":[],"more":false}'))
+
+    def secret(*_):
+        return "fixture"
+
+    assert await fetch_rows(conf, args, secret, transport=httpx.MockTransport(upstream)) == []
+    probe = {"at": "2024-01-01T00:00:00Z", "expected": expected}
+    assert verify_signature(conf, args, secret, probe) == {"signatureMatches": True}
 
 
 async def test_dataset_request_uses_only_approved_connection():
@@ -244,6 +276,26 @@ async def test_http_preview_copy_publish_and_revocation(dataset_deployment, site
         )
         assert result.status_code == 200, result.text
         assert result.json()["data"] == {"signatureMatches": matches}
+    paged = deepcopy(doc)
+    paged["source"]["pagination"] = {
+        "kind": "PAGE",
+        "parameter": "page",
+        "next": "/more",
+        "maxPages": 2,
+    }
+    expected = hmac.new(
+        b"fixture-only", b"/items|q=abc&q=&page=1|1704067200|", hashlib.sha256
+    ).hexdigest()
+    result = await client.post(
+        path + "/http-preview",
+        json={
+            **data,
+            "document": paged,
+            "verifySignature": {"at": "2024-01-01t00:00:00z", "expected": expected},
+        },
+    )
+    assert result.status_code == 200, result.text
+    assert result.json()["data"] == {"signatureMatches": True}
     assert len(seen) == 1
     published, _, _ = await publish(client, db, path)
     copied = await client.post(
@@ -276,6 +328,77 @@ async def test_http_preview_copy_publish_and_revocation(dataset_deployment, site
     assert (await client.post(path + "/http-preview", json=data)).status_code == 422
     assert (await client.post(path + "/http-preview", json=data)).status_code == 422
     assert len(seen) == 2
+
+
+@pytest.mark.parametrize("binding", ["unbound", "registered"])
+async def test_custom_managed_header_never_reaches_readable_draft(
+    dataset_deployment, site, binding
+):
+    """正式资源入口在首次写入和修订时都拦截大小写不同的托管认证头，原草稿保持可读且普通头可继续编辑。"""
+    from test_auth import login, setup
+    from test_publish import create
+    from test_workspace import workspace
+
+    client, _ = site
+    await setup(client)
+    await login(client)
+    ws = await workspace(client, "tenant")
+    actor = (await client.get("/api/v1/auth/session")).json()["data"]["user"]["id"]
+    base = f"/api/v1/workspaces/{ws}/resources"
+    doc = config()
+    source = doc["source"]
+    if binding == "registered":
+        source["auth"] = {"kind": "NONE"}
+        dataset_deployment[REF] = connection().model_copy(
+            update={
+                "workspace_id": ws,
+                "user_ids": [actor],
+                "auth_kinds": ["NONE"],
+                "request_headers": ["X-Locale"],
+                "signature_header": "X-Managed-Proof",
+            }
+        )
+    else:
+        source.update(connectionRef=None, environmentVersionId=None)
+        source["auth"].update(header="X-Managed-Proof", secretRef=None, secretVersionId=None)
+    source["headers"] = {"X-Locale": "en"}
+    content = {"kind": "DATASET", "document": doc}
+    path = await create(client, ws, "ordinary", content)
+    source["headers"]["X-Locale"] = "zh"
+    edit = await client.put(path + "/draft", json={"revision": 1, "content": content})
+    assert edit.status_code == 200, edit.text
+    original = (await client.get(path + "/draft")).json()["data"]
+    assert original["revision"] == 2 and original["content"] == content
+    source["headers"]["x-MAnaged-Proof"] = "fixture-sensitive-marker"
+    create_response = await client.post(
+        base, json={"kind": "DATASET", "key": "rejected", "name": "rejected", "content": content}
+    )
+    edit = await client.put(path + "/draft", json={"revision": 2, "content": content})
+    for response in (create_response, edit):
+        assert response.status_code == 422 and "DATASET_HEADER_FORBIDDEN" in response.text
+        assert "fixture-sensitive-marker" not in response.text
+        assert "managed-proof" not in response.text.lower()
+    assert (await client.get(path + "/draft")).json()["data"] == original
+    listing = (await client.get(base)).json()["data"]["items"]
+    assert [resource["key"] for resource in listing] == ["ordinary"]
+    if binding == "registered":
+        source["headers"] = {"X-Locale": "zh"}
+        target = dataset_deployment[REF]
+        # 无权访问的连接、其它环境或者不存在的版本必须给出同一结果，防止通过普通请求头探查部署批准记录。
+        for overrides in (
+            {"workspace_id": "other"},
+            {"environment_version_id": VERSION},
+            {"user_ids": []},
+            None,
+        ):
+            if overrides is None:
+                dataset_deployment.pop(REF)
+            else:
+                dataset_deployment[REF] = target.model_copy(update=overrides)
+            denied = await client.put(path + "/draft", json={"revision": 2, "content": content})
+            assert denied.status_code == 422
+            assert denied.json()["code"] == "DATASET_CONNECTION_UNAVAILABLE"
+        assert (await client.get(path + "/draft")).json()["data"] == original
 
 
 def test_post_signs_actual_typed_body_and_requires_declared_arguments():

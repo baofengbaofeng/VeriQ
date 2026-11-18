@@ -44,7 +44,13 @@ def _incomplete():
 
 
 def build_request(
-    config: BoundDataset, args, now_utc, key_resolver, *, page_pair=None
+    config: BoundDataset,
+    args,
+    now_utc,
+    key_resolver,
+    *,
+    page_number: int = 1,
+    cursor: str | None = None,
 ) -> httpx.Request:
     """请求 URL 使用批准的数字地址，TLS 名称与 Host 来自同一个部署源；签名复用最终发送的查询及正文。"""
     source, target = config.document["source"], config.connection
@@ -68,8 +74,11 @@ def build_request(
 
     # 分页参数也是本次请求的一部分，必须在签名之前加入有序序列，使每页摘要覆盖真正发送的分页位置。
     pairs = ordered(source["query"])
-    if page_pair:
-        pairs.append(page_pair)
+    paging = source.get("pagination")
+    if paging:
+        token = str(page_number) if paging["kind"] == "PAGE" else cursor
+        if token is not None:
+            pairs.append((paging["parameter"], token))
     query = query_bytes(pairs)
     body = source["body"] or {}
     media = "application/json"
@@ -170,7 +179,11 @@ def verify_signature(config, args, secret, probe):
     auth = config.document["source"]["auth"]
     if auth.get("algorithm") != "HMAC_SHA256":
         raise unavailable()
-    at = datetime.fromisoformat(probe["at"])
+    # 日期时间契约允许小写的分隔符与 UTC 后缀，标准库解析前统一其大小写以支持同一时刻的等价写法。
+    try:
+        at = datetime.fromisoformat(probe["at"].upper())
+    except ValueError:
+        raise unavailable() from None
     if at.tzinfo is None:
         raise unavailable()
     wire = build_request(config, args, at, secret)
@@ -225,12 +238,15 @@ async def fetch_rows(config: BoundDataset, args, key_resolver, *, transport=None
                 paging = source.get("pagination")
                 cursor = None
                 for number in range(1, (paging["maxPages"] if paging else 1) + 1):
-                    value = str(number) if paging and paging["kind"] == "PAGE" else cursor
-                    pair = (paging["parameter"], value) if paging and value is not None else None
                     if number > 1 and recheck:
                         await recheck()
                     wire = build_request(
-                        config, args, datetime.now(UTC), key_resolver, page_pair=pair
+                        config,
+                        args,
+                        datetime.now(UTC),
+                        key_resolver,
+                        page_number=number,
+                        cursor=cursor,
                     )
                     try:
                         page, size = await _page(client, wire, budget)

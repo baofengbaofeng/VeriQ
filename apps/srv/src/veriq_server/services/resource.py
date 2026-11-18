@@ -16,6 +16,7 @@ from ..auth.authorization import Permission, WorkspaceScope
 from ..contracts import canonical_bytes, asset_source_hash, validate_schema
 from ..datasets.bindings import authorize_dataset
 from ..datasets.connection import literal_header
+from ..datasets.policy import scoped_connection
 from ..settings import Settings
 from ..db import Resource, ResourceDraft, ResourceVersion, User, Job
 from ..repositories.resource import ResourceRepository
@@ -82,6 +83,13 @@ def document_hash(content: dict[str, Any]) -> str:
     return sha256(canonical_bytes(content)).hexdigest()
 
 
+def _forbidden_header() -> Problem:
+    """草稿写入与结构校验共用不含头名或值的诊断，避免通过保存失败回显用户凭证或部署方的认证配置。"""
+    return Problem(
+        422, "DATASET_HEADER_FORBIDDEN", "Authentication headers must use a credential binding"
+    )
+
+
 def check_document(kind: str, content: dict[str, Any]) -> None:
     """按资源 kind 选择契约校验文档，失败抛出带问题列表的 Problem，check_document 遵守本文件边界。
     check_document 实现于 apps/srv/src/veriq_server/services/resource.py：请按该符号的输入校验、错误码与调用方契约阅读，
@@ -92,10 +100,10 @@ def check_document(kind: str, content: dict[str, Any]) -> None:
             422, "INVALID_RESOURCE_DOCUMENT", "Document must match the immutable resource kind"
         )
     source = content["document"].get("source", {}) if kind == "DATASET" else {}
-    if source.get("kind") == "HTTP" and any(not literal_header(h) for h in source["headers"]):
-        raise Problem(
-            422, "DATASET_HEADER_FORBIDDEN", "Authentication headers must use a credential binding"
-        )
+    if source.get("kind") == "HTTP":
+        declared = source["auth"].get("header", "").lower()
+        if any(not literal_header(h) or h.lower() == declared for h in source["headers"]):
+            raise _forbidden_header()
     try:
         raw = canonical_bytes(content)
     except ValueError:
@@ -308,13 +316,28 @@ class ResourceService:
         )
         return result
 
+    def _check_draft(self, scope: WorkspaceScope, kind: str, content: dict[str, Any]) -> None:
+        """在草稿首次入库和修订前先检查声明的认证头，再对已选择的精确连接版本检查部署方保留的头名。"""
+        check_document(kind, content)
+        source = content["document"].get("source", {}) if kind == "DATASET" else {}
+        if source.get("kind") == "HTTP" and source["headers"] and source["connectionRef"]:
+            target = scoped_connection(
+                self.settings.dataset_connections if self.settings else {},
+                scope.workspace_id,
+                self.user.id,
+                source["environmentVersionId"],
+                source["connectionRef"],
+            )
+            if any(h.lower() == target.signature_header.lower() for h in source["headers"]):
+                raise _forbidden_header()
+
     async def create(self, scope: WorkspaceScope, data: dict[str, Any]) -> dict[str, Any]:
         """在 Workspace 内创建资源头与初始草稿，key 冲突返回 Problem，ResourceService.create 遵守本文件边界。
         create 实现于 apps/srv/src/veriq_server/services/resource.py：请按该符号的输入校验、错误码与调用方契约阅读，
         勿假设通用成功默认值。
         """
         await self.authorize(scope, data["kind"])
-        check_document(data["kind"], data["content"])
+        self._check_draft(scope, data["kind"], data["content"])
         existing = (
             await self.session.execute(
                 select(Resource.id).where(
@@ -369,7 +392,7 @@ class ResourceService:
         错误码与调用方契约阅读，勿假设通用成功默认值。
         """
         resource = await self.editable(scope, resource_id)
-        check_document(resource.kind, document)
+        self._check_draft(scope, resource.kind, document)
         draft = await ResourceRepository(self.session, scope).draft(resource_id)
         self.require_revision(draft, expected_revision)
         if draft.revision >= 9007199254740991:
