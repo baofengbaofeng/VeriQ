@@ -46,7 +46,7 @@ Shell 文件开头的 shebang 维持既有功能代码处理；除下述 Python 
 
 ## Python 行尾类型检查指令
 
-本节按既有 C=0、K 保留原则限定下一项接入，实施状态由 ADR 0030 和验证计划记录。
+本节为既有 C=0、K 保留原则的第二项已实施接入，具体源码与验收范围见 ADR 0030 和验证计划。
 协调者根据现有 CPython 3.12.14 与 mypy 1.19.1 实测选择下述范围，不新增依赖或修改原工具词元。
 
 仅接纳完整真实 COMMENT 词元 `# type: ignore[no-any-return]` 与 `# type: ignore[arg-type]`。

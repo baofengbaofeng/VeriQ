@@ -9,14 +9,14 @@
 [本轮验证计划](../plans/2026-11-17-mvp-validation.md)。源码与验证状态继续分开登记，不能据部分组件通过发布。
 
 历史暂停点为 `6525ec3`；用户随后明确恢复，并要求拉取人工更新的 dev 后继续开发与 CI。
-已核对人工提交至 `b0899f2` 的全部 78 个文件，该阶段集成提交为 `161a8b5`；当前最近代码提交为 `feac6e2`。
+已核对人工提交至 `b0899f2` 的全部 78 个文件，该阶段集成提交为 `161a8b5`；当前最近代码提交为 `c97526e`。
 本轮继续在 dev 推进；历史暂停不再阻止后续任务，master 不变。精确 CI 与未完成项以本轮验证计划为准。
 
 需求定位见 [F01–F14 实现与验证映射](requirements-matrix.md)。
 
 2026-11-18 用户再次确认：全仓注释行 /（注释行 + 非空代码行）>40% 继续作为 MVP 硬门禁。
-最新实际审计绑定 `feac6e2`：705 个支持文件、28 个解析阻断文件、3 项正文问题；
-`coverageComplete=false`、权威比例 `null`、`passed=false`，不能用已支持子集约 6.57186% 冒充全仓比例。
+最新实际审计绑定 `c97526e`：706 个支持文件、28 个解析阻断文件、0 项正文问题；
+`coverageComplete=false`、权威比例 `null`、`passed=false`，不能用已支持子集约 6.57092% 冒充全仓比例。
 正文与显示列规范同时保留，禁止无信息填充或另设逐文件比例。
 用户已批准经上下文和工具行为验证的固定标记按功能代码计量（C=0、K 保留），
 本次实现范围见[工具语法规格](../specs/tool-syntax-accounting.md)；其余说明规范及 >40% 不变。
@@ -42,7 +42,7 @@
 | V06 | 示例全流程、前后端接入和手册可复现性                             | 未执行本轮代码验证                                                                                                               | [接入](tasks/V06-integration.md)            |
 | V07 | 实际 AI Provider、预算、usage/cost、审核与无模型执行             | 阻塞：需独立提供 endpoint/model/密钥配置和预算授权                                                                               | [Provider](tasks/V07-provider.md)           |
 | V08 | 正常前端→static/dist→Python wheel→离线安装→OCI 发行              | 未通过；不能以候选包替代正常成功包                                                                                               | [发行](tasks/V08-release.md)                |
-| V09 | 编码规范、全量测试、覆盖率、许可与SBOM                           | feac6e2的Python39说明已复审；最新705/28/3、ratio null未过                                                                        | [质量](tasks/V09-quality.md)                |
+| V09 | 编码规范、全量测试、覆盖率、许可与SBOM                           | c97526e工具482项已复审；最新706/28/0、ratio null未过                                                                             | [质量](tasks/V09-quality.md)                |
 | V10 | 最终需求追踪、并发/故障/篡改和整分支独立复审                     | 待 V00–V09 及 V11 的适用条件满足                                                                                                 | [最终验收](tasks/V10-final-review.md)       |
 | V11 | Windows SQLite Claim 日志、本地保留期和未知进程保护              | Linux 既有回归 55 项、新增专项 12 项通过并复审；Windows 与完整 V11 未验收                                                        | [本地持久化](tasks/V11-local-durability.md) |
 
@@ -359,3 +359,11 @@ Black原2文件3hunk、Pylint514及分组mypy711错误18说明仍为旧债；R08
 最新全仓：705支持/28解析阻断/3正文，C10638/K151234，coverageComplete=false、ratio=null、passed=false，支持子集约6.57186%，严格>40%仍失败。
 三type-ignore原文未动，接入后contracts.py相邻短说明需单独准确扩写，不能工具标记带出普通说明豁免。
 旧448fbb5发行CI在Pylint阶段失败，具体artifact下载仍有缺口；不冒充当前完整CI或只把失败归于比例门禁。
+
+## 固定Python语法已接入及完整门禁接续
+
+`c97526e` 的默认AST兼容、严格两类标记资格、普通相邻说明和K保留已独立审查。新52与原430共482工具用例通过，未运行无关业务/数据库/浏览器/原生/Provider/发行套件。
+初RED两项同物理行C的手算更正不改变负例，修订RED20失败中18项C差异、2项正文差异；相同测试SHA随后52通过。
+最新全仓：706支持/28解析阻断/0正文，C10656/K151513，coverageComplete=false、ratio=null、passed=false，支持子集约6.57092%，退出1。正文零只覆盖706个已支持文件，不等同完整MVP或全仓规范通过。
+Vite源码路径修正与Linux实测已完成，Windows验证仍列V10；三原mypy标记不改，依赖与报告形状不改。
+后续重点为可信原生及其他构建语言、全部公开API与关键路径有效说明、全仓严格>40%、全量Pylint/格式/覆盖率/许可与目标OS/发行。

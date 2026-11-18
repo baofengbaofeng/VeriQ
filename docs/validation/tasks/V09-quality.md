@@ -6,7 +6,7 @@
 
 当前已交付 Python 格式口径、可信源码库存、Shell/CSS/Java 注释适配、编译器与 CSS 的实质说明整改及相关专项复审。`f215375` 另已修复原生确认辅助脚本在优化模式下丢失守卫的问题，16 项纯内存绑定回归通过，定向质量和独立复审通过；不替代实际 GUI 验收。
 
-最新实际全量注释审计绑定 `feac6e2`（2026-11-18）：705支持/28解析阻断/3正文，C10638/K151234，coverageComplete=false、ratio=null、passed=false，支持子集约6.57186%，退出1。bca9faf等为历史快照。
+最新实际全量注释审计绑定 `c97526e`（2026-11-18）：706支持/28解析阻断/0正文，C10656/K151513，coverageComplete=false、ratio=null、passed=false，支持子集约6.57092%，退出1。bca9faf等为历史快照。
 
 SDK 开发类型由 `04e4eca` 独立复审交付：四个精确 MIT 输入、160 个安装载荷验证，56 项生产依赖和 112 个旧锁记录不变。该SDK阶段完整服务源严格类型从 19 项降至 14 项（rekey 12、recovery 2），工具当时保留原 4 项；该SDK切片定向 Pylint 15 项与基线一致，尚不能称全仓 lint 或类型通过。[ADR 0027](../../decisions/0027-sdk-type-stubs.md)记录旧核心声明与当前使用面的限定兼容，17aba48已完成S3 SDK/HTTP与Stubber专项，真实S3仍未证明。
 
@@ -134,3 +134,9 @@ exit1/4.576秒，支持子集6.61197%不代表全仓。后续69TS普通、37Pyth
 `feac6e2` 的30源39说明已独立复审，928保护保持；旧格式、Pylint、分组mypy债如实保留。
 当前全仓705支持/28解析阻断/3正文，C10638/K151234，coverageComplete=false、ratio=null、passed=false，支持子集约6.57186%，不将局部正文清零称为质量通过。
 剩余三固定type-ignore需成熟AST/完整词元/实际mypy行为资格；contracts.py邻接短中文说明会重新成为首正文，须保持普通规则并准确整改，不改分组规则隐藏。
+
+## 精确Python工具语法及当前零正文边界
+
+`c97526e` 已按[ADR0030](../../decisions/0030-python-tool-syntax-accounting.md)独立复审，mypy完整词元与成熟AST上下文资格闭合，普通说明规则不放宽。482相关工具用例通过，三原标记字节保持，触及范围仅原六条Pylint债。
+当前全仓706支持/28解析阻断/0正文，C10656/K151513，coverageComplete=false、ratio=null、passed=false，支持子集约6.57092%。不支持的28路径、未补齐的公开API及关键说明、全仓>40%、其余完整质量仍须交付。
+Vite路径断言已改为临时文件存续时解析并缓存POSIX路径，Linux实测通过；Windows平台验证继续，不重新派发同一源码修正。

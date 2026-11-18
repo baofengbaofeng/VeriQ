@@ -1,6 +1,6 @@
 # 0028 Tool syntax accounting
 
-- 状态：已实施并通过独立规格及质量审查（b92f53f）；一项 Windows 验收路径格式 Minor 已登记。
+- 状态：已实施并通过独立规格及质量审查（b92f53f）；路径格式Minor源码已由c97526e闭合，Linux工具回归通过，Windows目标验证仍开放。
 - 日期：2026-11-18（Asia/Shanghai）。
 - 规格：[工具语法计量](../specs/tool-syntax-accounting.md)。
 

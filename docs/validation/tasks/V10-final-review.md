@@ -32,7 +32,7 @@
 | `packages/runner-sdk/src/register-case.ts`，受限证据说明    | 点明仅配置restrictedEvidence时带路径下载交给受限回调，普通投影独立剥除路径                                | 待最终复审 |
 | `packages/runner-sdk/tests/evidence.test.ts`，脱敏说明      | 使用普通证据投影的脱敏结果；该断言构造对象并调用policy.redact，没有读取发布后的报告                       | 待最终复审 |
 
-更早的Vite Windows路径断言建议仍需单独核对：原测试以str(Path)比较Vite路径，预期应规范化为resolve().as_posix()且保留精确路径断言；
+更早Vite Windows路径建议的源码修正已由c97526e完成：临时文件存续时缓存resolve().as_posix()并保留完整路径必要子串断言，Linux482工具回归通过；Windows实际运行仍待验收。
 它与三个Windows ACL历史失败不是同一事项。原始执行日志的留存限制继续如实保留，不通过补跑来虚构历史证据。
 
 ## Python普通说明评审的非阻断接续
