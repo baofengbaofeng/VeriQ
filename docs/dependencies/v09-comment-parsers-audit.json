@@ -285,14 +285,27 @@
                 "requirementCount": 56,
                 "bytes": 26735,
                 "sha256": "aa60f90b349cd5bd1eaffc2447266d58d1468fc7ed6d45d4dbbc0a57b2f06a44",
-                "unchanged": true
+                "unchanged": true,
+                "command": ["uv", "export", "--project", "apps/srv", "--frozen", "--no-dev", "--no-header"]
             },
             "withoutHashes": {
                 "requirementCount": 56,
                 "bytes": 3105,
                 "sha256": "be8ce958ee8f7db6ea70b35e92652842eb2303e03daa52d5e0f96c01146837a6",
-                "unchanged": true
-            }
+                "unchanged": true,
+                "command": [
+                    "uv",
+                    "export",
+                    "--project",
+                    "apps/srv",
+                    "--frozen",
+                    "--no-dev",
+                    "--no-hashes",
+                    "--no-header"
+                ]
+            },
+            "variant": "normalized-no-header-with-editable-project",
+            "description": "同一命令前后比较的规范化导出，关闭命令头并保留单独的可编辑项目行；第三方requirement仍为56项。"
         },
         "advisoryEndpoint": "https://api.osv.dev/v1/query",
         "advisoryQueriedAtUTC": "2026-11-18T02:14:09.636657+00:00",
@@ -313,6 +326,49 @@
             "latestVersionKnown": false,
             "candidateVersion": "0.23.2",
             "candidateMetadataAndOSVQuerySucceeded": true
+        },
+        "formalWheelhouseExports": {
+            "producer": "scripts/wheelhouse.py:37-53",
+            "baselineGitCommit": "9b195dc7f594fefcfcd2d8286e6f820209cf76e4",
+            "baselineReplayedAfterInstallation": true,
+            "comparison": "在同一私有目录以相同命令、环境重放Git基线和最终锁清单；当前仓库实际最终导出与重放逐字节一致。无项目源码/共享环境变更。",
+            "withHashes": {
+                "command": [
+                    "uv",
+                    "export",
+                    "--project",
+                    "apps/srv",
+                    "--frozen",
+                    "--no-dev",
+                    "--no-emit-project",
+                    "--format",
+                    "requirements-txt"
+                ],
+                "requirementCount": 56,
+                "bytes": 26889,
+                "sha256": "8e85ef74b24d3d9974c7a6ac16d05751a427b7da080ddb92b8fa1b26a0bef133",
+                "baselineReplayAndFinalRawBytesUnchanged": true,
+                "actualFinalMatchesReplay": true
+            },
+            "withoutHashesDiagnostic": {
+                "command": [
+                    "uv",
+                    "export",
+                    "--project",
+                    "apps/srv",
+                    "--frozen",
+                    "--no-dev",
+                    "--no-emit-project",
+                    "--format",
+                    "requirements-txt",
+                    "--no-hashes"
+                ],
+                "requirementCount": 56,
+                "bytes": 3271,
+                "sha256": "60ea138f06fe67f7e3a32954ba2ccc9c07aa92ddff85ddc2369a30f67c58bf9a",
+                "baselineReplayAndFinalRawBytesUnchanged": true,
+                "actualFinalMatchesReplay": true
+            }
         }
     }
 }

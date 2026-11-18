@@ -1,6 +1,6 @@
 # Trusted comment parsers
 
-状态：implemented（受限 Shell / CSS / Java / HTML 注释适配，等待本切片独立审查）。日期：2026-11-17。
+状态：implemented（受限 Shell / CSS / Java / HTML 注释适配，本切片独立规格与质量审查通过；全仓门禁仍未通过）。日期：2026-11-17。
 
 ## 背景
 
@@ -134,9 +134,18 @@ HTML 的无版本 PyPI 查询超时，故当前证据不认定 0.23.2 是最新�
 核心接受 grammar ABI 13～15，Bash 与 CSS 实测均为 ABI 15，Java 与 HTML 为 ABI 14。
 合成测试各从可信范围提取真实注释并排除伪标记。
 该加载证据不代替 Mac / Windows 加载验证；适配器另有真实语法及消费者回归，仍不代表全仓覆盖率已通过。
-冻结生产 export 的完整原始输出前后逐字节相同，共 56 条第三方 requirement；
+规范化导出使用 `uv export --project apps/srv --frozen --no-dev --no-header`，
+无哈希变体再加 `--no-hashes`；两者保留单独的 editable 项目行。
+这两组完整原始输出前后逐字节相同，各有 56 条第三方 requirement；
 含哈希导出的 SHA256 为 `aa60f90b349cd5bd1eaffc2447266d58d1468fc7ed6d45d4dbbc0a57b2f06a44`，
 不含哈希导出为 `be8ce958ee8f7db6ea70b35e92652842eb2303e03daa52d5e0f96c01146837a6`。
+
+正式 wheelhouse 使用 `uv export --project apps/srv --frozen --no-dev --no-emit-project --format requirements-txt`，
+保留命令头并排除 editable 项目行。安装后在同一私有目录重放 Git 基线与最终清单，
+再与当前仓库实际最终输出比较，三者逐字节相同；这是基线重放证据，不是安装前执行该正式命令的声明。
+正式含哈希导出为 56 项、26,889 字节，SHA256 `8e85ef74b24d3d9974c7a6ac16d05751a427b7da080ddb92b8fa1b26a0bef133`；
+同命令加 `--no-hashes` 的诊断变体为 56 项、3,271 字节，SHA256 `60ea138f06fe67f7e3a32954ba2ccc9c07aa92ddff85ddc2369a30f67c58bf9a`。
+具体命令与变体见审计记录的 `productionRawExports` 和 `formalWheelhouseExports`。
 
 实现同步源码库存、注释审计及受限 CSS / Java / HTML 块检查。`pnpm lint:comments` 使用固定服务环境的冻结、禁止同步入口。
 普通 / skip-tests 发行硬门禁不放宽，剩余 unsupported 和正文违规须由完整实际审计披露。
