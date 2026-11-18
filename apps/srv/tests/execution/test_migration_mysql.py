@@ -138,9 +138,52 @@ async def test_nonempty_artifact_refuses_downgrade_and_retains_history(site):
         after_revision = (
             await connection.execute(sa.text("SELECT version_num FROM veriq_alembic_version"))
         ).scalar_one()
+        assert await _has_copy_audit_column(connection)
         assert after_revision == revision
+        # 单步只移除没有复制记录的来源列，不会触碰制品年龄，原有制品无需先删除即可回退到上一版本。
+        await change("0015_artifact_retention", downgrade=True)
+        assert not await _has_copy_audit_column(connection)
+        assert (await connection.execute(sa.text("SELECT * FROM veriq_artifacts ORDER BY sha256"))).all() == before
+        await change("head")
+        assert await _has_copy_audit_column(connection)
     assert (await client.get(path)).status_code == 200
     assert (await client.get("/api/v1/account")).status_code == 200
+
+
+async def test_copy_provenance_refuses_direct_downgrade(site):
+    """即使只请求上一版本，有来源标识的审计事实也必须在原表中保留，验证失败不会删除列或修改复制关系。"""
+    _, database = site
+    source, target, event_id = (str(uuid.uuid4()) for _ in range(3))
+    async with database.sessions.begin() as session:
+        session.add(
+            models.AuditLog(
+                id=event_id,
+                action="dataset.copied",
+                target_id=target,
+                source_version_id=source,
+                created_at=datetime.datetime.now(datetime.UTC).replace(tzinfo=None),
+            )
+        )
+    async with _migration_connection(database) as (connection, change):
+        with pytest.raises(
+            RuntimeError, match="^Dataset copy provenance must be retained; downgrade refused$"
+        ):
+            await change("0015_artifact_retention", downgrade=True)
+        await connection.rollback()
+        assert await _has_copy_audit_column(connection)
+    async with database.sessions() as session:
+        event = await session.get(models.AuditLog, event_id)
+        assert (event.target_id, event.source_version_id) == (target, source)
+
+
+async def _has_copy_audit_column(connection):
+    """通过数据库实际反射检查来源列是否存在，以免仅凭回滚后的版本记录误判不可回滚的结构变更。"""
+    return await connection.run_sync(
+        lambda sync: any(
+            col["name"] == "source_version_id"
+            for col in sa.inspect(sync).get_columns("veriq_audit_logs")
+        )
+    )
 
 
 async def test_legacy_schema_restores_head_after_test_body_failure(site):
@@ -151,13 +194,16 @@ async def test_legacy_schema_restores_head_after_test_body_failure(site):
     client, database = site
     with pytest.raises(AssertionError, match="^controlled legacy fixture failure$"):
         async with _migration_connection(database) as (connection, change):
+            original_head = (
+                await connection.execute(sa.text("SELECT version_num FROM veriq_alembic_version"))
+            ).scalar_one()
             await change("0005_runtimes", downgrade=True)
             revision = (await connection.execute(sa.text("SELECT version_num FROM veriq_alembic_version"))).scalar_one()
             assert revision == "0005_runtimes"
             raise AssertionError("controlled legacy fixture failure")
     async with database.engine.connect() as observer:
         revision = (await observer.execute(sa.text("SELECT version_num FROM veriq_alembic_version"))).scalar_one()
-        assert revision == "0015_artifact_retention"
+        assert revision == original_head
     assert (await client.get("/api/v1/setup")).status_code == 200
 
 

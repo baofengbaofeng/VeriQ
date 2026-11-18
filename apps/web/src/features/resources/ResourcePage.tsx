@@ -483,7 +483,7 @@ function DatasetCopyForm({
             {versions.error && <ErrorState error={versions.error} retry={() => void versions.refetch()} />}
             <label>
                 {t("columnKey")}
-                <input name="key" required maxLength={160} pattern="[A-Za-z_][A-Za-z0-9_\-]*" />
+                <input name="key" required maxLength={160} pattern="[A-Za-z_][A-Za-z0-9_.\-]*" />
             </label>
             <label>
                 {t("columnName")}

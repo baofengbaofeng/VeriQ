@@ -1303,7 +1303,7 @@ test("copy dataset opens an independent target draft", async ({ page }) => {
     const dialog = page.getByRole("dialog", { name: "Copy dataset" });
     await dialog.getByLabel("Source workspace").selectOption(scope.workspaceId);
     await dialog.getByLabel("Published version").selectOption(version.id);
-    await dialog.getByLabel("Key", { exact: true }).fill("copied-data");
+    await dialog.getByLabel("Key", { exact: true }).fill("checkout.copied-data");
     await dialog.getByLabel("Name", { exact: true }).fill("Copied data");
     const response = page.waitForResponse(
         (r) => r.url().endsWith("/dataset-copies") && r.request().method() === "POST",
@@ -1313,6 +1313,7 @@ test("copy dataset opens an independent target draft", async ({ page }) => {
     expect(copied.status(), await copied.text()).toBe(201);
     const resource = (await copied.json()).data;
     expect(resource.id).not.toBe(source.id);
+    expect(resource.key).toBe("checkout.copied-data");
     await expect(page.getByRole("article").getByRole("heading", { name: "Copied data · DATASET" })).toBeVisible();
     const draft = await page.request.get(`/api/v1/workspaces/${targetId}/resources/${resource.id}/draft`);
     expect((await draft.json()).data.content).toEqual(version.content);

@@ -1,6 +1,6 @@
 """为复制事件保留明确的来源版本，历史审计行继续保留原义，不从现有草稿或时间推测来源。"""
 
-from alembic import op
+from alembic import context, op
 import sqlalchemy as sa
 
 revision = "0016_dataset_copy_audit"
@@ -27,4 +27,16 @@ def downgrade() -> None:
         .first()
     ):
         raise RuntimeError("Dataset copy provenance must be retained; downgrade refused")
+    # MySQL 删除列会隐式提交；若本次降级还要删除制品年龄，必须在首个结构变更前验证其保留保护。
+    migration = op.get_context()
+    assert migration.script is not None
+    steps = migration.script.iterate_revisions(
+        migration.opts["veriq_start_heads"],
+        context.get_revision_argument(),
+        select_for_downgrade=True,
+    )
+    for step in steps:
+        if step.revision == down_revision:
+            step.module.require_empty_artifact_history()
+            break
     op.drop_column("veriq_audit_logs", "source_version_id")
