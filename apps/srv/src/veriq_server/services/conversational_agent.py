@@ -40,6 +40,17 @@ SYSTEM = (
     "was performed. When asked about results, choose relatedRunId only from supplied authoritative reports. "
     "Never invent results, gates, evidence or expected values."
 )
+REPORT_TERMS = (
+    "status",
+    "progress",
+    "result",
+    "report",
+    "what happened",
+    "结果",
+    "进度",
+    "状态",
+    "报告",
+)
 SAVE = {"SAVE_PLAN"}
 RUN = {"RUN_ONCE", "TRIGGER_PLAN"}
 CONFIRM = {
@@ -338,31 +349,16 @@ class ConversationalAgent(AgentSessionService):
                 "AGENT_RUN_UNAVAILABLE",
                 "The selected Run is outside this conversation context",
             )
-        report_ids = [related] if related else []
-        if "proposal" not in output:
-            explicit = [
-                rid.lower() for rid in UUID_IN_TEXT.findall(turn.text) if rid.lower() in available
-            ]
+        explicit = [
+            rid.lower() for rid in UUID_IN_TEXT.findall(turn.text) if rid.lower() in available
+        ]
+        asks_for_report = any(word in turn.text.casefold() for word in REPORT_TERMS)
+        report_ids = [related] if related and ("proposal" not in output or asks_for_report) else []
+        # 用户明确索取的报告取自真实运行，即使供应商同轮附有计划提议也不改变依据；仅引用运行的规划仍可继续细化。
+        if asks_for_report:
             if explicit:
                 report_ids = list(dict.fromkeys(explicit))
-            elif (
-                not related
-                and len(available) == 1
-                and any(
-                    word in turn.text.casefold()
-                    for word in (
-                        "status",
-                        "progress",
-                        "result",
-                        "report",
-                        "what happened",
-                        "结果",
-                        "进度",
-                        "状态",
-                        "报告",
-                    )
-                )
-            ):
+            elif not related and len(available) == 1:
                 report_ids = list(available)
         if report_ids:
             related = report_ids[0]

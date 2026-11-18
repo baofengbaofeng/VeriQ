@@ -416,6 +416,30 @@ async def test_explicit_report_without_model_reference_uses_authoritative_state(
         assert wire["runs"] == [
             {"runId": rid, "state": truth["state"], "outcome": truth.get("outcome")}
         ]
+        model.output["proposal"] = {
+            "type": "SAVE_PLAN",
+            "planId": plan["id"],
+            "plan": {"revision": 1, "name": "Follow-up smoke"},
+        }
+        mixed = await submit(c, path, "Report for " + rid)
+        assert mixed.get("relatedRunId") == rid
+        assert mixed["reply"] == result["reply"]
+        assert mixed["proposal"]["plan"]["name"] == "Follow-up smoke"
+        model.output["reply"] = "The follow-up plan covers the reader workflow."
+        planning = await submit(
+            c, path, "Propose follow-up coverage using the suite from run " + rid
+        )
+        assert planning["reply"] == model.output["reply"]
+        assert planning["proposal"] == mixed["proposal"] and "relatedRunId" not in planning
+        model.output["relatedRunId"] = rid
+        linked = await submit(c, path, "Rename the plan for run " + rid)
+        assert linked["relatedRunId"] == rid and linked["reply"] == model.output["reply"]
+        assert linked["proposal"] == mixed["proposal"]
+        model.output = {"reply": "Which role should the follow-up cover?"}
+        clarification = await submit(c, path, "Help me design new coverage based on run " + rid)
+        assert (
+            clarification["reply"] == model.output["reply"] and "relatedRunId" not in clarification
+        )
 
 
 async def test_redacted_plan_name_remains_intact_on_unrelated_update(site):
