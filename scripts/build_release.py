@@ -7,6 +7,7 @@ release.json。正常发布要求在 Ubuntu24.04 x64 与 Python3.12 上实际验
 """
 
 import argparse
+import collections.abc
 from dataclasses import dataclass
 import fcntl
 from hashlib import sha256
@@ -127,6 +128,23 @@ def publish(candidate: Path, output: Path) -> None:
         pointer.unlink(missing_ok=True)
 
 
+def _phase_environment(
+    root: Path, name: str, inherited: collections.abc.Mapping[str, str]
+) -> dict[str, str]:
+    """
+    Pylint 以模块方式启动时移除隐式工作目录，显式传入仓库根以解析跨目录命名空间，并保留调用者的非空搜索项。
+    其它阶段继续沿用继承的 Python 搜索路径，所有阶段的类型检查路径仍按原顺序覆盖。
+    """
+    environment = {
+        **inherited,
+        "MYPYPATH": os.pathsep.join([str(root / "apps/srv"), str(root / "scripts")]),
+    }
+    if name == "pylint":
+        paths = environment.get("PYTHONPATH", "").split(os.pathsep)
+        environment["PYTHONPATH"] = os.pathsep.join([str(root), *filter(None, paths)])
+    return environment
+
+
 def build_release(options: BuildOptions) -> ReleaseManifest:
     """在独占构建锁内运行真实工具与默认完整测试，逐阶段保存命令、开始结束时间和退出结果；只有完整包校验、离线启动、
     源码复核与目标 ABI 验收全部成功后才发布。
@@ -168,12 +186,7 @@ def build_release(options: BuildOptions) -> ReleaseManifest:
                             cwd=root,
                             stdout=log,
                             stderr=subprocess.STDOUT,
-                            env={
-                                **os.environ,
-                                "MYPYPATH": os.pathsep.join(
-                                    [str(root / "apps/srv"), str(root / "scripts")]
-                                ),
-                            },
+                            env=_phase_environment(root, name, os.environ),
                         ).returncode
                     except BaseException as error:
                         interrupted = error

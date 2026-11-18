@@ -4,6 +4,7 @@
 完整构建成本较高，流水线端到端验证由真实 build.sh 门禁承担。这里独立验证无需数据库或浏览器即可确定的发布安全边界。
 """
 
+import collections.abc
 import importlib.util
 from hashlib import sha256
 import json
@@ -12,6 +13,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import typing
 
 import pytest
 
@@ -482,6 +484,139 @@ def test_python_quality_failure_stops_release_before_artifacts(
     assert not (checkout / "output").exists()
     assert not (checkout / "work/server-wheel").exists()
     assert not list(runs[0].rglob("release.json"))
+
+
+def _write_namespace_imports(checkout: Path, pythonpath_case: str) -> str | None:
+    """
+    在服务验收与根验收的命名空间各放一个真实模块，再让发行检查范围内的脚本通过完整包名引用两个模块。
+    外部路径包含两个目录及空项，第一个目录的同名模块提供值，第二个目录提供另一项独有依赖。
+    """
+    documentation = '"""\n此模块参与真实发行静态检查，常量被另一个文件通过完整包名读取以验证跨目录导入能够解析。\n"""\n'
+    for directory, filename in [
+        ("apps/srv/tests", "service_peer.py"),
+        ("tests/acceptance", "acceptance_peer.py"),
+    ]:
+        (checkout / directory).mkdir()
+        (checkout / directory / filename).write_text(
+            documentation + "\nVALUE = 1\n", encoding="utf-8"
+        )
+    imports = (
+        "from apps.srv.tests import service_peer\nfrom tests.acceptance import acceptance_peer\n"
+    )
+    expression = "service_peer.VALUE + acceptance_peer.VALUE"
+    caller_path = None if pythonpath_case == "unset" else ""
+    if pythonpath_case == "external":
+        first, second = (checkout.parent / name for name in ("first", "second"))
+        first.mkdir()
+        second.mkdir()
+        (first / "external_peer.py").write_text("VALUE = 2\n", encoding="utf-8")
+        (second / "external_peer.py").write_text("OTHER = 3\n", encoding="utf-8")
+        (second / "external_tail.py").write_text("VALUE = 4\n", encoding="utf-8")
+        caller_path = os.pathsep.join(["", str(first), "", str(second), ""])
+        imports = "import external_peer\nimport external_tail\n\n" + imports
+        expression += " + external_peer.VALUE + external_tail.VALUE"
+    (checkout / "scripts/release_namespace_consumer.py").write_text(
+        f"{documentation}\n{imports}\nVALUE = {expression}\n", encoding="utf-8"
+    )
+    return caller_path
+
+
+def _observe_release_phase_paths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> dict[tuple[str, ...], tuple[str | None, str | None]]:
+    """
+    在真实阶段进程入口记录两项合成搜索路径以检查传播范围，原样执行进程调用并返回真实退出结果供构建器判定。
+    """
+    processes_type = sys.modules["release_processes"].ReleaseProcesses
+    real_run = typing.cast(
+        collections.abc.Callable[..., subprocess.CompletedProcess[str | bytes]], processes_type.run
+    )
+    paths: dict[tuple[str, ...], tuple[str | None, str | None]] = {}
+
+    def run_with_paths(
+        processes: object, argv: list[str], **kwargs: object
+    ) -> subprocess.CompletedProcess[str | bytes]:
+        """
+        只观察显式传给阶段的搜索路径，工具探测和源码绑定等继承调用仍按原参数交给监督者处理。
+        """
+        environment = typing.cast("dict[str, str] | None", kwargs.get("env"))
+        if environment is not None:
+            paths[tuple(argv)] = environment.get("PYTHONPATH"), environment.get("MYPYPATH")
+        return real_run(processes, argv, **kwargs)
+
+    monkeypatch.setattr(processes_type, "run", run_with_paths)
+    return paths
+
+
+@pytest.mark.parametrize("pythonpath_case", ["unset", "empty", "external"])
+@pytest.mark.parametrize("skip_tests", [False, True], ids=["normal", "skip-tests"])
+def test_release_pylint_resolves_checkout_namespaces(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, pythonpath_case: str, skip_tests: bool
+) -> None:
+    """
+    发行的真实 Pylint 必须解析两个仓库命名空间及调用方提供的模块，随后未排版的固定源码在 Black 阶段失败。
+    正常和应急模式均验证阶段顺序及退出记录，并确认其它阶段和父进程保留原有搜索路径。
+    """
+    spec = importlib.util.spec_from_file_location(
+        "veriq_namespace_build", ROOT / "scripts/build_release.py"
+    )
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, spec.name, module)
+    spec.loader.exec_module(module)
+    checkout, tools = _python_quality_checkout(tmp_path, "black")
+    caller_path = _write_namespace_imports(checkout, pythonpath_case)
+    if caller_path is None:
+        monkeypatch.delenv("PYTHONPATH", raising=False)
+    else:
+        monkeypatch.setenv("PYTHONPATH", caller_path)
+    monkeypatch.setenv("PATH", str(tools) + os.pathsep + os.environ["PATH"])
+    monkeypatch.setenv("MYPYPATH", "caller-mypy-path")
+    monkeypatch.setattr(module, "stage_web", lambda *arguments: {})
+    monkeypatch.setattr(module, "stage_examples", lambda *arguments: {})
+    paths = _observe_release_phase_paths(monkeypatch)
+    with pytest.raises(RuntimeError, match="Release phase failed: black;"):
+        module.build_release(
+            module.BuildOptions(checkout, skip_tests=skip_tests, reason="fixture validation")
+        )
+    run = next((checkout / "work").glob("release-*"))
+    records = json.loads((run / "commands.json").read_text(encoding="utf-8"))
+    assert [record["name"] for record in records] == [
+        "pnpm-install",
+        "web-check",
+        "web-build",
+        "python-sync",
+        "types",
+        "lint",
+        "format",
+        "pylint",
+        "black",
+    ]
+    assert all(record["cwd"] == str(checkout) for record in records)
+    assert [record["exitCode"] for record in records] == [0] * 8 + [1]
+    assert records[-2]["argv"][:3] == [sys.executable, "-m", "pylint"]
+    assert records[-2]["argv"][3:5] == ["--rcfile", "apps/srv/pylintrc"]
+    assert records[-2]["argv"][5:] == ["apps/srv", "scripts", "tests"]
+    assert records[-1]["argv"][:3] == [sys.executable, "-m", "black"]
+    diagnostic = (run / "black.log").read_text(encoding="utf-8")
+    assert f"would reformat {checkout / 'scripts/quality_fixture.py'}" in diagnostic
+    pylint_path = str(checkout)
+    if pythonpath_case == "external":
+        pylint_path = os.pathsep.join(
+            [pylint_path, str(tmp_path / "first"), str(tmp_path / "second")]
+        )
+    assert paths == {
+        tuple(record["argv"]): (
+            pylint_path if record["name"] == "pylint" else caller_path,
+            os.pathsep.join([str(checkout / "apps/srv"), str(checkout / "scripts")]),
+        )
+        for record in records
+    }
+    assert os.environ.get("PYTHONPATH") == caller_path
+    assert os.environ["MYPYPATH"] == "caller-mypy-path"
+    assert not (checkout / "output").exists()
+    assert not (checkout / "work/server-wheel").exists()
+    assert not list(run.rglob("release.json"))
 
 
 @pytest.mark.parametrize("invalid_format", [False, True], ids=["valid", "invalid"])
