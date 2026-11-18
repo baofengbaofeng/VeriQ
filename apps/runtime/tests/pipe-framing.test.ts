@@ -138,3 +138,21 @@ test("static body crosses 32 KiB chunks and checks bytes before Unicode decode",
         /INVALID_DATASET_CHUNK/,
     );
 });
+
+test("private HTTP transfer cancels pending reads and never exposes remote error text", async () => {
+    const broker = await import("../src/execution/broker.ts");
+    const { randomUUID } = await import("node:crypto");
+    let started = false;
+    const transfers = new broker.HttpDatasetTransfers(async (_input, signal) => {
+        started = true;
+        return new Promise<Uint8Array>((_resolve, reject) =>
+            signal.addEventListener("abort", () => reject(new Error("PRIVATE-RESPONSE-SENTINEL")), { once: true }),
+        );
+    }, new AbortController().signal);
+    const id = randomUUID();
+    const pending = transfers.receive({ id, selection: { versionId: randomUUID(), parameters: {} } });
+    assert.equal(started, true);
+    await transfers.receive({ id, cancel: true });
+    assert.deepEqual(await pending, { errorCode: "DATASET_READ_ERROR" });
+    await assert.rejects(transfers.receive({ id, offset: 0 }), /INVALID_DATASET_TRANSFER/);
+});

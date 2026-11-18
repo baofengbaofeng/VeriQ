@@ -117,6 +117,8 @@ export class EvidencePolicy {
             "handling",
             "pageKey",
         ]);
+        if (this.datasetProtected && value.sample && !validateSchema("HttpDatasetSample", value.sample).length)
+            identifiers.add("sample");
         if (this.datasetProtected && value.expectedSource === "PROTECTED_CASE") identifiers.add("expectedSource");
         const dynamic = new Set(["expected", "value", "data", "vars", "variables", "headers"]);
         const restricted = value.sensitivity === "CREDENTIAL_RESTRICTED" || value.kind === "download";

@@ -13,6 +13,7 @@
         "@vitest/coverage-v8": "4.1.12"
     },
     "version": "0.1.0",
+    "veriqHttpDatasets": "1.0",
     "veriqConnectedDatasets": "2.0",
     "private": true,
     "type": "module",

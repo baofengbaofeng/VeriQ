@@ -3,6 +3,7 @@
  * 。
  */
 
+import type { DatasetPhase } from "./datasets.js";
 import { armEvent, type EventHandle } from "./observers/events.js";
 import type { Dialog } from "@playwright/test";
 import { expect } from "@playwright/test";
@@ -57,6 +58,11 @@ export async function executeStep(plan: ResolvedStep, outer: StepContext): Promi
         children: [],
         events: [],
     };
+    let datasetPhase: DatasetPhase | undefined;
+    function beginPhase() {
+        datasetPhase = outer.datasets?.phase?.();
+        if (datasetPhase) ctx.datasets = datasetPhase;
+    }
     const deferred: CompiledAssertion[] = [];
     let blocker: string | undefined;
     await ctx.onEvent?.({ type: "STEP_STARTED", stepId: s.id });
@@ -96,7 +102,11 @@ export async function executeStep(plan: ResolvedStep, outer: StepContext): Promi
             if (!page) throw new Error("UNKNOWN_PAGE_KEY");
             ctx = { ...ctx, page: await interruptible(ctx, () => page) };
         }
+        beginPhase();
         await assertions(plan.before);
+        datasetPhase?.close();
+        datasetPhase = undefined;
+        if (outer.datasets) ctx.datasets = outer.datasets;
         if (
             s.action !== "callFlow" &&
             !ctx.dialogObservers.has(ctx.page) &&
@@ -242,6 +252,7 @@ export async function executeStep(plan: ResolvedStep, outer: StepContext): Promi
                 },
             });
         }
+        beginPhase();
         await assertions(plan.responseAssertions);
         if (result.assertions.some((a) => a.status === "FAILED")) throw new Error("RESPONSE_ASSERTION_FAILED");
         const extracted: JsonObject = {};
@@ -321,6 +332,7 @@ export async function executeStep(plan: ResolvedStep, outer: StepContext): Promi
                 for (const child of plan.children ?? []) await skipStep(child, ctx, s.id, blocker);
         }
     } finally {
+        datasetPhase?.close();
         ctx.page.off("dialog", dismiss);
         await Promise.all(eventHandles.map((h) => h.dispose()));
         for (const h of handles) h.dispose();

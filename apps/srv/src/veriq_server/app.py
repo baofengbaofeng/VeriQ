@@ -96,6 +96,10 @@ def handler_for(action: str) -> type[API]:
         return BundleAPI
     if action.startswith("ai-"):
         return AiAPI
+    if action == "dataset-http":
+        from .handlers.dataset_runtime import HttpDatasetAPI
+
+        return HttpDatasetAPI
     if action == "dataset-static":
         from .handlers.dataset_runtime import StaticDatasetAPI
 
@@ -281,6 +285,7 @@ def make_app(settings: Settings, db: Database, delivery: Delivery | None = None)
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})/runs", "runs"),
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})/runs/([0-9a-fA-F-]{36})", "run"),
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})/runs/([0-9a-fA-F-]{36})/cancel", "run-cancel"),
+        ("/internal/v1/attempts/([0-9a-fA-F-]{36})/datasets/http", "dataset-http"),
         ("/internal/v1/attempts/([0-9a-fA-F-]{36})/datasets/static", "dataset-static"),
         ("/internal/v1/attempts/([0-9a-fA-F-]{36})/finish", "finish"),
         ("/internal/v1/attempts/([0-9a-fA-F-]{36})/events", "events"),

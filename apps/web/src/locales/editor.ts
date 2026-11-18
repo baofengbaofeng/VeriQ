@@ -7,6 +7,8 @@ export const editorMessages: Record<string, readonly [string, string]> = {
         "与元数据同名或以 values. 开头的字段请在列名前加上 values.。",
         "Use values.<field> for data columns sharing a metadata name or starting with values.",
     ],
+    "HTTP 数据源实参 / HTTP source arguments": ["HTTP 数据源实参", "HTTP source arguments"],
+    "采样时间 / Sampled at": ["采样时间", "Sampled at"],
     "查询别名 / Query alias": ["查询别名", "Query alias"],
     "查询操作 / Query operation": ["查询操作", "Query operation"],
     "查询字段 / Query field": ["查询字段", "Query field"],

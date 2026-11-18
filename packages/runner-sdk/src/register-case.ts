@@ -2,7 +2,7 @@
  * 本文件注册并执行整案：注入凭证/夹具/生命周期：编排准备清理与取消并产出 CaseResult（register-case）。
  */
 
-import { staticDatasetResolver } from "./datasets.js";
+import { connectedDatasetResolver, type HttpDatasetReader } from "./datasets.js";
 import { isDeepStrictEqual } from "node:util";
 import { RetryObservation, type RetrySafety } from "./retry-safety.js";
 import { EvidencePolicy, type RestrictedEvidence } from "./evidence.js";
@@ -96,6 +96,7 @@ export type SdkEvent = { type: "STEP_FINISHED"; step: StepResult } | { type: "CA
  */
 export interface ExecutionOptions {
     datasetProtected?: boolean;
+    readHttpDataset?: HttpDatasetReader;
     /**
      * Trusted worker closes the complete business Context before retry observation is final.
      */
@@ -265,7 +266,12 @@ export async function executeCase(
         }
         retryObservation = new RetryObservation(options.page.context(), plan.document.kind === "WRITE");
         ctx = createStepContext({
-            datasets: staticDatasetResolver(documents),
+            datasets: connectedDatasetResolver(
+                documents,
+                execution.datasetBindings ?? {},
+                execution.environmentVersionId,
+                options.readHttpDataset,
+            ),
             datasetProtected: options.datasetProtected === true,
             onBusinessRequest: (method) => retryObservation!.method(method),
             page: options.page,

@@ -29,6 +29,8 @@ def scoped_connection(
     user_id: str,
     environment_version_id: str,
     ref: str,
+    *,
+    service_account=False,
 ) -> DatasetConnection:
     """先按不可变连接版本定位，再核对工作区、用户与环境；普通草稿和读取路径都不会披露其它部署信息。"""
     target = registry.get(ref)
@@ -36,14 +38,14 @@ def scoped_connection(
         target is None
         or target.workspace_id != workspace_id
         or target.environment_version_id != environment_version_id
-        or user_id not in target.user_ids
+        or user_id not in (target.service_account_ids if service_account else target.user_ids)
     ):
         raise unavailable()
     return target
 
 
 def bind_connection(
-    registry, workspace_id, user_id, environment_version_id, document
+    registry, workspace_id, user_id, environment_version_id, document, *, service_account=False
 ) -> BoundDataset:
     """独立核对调用环境及用户授权，然后核实方法、路径、映射和认证；任何失败均发生在密钥解析前。"""
     if validate_schema("DatasetV2", document) or document["source"]["kind"] != "HTTP":
@@ -51,7 +53,12 @@ def bind_connection(
     source = document["source"]
     # 声明中的 UUID 只是索引，当前用户和运行环境都来自调用方的独立授权上下文，不能以一个工作区内的其它连接替代。
     target = scoped_connection(
-        registry, workspace_id, user_id, environment_version_id, source["connectionRef"]
+        registry,
+        workspace_id,
+        user_id,
+        environment_version_id,
+        source["connectionRef"],
+        service_account=service_account,
     )
     if (
         source["environmentVersionId"] != environment_version_id

@@ -46,7 +46,13 @@ async def protected_event_context(
     if not (subject.get("datasetVersionId") or subject.get("datasetBindings")):
         return None
     manifest = await frozen_object(repo, attempt.manifest_hash)
-    ctx = {"subject": subject, "manifest": manifest, "steps": {}, "sources": {}}
+    ctx = {
+        "subject": subject,
+        "manifest": manifest,
+        "steps": {},
+        "sources": {},
+        "httpAssertions": {},
+    }
     case = await repo.session.get(CaseExecution, job.case_execution_id)
     if (
         not case
@@ -63,8 +69,17 @@ async def protected_event_context(
             and case.case_version_id == manifest.get("caseVersionId")
             and case.case_version_id in source["entryCaseVersionIds"]
         ):
+            owners = [
+                a
+                for a in source["assets"]
+                if a["versionId"] == case.case_version_id and a["kind"] == "CASE"
+            ]
+            if len(owners) != 1 or owners[0]["document"].get("datasetBindings", {}) != subject.get(
+                "datasetBindings", {}
+            ):
+                return ctx
             ctx["steps"], ctx["sources"] = protected_occurrences(
-                source, case.case_version_id, subject
+                source, case.case_version_id, subject, http_assertions=ctx["httpAssertions"]
             )
     except (TypeError, KeyError, ValueError, IndexError, AttributeError, RecursionError):
         # 无效或不完整的冻结关联只留下封闭的协议状态，任何步骤、断言或观察器事实均会在落库前被拒绝。
@@ -72,7 +87,9 @@ async def protected_event_context(
     return ctx
 
 
-def protected_occurrences(source: dict, case_id: str, subject: dict) -> tuple[dict, dict]:
+def protected_occurrences(
+    source: dict, case_id: str, subject: dict, *, http_assertions: dict | None = None
+) -> tuple[dict, dict]:
     """以编译器相同的展开路径和预算遍历单个真实 CASE；逐层校验引用种类并继承模板的 WARN。"""
     versions = {asset["versionId"]: (index, asset) for index, asset in enumerate(source["assets"])}
     if len(versions) != len(source["assets"]):
@@ -123,7 +140,13 @@ def protected_occurrences(source: dict, case_id: str, subject: dict) -> tuple[di
                 continue
             label = "CASE"
             if "datasetExpected" in item:
-                label = "DATASET:" + subject["datasetBindings"][item["datasetExpected"]["alias"]]
+                vid = subject["datasetBindings"][item["datasetExpected"]["alias"]]
+                label = "DATASET:" + vid
+                if (
+                    http_assertions is not None
+                    and document(vid, "DATASET").get("source", {}).get("kind") == "HTTP"
+                ):
+                    http_assertions[step_id, wire(path)] = vid
             elif item["type"] != "responseSchema" and uses_matrix(item.get("expected"), fields):
                 label = "DATASET:" + subject["datasetVersionId"]
             assertions[step_id, wire(path)] = (label, severity)
@@ -178,6 +201,14 @@ def protected_event(ctx: dict, event: dict) -> bool:
     ):
         return False
     if kind == "ASSERTION_RESULT":
+        remote = ctx["httpAssertions"].get((step_id, assertion_id))
+        sample = payload.get("sample")
+        if sample is not None and (
+            not remote or sample["sourceVersionId"] != remote or payload["status"] == "SKIPPED"
+        ):
+            return False
+        if remote and sample is None and payload["status"] not in {"ERROR", "SKIPPED"}:
+            return False
         return (
             (step_id, assertion_id) in ctx["sources"]
             and payload["expectedSource"] == "PROTECTED_CASE"
@@ -204,6 +235,25 @@ def protected_event(ctx: dict, event: dict) -> bool:
 def checksum(value: Any) -> str:
     """对约定传递的对象使用跨语言规范编码计算摘要，树行在此之前已按矩阵语义去掉与执行无关的排序字段。"""
     return sha256(canonical_bytes(value)).hexdigest()
+
+
+def http_capabilities(source: dict) -> dict:
+    """编译必须重建整个不可变闭包，因而包含 HTTP 定义的套件在验证及各执行变体均要求新版引擎的双组件能力。"""
+    if not isinstance(source.get("assets"), list) or not all(
+        isinstance(a, dict) and (a.get("kind") != "DATASET" or isinstance(a.get("document"), dict))
+        for a in source["assets"]
+    ):
+        raise Problem(409, "COMPILED_PROVENANCE_REQUIRED", "Invalid frozen dataset assets")
+    return (
+        {"httpDatasets": "1.0"}
+        if any(
+            asset.get("kind") == "DATASET"
+            and isinstance(asset["document"].get("source"), dict)
+            and asset["document"]["source"].get("kind") == "HTTP"
+            for asset in source["assets"]
+        )
+        else {}
+    )
 
 
 def project_source(source: dict) -> dict:
@@ -264,17 +314,20 @@ async def revalidate_bundle(
     member = next((f for f in bundle["files"] if f["path"] == "source/asset-snapshot.json"), None)
     if not member:
         raise Problem(409, "COMPILED_PROVENANCE_REQUIRED", "Compiled source missing")
-    if member["sha256"] == checksum(expected) and validation.required_capabilities.get(
+    needed = http_capabilities(source)
+    projected = member["sha256"] == checksum(expected) and validation.required_capabilities.get(
         "connectedDatasets"
-    ):
+    )
+    if projected and all(validation.required_capabilities.get(k) == v for k, v in needed.items()):
         return validation, receipt.compiled_bundle_sha256
-    if member["sha256"] != checksum(retained):
+    if not projected and member["sha256"] != checksum(retained):
         raise Problem(
             409, "COMPILED_PROVENANCE_REQUIRED", "Retained source differs from frozen version"
         )
     key = checksum(
         {
             "connectedDatasets": "2.0",
+            **needed,
             "validationJobId": validation.id,
             "requester": requester,
             "serviceToken": service_token,
@@ -327,6 +380,7 @@ async def revalidate_bundle(
             "engineVersion": source["engineVersion"],
             "compileAssets": True,
             "connectedDatasets": "2.0",
+            **needed,
             "publishedValidationJobId": validation.id,
             "revalidationGroup": group,
             "revalidationGeneration": generation,
@@ -386,7 +440,9 @@ async def static_bytes(
     doc = asset["document"]
     if asset["sha256"] != checksum({"kind": "DATASET", "document": doc}):
         raise Problem(409, "DATASET_HASH_MISMATCH", "Frozen dataset differs")
-    if doc.get("source", {}).get("kind") == "HTTP":
+    if doc.get("source", {}).get("kind") == "HTTP" and (
+        mode != "DATASET" or job.required_capabilities.get("httpDatasets") != "1.0"
+    ):
         raise denied
     if mode == "DATASET":
         return canonical_bytes(doc)
@@ -494,6 +550,42 @@ async def historical_test_validation(
 
 async def upgrade_queued(repo: ResourceRepository, job: Job) -> bool:
     """已排队的历史任务只在任何新租约产生之前更换传输投影；原始验证源和既有尝试的不可变清单始终保留。"""
+    if job.required_capabilities.get("connectedDatasets") and not job.required_capabilities.get(
+        "httpDatasets"
+    ):
+        # 早期 V2 任务只记录静态通道能力。原始闭包可辨认当时尚未投入执行的 HTTP 定义，避免旧设备抢先取得租约。
+        digest = job.snapshot_hash
+        if job.kind == "TEST":
+            case = await repo.session.get(CaseExecution, job.case_execution_id)
+            if not case or case.workspace_id != repo.scope.workspace_id:
+                raise Problem(409, "COMPILED_PROVENANCE_REQUIRED", "Missing frozen case")
+            digest = case.source_snapshot_hash
+        if job.kind in {"VALIDATE", "TEST"}:
+            retained = await frozen_object(repo, digest)
+            if needed := http_capabilities(retained):
+                caps = {**job.required_capabilities, **needed}
+                if job.kind == "TEST" and "validationJobId" not in caps:
+                    manifest = await frozen_object(repo, job.manifest_hash)
+                    if "compiledBundleSha256" in manifest:
+                        subject = await frozen_object(
+                            repo, job.snapshot_hash, "ConnectedExecutionSnapshotV2"
+                        )
+                        expected = {
+                            "schemaVersion": "1.0",
+                            "kind": job.kind,
+                            "workspaceId": job.workspace_id,
+                            "jobId": job.id,
+                            "engineVersion": caps.get("engineVersion"),
+                            "snapshotSha256": job.snapshot_hash,
+                        }
+                        dependency = await historical_test_validation(
+                            repo, job, retained, subject, manifest, expected
+                        )
+                        caps["validationJobId"] = manifest["pendingValidationJobId"] = dependency
+                        manifest.pop("compiledBundleSha256")
+                        job.manifest_hash = await repo.store(canonical_bytes(manifest))
+                job.required_capabilities = caps
+        return False
     source = await legacy_source(repo, job)
     if not source:
         return False
@@ -511,7 +603,7 @@ async def upgrade_queued(repo: ResourceRepository, job: Job) -> bool:
         or source["engineVersion"] != expected["engineVersion"]
     ):
         raise Problem(409, "COMPILED_PROVENANCE_REQUIRED", "Historical source identity differs")
-    caps = {**job.required_capabilities, "connectedDatasets": "2.0"}
+    caps = {**job.required_capabilities, "connectedDatasets": "2.0", **http_capabilities(source)}
     if job.kind == "VALIDATE":
         target = source.get("validationTarget", {})
         expected.update(

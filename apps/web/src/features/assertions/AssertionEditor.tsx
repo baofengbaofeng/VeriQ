@@ -166,11 +166,43 @@ export function AssertionEditor({
 /**
  * 五种受限查询使用独立字段和类型化 JSON 参数控件，切换操作时重建节点，防止遗留参数混入另一个分支。
  */
-function DatasetQueryEditor({ path, query }: { path: string; query: DatasetQuery }) {
+function DatasetQueryEditor({
+    path,
+    query,
+    versions,
+    scope,
+}: {
+    path: string;
+    query: DatasetQuery;
+    versions: VersionOption[];
+    scope: PageReferenceScope;
+}) {
     const set = useSet();
+    const bindings = useValue<Record<string, string> | undefined>("content.document.datasetBindings");
+    const sourceKind = (alias: string) => {
+        const source = versions.find((v) => v.id === bindings?.[alias])?.content;
+        if (source?.kind !== "DATASET") return undefined;
+        return source.document.schemaVersion === "1.0" ? "STATIC" : source.document.source.kind;
+    };
+    const kind = sourceKind(query.alias);
+    const remote = kind === "HTTP" || (kind === undefined && (scope !== "CASE" || query.parameters !== undefined));
     return (
         <>
-            <Field name={path + ".alias"} label={tx("查询别名 / Query alias")} />
+            <label>
+                {tx("查询别名 / Query alias")}
+                <input
+                    value={query.alias}
+                    onChange={(e) => {
+                        const alias = e.target.value;
+                        const { parameters, ...rest } = query;
+                        set(path, {
+                            ...rest,
+                            alias,
+                            ...(sourceKind(alias) !== "STATIC" && parameters ? { parameters } : {}),
+                        });
+                    }}
+                />
+            </label>
             <label>
                 {tx("查询操作 / Query operation")}
                 <select
@@ -185,7 +217,12 @@ function DatasetQueryEditor({ path, query }: { path: string; query: DatasetQuery
                                   : op === "field"
                                     ? { key: "row", field: "value" }
                                     : { key: "row" };
-                        set(path, { alias: query.alias, op, ...args });
+                        set(path, {
+                            alias: query.alias,
+                            op,
+                            ...args,
+                            ...(kind !== "STATIC" && query.parameters && { parameters: query.parameters }),
+                        });
                     }}
                 >
                     {["field", "contains", "filter", "path", "children"].map((op) => (
@@ -193,6 +230,13 @@ function DatasetQueryEditor({ path, query }: { path: string; query: DatasetQuery
                     ))}
                 </select>
             </label>
+            {remote && (
+                <JsonField
+                    name={path + ".parameters"}
+                    label={tx("HTTP 数据源实参 / HTTP source arguments")}
+                    allowBinding
+                />
+            )}
             {"field" in query && <Field name={path + ".field"} label={tx("查询字段 / Query field")} />}
             {query.op === "filter" && <Field name={path + ".select"} label={tx("返回字段 / Selected field")} />}
             <JsonField
@@ -373,7 +417,12 @@ function AssertionFields({
                         </label>
                     )}
                     {"datasetExpected" in a ? (
-                        <DatasetQueryEditor path={path + ".datasetExpected"} query={a.datasetExpected} />
+                        <DatasetQueryEditor
+                            path={path + ".datasetExpected"}
+                            query={a.datasetExpected}
+                            versions={versions}
+                            scope={scope}
+                        />
                     ) : boolean ? (
                         <Field name={`${path}.expected`} label={tx("预期 / Expected")} check />
                     ) : number ? (

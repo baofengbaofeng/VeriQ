@@ -6980,6 +6980,163 @@
                 }
             }
         },
+        "/internal/v1/attempts/{attemptId}/datasets/http": {
+            "post": {
+                "operationId": "fetchHttpDataset",
+                "tags": [
+                    "attempts"
+                ],
+                "security": [
+                    {
+                        "DeviceToken": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "attemptId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/components/schemas/Id"
+                        }
+                    },
+                    {
+                        "name": "X-VeriQ-Lease-Token",
+                        "in": "header",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 4096
+                        }
+                    },
+                    {
+                        "name": "X-VeriQ-Fencing-Token",
+                        "in": "header",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 9007199254740991
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Complete mapped sample",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HttpDatasetResponse"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "502": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "504": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/HttpDatasetSelection"
+                            }
+                        }
+                    }
+                },
+                "description": "Authorize the frozen CASE, environment, actor, device and lease before each page and before delivery. The mapped sample is private and non-cacheable.",
+                "summary": "Read a frozen HTTP dataset with current Attempt proof"
+            }
+        },
         "/internal/v1/attempts/{attemptId}/datasets/static": {
             "post": {
                 "operationId": "fetchStaticDataset",
@@ -11134,6 +11291,9 @@
             "ConnectedDatasetV2": {"$ref": "../schemas/platform-v1.schema.json#/$defs/ConnectedDatasetV2"},
             "ConnectedSourceSnapshotV2": {"$ref": "../schemas/platform-v1.schema.json#/$defs/ConnectedSourceSnapshotV2"},
             "ConnectedExecutionSnapshotV2": {"$ref": "../schemas/platform-v1.schema.json#/$defs/ConnectedExecutionSnapshotV2"},
+            "HttpDatasetSelection": {"$ref": "../schemas/platform-v1.schema.json#/$defs/HttpDatasetSelection"},
+            "HttpDatasetSample": {"$ref": "../schemas/platform-v1.schema.json#/$defs/HttpDatasetSample"},
+            "HttpDatasetResponse": {"$ref": "../schemas/platform-v1.schema.json#/$defs/HttpDatasetResponse"},
             "StaticDatasetSelection": {"$ref": "../schemas/platform-v1.schema.json#/$defs/StaticDatasetSelection"},
             "AssetSnapshotV1": { "$ref": "../schemas/platform-v1.schema.json#/$defs/AssetSnapshotV1" },
             "SnapshotV1": { "$ref": "../schemas/platform-v1.schema.json#/$defs/SnapshotV1" },

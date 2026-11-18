@@ -16,7 +16,7 @@ from ..credentials.registry import IdentityRegistry
 from ..db import Run, CaseExecution, Job, User, ResourceVersion, Attempt
 from ..repositories.resource import ResourceRepository
 from ..service import Problem, now, stamp
-from .connected_datasets import project_execution, revalidate_bundle
+from .connected_datasets import http_capabilities, project_execution, revalidate_bundle
 from .runtime import RuntimeService
 from .workspace import WorkspaceRepository
 from .snapshots import dataset_matrix_rows, execution_data_row, validate_initial_variables
@@ -453,6 +453,7 @@ class RunService:
                                             if frozen["schemaVersion"] == "2.0"
                                             else {}
                                         ),
+                                        **http_capabilities(source),
                                         "browser": browser,
                                         "environmentVersionId": environment_version.id,
                                         "resourceKeys": resource_keys,

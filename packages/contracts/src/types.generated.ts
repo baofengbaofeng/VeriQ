@@ -47,6 +47,19 @@ export type ProtectedExecutionErrorCode =
   | "CREDENTIAL_EVIDENCE_FORBIDDEN"
   | "CREDENTIAL_PROVIDER_REQUIRED"
   | "CREDENTIAL_SHAPE_INVALID"
+  | "DATASET_BUSY"
+  | "DATASET_CONNECTION_UNAVAILABLE"
+  | "DATASET_PAGINATION_INCOMPLETE"
+  | "DATASET_REQUEST_TIMEOUT"
+  | "DATASET_RESPONSE_INVALID"
+  | "DATASET_RESPONSE_LIMIT"
+  | "DATASET_TRANSPORT_FAILED"
+  | "DATASET_UPSTREAM_REJECTED"
+  | "DATASET_NOT_ASSIGNED"
+  | "STALE_FENCE"
+  | "LEASE_EXPIRED"
+  | "REQUESTER_REVOKED"
+  | "DATASET_TRANSFER_LIMIT"
   | "DATASET_BINDINGS_MISMATCH"
   | "DATASET_EXPECTED_TYPE"
   | "DATASET_FIELD_MISSING"
@@ -753,17 +766,20 @@ export type AssertionV1 =
  */
 export type DatasetQuery =
   | {
+      parameters?: BindingJsonObject;
       alias: Key;
       op: "field";
       key: BindingJsonValue;
       field: Key;
     }
   | {
+      parameters?: BindingJsonObject;
       alias: Key;
       op: "contains";
       key: BindingJsonValue;
     }
   | {
+      parameters?: BindingJsonObject;
       alias: Key;
       op: "filter";
       field: Key;
@@ -771,11 +787,13 @@ export type DatasetQuery =
       select: Key;
     }
   | {
+      parameters?: BindingJsonObject;
       alias: Key;
       op: "path";
       key: BindingJsonValue;
     }
   | {
+      parameters?: BindingJsonObject;
       alias: Key;
       op: "children";
       parentKey: BindingJsonValue;
@@ -1573,6 +1591,7 @@ export type RuntimeCapabilitiesV1 = {
    * @minItems 1
    */
   jobKinds?: ["TEST" | "VALIDATE" | "CLEANUP", ...("TEST" | "VALIDATE" | "CLEANUP")[]];
+  httpDatasets?: "1.0";
   connectedDatasets?: "2.0";
 } & RuntimeCapabilitiesV11;
 export type RuntimeCapabilitiesV11 =
@@ -2112,6 +2131,9 @@ export interface ContractDefinitions {
   ConnectedDatasetV2?: ConnectedDatasetV2;
   ConnectedSourceSnapshotV2?: ConnectedSourceSnapshotV2;
   ConnectedExecutionSnapshotV2?: ConnectedExecutionSnapshotV2;
+  HttpDatasetSelection?: HttpDatasetSelection;
+  HttpDatasetSample?: HttpDatasetSample;
+  HttpDatasetResponse?: HttpDatasetResponse;
   StaticDatasetSelection?: StaticDatasetSelection;
 }
 /**
@@ -2677,6 +2699,7 @@ export interface StepFinishedPayloadV1 {
  * via the `definition` "AssertionResultPayloadV1".
  */
 export interface AssertionResultPayloadV1 {
+  sample?: HttpDatasetSample;
   status: "PASSED" | "FAILED" | "WARN" | "SKIPPED" | "ERROR";
   severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
   expectedSource: string;
@@ -2686,6 +2709,14 @@ export interface AssertionResultPayloadV1 {
   errorCode?: Key;
   blockedByStepId?: Key;
   blockedByAssertionId?: Key;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "HttpDatasetSample".
+ */
+export interface HttpDatasetSample {
+  sourceVersionId: Id;
+  fetchedAt: string;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -3034,6 +3065,8 @@ export interface ApprovedEngineInventoryV1 {
      */
     files: FileEntry[];
     compilerConnectedDatasets?: "2.0";
+    runnerSdkHttpDatasets?: "1.0";
+    compilerHttpDatasets?: "1.0";
     runnerSdkConnectedDatasets?: "2.0";
     /**
      * @maxItems 1000
@@ -3328,6 +3361,26 @@ export interface ConnectedExecutionSnapshotV2 {
     rowKey: Key;
     rowSha256: Sha256;
   };
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "HttpDatasetSelection".
+ */
+export interface HttpDatasetSelection {
+  versionId: Id;
+  parameters: JsonObject;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "HttpDatasetResponse".
+ */
+export interface HttpDatasetResponse {
+  sourceVersionId: Id;
+  fetchedAt: Timestamp;
+  /**
+   * @maxItems 10000
+   */
+  rows: DataRowV2[];
 }
 
 export type SnapshotV1 = AssetSnapshotV1;

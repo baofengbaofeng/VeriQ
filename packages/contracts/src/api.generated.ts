@@ -1170,6 +1170,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/internal/v1/attempts/{attemptId}/datasets/http": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read a frozen HTTP dataset with current Attempt proof
+         * @description Authorize the frozen CASE, environment, actor, device and lease before each page and before
+         * delivery. The mapped sample is private and non-cacheable.
+         */
+        post: operations["fetchHttpDataset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/internal/v1/attempts/{attemptId}/datasets/static": {
         parameters: {
             query?: never;
@@ -3447,6 +3468,7 @@ export interface components {
         };
         DatasetDocument: components["schemas"]["DatasetV1"] | components["schemas"]["DatasetV2"];
         DatasetQuery: {
+            parameters?: components["schemas"]["BindingJsonObject"];
             alias: components["schemas"]["Key"];
             /**
              * @constant
@@ -3455,6 +3477,7 @@ export interface components {
             key: components["schemas"]["BindingJsonValue"];
             field: components["schemas"]["Key"];
         } | {
+            parameters?: components["schemas"]["BindingJsonObject"];
             alias: components["schemas"]["Key"];
             /**
              * @constant
@@ -3462,6 +3485,7 @@ export interface components {
             op: "contains";
             key: components["schemas"]["BindingJsonValue"];
         } | {
+            parameters?: components["schemas"]["BindingJsonObject"];
             alias: components["schemas"]["Key"];
             /**
              * @constant
@@ -3471,6 +3495,7 @@ export interface components {
             equals: components["schemas"]["BindingJsonValue"];
             select: components["schemas"]["Key"];
         } | {
+            parameters?: components["schemas"]["BindingJsonObject"];
             alias: components["schemas"]["Key"];
             /**
              * @constant
@@ -3478,6 +3503,7 @@ export interface components {
             op: "path";
             key: components["schemas"]["BindingJsonValue"];
         } | {
+            parameters?: components["schemas"]["BindingJsonObject"];
             alias: components["schemas"]["Key"];
             /**
              * @constant
@@ -3754,6 +3780,22 @@ export interface components {
                 rowSha256: components["schemas"]["Sha256"];
             };
         };
+        HttpDatasetSelection: {
+            versionId: components["schemas"]["Id"];
+            parameters: components["schemas"]["JsonObject"];
+        };
+        HttpDatasetSample: {
+            sourceVersionId: components["schemas"]["Id"];
+            /**
+             * Format: date-time
+             */
+            fetchedAt: string;
+        };
+        HttpDatasetResponse: {
+            sourceVersionId: components["schemas"]["Id"];
+            fetchedAt: components["schemas"]["Timestamp"];
+            rows: components["schemas"]["DataRowV2"][];
+        };
         StaticDatasetSelection: {
             /**
              * @constant
@@ -3845,6 +3887,10 @@ export interface components {
             arch: "x64" | "arm64";
             browsers: components["schemas"]["Browser"][];
             jobKinds?: ("TEST" | "VALIDATE" | "CLEANUP")[];
+            /**
+             * @constant
+             */
+            httpDatasets?: "1.0";
             /**
              * @constant
              */
@@ -6119,6 +6165,7 @@ export interface components {
             value: components["schemas"]["JsonValue"];
         };
         AssertionResultPayloadV1: {
+            sample?: components["schemas"]["HttpDatasetSample"];
             /**
              * @enum {string}
              */
@@ -16387,6 +16434,136 @@ export interface operations {
              * @description Stable JSON error; code is a machine-readable domain code.
              */
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    fetchHttpDataset: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-VeriQ-Lease-Token": string;
+                "X-VeriQ-Fencing-Token": number;
+            };
+            path: {
+                attemptId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HttpDatasetSelection"];
+            };
+        };
+        responses: {
+            /**
+             * @description Complete mapped sample
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HttpDatasetResponse"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            504: {
                 headers: {
                     [name: string]: unknown;
                 };

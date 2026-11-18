@@ -75,6 +75,7 @@ class DatasetConnection(BaseModel):
     address: str
     allow_private: bool = False
     routes: dict[str, list[Literal["GET", "POST"]]]
+    service_account_ids: list[str] = Field(default_factory=list)
     user_ids: list[str]
     identity_id: str
     credentials: dict[str, CredentialGrant] = Field(default_factory=dict)

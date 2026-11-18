@@ -78,3 +78,23 @@ test("connected capability requires both component declarations from the selecte
         );
     }
 });
+
+test("live dataset capability requires both verified HTTP components", async () => {
+    const distribution = {
+        compilerVersion: "0.1.0",
+        runnerSdkVersion: "0.1.0",
+        compilerConnectedDatasets: "2.0",
+        runnerSdkConnectedDatasets: "2.0",
+        compilerHttpDatasets: "1.0",
+    } as const;
+    for (const http of [false, true]) {
+        const r = await doctor({
+            executablePath: process.env.VERIQ_TEST_CHROMIUM,
+            distribution: {
+                ...distribution,
+                ...(http ? { runnerSdkHttpDatasets: "1.0" as const } : {}),
+            },
+        });
+        assert.equal(r.capabilities?.httpDatasets, http ? "1.0" : undefined);
+    }
+});

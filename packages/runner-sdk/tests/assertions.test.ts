@@ -411,3 +411,132 @@ it("distinguishes empty membership, missing field, and null", async () => {
     expect(r.status).toBe("ERROR");
     expect(r.errorCode).toBe("DATASET_FIELD_MISSING");
 });
+
+it("samples once per assertion phase across query operators and refreshes retry attempts", async () => {
+    const sdk = await import("../src/index.js");
+    const { default: fixture } = await import("../../contracts/fixtures/http-dataset.json", { with: { type: "json" } });
+    const version = "00000000-0000-4000-8000-000000000007";
+    const calls: string[] = [];
+    const read = async (_version: string, args: Record<string, unknown>) => {
+        calls.push(String(args.search));
+        return {
+            sourceVersionId: version,
+            fetchedAt: "2026-01-02T03:04:05.000Z",
+            rows: [{ key: "entry", values: { label: "/save" } }],
+        };
+    };
+    const q = (search: string) =>
+        a({
+            type: "url",
+            source: "page",
+            operator: "contains",
+            severity: "WARN",
+            datasetExpected: { op: "field", alias: "names", key: "entry", field: "label", parameters: { search } },
+        });
+    const plan = step({ id: "go", action: "goto", path: "/save" }, [], [q("a"), q("a"), q("b")]);
+    plan.before = plan.after.slice(0, 2);
+    for (let attempt = 0; attempt < 2; attempt++) {
+        const resolver = sdk.connectedDatasetResolver(
+            new Map([
+                ["names", { ...fixture, source: { ...fixture.source, parameters: { search: "string" } } } as never],
+            ]),
+            { names: version },
+            fixture.source.environmentVersionId,
+            read,
+        );
+        const ctx = createStepContext({ ...f.options, datasets: resolver, datasetProtected: true });
+        const result = await executeStep(plan, ctx);
+        expect(result.assertions.map((r) => r.sample?.sourceVersionId)).toEqual(Array(5).fill(version));
+        expect(result.assertions.at(-1)?.status).toBe("PASSED");
+        expect(JSON.stringify(result.assertions)).not.toContain("/save");
+        ctx.dispose();
+    }
+    expect(calls).toEqual(["a", "a", "b", "a", "a", "b"]);
+});
+
+it("coalesces pending reads across aliases and query shapes and releases them on abort", async () => {
+    const { connectedDatasetResolver } = await import("../src/datasets.js");
+    const { default: fixture } = await import("../../contracts/fixtures/http-dataset.json", { with: { type: "json" } });
+    const version = "00000000-0000-4000-8000-000000000007";
+    const source = { ...fixture, source: { ...fixture.source, parameters: { a: "string", b: "boolean" } } };
+    const documents = new Map([
+        ["first", source as never],
+        ["second", source as never],
+    ]);
+    const readers: AbortSignal[] = [];
+    let resume!: () => void;
+    const release = new Promise<void>((resolve) => {
+        resume = resolve;
+    });
+    const resolver = connectedDatasetResolver(
+        documents,
+        { first: version, second: version },
+        source.source.environmentVersionId,
+        async (_version, _args, signal) => {
+            readers.push(signal);
+            await release;
+            return { sourceVersionId: version, fetchedAt: "2026-01-02T03:04:05.000Z", rows: [] };
+        },
+    );
+    const open = resolver.phase!(),
+        signal = new AbortController().signal;
+    const member = open.read(
+        { op: "contains", alias: "first", key: "missing", parameters: { a: "one", b: false } },
+        {},
+        signal,
+    );
+    const filtered = open.read(
+        {
+            op: "filter",
+            alias: "second",
+            field: "label",
+            equals: "none",
+            select: "label",
+            parameters: { b: false, a: "one" },
+        },
+        {},
+        signal,
+    );
+    expect(readers).toHaveLength(1);
+    resume();
+    await expect(member).resolves.toBe(false);
+    await expect(filtered).resolves.toEqual([]);
+    open.close();
+    expect(readers[0]!.aborted).toBe(true);
+    await expect(open.read({ op: "contains", alias: "first", key: "one" }, {}, signal)).rejects.toThrow();
+});
+
+it.each(["DATASET_REQUEST_TIMEOUT", "DATASET_UPSTREAM_REJECTED", "DATASET_PAGINATION_INCOMPLETE"])(
+    "preserves %s as an assertion ERROR under WARN severity",
+    async (code) => {
+        const ctx = createStepContext({
+            ...f.options,
+            datasetProtected: true,
+            datasets: {
+                async read() {
+                    throw new Error(code);
+                },
+            },
+        });
+        const plan = step(
+            { id: "go", action: "goto", path: "/save" },
+            [],
+            [
+                a({
+                    type: "url",
+                    source: "page",
+                    operator: "contains",
+                    severity: "WARN",
+                    datasetExpected: { alias: "r", op: "field", key: "row", field: "label" },
+                }),
+            ],
+        );
+        const result = await executeStep(plan, ctx);
+        expect(result).toMatchObject({
+            status: "ERROR",
+            errorCode: code,
+            assertions: [{ status: "ERROR", errorCode: code, expected: null, actual: { present: false } }],
+        });
+        ctx.dispose();
+    },
+);

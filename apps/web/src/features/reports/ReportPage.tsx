@@ -522,7 +522,9 @@ function AttemptDetails({
                                             e.assertionId === assertion.id,
                                     ),
                                     p = object(event?.payload),
-                                    actual = object(p.actual);
+                                    actual = object(p.actual),
+                                    sample = object(p.sample),
+                                    basis = shown(p.expectedSource ?? assertion.expectedSource);
                                 return (
                                     <div className="report-assertion" key={assertion.id}>
                                         <h5>
@@ -530,10 +532,16 @@ function AttemptDetails({
                                             {shown(p.status ?? t("noResult"))}
                                         </h5>
                                         <p>
-                                            {t("severity")}: {assertion.severity} · {t("basis")}:{" "}
-                                            {`${assertion.expectedSource} · ${t("duration")}: ` +
-                                                `${shown(p.durationMs ?? "—")} ms`}
+                                            {t("severity")}: {assertion.severity} · {t("basis")}: {basis} ·{" "}
+                                            {t("duration")}: {shown(p.durationMs ?? "—")} ms
                                         </p>
+                                        {typeof sample.fetchedAt === "string" &&
+                                            typeof sample.sourceVersionId === "string" && (
+                                                <p>
+                                                    {tx("采样时间 / Sampled at")}{" "}
+                                                    <time dateTime={sample.fetchedAt}>{sample.fetchedAt}</time>
+                                                </p>
+                                            )}
                                         {event && !event.valuesAvailable ? (
                                             <p>{t("unavailable")}</p>
                                         ) : (

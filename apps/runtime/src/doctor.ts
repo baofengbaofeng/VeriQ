@@ -43,7 +43,12 @@ export async function doctor(
          */
         distribution?: Pick<
             EngineRelease["entry"],
-            "compilerVersion" | "runnerSdkVersion" | "compilerConnectedDatasets" | "runnerSdkConnectedDatasets"
+            | "compilerHttpDatasets"
+            | "runnerSdkHttpDatasets"
+            | "compilerVersion"
+            | "runnerSdkVersion"
+            | "compilerConnectedDatasets"
+            | "runnerSdkConnectedDatasets"
         >;
         /**
          * Mac 自检只有在完整独立库存授予原生能力且固定发行 Node 的真实观察器探针成功后才开放平台分支；普通 engine
@@ -152,6 +157,12 @@ export async function doctor(
             ? {
                   capabilities: {
                       engineVersion,
+                      ...(options.distribution?.compilerHttpDatasets === "1.0" &&
+                      options.distribution.runnerSdkHttpDatasets === "1.0" &&
+                      options.distribution.compilerConnectedDatasets === "2.0" &&
+                      options.distribution.runnerSdkConnectedDatasets === "2.0"
+                          ? { httpDatasets: "1.0" as const }
+                          : {}),
                       ...(options.distribution?.compilerConnectedDatasets === "2.0" &&
                       options.distribution.runnerSdkConnectedDatasets === "2.0"
                           ? { connectedDatasets: "2.0" as const }

@@ -586,7 +586,7 @@ T14 复审修正：createBundle 要求可打印 ASCII Idempotency-Key，并同�
 ### 命名数据集断言
 
 CASE 的可选 `datasetBindings` 将别名固定到当前工作区已发布的 DATASET 版本。执行快照记录相同映射，安装时逐项核对。矩阵仍由 CASE 或 SUITE 的 `datasetVersionId` 决定。
-除模板调用与 `responseSchema` 外，每个断言恰有一个 `expected` 或 `datasetExpected`，并保留独立的 `expectedSource`。查询节点的 `alias` 在调用 CASE 中解析。仅键、父键和等值参数展开当前步骤或模板的显式绑定，返回值始终保持 JSON 字面内容。
+除模板调用与 `responseSchema` 外，每个断言恰有一个 `expected` 或 `datasetExpected`，并保留独立的 `expectedSource`。查询节点的 `alias` 在调用 CASE 中解析。键、父键、等值参数及 HTTP 源实参展开当前步骤或模板的显式绑定，返回值始终保持 JSON 字面内容。
 
 | op | 参数 | 结果 |
 | --- | --- | --- |
@@ -660,3 +660,35 @@ Linux 宿主在分配任务时，在工作树和暂存树之外的私有目录�
   当前成员须能编辑该资源并获准使用目标。返回 rowCount 和至多十行的已映射字段名；原始行键、字段值和响应头均不回传。
   可添加 `verifySignature: {at,expected}`，使用固定 UTC 时间和预期十六进制 HMAC 返回 signatureMatches，期间不发送请求。
   交付前复核授权、记录资源标识审计。超时、上游拒绝、连接异常、超预算、未完成分页与不合法映射有独立错误码。
+
+### 联网断言与采样
+
+命名查询的可选 `parameters` 是本次 HTTP 读取的源实参对象。名称、类型与冻结的
+`source.parameters` 一致。断言可以使用调用步骤或模板范围内的 `{{data.*}}`、
+`{{vars.*}}`，也可以使用 JSON 字面值。编译器在具体 CASE 的冻结闭包中检查多余、
+缺失和类型错误。静态查询保持原有字段和语义。比如按键读字段的完整节点为
+`{"op":"field","alias":"catalog","key":"one","field":"label","parameters":{"search":"{{data.name}}"}}`。
+
+SDK 对每个步骤分别开启前置、后置断言阶段。后置阶段包括提取前的响应断言和最终计数。
+在单个 Attempt 和阶段内，源版本、环境版本及 JCS 实参完全相同的多个别名或查询操作共享同一份
+正在读取或已映射的样本。查询缺失字段报 ERROR，成员未匹配返回 false，过滤未匹配返回空数组。
+返回数据中的字符串保持惰性。阶段结束或取消即释放缓存；下一个阶段或重试 Attempt 重新读取。
+每个阶段最多保存 256 组实参，映射数据与实参合计上限 16 MiB。
+
+设备以当前 Bearer、租约与 fencing 头向 `POST /internal/v1/attempts/{attemptId}/datasets/http`
+提交 `{versionId,parameters}`，获得 `{sourceVersionId,fetchedAt,rows}`。服务器从本次 CASE
+的冻结命名绑定、环境和原始触发者确定权限。服务计划通过当前令牌、计划、设备批准和连接的
+`service_account_ids` 授权。员工使用 `user_ids`。读取前、后续页与允许的重试前、交付前均复核。
+数据域只向服务端提供凭证。客户端断开会关闭正在等待的上游请求。超过预算、上游拒绝、传输超时和
+分页不完整分别保留错误码，比较不匹配遵循断言 severity。
+
+`httpDatasets: "1.0"` 由已核验发行中的编译器和 SDK 各自声明，并要求两者支持连接格式 2.0。
+声明 HTTP 数据的验证和执行须具备该能力。可信编译期间可在内存取得已冻结的 HTTP 请求定义；
+实时映射行只走单独的 HTTP 端点。私有代理每次最多并发四份 3 MiB 以内的响应，每帧最多 32 KiB
+原始字节，解码前核对总长、分段顺序及 SHA-256。受保护断言事件保持
+`expectedSource="PROTECTED_CASE"`、`expected=null` 和 `actual={"present":false}`。
+有完整采样的 HTTP 断言另带 `sample={sourceVersionId,fetchedAt}`。平台从冻结断言的实际位置
+独立核对来源并还原版本。静态断言和跳过断言不能携带采样。上游故障没有样本，保留 ERROR。
+
+已发布的 HTTP 来源若只经过旧版静态组件编译，平台会用原冻结源建立独立的兼容重验证。
+同一请求者和计划的重验证可被既有排队运行和新运行共享。先前的发布回执与构建摘要保持可追溯。

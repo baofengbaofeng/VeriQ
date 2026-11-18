@@ -571,7 +571,7 @@ class ResourceService:
             return job_dto(existing)
         job_id = str(uuid4())
         snapshot_hash = await repo.store(canonical_bytes(snapshot))
-        from .connected_datasets import project_source
+        from .connected_datasets import http_capabilities, project_source
 
         projected = project_source(snapshot)
         manifest = {
@@ -599,6 +599,7 @@ class ResourceService:
                 "engineVersion": self.engine_version,
                 "compileAssets": True,
                 **({"connectedDatasets": "2.0"} if projected is not snapshot else {}),
+                **http_capabilities(snapshot),
             },
             created_by=self.user.id,
             created_at=now(),

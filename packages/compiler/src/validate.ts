@@ -554,6 +554,9 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
                 )
                     fail("DATASET_KEY_TYPE", at + "/" + argument);
                 if (dataset) {
+                    const http =
+                        dataset.schemaVersion === "2.0" && dataset.source.kind === "HTTP" ? dataset.source : undefined;
+                    params(http?.parameters, q.parameters, scope, at + "/parameters");
                     const fields = dataset.schemaVersion === "1.0" ? dataset.columns : dataset.fields;
                     const types = (field: string, key: string): ValueType[] => {
                         if (!Object.hasOwn(fields, field)) {

@@ -39,6 +39,8 @@ const fixed = Object.entries(files)
 const engine = {
     engineVersion: distribution.engineVersion,
     compilerVersion: COMPILER_VERSION,
+    compilerHttpDatasets: JSON.parse(readFileSync("../compiler/package.json", "utf8")).veriqHttpDatasets,
+    runnerSdkHttpDatasets: JSON.parse(readFileSync("package.json", "utf8")).veriqHttpDatasets,
     compilerConnectedDatasets: JSON.parse(readFileSync("../compiler/package.json", "utf8")).veriqConnectedDatasets,
     runnerSdkConnectedDatasets: JSON.parse(readFileSync("package.json", "utf8")).veriqConnectedDatasets,
     runnerSdkVersion: distribution.runnerSdkVersion,

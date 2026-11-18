@@ -74,6 +74,7 @@ export async function runAssertion(
     let actual: Presence = { present: false },
         expected: JsonValue = "expected" in a ? a.expected : null,
         ctx = outer;
+    let sample: import("@veriq/contracts").HttpDatasetSample | undefined;
     let queryError = false;
     let errorCode: string | undefined;
     try {
@@ -92,6 +93,9 @@ export async function runAssertion(
                     a.datasetExpected,
                     { data: ctx.data, vars: ctx.vars },
                     ctx.signal ?? new AbortController().signal,
+                    (metadata) => {
+                        sample = metadata;
+                    },
                 ),
             );
             if (!assertionExpectedTypes(a).some((t) => accepts(t, valueType(expected))))
@@ -209,6 +213,7 @@ export async function runAssertion(
         expectedSource: assertionExpectedSource(item, ctx),
         expected: ctx.datasetProtected || "datasetExpected" in a ? null : expected,
         actual: ctx.datasetProtected || "datasetExpected" in a ? { present: false } : actual,
+        ...(sample ? { sample } : {}),
         durationMs: Date.now() - start,
         ...(errorCode ? { errorCode } : {}),
     };

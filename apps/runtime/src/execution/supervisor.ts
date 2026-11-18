@@ -42,7 +42,7 @@ import { isPreSpawnState } from "./pre-spawn.ts";
 import { ProcessRecords } from "./records.ts";
 import { ProcessSupervisor, type StopReceipt, type OwnedProcess } from "./processes.ts";
 import { EventBuffer } from "./events.ts";
-import { AttemptBroker, createDarwinBrokerDirectory } from "./broker.ts";
+import { HttpDatasetTransfers, AttemptBroker, createDarwinBrokerDirectory } from "./broker.ts";
 import { requireDarwinSource, type DarwinSourceCapability, type DarwinSourceState } from "./darwin-source.ts";
 import { matchesControlledClaim } from "./darwin-proof.ts";
 import { WindowsAttemptJournal } from "./windows-journal.ts";
@@ -490,6 +490,7 @@ export class ExecutionSupervisor {
             controller = new AbortController();
         let reason: string | undefined,
             child: OwnedProcess | undefined,
+            liveTransfers: HttpDatasetTransfers | undefined,
             broker: AttemptBroker | undefined,
             monitor: ReturnType<typeof monitorStorage> | undefined;
         let stop: StopReceipt | undefined, caseResult: CaseResult | undefined, manifest: JobManifestV1 | undefined;
@@ -629,11 +630,28 @@ export class ExecutionSupervisor {
             let loading = false,
                 compiled = false;
             let transfer: { bytes: Uint8Array; id: string; next: number } | undefined;
+            liveTransfers = new HttpDatasetTransfers(async (selection, signal) => {
+                if (
+                    !compiled ||
+                    manifest?.kind !== "TEST" ||
+                    !datasetProtected ||
+                    !Object.values(execution?.datasetBindings ?? {}).includes(selection.versionId)
+                )
+                    throw new Error("DATASET_NOT_ASSIGNED");
+                return client.binary(
+                    `/internal/v1/attempts/${claim.attemptId}/datasets/http`,
+                    claim,
+                    signal,
+                    undefined,
+                    selection,
+                );
+            }, controller.signal);
             broker = new AttemptBroker(join(brokerDirectory?.path ?? tmp, "control.sock"), async (message) => {
                 if (message.type === "compiled" && manifest!.kind === "TEST") {
                     compiled = true;
                     return {};
                 }
+                if (message.type === "httpDataset") return liveTransfers!.receive(message);
                 if (message.type === "dataset") {
                     if (controller.signal.aborted || frozen.schemaVersion !== "2.0")
                         throw new Error("ATTEMPT_STOPPING");
@@ -1158,6 +1176,7 @@ export class ExecutionSupervisor {
             monitor?.close();
             signal.removeEventListener("abort", aborted);
             try {
+                liveTransfers?.close();
                 await broker?.close();
             } finally {
                 await brokerDirectory?.close();

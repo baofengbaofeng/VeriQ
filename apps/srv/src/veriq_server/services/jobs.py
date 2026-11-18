@@ -221,12 +221,17 @@ class JobService:
 
             await CompletionService(self.session, self.settings).aggregate_run(run.id)
 
-    async def prepare_candidate(self, job: Job, run: Run | None, compatible: bool) -> bool:
+    async def prepare_candidate(
+        self, job: Job, run: Run | None, compatible: bool, http_compatible: bool
+    ) -> bool:
         """在单项保存点内核验历史源、验证依赖与已发布回执；正常等待保留候选状态，只有来源不可恢复才终止该项。"""
         repo = ResourceRepository(self.session, WorkspaceScope(job.workspace_id))
         from .connected_datasets import frozen_object, upgrade_queued, revalidate_bundle
 
         if await upgrade_queued(repo, job) and not compatible:
+            job.wait_reason = "NO_CAPABILITY"
+            return False
+        if job.required_capabilities.get("httpDatasets") and not http_compatible:
             job.wait_reason = "NO_CAPABILITY"
             return False
         if dependency := job.required_capabilities.get("validationJobId"):
@@ -262,9 +267,10 @@ class JobService:
                     "Draft validation receipt does not match frozen candidate",
                 )
             manifest = await frozen_object(repo, job.manifest_hash)
-            if job.required_capabilities.get(
-                "connectedDatasets"
-            ) and not dependency_job.required_capabilities.get("connectedDatasets"):
+            if any(
+                job.required_capabilities.get(k) and not dependency_job.required_capabilities.get(k)
+                for k in ("connectedDatasets", "httpDatasets")
+            ):
                 source = await frozen_object(repo, dependency_job.snapshot_hash, "AssetSnapshotV1")
                 bundle = await frozen_object(
                     repo, compiled_receipt.compiled_bundle_sha256, "CompiledAssetBundle"
@@ -378,7 +384,10 @@ class JobService:
             ):
                 continue
             compatible = req["capabilities"].get("connectedDatasets") == "2.0"
-            if job.required_capabilities.get("connectedDatasets") and not compatible:
+            if (job.required_capabilities.get("connectedDatasets") and not compatible) or (
+                job.required_capabilities.get("httpDatasets")
+                and req["capabilities"].get("httpDatasets") != "1.0"
+            ):
                 job.wait_reason = "NO_CAPABILITY"
                 continue
             run = await self.session.get(Run, job.run_id) if job.run_id else None
@@ -410,7 +419,9 @@ class JobService:
             candidate_id = job.id
             try:
                 async with self.session.begin_nested():
-                    ready = await self.prepare_candidate(job, run, compatible)
+                    ready = await self.prepare_candidate(
+                        job, run, compatible, req["capabilities"].get("httpDatasets") == "1.0"
+                    )
             except Problem as error:
                 if error.code not in {
                     "COMPILED_PROVENANCE_REQUIRED",

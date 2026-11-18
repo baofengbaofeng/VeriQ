@@ -4,17 +4,24 @@
 import { join } from "node:path";
 // Trusted worker module copied by the supervisor, never selected by DSL or a bundle.
 import { readFile } from "node:fs/promises";
-import { createHash } from "node:crypto";
-import { canonicalBytes } from "@veriq/contracts";
+import { createHash, randomUUID } from "node:crypto";
+import { canonicalBytes, validateSchema } from "@veriq/contracts";
 import { connect } from "node:net";
 import { createHttpLifecycle } from "@veriq/runner-sdk";
 const settings = JSON.parse(await readFile(new URL("./invocation.json", import.meta.url), "utf8"));
 /**
  * 公开函数 contact 与 Attempt 私有代理进行握手：确认工作进程控制通道可用后才继续执行用例（contact）。
  */
-export async function contact(message) {
+export async function contact(message, signal) {
+    signal?.throwIfAborted();
     return new Promise((resolve, reject) => {
         const socket = connect(settings.socket);
+        const abort = () => {
+            socket.destroy();
+            reject(new Error("CANCELLED"));
+        };
+        signal?.addEventListener("abort", abort, { once: true });
+        socket.once("close", () => signal?.removeEventListener("abort", abort));
         const chunks = [];
         let bytes = 0,
             complete = false;
@@ -53,12 +60,27 @@ export async function contact(message) {
  * 原始字节完整组装并通过摘要验证后才解码，分段可能切开一个多字节字符，空段、顺序变化或长度偏差均拒绝。
  */
 export async function readStaticDataset(selection, expected, send = contact, budget = { remaining: 16 * 1024 * 1024 }) {
+    return readFrames(selection, expected, send, budget);
+}
+async function readFrames(selection, expected, send, budget, liveId) {
     let offset = 0,
         size,
         id;
     const parts = [];
     do {
-        const frame = await send(offset ? { type: "dataset", id, offset } : { type: "dataset", selection });
+        const type = liveId ? "httpDataset" : "dataset";
+        const frame = await send(offset ? { type, id, offset } : { type, selection, ...(liveId && { id: liveId }) });
+        if (liveId && frame.errorCode)
+            throw new Error(
+                !validateSchema("ProtectedExecutionErrorCode", frame.errorCode).length
+                    ? frame.errorCode
+                    : "DATASET_READ_ERROR",
+            );
+        if (!offset && liveId) {
+            if (frame.id !== liveId || validateSchema("Sha256", frame.sha256).length)
+                throw new Error("INVALID_DATASET_CHUNK");
+            expected = frame.sha256;
+        }
         if (!offset) ({ size, id } = frame);
         if (
             !Number.isSafeInteger(size) ||
@@ -148,6 +170,31 @@ export async function createExecutionContext() {
     return {
         execution,
         hydrateSource,
+        readHttpDataset: async (versionId, parameters, signal) => {
+            signal.throwIfAborted();
+            const id = randomUUID();
+            const cancel = () => {
+                void contact({ type: "httpDataset", id, cancel: true }).catch(() => {});
+            };
+            signal.addEventListener("abort", cancel, { once: true });
+            try {
+                const response = await readFrames(
+                    { versionId, parameters },
+                    undefined,
+                    (message) => contact(message, signal),
+                    { remaining: 3 * 1024 * 1024 },
+                    id,
+                );
+                signal.throwIfAborted();
+                if (validateSchema("HttpDatasetResponse", response).length) throw new Error("DATASET_RESPONSE_INVALID");
+                return response;
+            } catch (error) {
+                if (!signal.aborted) cancel();
+                throw error;
+            } finally {
+                signal.removeEventListener("abort", cancel);
+            }
+        },
         datasetProtected: settings.datasetProtected === true,
         finalizeExecution: async (context) => {
             try {

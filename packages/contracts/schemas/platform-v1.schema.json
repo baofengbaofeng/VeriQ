@@ -43,6 +43,19 @@
                 "CREDENTIAL_EVIDENCE_FORBIDDEN",
                 "CREDENTIAL_PROVIDER_REQUIRED",
                 "CREDENTIAL_SHAPE_INVALID",
+                "DATASET_BUSY",
+                "DATASET_CONNECTION_UNAVAILABLE",
+                "DATASET_PAGINATION_INCOMPLETE",
+                "DATASET_REQUEST_TIMEOUT",
+                "DATASET_RESPONSE_INVALID",
+                "DATASET_RESPONSE_LIMIT",
+                "DATASET_TRANSPORT_FAILED",
+                "DATASET_UPSTREAM_REJECTED",
+                "DATASET_NOT_ASSIGNED",
+                "STALE_FENCE",
+                "LEASE_EXPIRED",
+                "REQUESTER_REVOKED",
+                "DATASET_TRANSFER_LIMIT",
                 "DATASET_BINDINGS_MISMATCH",
                 "DATASET_EXPECTED_TYPE",
                 "DATASET_FIELD_MISSING",
@@ -4208,6 +4221,7 @@
                     },
                     "minItems": 1
                 },
+                "httpDatasets": { "const": "1.0" },
                 "connectedDatasets": {
                     "const": "2.0"
                 }
@@ -5430,6 +5444,7 @@
         "AssertionResultPayloadV1": {
             "type": "object",
             "properties": {
+                "sample": { "$ref": "#/$defs/HttpDatasetSample" },
                 "status": {
                     "type": "string",
                     "enum": ["PASSED", "FAILED", "WARN", "SKIPPED", "ERROR"]
@@ -6163,6 +6178,8 @@
                                 "maxItems": 1000
                             },
                             "compilerConnectedDatasets": { "const": "2.0" },
+                            "runnerSdkHttpDatasets": { "const": "1.0" },
+                            "compilerHttpDatasets": { "const": "1.0" },
                             "runnerSdkConnectedDatasets": { "const": "2.0" },
                             "dependencies": {
                                 "type": "array",
@@ -6918,6 +6935,7 @@
                 {
                     "type": "object",
                     "properties": {
+                        "parameters": { "$ref": "#/$defs/BindingJsonObject" },
                         "alias": {
                             "$ref": "#/$defs/Key"
                         },
@@ -6937,6 +6955,7 @@
                 {
                     "type": "object",
                     "properties": {
+                        "parameters": { "$ref": "#/$defs/BindingJsonObject" },
                         "alias": {
                             "$ref": "#/$defs/Key"
                         },
@@ -6953,6 +6972,7 @@
                 {
                     "type": "object",
                     "properties": {
+                        "parameters": { "$ref": "#/$defs/BindingJsonObject" },
                         "alias": {
                             "$ref": "#/$defs/Key"
                         },
@@ -6975,6 +6995,7 @@
                 {
                     "type": "object",
                     "properties": {
+                        "parameters": { "$ref": "#/$defs/BindingJsonObject" },
                         "alias": {
                             "$ref": "#/$defs/Key"
                         },
@@ -6991,6 +7012,7 @@
                 {
                     "type": "object",
                     "properties": {
+                        "parameters": { "$ref": "#/$defs/BindingJsonObject" },
                         "alias": {
                             "$ref": "#/$defs/Key"
                         },
@@ -7271,6 +7293,64 @@
                 "caseVersionId"
             ],
             "dependentRequired": { "datasetVersionId": ["selectedRow"], "selectedRow": ["datasetVersionId"] },
+            "additionalProperties": false
+        },
+        "HttpDatasetSelection": {
+            "type": "object",
+            "properties": {
+                "versionId": {
+                    "$ref": "#/$defs/Id"
+                },
+                "parameters": {
+                    "$ref": "#/$defs/JsonObject"
+                }
+            },
+            "required": [
+                "versionId",
+                "parameters"
+            ],
+            "additionalProperties": false
+        },
+        "HttpDatasetSample": {
+            "type": "object",
+            "properties": {
+                "sourceVersionId": {
+                    "$ref": "#/$defs/Id"
+                },
+                "fetchedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\d\\.\\d{3}(?:\\d{3})?Z$"
+                }
+            },
+            "required": [
+                "sourceVersionId",
+                "fetchedAt"
+            ],
+            "additionalProperties": false
+        },
+        "HttpDatasetResponse": {
+            "type": "object",
+            "properties": {
+                "sourceVersionId": {
+                    "$ref": "#/$defs/Id"
+                },
+                "fetchedAt": {
+                    "$ref": "#/$defs/Timestamp"
+                },
+                "rows": {
+                    "type": "array",
+                    "maxItems": 10000,
+                    "items": {
+                        "$ref": "#/$defs/DataRowV2"
+                    }
+                }
+            },
+            "required": [
+                "sourceVersionId",
+                "fetchedAt",
+                "rows"
+            ],
             "additionalProperties": false
         },
         "StaticDatasetSelection": {

@@ -10,7 +10,15 @@ from .policy import bind_connection, unavailable
 
 
 async def authorize_dataset(
-    session, settings, workspace_id, user_id, environment_id, dataset, *, resolve=False
+    session,
+    settings,
+    workspace_id,
+    user_id,
+    environment_id,
+    dataset,
+    *,
+    resolve=False,
+    service_account=False,
 ):
     """复核连接、人员、密钥和批准身份的一致性，凭证撤销后预览和执行都无法凭历史草稿继续读取。"""
     bound = bind_connection(
@@ -19,6 +27,7 @@ async def authorize_dataset(
         user_id,
         environment_id,
         dataset,
+        service_account=service_account,
     )
     auth = dataset["source"]["auth"]
     material = {}

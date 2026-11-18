@@ -94,7 +94,12 @@ try {
         string,
         {
             dir: string;
-            pkg: { version: string; veriqConnectedDatasets?: string; dependencies?: Record<string, string> };
+            pkg: {
+                version: string;
+                veriqConnectedDatasets?: string;
+                veriqHttpDatasets?: string;
+                dependencies?: Record<string, string>;
+            };
         }
     >();
 
@@ -125,6 +130,7 @@ try {
                 JSON.stringify({
                     name,
                     version: manifest.version,
+                    ...(manifest.veriqHttpDatasets ? { veriqHttpDatasets: manifest.veriqHttpDatasets } : {}),
                     ...(manifest.veriqConnectedDatasets
                         ? { veriqConnectedDatasets: manifest.veriqConnectedDatasets }
                         : {}),
@@ -234,6 +240,8 @@ try {
     const engine = {
         engineVersion: version,
         compilerVersion: COMPILER_VERSION,
+        ...(compilerPackage.veriqHttpDatasets === "1.0" ? { compilerHttpDatasets: "1.0" } : {}),
+        ...(sdk.pkg.veriqHttpDatasets === "1.0" ? { runnerSdkHttpDatasets: "1.0" } : {}),
         ...(compilerPackage.veriqConnectedDatasets === "2.0" ? { compilerConnectedDatasets: "2.0" } : {}),
         ...(sdk.pkg.veriqConnectedDatasets === "2.0" ? { runnerSdkConnectedDatasets: "2.0" } : {}),
         runnerSdkVersion: sdk.pkg.version,

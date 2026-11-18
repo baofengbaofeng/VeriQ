@@ -56,7 +56,11 @@ class CompletionService:
         for event in events:
             if event["attemptId"] != attempt_id or validate_schema("ExecutionEventV1", event):
                 raise Problem(400, "INVALID_EVENT", "Event does not match assigned Attempt")
-            if protected is not None and not protected_event(protected, event):
+            if (protected is not None and not protected_event(protected, event)) or (
+                protected is None
+                and event["type"] == "ASSERTION_RESULT"
+                and "sample" in event["payload"]
+            ):
                 raise Problem(
                     409,
                     "DATASET_EVIDENCE_FORBIDDEN",

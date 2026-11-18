@@ -164,3 +164,35 @@ test("published HTTP data defines named assertions and never drives an execution
     const matrix = snapshot(undefined, [reference], { datasetVersionId: id(3) });
     expect(analyze(matrix).issues.map((issue) => issue.code)).toContain("DATASET_HTTP_MATRIX");
 });
+
+test("compiles typed HTTP parameters and rejects a missing or mismatched source argument", () => {
+    const source = { ...remote, source: { ...remote.source, parameters: { search: "string" } } };
+    const run = (parameters: import("@veriq/contracts").BindingJsonObject) =>
+        analyze(
+            snapshot(
+                [
+                    {
+                        id: "go",
+                        action: "goto",
+                        path: "/",
+                        afterAssertions: [
+                            {
+                                id: "a",
+                                type: "url",
+                                source: "page",
+                                operator: "contains",
+                                severity: "WARN",
+                                expectedSource: "remote",
+                                datasetExpected: { op: "field", alias: "r", field: "label", key: "one", parameters },
+                            },
+                        ],
+                    },
+                ],
+                [asset(3, "DATASET", source)],
+                { datasetBindings: { r: id(3) } },
+            ),
+        ).issues;
+    expect(run({ search: "value" })).toEqual([]);
+    expect(run({})).toEqual(expect.arrayContaining([expect.objectContaining({ code: "MISSING_PARAMETER" })]));
+    expect(run({ search: false }).length).toBeGreaterThan(0);
+});

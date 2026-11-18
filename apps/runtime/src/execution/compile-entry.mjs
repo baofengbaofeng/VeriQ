@@ -41,6 +41,12 @@ else
               : await provider.hydrateSource(projected);
         if (
             connected &&
+            source.assets.some((a) => a.kind === "DATASET" && a.document.source?.kind === "HTTP") &&
+            typeof (await import("@veriq/runner-sdk")).connectedDatasetResolver !== "function"
+        )
+            throw new Error("DATASET_PROVIDER_REQUIRED");
+        if (
+            connected &&
             hash(canonicalBytes(compiler.projectConnectedSource(source))) !== hash(canonicalBytes(projected))
         )
             throw new Error("COMPILED_PROVENANCE_MISMATCH");

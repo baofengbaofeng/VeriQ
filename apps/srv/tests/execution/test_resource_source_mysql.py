@@ -1,3 +1,4 @@
+import pytest
 import asyncio
 import json
 import os
@@ -12,6 +13,7 @@ from test_workspace import workspace, new_member, client
 from test_lease_mysql import device
 from test_agent_mysql import agent_once, business
 from veriq_server.db import Artifact
+from test_http_datasets import dataset_deployment
 
 
 async def test_published_source_exact_bytes_integrity_scope_and_current_membership(site):
@@ -445,7 +447,10 @@ async def test_static_fetch_is_scoped_to_attempt_fence_and_version(site):
     assert (await c.post(path, json=selection, headers=headers)).status_code == 401
 
 
-async def test_legacy_published_dataset_revalidation_uses_frozen_original(site, business):
+@pytest.mark.parametrize("live", [False, True], ids=["static", "http"])
+async def test_legacy_published_dataset_revalidation_uses_frozen_original(
+    site, business, dataset_deployment, monkeypatch, live
+):
     from uuid import uuid4
     from sqlalchemy import select
     from test_publish import create, publish
@@ -543,9 +548,61 @@ async def test_legacy_published_dataset_revalidation_uses_frozen_original(site, 
             }
         ],
     }
-    case_path = await create(c, ws, "legacy", {"kind": "CASE", "document": document})
     editor = await new_member(c, ws, "previous-publisher@example.com", "ADMIN")
-    await new_member(c, ws, "current-executor@example.com", "EXECUTOR")
+    executor_id = await new_member(c, ws, "current-executor@example.com", "EXECUTOR")
+    http_calls = []
+    if live:
+        from test_http_datasets import config, connection, REF
+        from veriq_server.datasets import request
+
+        actor = (await c.get("/api/v1/account")).json()["data"]["id"]
+        remote = config()
+        remote["source"].update(environmentVersionId=env, auth={"kind": "NONE"})
+        dataset_deployment[REF] = connection().model_copy(
+            update={
+                "workspace_id": ws,
+                "environment_version_id": env,
+                "user_ids": [actor, editor, executor_id],
+                "auth_kinds": ["NONE"],
+            }
+        )
+        remote_path = await create(c, ws, "live", {"kind": "DATASET", "document": remote})
+        remote_version, _, _ = await publish(c, db, remote_path)
+        live_id = remote_version["id"]
+        document["datasetBindings"]["remote"] = live_id
+        checks = document["steps"][0]["afterAssertions"]
+        checks.append(
+            {
+                **checks[-1],
+                "id": "online",
+                "datasetExpected": {
+                    "op": "field",
+                    "alias": "remote",
+                    "key": "first",
+                    "field": "label",
+                    "parameters": {"search": "{{data.lookup}}"},
+                },
+            }
+        )
+
+        def upstream(req):
+            http_calls.append(req.url.raw_path)
+            return httpx.Response(
+                200,
+                stream=httpx.ByteStream(
+                    json.dumps(
+                        {
+                            "items": [
+                                {"id": "first", "name": marker},
+                                {"id": "unused", "name": payload},
+                            ]
+                        }
+                    ).encode()
+                ),
+            )
+
+        monkeypatch.setattr(request, "open_transport", lambda: httpx.MockTransport(upstream))
+    case_path = await create(c, ws, "legacy", {"kind": "CASE", "document": document})
     async with client(c, "previous-publisher@example.com") as publisher:
         version, original_receipt, original = await publish(publisher, db, case_path)
     assert (await c.delete(f"/api/v1/workspaces/{ws}/members/{editor}")).status_code == 200
@@ -637,6 +694,13 @@ async def test_legacy_published_dataset_revalidation_uses_frozen_original(site, 
             **claim_request["capabilities"],
             "connectedDatasets": "2.0",
         }
+        if live:
+            old_static = await c.post(
+                "/internal/v1/jobs/claim", headers=auth(d), json=claim_request
+            )
+            assert old_static.status_code == 204
+            claim_request.update(clientRequestId=str(uuid4()))
+            claim_request["capabilities"]["httpDatasets"] = "1.0"
         claim = (
             await c.post("/internal/v1/jobs/claim", headers=auth(d), json=claim_request)
         ).json()["data"]
@@ -771,13 +835,30 @@ async def test_legacy_published_dataset_revalidation_uses_frozen_original(site, 
             assert marker not in json.dumps(events)
             assert {entry["kind"] for entry in uploads} == {"MANIFEST"}
             assertions = [event for event in events if event["type"] == "ASSERTION_RESULT"]
-            assert len(assertions) == 2 and all(
+            assert len(assertions) == (3 if live else 2) and all(
                 event["payload"]["status"] == "PASSED" for event in assertions
             )
             assert all(event["payload"]["actual"] == {"present": False} for event in assertions)
             assert assertions[0]["payload"]["expectedSource"] == "CASE"
             assert all("Published CAST" not in json.dumps(event) for event in assertions)
-            assert dataset_version["id"] in assertions[-1]["payload"]["expectedSource"]
+            assert dataset_version["id"] in assertions[1]["payload"]["expectedSource"]
+            if live:
+                assert http_calls == [b"/items?q=first&q="]
+                remote_payload = assertions[-1]["payload"]
+                assert remote_payload["expectedSource"] == "DATASET:" + live_id
+                assert remote_payload["sample"]["sourceVersionId"] == live_id
+                assert set(remote_payload["sample"]) == {"sourceVersionId", "fetchedAt"}
+                assert all("sample" not in event["payload"] for event in assertions[:-1])
+                history = await c.get(f"/api/v1/workspaces/{ws}/attempts/{attempt.id}/history")
+                assert history.status_code == 200, history.text
+                reported = history.json()["data"]
+                normalized = next(
+                    e
+                    for e in reported["items"]
+                    if e.get("assertionId") == assertions[-1]["assertionId"]
+                )
+                assert normalized["payload"]["sample"] == remote_payload["sample"]
+                assert marker not in json.dumps(reported)
         assert facts["echo"] == marker
         # 相同执行主体随后再次运行同一发布版本，应复用已经成功的独立验证，不能改写回执或重复创建验证任务。
         async with client(c, "current-executor@example.com") as executor:
@@ -1026,3 +1107,463 @@ def test_protected_occurrences_expand_only_frozen_case_and_resolve_parameter_pro
         ("DATASET:named-version", "WARN"),
         ("CASE", "WARN"),
     ]
+
+
+@pytest.mark.parametrize("historic", [True, False], ids=["old-queued", "current"])
+async def test_http_dataset_rechecks_access_before_delivery(
+    dataset_deployment, site, monkeypatch, historic
+):
+    """在独立的回环上游收到请求后撤销真实凭证，证明交付前重新校验，同时观察未绑定版本与旧围栏不会发包。"""
+    from uuid import uuid4
+    from test_http_datasets import REF, ENV, config, connection
+    from test_lease_mysql import auth, claim_body, queued_browser_jobs
+    from veriq_server.auth.authorization import WorkspaceScope
+    from veriq_server.contracts import asset_source_hash, canonical_bytes
+    from veriq_server.datasets import request
+    from veriq_server.db import Job, CaseExecution
+    from veriq_server.repositories.resource import ResourceRepository
+
+    c, db = site
+    await setup(c)
+    await login(c)
+    ws = await workspace(c)
+    d = await device(c, ws)
+    actor = (await c.get("/api/v1/account")).json()["data"]["id"]
+    cred = f"/api/v1/workspaces/{ws}/credentials"
+    secret = await c.post(
+        cred,
+        json={
+            "secretRef": "catalog",
+            "value": {"value": "synthetic-key"},
+            "allowedIdentityIds": ["dataset-reader"],
+        },
+    )
+    assert secret.status_code == 201
+    key = secret.json()["data"]["versionId"]
+    deployment = connection()
+    dataset_deployment[REF] = deployment.model_copy(
+        update={
+            "workspace_id": ws,
+            "user_ids": [actor],
+            "credentials": {
+                "catalog": deployment.credentials["catalog"].model_copy(update={"version_id": key})
+            },
+        }
+    )
+    doc = config()
+    doc["source"]["auth"]["secretVersionId"] = key
+    doc["source"]["pagination"] = {
+        "kind": "PAGE",
+        "parameter": "page",
+        "next": "/more",
+        "maxPages": 1,
+    }
+    vid, other = str(uuid4()), str(uuid4())
+    (jid,) = await queued_browser_jobs(c, db, ws, 1)
+    async with db.sessions.begin() as session:
+        repo = ResourceRepository(session, WorkspaceScope(ws))
+        job = await session.get(Job, jid)
+        case = await session.get(CaseExecution, job.case_execution_id)
+
+        def asset(kind, version, document):
+            content = {"kind": kind, "document": document}
+            return {
+                **content,
+                "versionId": version,
+                "resourceId": str(uuid4()),
+                "sha256": sha256(canonical_bytes(content)).hexdigest(),
+            }
+
+        case_doc = {"datasetBindings": {"named": vid}, "steps": []}
+        source = {
+            "schemaVersion": "1.0",
+            "workspaceId": ws,
+            "engineVersion": "0.1.0",
+            "entryCaseVersionIds": [case.case_version_id],
+            "assets": [
+                asset("CASE", case.case_version_id, case_doc),
+                asset("DATASET", vid, doc),
+                asset("DATASET", other, doc),
+            ],
+        }
+        source["sourceHash"] = asset_source_hash(source)
+        case.source_snapshot_hash = await repo.store(canonical_bytes(source))
+        snapshot = {
+            "schemaVersion": "2.0",
+            "workspaceId": ws,
+            "caseExecutionId": case.id,
+            "runId": job.run_id,
+            "caseVersionId": case.case_version_id,
+            "assetSourceHash": source["sourceHash"],
+            "environmentVersionId": ENV,
+            "datasetBindings": {"named": vid},
+        }
+        job.snapshot_hash = await repo.store(canonical_bytes(snapshot))
+        job.manifest_hash = await repo.store(
+            canonical_bytes({"caseVersionId": case.case_version_id})
+        )
+        job.required_capabilities = {
+            **job.required_capabilities,
+            "connectedDatasets": "2.0",
+            "environmentVersionId": ENV,
+        }
+        if not historic:
+            job.required_capabilities = {**job.required_capabilities, "httpDatasets": "1.0"}
+    body = claim_body(d)
+    body["capabilities"] = {**body["capabilities"], "connectedDatasets": "2.0"}
+    old = await c.post("/internal/v1/jobs/claim", json=body, headers=auth(d))
+    assert old.status_code == 204
+    body = {
+        **body,
+        "clientRequestId": str(uuid4()),
+        "capabilities": {**body["capabilities"], "httpDatasets": "1.0"},
+    }
+    claimed = await c.post("/internal/v1/jobs/claim", json=body, headers=auth(d))
+    assert claimed.status_code == 200, claimed.text
+    claim = claimed.json()["data"]
+    base = f"/internal/v1/attempts/{claim['attemptId']}"
+    headers = {
+        **auth(d),
+        "X-VeriQ-Lease-Token": claim["leaseToken"],
+        "X-VeriQ-Fencing-Token": str(claim["fencingToken"]),
+    }
+    activated = await c.post(
+        base + "/activate",
+        headers=auth(d),
+        json={k: claim[k] for k in ["fencingToken", "leaseToken"]},
+    )
+    assert activated.status_code == 200, activated.text
+    calls = []
+    started, release = asyncio.Event(), asyncio.Event()
+    disconnected = asyncio.Event()
+    mode = "empty"
+
+    async def upstream(reader, writer):
+        wire = await reader.readuntil(b"\r\n\r\n")
+        calls.append(wire.split(b"\r\n", 1)[0])
+        assert b"x-signature:" in wire.lower()
+        if mode in {"timeout", "abandon"}:
+            if mode == "abandon":
+                started.set()
+            await reader.read(1)
+            disconnected.set()
+            writer.close()
+            await writer.wait_closed()
+            return
+        if mode == "revoke":
+            started.set()
+            await release.wait()
+        payload = json.dumps({"items": [], "more": mode == "partial"}).encode()
+        status = b"401 Unauthorized" if mode == "reject" else b"200 OK"
+        writer.write(
+            b"HTTP/1.1 "
+            + status
+            + b"\r\nContent-Type: application/json\r\nContent-Length: "
+            + str(len(payload)).encode()
+            + b"\r\nConnection: close\r\n\r\n"
+            + payload
+        )
+        await writer.drain()
+        writer.close()
+        await writer.wait_closed()
+
+    async with await asyncio.start_server(upstream, "127.0.0.1", 0) as server:
+        port = server.sockets[0].getsockname()[1]
+
+        class Loopback(httpx.AsyncHTTPTransport):
+            async def handle_async_request(self, req):
+                req.url = req.url.copy_with(scheme="http", host="127.0.0.1", port=port)
+                return await super().handle_async_request(req)
+
+        monkeypatch.setattr(request, "open_transport", Loopback)
+
+        async def fetch(version=vid, proof_headers=None):
+            return await c.post(
+                base + "/datasets/http",
+                headers=proof_headers or headers,
+                json={"versionId": version, "parameters": {"search": "one"}},
+            )
+
+        assert (await fetch(other)).status_code == 403
+        assert (
+            await fetch(proof_headers={**headers, "X-VeriQ-Fencing-Token": "999"})
+        ).status_code == 409
+        assert calls == []
+        empty = await fetch()
+        assert empty.status_code == 200, empty.text
+        assert empty.json()["rows"] == [] and empty.json()["sourceVersionId"] == vid
+        assert empty.headers["cache-control"] == "no-store"
+        for mode, code in [
+            ("reject", "DATASET_UPSTREAM_REJECTED"),
+            ("partial", "DATASET_PAGINATION_INCOMPLETE"),
+            ("timeout", "DATASET_REQUEST_TIMEOUT"),
+        ]:
+            assert (await fetch()).json()["code"] == code
+        mode = "abandon"
+        started.clear()
+        disconnected.clear()
+        pending = asyncio.create_task(fetch())
+        await asyncio.wait_for(started.wait(), 2)
+        pending.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await pending
+        await asyncio.wait_for(disconnected.wait(), 1.5)
+        started.clear()
+        # 以实际计划绑定和服务令牌重新读取。创建者仍然获准使用此连接，但不能代替服务账号自己的明确授权。
+        from veriq_server.db import ExecutionPlan, Run
+        from veriq_server.service import now
+
+        plan = str(uuid4())
+        async with db.sessions.begin() as session:
+            session.add(
+                ExecutionPlan(
+                    id=plan,
+                    workspace_id=ws,
+                    name="Sample",
+                    created_by=actor,
+                    created_at=now(),
+                    selection={"runtimeIds": [d["runnerId"]]},
+                )
+            )
+        acc = await c.post(
+            f"/api/v1/workspaces/{ws}/service-accounts", json={"name": "Sample account"}
+        )
+        assert acc.status_code == 201
+        account = acc.json()["data"]["id"]
+        token = await c.post(
+            f"/api/v1/workspaces/{ws}/service-accounts/{account}/tokens",
+            json={"purpose": "EXECUTION", "operations": ["trigger"], "planIds": [plan]},
+        )
+        assert token.status_code == 201
+        token_id = token.json()["data"]["id"]
+        shared = await c.put(
+            f"/api/v1/workspaces/{ws}/runtimes/{d['runnerId']}/grants",
+            json={"workspaceId": ws, "userIds": [], "sharedWithWorkspace": True},
+        )
+        assert shared.status_code == 200
+        async with db.sessions.begin() as session:
+            job = await session.get(Job, jid)
+            run = await session.get(Run, job.run_id)
+            run.plan_id = plan
+            run.requester_service_token_id = job.requester_service_token_id = token_id
+        mode = "empty"
+        assert (await fetch()).status_code == 422 and len(calls) == 5
+        dataset_deployment[REF] = dataset_deployment[REF].model_copy(
+            update={"service_account_ids": [account]}
+        )
+        assert (await fetch()).status_code == 200 and len(calls) == 6
+        mode = "revoke"
+        pending = asyncio.create_task(fetch())
+        try:
+            await asyncio.wait_for(started.wait(), 5)
+            revoked = await c.post(f"{cred}/catalog/versions/{key}/revoke", json={})
+            assert revoked.status_code == 200
+        finally:
+            release.set()
+        refused = await pending
+        assert (
+            refused.status_code == 422
+            and refused.json()["code"] == "DATASET_CONNECTION_UNAVAILABLE"
+        )
+        assert (await fetch()).status_code == 422 and len(calls) == 7
+
+
+def test_protected_sample_is_accepted_only_for_the_frozen_http_assertion():
+    """模拟同一 CASE 中静态与远程两条断言的独立冻结出处，不能用正确围栏把合法采样元数据贴到另一条来源。"""
+    from veriq_server.services.connected_datasets import protected_event
+
+    vid = "00000000-0000-4000-8000-000000000001"
+    sample = {"sourceVersionId": vid, "fetchedAt": "2026-01-02T01:02:03.000Z"}
+    ctx = {
+        "steps": {"s": set()},
+        "sources": {("s", "http"): ("DATASET:" + vid, "BLOCK"), ("s", "static"): ("CASE", "BLOCK")},
+        "httpAssertions": {("s", "http"): vid},
+    }
+    payload = {
+        "status": "PASSED",
+        "severity": "BLOCK",
+        "expectedSource": "PROTECTED_CASE",
+        "expected": None,
+        "actual": {"present": False},
+        "durationMs": 1,
+    }
+
+    def accepted(assertion, **extra):
+        return protected_event(
+            ctx,
+            {
+                "type": "ASSERTION_RESULT",
+                "stepId": "s",
+                "assertionId": assertion,
+                "payload": {**payload, **extra},
+            },
+        )
+
+    assert accepted("http", sample=sample)
+    assert not accepted("static", sample=sample)
+    assert not accepted("http", sample={**sample, "sourceVersionId": "other"})
+    assert not accepted("http")
+    assert accepted("http", status="ERROR")
+    assert not accepted("http", sample=sample, status="SKIPPED")
+
+
+async def test_old_http_projection_reuses_only_the_live_capable_revalidation():
+    """相同投影摘要不能证明旧版 SDK 能够在线取数，以当前请求者已有的合格重验证替换旧回执，保持版本不可变。"""
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock, Mock
+    from test_http_datasets import config
+    from veriq_server.services.connected_datasets import checksum, project_source, revalidate_bundle
+
+    dataset = {
+        "kind": "DATASET",
+        "document": config(),
+        "versionId": "source",
+        "resourceId": "dataset",
+        "sha256": "a" * 64,
+    }
+    source = {"schemaVersion": "1.0", "assets": [dataset]}
+    member = {"path": "source/asset-snapshot.json", "sha256": checksum(project_source(source))}
+    old = SimpleNamespace(
+        id="old", subject_id="subject", required_capabilities={"connectedDatasets": "2.0"}
+    )
+    migration = SimpleNamespace(id="replacement", state="QUEUED")
+    rows = Mock()
+    rows.scalar_one_or_none.return_value = migration
+    repo = SimpleNamespace(
+        scope=SimpleNamespace(workspace_id="workspace"),
+        session=SimpleNamespace(execute=AsyncMock(return_value=rows)),
+    )
+    result = await revalidate_bundle(
+        repo,
+        old,
+        source,
+        {"files": [member]},
+        SimpleNamespace(compiled_bundle_sha256="old-archive"),
+        requester="actor",
+    )
+    assert result == (migration, None)
+
+
+async def test_previously_projected_http_job_revalidates_its_immutable_bundle(
+    site, dataset_deployment
+):
+    """复现旧式投影回执与已排队测试同时跨版本升级；新增运行及既有运行应共享同一份从冻结原稿生成的重验证。"""
+    from uuid import uuid4
+    from sqlalchemy import select
+    from test_http_datasets import REF, config, connection
+    from test_lease_mysql import auth, claim_body
+    from test_publish import completed, create, queue
+    from test_runs_mysql import environment, published
+    from veriq_server.db import Job, ValidationReceipt
+
+    c, db = site
+    await setup(c)
+    await login(c)
+    ws = await workspace(c)
+    d = await device(c, ws)
+    shared = await c.put(
+        f"/api/v1/workspaces/{ws}/runtimes/{d['runnerId']}/grants",
+        json={"workspaceId": ws, "userIds": [], "sharedWithWorkspace": True},
+    )
+    assert shared.status_code == 200, shared.text
+    trust = await c.put(
+        f"/api/v1/workspaces/{ws}/runtimes/{d['runnerId']}/trust",
+        json={"trustStatus": "MANAGED", "allowCredentialDelivery": True},
+    )
+    assert trust.status_code == 200, trust.text
+    actor = (await c.get("/api/v1/account")).json()["data"]["id"]
+    env = await environment(c, db, ws)
+    remote = config()
+    remote["source"].update(environmentVersionId=env, auth={"kind": "NONE"})
+    dataset_deployment[REF] = connection().model_copy(
+        update={
+            "workspace_id": ws,
+            "environment_version_id": env,
+            "user_ids": [actor],
+            "auth_kinds": ["NONE"],
+        }
+    )
+    vid = await published(c, db, ws, "remote", "DATASET", remote)
+    catalog = await published(
+        c,
+        db,
+        ws,
+        "catalog",
+        "ELEMENT_CATALOG",
+        {
+            "schemaVersion": "1.0",
+            "elements": [{"key": "name", "locator": {"by": "veriqId", "value": "name"}}],
+        },
+    )
+    path = await create(
+        c,
+        ws,
+        "case",
+        {
+            "kind": "CASE",
+            "document": {
+                "schemaVersion": "1.0",
+                "caseKey": "case",
+                "title": "Frozen",
+                "kind": "READ",
+                "roleKey": "reader",
+                "catalogVersionId": catalog,
+                "datasetBindings": {"remote": vid},
+                "steps": [{"id": "home", "action": "goto", "path": "/"}],
+            },
+        },
+    )
+    preview, validation = await queue(c, path)
+    receipt, _ = await completed(db, validation["id"], connected=True)
+    published_case = await c.post(
+        path + "/publish", json={"revision": preview["revision"], "validationReceiptId": receipt}
+    )
+    assert published_case.status_code == 201, published_case.text
+    selection = {
+        "caseVersionIds": [published_case.json()["data"]["id"]],
+        "environmentVersionId": env,
+        "roleKeys": ["reader"],
+        "browsers": ["chromium"],
+        "runtimeIds": [d["runnerId"]],
+    }
+
+    async def submit():
+        response = await c.post(
+            f"/api/v1/workspaces/{ws}/runs",
+            json=selection,
+            headers={"Idempotency-Key": str(uuid4())},
+        )
+        assert response.status_code == 202, response.text
+        return response.json()["data"]["id"]
+
+    prior = await submit()
+    async with db.sessions.begin() as session:
+        queued = (await session.execute(select(Job).where(Job.run_id == prior))).scalar_one()
+        assert "validationJobId" not in queued.required_capabilities
+        original = await session.get(Job, validation["id"])
+        for job in (queued, original):
+            job.required_capabilities = {
+                k: v for k, v in job.required_capabilities.items() if k != "httpDatasets"
+            }
+        retained = (await session.get(ValidationReceipt, receipt)).compiled_bundle_sha256
+    later = await submit()
+    body = claim_body(d)
+    body["capabilities"] = {
+        **body["capabilities"],
+        "connectedDatasets": "2.0",
+        "httpDatasets": "1.0",
+    }
+    response = await c.post("/internal/v1/jobs/claim", headers=auth(d), json=body)
+    assert response.status_code == 200, response.text
+    claimed = response.json()["data"]
+    assert claimed["jobKind"] == "VALIDATE" and claimed["jobId"] != validation["id"]
+    async with db.sessions() as session:
+        jobs = (
+            (await session.execute(select(Job).where(Job.run_id.in_([prior, later]))))
+            .scalars()
+            .all()
+        )
+        assert len(jobs) == 2
+        assert all(j.required_capabilities.get("validationJobId") == claimed["jobId"] for j in jobs)
+        assert all(j.required_capabilities.get("httpDatasets") == "1.0" for j in jobs)
+        assert (await session.get(ValidationReceipt, receipt)).compiled_bundle_sha256 == retained

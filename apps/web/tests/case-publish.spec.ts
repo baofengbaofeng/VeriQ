@@ -1722,6 +1722,12 @@ test("edits and previews HTTP datasets", async ({ page }) => {
     expect(ok.status(), await ok.text()).toBe(200);
     await expect(editor.getByText("Mapped rows · 1", { exact: false })).toBeVisible();
     expect(await ok.text()).not.toContain("browser-only-material");
+    await editor
+        .getByRole("heading", { name: "Declared parameters", exact: true })
+        .locator("..")
+        .getByLabel("Name")
+        .fill("search");
+    await editor.getByRole("button", { name: "Add Declared parameters" }).click();
     const bound = await saveDraft(page);
     expect(JSON.stringify(bound)).not.toContain("browser-only-material");
     expect(bound.content.document).toMatchObject({
@@ -1777,4 +1783,59 @@ test("edits and previews HTTP datasets", async ({ page }) => {
     await expect(editor.getByLabel("Connection version", { exact: true })).toHaveValue("");
     await expect(editor.getByLabel("Credential version")).toHaveValue("");
     await expect(editor.getByLabel("Query value").nth(0)).toHaveValue("first");
+    await closeResourceEditor(page);
+    await page.getByLabel("Workspace").selectOption(scope.workspaceId);
+    await createResource(page, "CASE", "http-source-arguments");
+    const remoteId = (await pub.json()).data.id;
+    await applyDocument(page, {
+        kind: "CASE",
+        document: {
+            schemaVersion: "1.0",
+            caseKey: "sample",
+            title: "Sample",
+            kind: "READ",
+            roleKey: "reader",
+            catalogVersionId: randomUUID(),
+            datasetBindings: { remote: remoteId },
+            steps: [
+                {
+                    id: "open",
+                    action: "goto",
+                    path: "/",
+                    afterAssertions: [
+                        {
+                            id: "match",
+                            type: "url",
+                            source: "page",
+                            operator: "equals",
+                            severity: "WARN",
+                            expectedSource: "catalog",
+                            datasetExpected: { op: "field", alias: "remote", key: "one", field: "label" },
+                        },
+                    ],
+                },
+            ],
+        },
+    });
+    const args = page.getByLabel("HTTP source arguments Field name");
+    await args.fill("search");
+    await args.locator("../..").getByRole("button", { name: "Add field" }).click();
+    await page.getByRole("textbox", { name: "HTTP source arguments.search", exact: true }).fill("{{data.name}}");
+    await page.getByLabel("Query operation").selectOption("contains");
+    const stored = (await saveDraft(page)).content;
+    expect(stored.document).toMatchObject({
+        steps: [
+            {
+                afterAssertions: [
+                    {
+                        datasetExpected: {
+                            op: "contains",
+                            alias: "remote",
+                            parameters: { search: "{{data.name}}" },
+                        },
+                    },
+                ],
+            },
+        ],
+    });
 });
