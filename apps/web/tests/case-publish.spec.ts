@@ -1379,3 +1379,112 @@ test("copy dataset respects viewer and editor roles in the shared dialog", async
         await member.close();
     }
 });
+
+/**
+ * 使用真实创建表单与草稿接口检验表格和树的两阶段导入，失败或成功预检均不得提前覆盖服务端数据。
+ */
+test("imports table and tree drafts with validation preview", async ({ page }) => {
+    test.setTimeout(90_000);
+    const scope = await editorScope(page, "static-import");
+    for (const shape of ["TABLE", "TREE"]) {
+        await closeResourceEditor(page);
+        const form = resourceCreateForm(page);
+        await form.getByRole("combobox", { name: "Kind", exact: true }).selectOption("DATASET");
+        await expect(form.getByLabel("Dataset format")).toBeVisible();
+        await form.getByLabel("Dataset format").selectOption(shape);
+        const key = "static_" + shape;
+        await form.getByLabel("Key", { exact: true }).fill(key);
+        await form.getByLabel("Name", { exact: true }).fill(key);
+        const creating = page.waitForResponse((r) => r.url().endsWith("/resources") && r.request().method() === "POST");
+        await form.getByRole("button", { name: "Create resource" }).click();
+        const id = (await (await creating).json()).data.id;
+        const url = `/api/v1/workspaces/${scope.workspaceId}/resources/${id}/draft`;
+        const original = (await (await page.request.get(url)).json()).data;
+        const input = page.getByLabel("Import text");
+        const preview = page.getByRole("button", { name: "Preview import" });
+        const apply = page.getByRole("button", { name: "Apply import" });
+        const tree = shape === "TREE";
+        const header = tree ? "key,parentKey,order,name" : "key,name";
+        const row = tree ? "leaf,root,3," : "leaf,";
+        await input.fill(header + ",wrong\n" + row + "x,y");
+        await preview.click();
+        await expect(page.getByText("1 · wrong · DATASET_UNKNOWN_FIELD")).toBeVisible();
+        await expect(apply).toBeDisabled();
+        await input.fill(header + "\n" + row + "x\n" + row + "y");
+        await preview.click();
+        await expect(page.getByText("3 · key · DATASET_DUPLICATE_ROW_KEY")).toBeVisible();
+        if (tree) {
+            await input.fill(header + "\n" + row + "x");
+            await preview.click();
+            await expect(page.getByText("2 · parentKey · DATASET_ORPHAN_NODE")).toBeVisible();
+        }
+        const name = 'hello, "world"\nagain';
+        await input.fill(header + "\n" + row + '"hello, ""world""\nagain"' + (tree ? "\nroot,,0,root" : ""));
+        await preview.click();
+        await expect(apply).toBeEnabled();
+        await expect(page.getByLabel("Row key", { exact: true }).first()).toHaveValue("row_1");
+        await apply.click();
+        await expect(page.getByLabel("Row key", { exact: true }).first()).toHaveValue("leaf");
+        expect((await (await page.request.get(url)).json()).data).toEqual(original);
+        const draft = await saveDraft(page);
+        expect(draft.content.document).toMatchObject({
+            shape,
+            source: {
+                rows: [
+                    { key: "leaf", values: { name }, ...(tree ? { parentKey: "root", order: 3 } : {}) },
+                    ...(tree ? [{ key: "root", values: { name: "root" }, parentKey: null, order: 0 }] : []),
+                ],
+            },
+        });
+        if (tree) {
+            // 父键的重命名必须同步子行引用；随后编辑排序再保存，检查编辑器没有靠重排数组模拟同级顺序。
+            const rootKey = page.getByLabel("Row key", { exact: true }).last();
+            await rootKey.fill("renamed");
+            await rootKey.press("Tab");
+            await expect(page.getByLabel("Parent node").first()).toHaveValue("renamed");
+            await page.getByLabel("Sibling order").first().fill("7");
+            expect((await saveDraft(page)).content.document).toMatchObject({
+                source: { rows: [{ parentKey: "renamed", order: 7 }, { key: "renamed" }] },
+            });
+        } else {
+            // 真实表单库会深拷贝对象，必须经过文件预检、应用和再次保存检查原型同名字段及带点字段的值。
+            const field = page.getByRole("textbox", { name: "Field name" });
+            await field.fill("__proto__");
+            await field.press("Tab");
+            await page.getByRole("button", { name: "Add field", exact: true }).click();
+            await field.last().fill("price.usd");
+            await field.last().press("Tab");
+            await page.getByRole("combobox", { name: "Field type" }).last().selectOption("number");
+            await page.getByLabel("Required", { exact: true }).last().uncheck();
+            await page.getByLabel("Nullable").last().check();
+            const imported = [
+                { key: "item", values: { ["__proto__"]: "typed", "price.usd": null } },
+                { key: "absent", values: { ["__proto__"]: "still here" } },
+            ];
+            await page.getByRole("combobox", { name: "Import format" }).selectOption("JSON");
+            const file = page.getByLabel("Import file");
+            await file.setInputFiles({
+                name: "large.json",
+                mimeType: "application/json",
+                buffer: Buffer.alloc(2097153),
+            });
+            await expect(page.getByRole("alert")).toContainText("DATASET_SIZE_LIMIT");
+            await file.setInputFiles({
+                name: "rows.json",
+                mimeType: "application/json",
+                buffer: Buffer.from(JSON.stringify(imported)),
+            });
+            await preview.click();
+            await expect(apply).toBeEnabled();
+            await apply.click();
+            const saved = (await saveDraft(page)).content;
+            expect(saved.document).toMatchObject({
+                fields: {
+                    ["__proto__"]: { type: "string", required: true, nullable: false },
+                    "price.usd": { type: "number", required: false, nullable: true },
+                },
+            });
+            expect((saved.document as { source: { rows: unknown[] } }).source.rows).toEqual(imported);
+        }
+    }
+});

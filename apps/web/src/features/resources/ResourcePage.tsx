@@ -28,6 +28,7 @@ import {
     type Receipt,
     type Job,
 } from "./adapters";
+import { formJson } from "./dataset-import";
 import { ResourceForms, newDocument, resourceKinds } from "./ResourceForms";
 import { Monaco, MonacoDiff } from "./Monaco";
 import { useEditorTranslationOptions } from "./i18n";
@@ -179,6 +180,7 @@ export function ResourceWorkspaceView({
         client = useQueryClient(),
         { t } = useTranslation(undefined, useEditorTranslationOptions);
     const [kind, setKind] = useState<ResourceKind | "">(initialKind ?? ""),
+        [datasetFormat, setDatasetFormat] = useState<"V1" | "TABLE" | "TREE">("V1"),
         [createKind, setCreateKind] = useState<ResourceKind>(initialKind ?? "CASE"),
         [key, setKey] = useState(""),
         [name, setName] = useState(""),
@@ -300,7 +302,7 @@ export function ResourceWorkspaceView({
                                         kind: createKind,
                                         key,
                                         name,
-                                        content: newDocument(createKind, key, name),
+                                        content: newDocument(createKind, key, name, datasetFormat),
                                     },
                                     signal,
                                 )
@@ -327,6 +329,19 @@ export function ResourceWorkspaceView({
                                 ))}
                             </select>
                         </label>
+                        {createKind === "DATASET" && (
+                            <label>
+                                {tx("Dataset format")}
+                                <select
+                                    value={datasetFormat}
+                                    onChange={(e) => setDatasetFormat(e.target.value as typeof datasetFormat)}
+                                >
+                                    <option value="V1">{tx("Legacy table (V1)")}</option>
+                                    <option value="TABLE">{tx("Static table (V2)")}</option>
+                                    <option value="TREE">{tx("Static tree (V2)")}</option>
+                                </select>
+                            </label>
+                        )}
                         <label>
                             {tx("Key")}
                             <input
@@ -542,16 +557,13 @@ export function ResourceEditorView({
     const signal = useLifetime(parent),
         { t } = useTranslation(undefined, useEditorTranslationOptions);
     const form = useForm<EditorValues>({
-        defaultValues: { content: clean(initial.content) },
+        defaultValues: { content: formJson(initial.content) },
         shouldUnregister: false,
     });
     const watched = useWatch({ control: form.control, name: "content" }),
         content = clean(watched) as ResourceDocumentV1,
         serialized = pretty(content);
-    /**
-     * 旧版数据集表单只处理 columns 和顶层 rows，新版使用现有 JSON 编辑器，避免表单为新版正文写入旧字段。
-     */
-    const jsonOnly = content.kind === "DATASET" && content.document.schemaVersion === "2.0";
+
     const [saved, setSaved] = useState(initial),
         [mode, setMode] = useState<"form" | "json">("form"),
         [formLifetime, setFormLifetime] = useState(0),
@@ -695,7 +707,7 @@ export function ResourceEditorView({
     };
     const restore = (remote: Draft) => {
         invalidateValidation();
-        form.reset({ content: clean(remote.content) });
+        form.reset({ content: formJson(remote.content) });
         setFormLifetime((previous) => previous + 1);
         setSaved(remote);
         setBuffer(pretty(remote.content));
@@ -744,7 +756,7 @@ export function ResourceEditorView({
                 </Section>
             )}
             <div className="vq-actions">
-                <Button tone="secondary" disabled={jsonOnly} onClick={() => setMode("form")}>
+                <Button tone="secondary" onClick={() => setMode("form")}>
                     {t("form")}
                 </Button>
                 <Button
@@ -759,7 +771,7 @@ export function ResourceEditorView({
             </div>
             <FormProvider {...form}>
                 <fieldset className="vq-editor-fields" disabled={!writable || busy}>
-                    {mode === "form" && !jsonOnly ? (
+                    {mode === "form" ? (
                         <ResourceForms key={formLifetime} kind={resource.kind} versions={allVersions.data ?? []} />
                     ) : (
                         <>
@@ -777,7 +789,7 @@ export function ResourceEditorView({
                                             if ((next as ResourceDocumentV1).kind !== resource.kind)
                                                 throw new Error("RESOURCE_KIND_IMMUTABLE");
                                             invalidateValidation();
-                                            form.reset({ content: next as ResourceDocumentV1 });
+                                            form.reset({ content: formJson(next as ResourceDocumentV1) });
                                             setFormLifetime((previous) => previous + 1);
                                             setJsonBaseline(buffer);
                                             setError(null);
