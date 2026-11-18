@@ -15,7 +15,7 @@ import re
 import subprocess
 import sys
 import tokenize
-from typing import Any, NamedTuple, TypedDict
+from typing import Any, Literal, NamedTuple, NotRequired, TypedDict
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 # 发行入口和验收都允许按文件路径加载模块，因此先注册脚本目录再导入同级库存，避免依赖调用方当前目录。
@@ -48,7 +48,7 @@ class _CommentBlock(NamedTuple):
 
 class _CommentRange(TypedDict):
     """
-    记录两类解析器共同给出的区间字段，统计使用原始码点位置和已确认的行号，保留解析器自身坐标供其他消费者使用。
+    记录 TypeScript 桥接器给出的原始码点位置与行号，只有经语法确认的固定工具标记携带已知代码角色。
     """
 
     offsetCodePoint: int
@@ -56,6 +56,10 @@ class _CommentRange(TypedDict):
     start: int
     end: int
     text: str
+    codeDirective: NotRequired[Literal["vite-ignore"]]
+
+
+type _SourceCommentRange = _CommentRange | comment_syntax.CommentRange
 
 
 def _nonempty_rows(rows: list[str]) -> set[int]:
@@ -143,11 +147,14 @@ def _typescript_body(raw: str) -> list[str]:
 
 
 def _typescript_source(
-    text: str, spans: Sequence[_CommentRange]
+    text: str, spans: Sequence[_SourceCommentRange]
 ) -> tuple[list[_CommentBlock], set[int]]:
     """
-    以桥接的原始码点区间遮罩真实注释，并按同一套编译器换行计算代码行，保留行尾或同一行内的其余文字。
+    以原始码点区间遮罩普通说明并按编译器换行统计代码，确认的固定标记保留原文，不参与正文检查。
+
+    未知或缺失角色的区间继续按普通说明处理，同行的固定标记和说明可分别贡献代码与注释计数。
     """
+    ordinary_spans = [item for item in spans if item.get("codeDirective") != "vite-ignore"]
     blocks = [
         _CommentBlock(
             item["start"],
@@ -155,9 +162,9 @@ def _typescript_source(
             _typescript_body(item["text"]),
             item["text"].startswith("//"),
         )
-        for item in sorted(spans, key=lambda item: item["offsetCodePoint"])
+        for item in sorted(ordinary_spans, key=lambda item: item["offsetCodePoint"])
     ]
-    residual = _masked_source(text, spans, _TYPESCRIPT_TERMINATORS)
+    residual = _masked_source(text, ordinary_spans, _TYPESCRIPT_TERMINATORS)
     return blocks, _nonempty_rows(_TYPESCRIPT_ROWS.split(residual))
 
 
@@ -225,7 +232,7 @@ def _first_comment_line(name: str, content: str) -> str:
     )
 
 
-def _read_source(root: Path, name: str, ranges: dict[str, Sequence[_CommentRange]]) -> str:
+def _read_source(root: Path, name: str, ranges: dict[str, Sequence[_SourceCommentRange]]) -> str:
     """读取源文时保留原始换行并为新增语言装入已验证区间，保证字节定位与后续码点遮罩来自同一份未经转换的文本。"""
     suffix = Path(name).suffix
     if suffix in source_inventory.TREE_SITTER_FILE_EXTENSIONS or _is_shell(name):
@@ -248,7 +255,7 @@ def _comment_lines(name: str, start: int, content: str) -> set[int]:
     }
 
 
-def _masked_source(text: str, spans: Sequence[_CommentRange], terminators: str) -> str:
+def _masked_source(text: str, spans: Sequence[_SourceCommentRange], terminators: str) -> str:
     """
     用空格遮住语法区间中的文字，同时完整保留所属语言的行终止字符，避免评论空行的偏移吞掉后续代码。
     """
@@ -261,7 +268,7 @@ def _masked_source(text: str, spans: Sequence[_CommentRange], terminators: str) 
 
 
 def _adapted_counts(
-    name: str, text: str, spans: Sequence[_CommentRange]
+    name: str, text: str, spans: Sequence[_SourceCommentRange]
 ) -> tuple[int, int, list[tuple[int, str]]]:
     """
     保留样式表、脚本、Java 和 HTML 各自的正文与分行约定，已有的块归并和质量位置继续沿用原适配路径。
@@ -283,7 +290,7 @@ def _adapted_counts(
 
 
 def _file_counts(
-    name: str, text: str, ranges: dict[str, Sequence[_CommentRange]]
+    name: str, text: str, ranges: dict[str, Sequence[_SourceCommentRange]]
 ) -> tuple[int, int, list[tuple[int, str]]]:
     """
     按库存已认可的语言选择坐标及正文适配过程，向报告统一提供有效注释行数、代码行数和独立首行待检查项。
@@ -324,7 +331,7 @@ def audit(root: Path) -> dict[str, Any]:
         entry["path"].as_posix() for entry in entries if entry["unsupportedReason"] is None
     )
     js = [name for name in selected if Path(name).suffix in source_inventory.TYPESCRIPT_EXTENSIONS]
-    ranges: dict[str, Sequence[_CommentRange]] = (
+    ranges: dict[str, Sequence[_SourceCommentRange]] = (
         json.loads(
             subprocess.check_output(
                 ["node", "scripts/comment_ranges.mjs"],

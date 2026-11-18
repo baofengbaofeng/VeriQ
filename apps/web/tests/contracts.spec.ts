@@ -2,12 +2,12 @@ import { fileURLToPath } from "node:url";
 import { test, expect } from "@playwright/test";
 
 test("shared canonical source bytes run in a real browser without Node APIs", async ({ page }) => {
-    // A static same-origin document isolates this contract test from app startup and Vite's client reload while
-    // dynamic dependencies are first optimized.
+    // 静态同源文档隔离浏览器契约验证与应用启动，使依赖首次优化引发的开发客户端重载不干扰断言。
+    // 页面导航使用同源的包清单地址。
     await page.goto("/@fs" + fileURLToPath(new URL("../../../packages/contracts/package.json", import.meta.url)));
     const modulePath = "/@fs" + fileURLToPath(new URL("../../../packages/contracts/src/index.ts", import.meta.url));
     const result = await page.evaluate(async (modulePath) => {
-        // Vite serves the workspace package as browser ESM; no crypto/Buffer polyfill.
+        // Vite 将工作区契约作为浏览器 ESM 提供，编码与校验直接使用浏览器能力，无需 Node 加密或缓冲区垫片。
         const contracts = await import(/* @vite-ignore */ modulePath);
         const bytes = contracts.canonicalBytes({ z: -0, a: 1.0 });
         const source = contracts.assetSourceBytes({

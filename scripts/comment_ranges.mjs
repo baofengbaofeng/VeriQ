@@ -1,6 +1,6 @@
 /**
- * 注释审计复用 TypeScript 解析器定位语法节点前后的真实注释区间，避免把字符串、模板或正则表达式中的斜杠当作说明；输出只
- * 包含位置与注释文本，不修改被检查源码。
+ * 注释审计复用 TypeScript 解析器定位真实注释及首参前的工具词元，输出原始位置、文本和已确认的语法角色。
+ *
  * Python 审计器负责语言、首行长度和覆盖率的统一判定。
  * 生成文件的排除由显式清单控制，不在这里猜测文件用途。
  * 同一注释可能属于多个节点，按起止偏移去重后再计数。
@@ -68,6 +68,11 @@ for (const path of paths) {
     sources.push({ path, text, source, jsxTextRanges });
 }
 if (invalid) process.exit(1);
+const commentsAt = (text, position) => [
+    ...(ts.getLeadingCommentRanges(text, position) ?? []),
+    ...(ts.getTrailingCommentRanges(text, position) ?? []),
+];
+const viteIgnore = /^\/\*\s*@vite-ignore\s*\*\/$/u;
 const output = Object.create(null);
 for (const { path, text, source, jsxTextRanges } of sources) {
     /**
@@ -83,12 +88,29 @@ for (const { path, text, source, jsxTextRanges } of sources) {
         codePointOffsets[offset] = codePointOffset;
     }
     const ranges = new Map();
+    const directivePositions = new Set();
     const visit = (node) => {
+        if (
+            ts.isCallExpression(node) &&
+            node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+            node.arguments.length
+        ) {
+            // 编译器给出的实参列表位置与首个表达式之间只有前导空白和注释，词元必须完整落在此区间内。
+            const { pos } = node.arguments;
+            const argumentStart = node.arguments[0].getStart(source);
+            for (const range of commentsAt(text, pos)) {
+                if (
+                    range.kind === ts.SyntaxKind.MultiLineCommentTrivia &&
+                    range.pos >= pos &&
+                    range.end <= argumentStart &&
+                    viteIgnore.test(text.slice(range.pos, range.end))
+                ) {
+                    directivePositions.add(range.pos);
+                }
+            }
+        }
         for (const position of [node.pos, node.end]) {
-            for (const range of [
-                ...(ts.getLeadingCommentRanges(text, position) ?? []),
-                ...(ts.getTrailingCommentRanges(text, position) ?? []),
-            ]) {
+            for (const range of commentsAt(text, position)) {
                 if (!jsxTextRanges.some(([start, end]) => range.pos >= start && range.pos < end)) {
                     ranges.set(`${range.pos}:${range.end}`, range);
                 }
@@ -105,6 +127,7 @@ for (const { path, text, source, jsxTextRanges } of sources) {
         offsetCodePoint: codePointOffsets[range.pos],
         limitCodePoint: codePointOffsets[range.end],
         text: text.slice(range.pos, range.end),
+        ...(directivePositions.has(range.pos) ? { codeDirective: "vite-ignore" } : {}),
     }));
 }
 process.stdout.write(JSON.stringify(output));

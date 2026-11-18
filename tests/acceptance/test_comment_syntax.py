@@ -595,7 +595,8 @@ def test_html_root_error_flag_prevents_partial_ranges(monkeypatch: pytest.Monkey
         """
         保留真实树及它的完整子节点列表，仅模拟语法层的顶层错误状态，验证检测器没有把可读取范围当成语法成功。
         """
-        del language, path  # 测试已构造固定语言及路径的真实解析结果，替身只改变顶层错误状态。
+        # 替身复用固定语言和路径的真实节点，只覆盖根节点的错误标志，无需用参数重新选择解析器。
+        del language, path
 
         def parse(raw: bytes) -> types.SimpleNamespace:
             """
