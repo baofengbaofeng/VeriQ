@@ -2,28 +2,13 @@
  * 语言回归通过真实安装状态、浏览器表单和已挂载的独立翻译实例观察当前界面，不构造权限、资源或报告响应；切换语言只改变展
  * 示与持久化偏好，未提交输入及其实际 DOM 节点必须保持原样。
  */
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import { createResource, editorScope } from "./editor-fixture";
 
-test.use({ locale: "en-US" });
+import { installed } from "./support/install-console";
 
-async function installed(page: Page): Promise<void> {
-    const response = await page.request.get("/api/v1/setup");
-    expect(response.status()).toBe(200);
-    const setup = (await response.json()).data;
-    if (setup.initialized) return;
-    const created = await page.request.post("/api/v1/setup", {
-        headers: { Origin: "http://127.0.0.1:5173", "X-CSRF-Token": setup.csrfToken },
-        data: {
-            installationSecret: "browser-operator-secret",
-            email: "browser-admin@example.com",
-            displayName: "Browser Administrator",
-            password: "Browser password 123!",
-        },
-    });
-    expect(created.status()).toBe(201);
-}
+test.use({ locale: "en-US" });
 
 test("global locale preserves unsent login fields and persists a supported preference", async ({ page }) => {
     await installed(page);

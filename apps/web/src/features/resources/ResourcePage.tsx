@@ -5,7 +5,7 @@
  */
 
 import { tx, useAppLocale } from "../../locale";
-import { useContext, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useId, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FormProvider, useForm, useWatch } from "react-hook-form";
@@ -103,31 +103,53 @@ export function ResourcePage({
     }, [selected, firstWorkspaceId, select]);
     if (!user) return <Navigate to="/login" />;
     const workspace = items.find((w) => w.id === selected);
-    return (
-        <Panel title={t(initialKind === "ENVIRONMENT" ? "environments" : "resources")}>
-            <div className="vq-actions">
-                {!!items.length && (
-                    <label>
-                        {tx("Workspace")}
-                        <select value={selected} onChange={(e) => select(e.target.value)}>
-                            {items.map((w) => (
-                                <option key={w.id} value={w.id}>
-                                    {w.name}
-                                    {w.archived ? tx(" (Archived)") : ""}
-                                </option>
-                            ))}
-                        </select>
-                    </label>
-                )}
-            </div>
+    // 将选择器交给资源库工具栏或新建页标题区，分页游标仍归同一个空间查询所有，切换呈现不会重新请求首屏。
+    const workspaceControls = (
+        <>
+            {!!items.length && (
+                <label>
+                    {tx("Workspace")}
+                    <select value={selected} onChange={(e) => select(e.target.value)}>
+                        {items.map((w) => (
+                            <option key={w.id} value={w.id}>
+                                {w.name}
+                                {w.archived ? tx(" (Archived)") : ""}
+                            </option>
+                        ))}
+                    </select>
+                </label>
+            )}
+            {workspaces.hasNextPage && (
+                <Button onClick={() => void workspaces.fetchNextPage()}>{tx("更多空间 / More Workspaces")}</Button>
+            )}
+        </>
+    );
+    const status = (
+        <>
             {workspaces.isPending && <p role="status">{t("loading")}</p>}
             {workspaces.error && <ErrorState error={workspaces.error} retry={() => void workspaces.refetch()} />}
             {workspaces.isSuccess && !items.length && (
                 <p>{tx("请先创建或加入空间 / Create or join a Workspace first.")}</p>
             )}
-            {workspaces.hasNextPage && (
-                <Button onClick={() => void workspaces.fetchNextPage()}>{tx("更多空间 / More Workspaces")}</Button>
-            )}
+        </>
+    );
+    if (workspace && !initialKind) {
+        return (
+            <section className="panel">
+                {status}
+                <CloudWorkspace
+                    key={user.id + workspace.id}
+                    workspace={workspace}
+                    workspaceControls={workspaceControls}
+                    extra={extra}
+                />
+            </section>
+        );
+    }
+    return (
+        <Panel title={t(initialKind === "ENVIRONMENT" ? "environments" : "resources")}>
+            <div className="vq-actions">{workspaceControls}</div>
+            {status}
             {workspace && (
                 <CloudWorkspace
                     key={user.id + workspace.id}
@@ -140,11 +162,13 @@ export function ResourcePage({
     );
 }
 function CloudWorkspace({
+    workspaceControls,
     workspace,
     initialKind,
     extra,
 }: {
     workspace: Workspace;
+    workspaceControls?: ReactNode;
     initialKind?: ResourceKind;
     extra?: (workspace: Workspace) => React.ReactNode;
 }) {
@@ -153,7 +177,13 @@ function CloudWorkspace({
         { signal } = useWorkspace();
     return (
         <>
-            <ResourceWorkspaceView workspace={workspace} adapter={adapter} signal={signal} initialKind={initialKind} />
+            <ResourceWorkspaceView
+                workspace={workspace}
+                adapter={adapter}
+                signal={signal}
+                initialKind={initialKind}
+                workspaceControls={workspaceControls}
+            />
             {extra?.(workspace)}
         </>
     );
@@ -164,6 +194,7 @@ function CloudWorkspace({
  * ErrorState+retry。
  */
 export function ResourceWorkspaceView({
+    workspaceControls,
     workspace,
     adapter,
     signal: parent,
@@ -172,12 +203,28 @@ export function ResourceWorkspaceView({
     workspace: Workspace;
     adapter: ResourceAdapter;
     signal?: AbortSignal;
+    workspaceControls?: ReactNode;
     initialKind?: ResourceKind;
 }) {
     useAppLocale();
     const signal = useLifetime(parent),
         client = useQueryClient(),
         { t } = useTranslation(undefined, useEditorTranslationOptions);
+    // 仅云端资源列表传入工具栏。桌面及专用环境页保留行内创建表单，也保留资源标识作为编辑入口。
+    const library = workspaceControls !== undefined;
+    const [creating, setCreating] = useState(false);
+    const heading = useRef<HTMLHeadingElement>(null);
+    const newResource = useRef<HTMLButtonElement>(null);
+    // 主动返回时焦点交回新建按钮；提交成功紧接着打开编辑抽屉，避免在抽屉接管焦点后再次争抢。
+    const returnToList = useRef(false);
+    useLayoutEffect(() => {
+        if (creating) heading.current?.focus();
+        else if (returnToList.current) {
+            returnToList.current = false;
+            newResource.current?.focus();
+        }
+    }, [creating]);
+    const keyHint = useId();
     const [kind, setKind] = useState<ResourceKind | "">(initialKind ?? ""),
         [createKind, setCreateKind] = useState<ResourceKind>(initialKind ?? "CASE"),
         [key, setKey] = useState(""),
@@ -197,138 +244,277 @@ export function ResourceWorkspaceView({
     // 同一资源查询的普通父级重渲染继续使用既有数组。
     const items = useMemo(() => resources.data?.pages.flatMap((p) => p.items) ?? [], [resources.data]);
     const refresh = () => client.invalidateQueries({ queryKey: ["workspace", workspace.id] });
-    const columns = useMemo<ColumnDef<Resource>[]>(
-        () => [
+    const columns = useMemo<ColumnDef<Resource>[]>(() => {
+        const linkKey = library ? "name" : "key";
+        const textKey = library ? "key" : "name";
+        return [
             {
-                header: t("columnKey"),
-                accessorKey: "key",
+                header: t(library ? "columnName" : "columnKey"),
+                accessorKey: linkKey,
                 cell: (info) => (
                     <Button tone="secondary" onClick={() => setSelected(info.row.original)}>
                         {String(info.getValue())}
                     </Button>
                 ),
             },
-            { header: t("columnName"), accessorKey: "name" },
-            { header: t("columnKind"), accessorKey: "kind" },
-            { header: t("columnStatus"), accessorKey: "status" },
-        ],
-        [t],
-    );
+            { header: t(library ? "columnKey" : "columnName"), accessorKey: textKey },
+            {
+                header: t("columnKind"),
+                accessorKey: "kind",
+                cell: (info) => (library ? t(`kinds.${info.row.original.kind}`) : info.row.original.kind),
+            },
+            {
+                header: t("columnStatus"),
+                accessorKey: "status",
+                cell: (info) =>
+                    library ? (
+                        <span className="vq-state" data-status={info.row.original.status}>
+                            {t(`statuses.${info.row.original.status}`)}
+                        </span>
+                    ) : (
+                        info.row.original.status
+                    ),
+            },
+        ];
+    }, [library, t]);
     const table = useReactTable({
         data: items,
         columns,
         getCoreRowModel: getCoreRowModel(),
     });
+    const filter = (
+        <label>
+            {tx("筛选类型 / Filter kind")}
+            <select value={kind} onChange={(e) => setKind(e.target.value as ResourceKind | "")}>
+                <option value="">{tx("全部 / All")}</option>
+                {resourceKinds.map((k) => (
+                    <option key={k} value={k}>
+                        {library ? t(`kinds.${k}`) : k}
+                    </option>
+                ))}
+            </select>
+        </label>
+    );
+    const rows = (
+        <>
+            {resources.isPending && <p role="status">{t("loading")}</p>}
+            {resources.error && <ErrorState error={resources.error} retry={() => void resources.refetch()} />}
+            {resources.isSuccess && !items.length && <p>{t("empty")}</p>}
+            {!!items.length && (
+                <div className="table-scroll">
+                    <table>
+                        <thead>
+                            {table.getHeaderGroups().map((group) => (
+                                <tr key={group.id}>
+                                    {group.headers.map((h) => (
+                                        <th key={h.id} scope="col">
+                                            {flexRender(h.column.columnDef.header, h.getContext())}
+                                        </th>
+                                    ))}
+                                </tr>
+                            ))}
+                        </thead>
+                        <tbody>
+                            {table.getRowModel().rows.map((row) => (
+                                <tr key={row.id}>
+                                    {row.getVisibleCells().map((cell) => (
+                                        <td key={cell.id}>
+                                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                        </td>
+                                    ))}
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+            {resources.hasNextPage && (
+                <Button disabled={resources.isFetchingNextPage} onClick={() => void resources.fetchNextPage()}>
+                    {tx("更多资源 / More resources")}
+                </Button>
+            )}
+        </>
+    );
+    const kindField = (
+        <label>
+            {tx("类型 / Kind")}
+            <select value={createKind} onChange={(e) => setCreateKind(e.target.value as ResourceKind)}>
+                {resourceKinds.map((k) => (
+                    <option key={k} value={k}>
+                        {library ? t(`kinds.${k}`) : k}
+                    </option>
+                ))}
+            </select>
+        </label>
+    );
+    const nameField = (
+        <label>
+            {tx("名称 / Name")}
+            <input required value={name} onChange={(e) => setName(e.target.value)} />
+        </label>
+    );
+    const keyField = (
+        <label>
+            {tx("Key")}
+            <input
+                required
+                pattern={String.raw`[A-Za-z_][A-Za-z0-9_\-]*`}
+                aria-describedby={library ? keyHint : undefined}
+                value={key}
+                onChange={(e) => setKey(e.target.value)}
+            />
+        </label>
+    );
+    const submit = (
+        <Button type="submit" disabled={busy || !editableRole(workspace, createKind)}>
+            {t("create")}
+        </Button>
+    );
+    const leave = () => {
+        returnToList.current = true;
+        setCreating(false);
+        setKey("");
+        setName("");
+        setError(null);
+    };
+    // 两种布局共享同一提交路径，名字和资源标识均取本次表单输入；编辑抽屉只在服务端返回新实体后打开。
+    const form = (
+        <form
+            className={library ? "vq-library-form" : "vq-create"}
+            onSubmit={(e) => {
+                e.preventDefault();
+                setBusy(true);
+                setError(null);
+                void adapter
+                    .create(
+                        {
+                            kind: createKind,
+                            key,
+                            name,
+                            content: newDocument(createKind, key, name),
+                        },
+                        signal,
+                    )
+                    .then(async (resource) => {
+                        signal.throwIfAborted();
+                        setCreating(false);
+                        setSelected(resource);
+                        setKey("");
+                        setName("");
+                        await refresh();
+                    })
+                    .catch((e) => {
+                        if (!signal.aborted) setError(e);
+                    })
+                    .finally(() => {
+                        if (!signal.aborted) setBusy(false);
+                    });
+            }}
+        >
+            {library ? (
+                <>
+                    <section className="vq-library-fields">
+                        <h2>{tx("Basic information")}</h2>
+                        <div>
+                            {nameField}
+                            {kindField}
+                            <div className="vq-resource-key">
+                                {keyField}
+                                <small id={keyHint}>{tx("Resource key format")}</small>
+                            </div>
+                        </div>
+                    </section>
+                    <div className="vq-create-actions">
+                        <Button tone="secondary" disabled={busy} onClick={leave}>
+                            {tx("Back to list")}
+                        </Button>
+                        {submit}
+                    </div>
+                </>
+            ) : (
+                <>
+                    {kindField}
+                    {keyField}
+                    {nameField}
+                    {submit}
+                </>
+            )}
+            {error && <ErrorState error={error} />}
+        </form>
+    );
     return (
         <div className="vq-resources">
-            <Section title={tx("资源列表 / Resource library")}>
-                <label>
-                    {tx("筛选类型 / Filter kind")}
-                    <select value={kind} onChange={(e) => setKind(e.target.value as ResourceKind | "")}>
-                        <option value="">{tx("全部 / All")}</option>
-                        {resourceKinds.map((k) => (
-                            <option key={k}>{k}</option>
-                        ))}
-                    </select>
-                </label>
-                {resources.isPending && <p role="status">{t("loading")}</p>}
-                {resources.error && <ErrorState error={resources.error} retry={() => void resources.refetch()} />}
-                {resources.isSuccess && !items.length && <p>{t("empty")}</p>}
-                {!!items.length && (
-                    <div className="table-scroll">
-                        <table>
-                            <thead>
-                                {table.getHeaderGroups().map((group) => (
-                                    <tr key={group.id}>
-                                        {group.headers.map((h) => (
-                                            <th key={h.id}>{flexRender(h.column.columnDef.header, h.getContext())}</th>
-                                        ))}
-                                    </tr>
-                                ))}
-                            </thead>
-                            <tbody>
-                                {table.getRowModel().rows.map((row) => (
-                                    <tr key={row.id}>
-                                        {row.getVisibleCells().map((cell) => (
-                                            <td key={cell.id}>
-                                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                                            </td>
-                                        ))}
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+            {library ? (
+                <>
+                    <div className="vq-crumb">
+                        {tx("测试设计")} <span aria-hidden="true">›</span>{" "}
+                        {creating ? (
+                            <button type="button" disabled={busy} onClick={leave}>
+                                {t("resources")}
+                            </button>
+                        ) : (
+                            t("resources")
+                        )}
+                        {creating && (
+                            <>
+                                {" "}
+                                <span aria-hidden="true">›</span> {tx("New resource")}
+                            </>
+                        )}
                     </div>
-                )}
-                {resources.hasNextPage && (
-                    <Button disabled={resources.isFetchingNextPage} onClick={() => void resources.fetchNextPage()}>
-                        {tx("更多资源 / More resources")}
-                    </Button>
-                )}
-            </Section>
-            {!adapter.readOnly && (
-                <Section title={t("create")}>
-                    <form
-                        className="vq-create"
-                        onSubmit={(e) => {
-                            e.preventDefault();
-                            setBusy(true);
-                            setError(null);
-                            void adapter
-                                .create(
-                                    {
-                                        kind: createKind,
-                                        key,
-                                        name,
-                                        content: newDocument(createKind, key, name),
-                                    },
-                                    signal,
-                                )
-                                .then(async (resource) => {
-                                    signal.throwIfAborted();
-                                    setSelected(resource);
-                                    setKey("");
-                                    setName("");
-                                    await refresh();
-                                })
-                                .catch((e) => {
-                                    if (!signal.aborted) setError(e);
-                                })
-                                .finally(() => {
-                                    if (!signal.aborted) setBusy(false);
-                                });
-                        }}
-                    >
-                        <label>
-                            {tx("类型 / Kind")}
-                            <select value={createKind} onChange={(e) => setCreateKind(e.target.value as ResourceKind)}>
-                                {resourceKinds.map((k) => (
-                                    <option key={k}>{k}</option>
-                                ))}
-                            </select>
-                        </label>
-                        <label>
-                            {tx("Key")}
-                            <input
-                                required
-                                pattern="[A-Za-z_][A-Za-z0-9_-]*"
-                                value={key}
-                                onChange={(e) => setKey(e.target.value)}
-                            />
-                        </label>
-                        <label>
-                            {tx("名称 / Name")}
-                            <input required value={name} onChange={(e) => setName(e.target.value)} />
-                        </label>
-                        <Button type="submit" disabled={busy || !editableRole(workspace, createKind)}>
-                            {t("create")}
-                        </Button>
-                    </form>
-                    {error && <ErrorState error={error} />}
-                </Section>
+                    <div className="vq-page-heading">
+                        <h1 ref={heading} tabIndex={-1}>
+                            {creating ? tx("New resource") : t("resources")}
+                        </h1>
+                        {creating ? (
+                            <div className="vq-workspace-context">{workspaceControls}</div>
+                        ) : (
+                            !adapter.readOnly && (
+                                <Button
+                                    ref={newResource}
+                                    disabled={!editableRole(workspace, "CASE")}
+                                    onClick={() => {
+                                        setCreateKind(kind && editableRole(workspace, kind) ? kind : "CASE");
+                                        setCreating(true);
+                                    }}
+                                >
+                                    <span aria-hidden="true">＋</span> {tx("New resource")}
+                                </Button>
+                            )
+                        )}
+                    </div>
+                    {creating ? (
+                        form
+                    ) : (
+                        <>
+                            <div className="vq-library-toolbar">
+                                {workspaceControls}
+                                {filter}
+                            </div>
+                            <section className="vq-library-table">
+                                <div className="vq-card-heading">
+                                    <h2>{tx("资源列表 / Resource library")}</h2>
+                                    {resources.isSuccess && (
+                                        <small>{tx("{{count}} loaded", { count: items.length })}</small>
+                                    )}
+                                </div>
+                                {rows}
+                            </section>
+                        </>
+                    )}
+                </>
+            ) : (
+                <>
+                    <Section title={tx("资源列表 / Resource library")}>
+                        {filter}
+                        {rows}
+                    </Section>
+                    {!adapter.readOnly && <Section title={t("create")}>{form}</Section>}
+                </>
             )}
             <Sheet
                 open={!!selected}
+                fallbackFocus={library ? newResource : undefined}
                 onOpenChange={(open) => {
                     if (!open) setSelected(null);
                 }}

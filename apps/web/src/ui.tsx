@@ -113,14 +113,20 @@ export function values(e: FormEvent<HTMLFormElement>) {
     return Object.fromEntries(new FormData(e.currentTarget)) as Record<string, string>;
 }
 /**
- * 统一 section.panel + h1 标题壳，包裹登录、账户、管理与多数功能页的主内容区。子树可再嵌套二级标题；子树仍可继续嵌套
- * h2 等二级标题区块。不负责鉴权或 Workspace 选择；子节点自行处理 Navigate
- * 与数据加载。
+ * 面板保留用于路由聚焦的一级标题。有页面级操作时将其与标题并排，事件、授权和操作状态仍由页面拥有。
  */
-export function Panel({ title, children }: { title: string; children: ReactNode }) {
+export function Panel({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
+    const heading = <h1 tabIndex={-1}>{tx(title)}</h1>;
     return (
         <section className="panel">
-            <h1 tabIndex={-1}>{tx(title)}</h1>
+            {action ? (
+                <div className="vq-page-heading">
+                    {heading}
+                    {action}
+                </div>
+            ) : (
+                heading
+            )}
             {children}
         </section>
     );
