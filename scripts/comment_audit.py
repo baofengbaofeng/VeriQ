@@ -7,14 +7,15 @@
 
 import argparse
 import ast
+from collections.abc import Sequence
 import io
 import json
-from typing import Any
 from pathlib import Path
 import re
 import subprocess
 import sys
 import tokenize
+from typing import Any, NamedTuple, TypedDict
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 # 发行入口和验收都允许按文件路径加载模块，因此先注册脚本目录再导入同级库存，避免依赖调用方当前目录。
@@ -22,6 +23,164 @@ import comment_syntax  # pylint: disable=wrong-import-position
 import source_inventory  # pylint: disable=wrong-import-position
 
 GENERATED = source_inventory.GENERATED
+_TYPESCRIPT_TERMINATORS = "\r\n\u2028\u2029"
+_TYPESCRIPT_ROWS = re.compile(r"\r\n|[" + _TYPESCRIPT_TERMINATORS + "]")
+_ADAPTER_TERMINATORS = _TYPESCRIPT_TERMINATORS + "\v\f\x1c\x1d\x1e\x85"
+_PYTHON_LAYOUT = {
+    tokenize.NL,
+    tokenize.NEWLINE,
+    tokenize.INDENT,
+    tokenize.DEDENT,
+    tokenize.ENDMARKER,
+}
+
+
+class _CommentBlock(NamedTuple):
+    """
+    记录语法范围起始行和逐行原文正文，空白行保留偏移，行注释标记限制只合并相邻的同类型注释。
+    """
+
+    start: int
+    end: int
+    body: list[str]
+    is_line: bool
+
+
+class _CommentRange(TypedDict):
+    """
+    记录两类解析器共同给出的区间字段，统计使用原始码点位置和已确认的行号，保留解析器自身坐标供其他消费者使用。
+    """
+
+    offsetCodePoint: int
+    limitCodePoint: int
+    start: int
+    end: int
+    text: str
+
+
+def _nonempty_rows(rows: list[str]) -> set[int]:
+    """
+    按调用语言已经划分的物理行返回非空行号，代码遮罩和分词结果使用同一坐标以排除纯空白行。
+    """
+    return {number for number, row in enumerate(rows, 1) if row.strip()}
+
+
+def _python_position(rows: list[str], line: int, byte_column: int) -> tuple[int, int]:
+    """
+    将 AST 的行内 UTF8 字节偏移转换成分词器的码点列，确保中文或补充字符前后的真实代码仍在区间之外。
+    """
+    return line, len(rows[line - 1].encode("utf-8")[:byte_column].decode("utf-8"))
+
+
+def _python_docstrings(text: str, rows: list[str]) -> dict[tuple[int, int], tuple[int, int]]:
+    """
+    由 AST 确认四类宿主的首表达式文档串，保存含外层括号的精确起止坐标，普通三引号字面量仍是代码。
+    """
+    spans = {}
+    for node in ast.walk(ast.parse(text)):
+        if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            if ast.get_docstring(node, clean=False) is None:
+                continue
+            statement = node.body[0]
+            assert statement.end_lineno is not None and statement.end_col_offset is not None
+            start = _python_position(rows, statement.lineno, statement.col_offset)
+            spans[start] = _python_position(rows, statement.end_lineno, statement.end_col_offset)
+    return spans
+
+
+def _add_docstring_body(rows: list[str], offset: int, spelling: str) -> None:
+    """
+    使用分词器给出的真实字符串拼写去掉前缀及引号，按物理行连接相邻片段，保留转义字符在原文中的位置。
+    """
+    literal = spelling.lstrip("rRuU")
+    width = 3 if literal.startswith(('"""', "'''")) else 1
+    for number, row in enumerate(literal[width:-width].split("\n"), offset):
+        rows[number] += row
+
+
+def _python_source(text: str) -> tuple[list[_CommentBlock], set[int]]:
+    """
+    文档串按完整语法区间扣除对应代码词元，仍单独提取区间内的井号说明，并保留文档串前后的真实同行代码。
+    """
+    source = io.StringIO(text, newline=None)
+    normalized = source.getvalue()
+    rows = normalized.split("\n")
+    spans = _python_docstrings(normalized, rows)
+    blocks: list[_CommentBlock] = []
+    code: set[int] = set()
+    doc_end = (0, 0)
+    doc_start = 0
+    doc_body: list[str] = []
+    for token in tokenize.generate_tokens(source.readline):
+        start, end = token.start, token.end
+        if token.type == tokenize.COMMENT:
+            blocks.append(_CommentBlock(start[0], end[0], [token.string[1:]], True))
+        elif token.type not in _PYTHON_LAYOUT:
+            span = spans.pop(start, None)
+            if span is not None:
+                doc_start, doc_end = start[0], span
+                doc_body = [""] * (doc_end[0] - doc_start + 1)
+                blocks.append(_CommentBlock(doc_start, doc_end[0], doc_body, False))
+            if end <= doc_end:
+                if token.type == tokenize.STRING:
+                    _add_docstring_body(doc_body, start[0] - doc_start, token.string)
+            elif token.exact_type != tokenize.SEMI or start[0] != doc_end[0]:
+                code.update(range(start[0], end[0] + 1))
+    if spans:
+        raise ValueError("Python docstring token starts do not match AST positions")
+    return blocks, code & _nonempty_rows(rows)
+
+
+def _typescript_body(raw: str) -> list[str]:
+    """
+    正式行说明只去掉双斜杠，块说明按编译器换行去掉边缘标记和续行装饰星号，保留真实正文中的其它标点。
+    """
+    if raw.startswith("//"):
+        return [raw[2:]]
+    opening = 3 if raw.startswith(("/**", "/*!")) and len(raw) > 4 else 2
+    first, *rest = _TYPESCRIPT_ROWS.split(raw[opening:-2])
+    return [first, *(row.lstrip().removeprefix("*") for row in rest)]
+
+
+def _typescript_source(
+    text: str, spans: Sequence[_CommentRange]
+) -> tuple[list[_CommentBlock], set[int]]:
+    """
+    以桥接的原始码点区间遮罩真实注释，并按同一套编译器换行计算代码行，保留行尾或同一行内的其余文字。
+    """
+    blocks = [
+        _CommentBlock(
+            item["start"],
+            item["end"],
+            _typescript_body(item["text"]),
+            item["text"].startswith("//"),
+        )
+        for item in sorted(spans, key=lambda item: item["offsetCodePoint"])
+    ]
+    residual = _masked_source(text, spans, _TYPESCRIPT_TERMINATORS)
+    return blocks, _nonempty_rows(_TYPESCRIPT_ROWS.split(residual))
+
+
+def _legacy_comments(blocks: list[_CommentBlock]) -> tuple[int, list[tuple[int, str]]]:
+    """
+    每个物理行的有效正文只计一次，相邻行注释共享首行检查，文档串和星号块各自保留起始位置及首行。
+    """
+    comments: set[int] = set()
+    checks: list[tuple[int, str]] = []
+    previous_end = 0
+    previous_is_line = False
+    for block in sorted(blocks, key=lambda item: (item.start, item.end)):
+        body = [row.strip() for row in block.body]
+        comments.update(block.start + offset for offset, row in enumerate(body) if row)
+        first = next(filter(None, body), "")
+        if block.is_line and previous_is_line and block.start == previous_end + 1:
+            origin, previous_first = checks[-1]
+            checks[-1] = (origin, previous_first or first)
+        else:
+            checks.append((block.start, first))
+        previous_end = block.end
+        previous_is_line = block.is_line
+    return len(comments), checks
 
 
 def _is_shell(name: str) -> bool:
@@ -30,7 +189,7 @@ def _is_shell(name: str) -> bool:
 
 
 def _comment_body(name: str, raw: str) -> str:
-    """正文仅剥离所属语言的实际注释分隔符，脚本内字面的斜杠星号须保留，而旧脚本桥接继续使用既有剥离顺序。"""
+    """正文仅剥离所属语言的实际注释分隔符，脚本内字面的斜杠星号须保留，样式表适配继续使用既有剥离顺序。"""
     if Path(name).suffix == ".java":
         return _java_body(raw)
     if Path(name).suffix == ".html":
@@ -66,7 +225,7 @@ def _first_comment_line(name: str, content: str) -> str:
     )
 
 
-def _read_source(root: Path, name: str, ranges: dict[str, Any]) -> str:
+def _read_source(root: Path, name: str, ranges: dict[str, Sequence[_CommentRange]]) -> str:
     """读取源文时保留原始换行并为新增语言装入已验证区间，保证字节定位与后续码点遮罩来自同一份未经转换的文本。"""
     suffix = Path(name).suffix
     if suffix in source_inventory.TREE_SITTER_FILE_EXTENSIONS or _is_shell(name):
@@ -78,30 +237,66 @@ def _read_source(root: Path, name: str, ranges: dict[str, Any]) -> str:
         return source.read()
 
 
-def _comment_lines(name: str, start: int, end: int, content: str, lines: list[str]) -> set[int]:
-    """新增语言只累计真实范围中的非空正文，旧语言保留既有关闭行规则，防止空注释旁的代码在新增适配中被错误计为说明。"""
+def _comment_lines(name: str, start: int, content: str) -> set[int]:
+    """按现有适配器的物理分行从真实正文计算覆盖，区分结构化正文与样式表和脚本已采用的空分隔符判断。"""
     if Path(name).suffix in {".java", ".html"}:
         return {start + offset for offset, line in enumerate(content.splitlines()) if line.strip()}
-    if Path(name).suffix in {".sh", ".css"} or name in source_inventory.SOURCE_PATHS:
-        return {
-            start + offset
-            for offset, line in enumerate(content.splitlines())
-            if line.strip().strip("#/*\"' ")
-        }
-    return {index for index in range(start, end + 1) if lines[index - 1].strip().strip("#/*\"' ")}
+    return {
+        start + offset
+        for offset, line in enumerate(content.splitlines())
+        if line.strip().strip("#/*\"' ")
+    }
 
 
-def _masked_source(name: str, text: str, spans: list[dict[str, Any]]) -> str:
-    """新增语言遮罩保留既有物理分行定义的全部边界，防止注释空行错移后吞掉代码；旧类型脚本仍保持原有回车换行规则。"""
-    line_breaks = "\r\n"
-    if _is_shell(name) or Path(name).suffix in source_inventory.TREE_SITTER_FILE_EXTENSIONS:
-        line_breaks += "\v\f\x1c\x1d\x1e\x85\u2028\u2029"
+def _masked_source(text: str, spans: Sequence[_CommentRange], terminators: str) -> str:
+    """
+    用空格遮住语法区间中的文字，同时完整保留所属语言的行终止字符，避免评论空行的偏移吞掉后续代码。
+    """
     residual = list(text)
     for item in spans:
         for offset in range(item["offsetCodePoint"], item["limitCodePoint"]):
-            if residual[offset] not in line_breaks:
+            if residual[offset] not in terminators:
                 residual[offset] = " "
     return "".join(residual)
+
+
+def _adapted_counts(
+    name: str, text: str, spans: Sequence[_CommentRange]
+) -> tuple[int, int, list[tuple[int, str]]]:
+    """
+    保留样式表、脚本、Java 和 HTML 各自的正文与分行约定，已有的块归并和质量位置继续沿用原适配路径。
+    """
+    blocks = [(item["start"], item["end"], _comment_body(name, item["text"])) for item in spans]
+    merged: list[tuple[int, int, str]] = []
+    comments: set[int] = set()
+    for start, end, content in sorted(blocks):
+        if merged and start == merged[-1][1] + 1 and start == end and Path(name).suffix != ".html":
+            previous = merged.pop()
+            merged.append((previous[0], end, previous[2] + "\n" + content))
+        else:
+            merged.append((start, end, content))
+        comments.update(_comment_lines(name, start, content))
+    residual = _masked_source(text, spans, _ADAPTER_TERMINATORS)
+    code = _nonempty_rows(residual.splitlines()) & _nonempty_rows(text.splitlines())
+    checks = [(start, _first_comment_line(name, content)) for start, _, content in merged]
+    return len(comments), len(code), checks
+
+
+def _file_counts(
+    name: str, text: str, ranges: dict[str, Sequence[_CommentRange]]
+) -> tuple[int, int, list[tuple[int, str]]]:
+    """
+    按库存已认可的语言选择坐标及正文适配过程，向报告统一提供有效注释行数、代码行数和独立首行待检查项。
+    """
+    suffix = Path(name).suffix
+    if suffix in source_inventory.PYTHON_EXTENSIONS:
+        blocks, code = _python_source(text)
+    elif suffix in source_inventory.TYPESCRIPT_EXTENSIONS:
+        blocks, code = _typescript_source(text, ranges[name])
+    else:
+        return _adapted_counts(name, text, ranges[name])
+    comments, checks = _legacy_comments(blocks)
+    return comments, len(code), checks
 
 
 def audit(root: Path) -> dict[str, Any]:
@@ -129,7 +324,7 @@ def audit(root: Path) -> dict[str, Any]:
         entry["path"].as_posix() for entry in entries if entry["unsupportedReason"] is None
     )
     js = [name for name in selected if Path(name).suffix in source_inventory.TYPESCRIPT_EXTENSIONS]
-    ranges = (
+    ranges: dict[str, Sequence[_CommentRange]] = (
         json.loads(
             subprocess.check_output(
                 ["node", "scripts/comment_ranges.mjs"],
@@ -145,70 +340,8 @@ def audit(root: Path) -> dict[str, Any]:
     violations: list[dict[str, Any]] = []
     for name in selected:
         text = _read_source(root, name, ranges)
-        lines = text.splitlines()
-        blocks = []
-        comments: set[int] = set()
-        code: set[int] = set()
-        if Path(name).suffix in source_inventory.PYTHON_EXTENSIONS:
-            # Python 分词器依赖逐个物理行读取，StringIO 必须启用通用换行以识别合法裸回车并与 AST 行号一致；
-            # 转换仅作用于分词输入，供 Node 坐标遮罩使用的原始文本仍完整保留。
-            for token in tokenize.generate_tokens(io.StringIO(text, newline=None).readline):
-                if token.type == tokenize.COMMENT:
-                    blocks.append((token.start[0], token.end[0], token.string.lstrip("# ")))
-                elif token.type not in {
-                    tokenize.NL,
-                    tokenize.NEWLINE,
-                    tokenize.INDENT,
-                    tokenize.DEDENT,
-                    tokenize.ENDMARKER,
-                }:
-                    code.update(range(token.start[0], token.end[0] + 1))
-            tree = ast.parse(text)
-            for node in ast.walk(tree):
-                if (
-                    isinstance(
-                        node,
-                        (
-                            ast.Module,
-                            ast.ClassDef,
-                            ast.FunctionDef,
-                            ast.AsyncFunctionDef,
-                        ),
-                    )
-                    and ast.get_docstring(node, clean=False) is not None
-                ):
-                    value = node.body[0]
-                    assert value.end_lineno is not None
-                    blocks.append(
-                        (
-                            value.lineno,
-                            value.end_lineno,
-                            ast.get_docstring(node, clean=False) or "",
-                        )
-                    )
-                    code.difference_update(range(value.lineno, value.end_lineno + 1))
-        else:
-            blocks = [
-                (item["start"], item["end"], _comment_body(name, item["text"]))
-                for item in ranges[name]
-            ]
-            residual = _masked_source(name, text, ranges[name])
-            code = {index for index, line in enumerate(residual.splitlines(), 1) if line.strip()}
-        merged: list[tuple[int, int, str]] = []
-        for start, end, content in sorted(blocks):
-            if (
-                merged
-                and start == merged[-1][1] + 1
-                and start == end
-                and Path(name).suffix != ".html"
-            ):
-                previous = merged.pop()
-                merged.append((previous[0], end, previous[2] + "\n" + content))
-            else:
-                merged.append((start, end, content))
-            comments.update(_comment_lines(name, start, end, content, lines))
-        for start, _, content in merged:
-            first = _first_comment_line(name, content)
+        comments, code, checks = _file_counts(name, text, ranges)
+        for start, first in checks:
             if not 40 <= len(first) <= 120 or not re.search(r"[\u3400-\u9fff]", first):
                 violations.append(
                     {
@@ -221,8 +354,7 @@ def audit(root: Path) -> dict[str, Any]:
                         ),
                     }
                 )
-        code.intersection_update(index for index, line in enumerate(lines, 1) if line.strip())
-        rows.append({"path": name, "commentLines": len(comments), "codeLines": len(code)})
+        rows.append({"path": name, "commentLines": comments, "codeLines": code})
     comment_count, code_count = (
         sum(row["commentLines"] for row in rows),
         sum(row["codeLines"] for row in rows),

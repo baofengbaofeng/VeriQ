@@ -5,82 +5,24 @@
 目说明。
 """
 
-import importlib.util
 import json
 from pathlib import Path
 import shutil
 import subprocess
 import sys
 import tokenize
-from typing import Any, cast
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[2]
+from tests.acceptance import comment_audit_support
+
 LONG = (
     "注释审计以真实语法区间保留源码行号并检查首行文字长度确保补充字符和原始换行"
     "不会污染代码计数同时通过独立夹具验证报告及退出状态"
 )
-
-
-@pytest.fixture(name="repository")
-def repository_fixture(tmp_path: Path) -> Path:
-    """每个验收使用独立且可清理的微型仓库，脚本副本保持只读且解析器只链接现有锁定版本；忽略工具目录使统计仅包含测试选择
-    的输入，同时保留真实 Git 文件枚举路径。
-
-    CLI 需要脚本副本位于原相对路径，才能真实验证由脚本位置确定仓库根目录的行为。
-
-    """
-    root = tmp_path / "checkout"
-    root.mkdir()
-    subprocess.run(["git", "init", "-q", "--template=", str(root)], check=True)
-    (root / ".gitignore").write_text("scripts/\npackages/\n", encoding="utf-8")
-    scripts = root / "scripts"
-    scripts.mkdir()
-    for name in (
-        "comment_ranges.mjs",
-        "comment_audit.py",
-        "source_inventory.py",
-        "comment_syntax.py",
-    ):
-        target = scripts / name
-        shutil.copyfile(ROOT / "scripts" / name, target)
-        target.chmod(0o444)
-    dependencies = root / "packages/compiler/node_modules"
-    dependencies.mkdir(parents=True)
-    (dependencies / "typescript").symlink_to(
-        (ROOT / "packages/compiler/node_modules/typescript").resolve(),
-        target_is_directory=True,
-    )
-    return root
-
-
-def _write(root: Path, name: str, text: str) -> None:
-    """被测源码以明确的 UTF8 字节写入夹具，避免测试自身的文本换行转换提前消除 CRLF 反例；父目录只在当前临时仓库内创建，
-    调用方负责声明实际应被审计的文件名。
-
-    输入里的短说明和非中文文字属于审计规则的反例，不是本测试的源码注释。
-
-    """
-    target = root / name
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(text.encode("utf-8"))
-
-
-def _audit(root: Path) -> dict[str, Any]:
-    """直接导入仓库里的生产审计模块并传入夹具根目录，使验收覆盖发行构建器使用的同一个公开函数；不替换子进程或解析器，
-    工具缺失及坐标错误必须从真实调用传播给测试。
-
-    CLI 测试另行运行只读脚本副本，验证公开报告文件和进程退出状态。
-
-    """
-    spec = importlib.util.spec_from_file_location(
-        "veriq_comment_audit", ROOT / "scripts/comment_audit.py"
-    )
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return cast(dict[str, Any], module.audit(root))
+repository_fixture = comment_audit_support.repository_fixture
+_write = comment_audit_support.write_source
+_audit = comment_audit_support.audit
 
 
 @pytest.mark.parametrize(
@@ -103,14 +45,7 @@ def test_bridge_keeps_utf16_and_adds_codepoint_coordinates(
 
     """
     _write(repository, "sample.ts", text)
-    result = subprocess.run(
-        ["node", "scripts/comment_ranges.mjs"],
-        cwd=repository,
-        input='["sample.ts"]',
-        capture_output=True,
-        text=True,
-        check=True,
-    )
+    result = comment_audit_support.run_typescript_bridge(repository, ["sample.ts"])
     offset, limit, point_offset, point_limit, start, end, content = expected
     ranges = json.loads(result.stdout)["sample.ts"]
     assert ranges == [
@@ -163,9 +98,9 @@ def test_eof_and_mixed_code_count_each_line_once(repository: Path, text: str) ->
 @pytest.mark.parametrize("newline", ["\n", "\r\n"], ids=["lf", "crlf"])
 def test_multiline_masks_preserve_raw_line_breaks(repository: Path, newline: str) -> None:
     """多行注释中的补充字符与原始换行必须在 Node 和 Python 两侧保持相同位置，遮罩只移除注释文字而保留跨行结构；
-    块首尾混入代码时仍分别计数，并保留随后行注释和末行代码的位置。
+    块首同行的说明和代码分别计数，并保留随后行注释和末行代码的位置。
 
-    关闭分隔符所在行含代码时也计入注释，明确保留既有逐行规则而不重新定义统计口径。
+    关闭分隔符旁只有代码，该行只进入代码分母。
 
     """
     text = newline.join(
@@ -181,8 +116,8 @@ def test_multiline_masks_preserve_raw_line_breaks(repository: Path, newline: str
     _write(repository, "sample.ts", text)
     assert (repository / "sample.ts").read_bytes() == text.encode("utf-8")
     report = _audit(repository)
-    assert report["files"] == [{"path": "sample.ts", "commentLines": 4, "codeLines": 3}]
-    assert report["ratio"] == 4 / 7
+    assert report["files"] == [{"path": "sample.ts", "commentLines": 3, "codeLines": 3}]
+    assert report["ratio"] == 1 / 2
     assert report["violations"] == []
     assert report["passed"] is True
 
@@ -511,13 +446,7 @@ def test_cli_reports_ratio_unavailable_with_unsupported_source(
     _write(repository, "sample.ts", f"//{LONG}\n")
     _write(repository, "style.scss", "body {}\n")
     output = tmp_path / "report.json"
-    result = subprocess.run(
-        [sys.executable, str(repository / "scripts/comment_audit.py"), "--output", str(output)],
-        cwd=tmp_path,
-        capture_output=True,
-        check=False,
-        text=True,
-    )
+    result = comment_audit_support.run_audit_cli(repository, output, tmp_path)
     assert result.returncode == 1
     assert "Comment ratio unavailable" in result.stdout
     assert "100.0000%" not in result.stdout
