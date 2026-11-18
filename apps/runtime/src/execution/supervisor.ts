@@ -605,8 +605,8 @@ export class ExecutionSupervisor {
                         )
                     )
                         throw new Error("SECRET_NOT_FROZEN");
-                    // Credential resolution uses proof headers, never forwards device authorization to a business o
-                    // rigin.
+                    // 只有引用与工作区及冻结凭据版本匹配时，才向控制面凭据接口发送设备授权和本次尝试的租约证明。
+                    // 该请求禁止重定向，设备授权头不会用于业务站点请求。
                     return this.resolveCredential(claim, reference, controller.signal);
                 }
                 if (message.type === "status") return { cancelled: controller.signal.aborted };
@@ -901,8 +901,8 @@ export class ExecutionSupervisor {
                     try {
                         await copyFile(join(tmp, relative), join(work, name));
                     } catch (error) {
-                        // Cancellation may close the page before this optional capture.
-                        // Missing required Trace still fails the canonical evidence check.
+                        // 取消可能在可选截图写出前关闭页面，因此仅忽略复制截图时找不到文件的错误，其他复制错误上报。
+                        // 必需的 Trace 由后续证据检查结算。
                         if (kind === "SCREENSHOT" && (error as NodeJS.ErrnoException).code === "ENOENT") continue;
                         throw error;
                     }
@@ -1059,7 +1059,8 @@ export class ExecutionSupervisor {
             } finally {
                 await brokerDirectory?.close();
             }
-            // Results/evidence are retained for acknowledgement/recovery. Only task-owned regenerables are removed.
+            // 仅在确认本次尝试停止后才移除可重建的依赖和缓存，保留结果与证据供后续确认和恢复。
+            // 临时目录另受私有报告保留标记控制。
             if (stop?.processStopped)
                 for (const path of ["node_modules", "tmp/npm-cache"])
                     await rm(join(work, path), { recursive: true, force: true });

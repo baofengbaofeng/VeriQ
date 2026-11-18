@@ -14,8 +14,7 @@ const ajv = new Ajv2020({ strict: true, allErrors: true });
 addFormats.default(ajv);
 ajv.addSchema(platform);
 const apiId = "https://veriq.dev/openapi/platform.yaml";
-// OpenAPI components are containers, not JSON Schema keywords. Preserve schemas while rebasing only local component
-// references into a JSON Schema $defs root.
+// 严格模式的 Ajv 通过 JSON Schema 的 $defs 加载组件模式，只重定位指向本地 OpenAPI 组件的引用。
 const definitions = JSON.parse(
     JSON.stringify(api.components.schemas, (key, value: unknown) =>
         key === "$ref" && typeof value === "string" ? value.replace(/^#\/components\/schemas\//, "#/$defs/") : value,
@@ -153,7 +152,7 @@ test("claim, manifest, frozen subject, compiled bundle and files have exact-byte
     expect(operation).toBeDefined();
     const sample = (name: string) => structuredClone(fixtures.find((x: { name: string }) => x.name === name).value);
     const digest = (bytes: string) => createHash("sha256").update(bytes).digest("hex");
-    // This map represents immutable bytes, not an HTTP/storage implementation.
+    // 测试按精确字节的摘要把快照、清单和文件放入内存映射，逐项核对契约中的引用是否指向对应字节。
     const content = new Map<string, string>();
     const store = (schema: string, value: unknown) => {
         const bytes = serializeContract(schema, value);

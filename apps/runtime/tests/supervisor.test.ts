@@ -4,7 +4,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ProcessSupervisor } from "../src/execution/processes.ts";
-// This test would fail if stop only killed the Node leader, or if child env inherited credentials.
+// 停止后检查实际孙进程已经退出，并确认启动子进程时未继承父进程设置的设备令牌，覆盖两项隔离要求。
 test("owned Linux process group stops its real descendants and excludes parent secrets", async () => {
     const directory = await mkdtemp(join(tmpdir(), "veriq-t10-process-"));
     process.env.VERIQ_DEVICE_TOKEN = "parent-only-test-secret";
@@ -332,8 +332,7 @@ test("a real absent-proof observation delivered after natural guardian exit is r
         await worker.firstLine();
         const journal = JSON.parse(await readFile(join(root, "handoff.process.json"), "utf8"));
         let first = true;
-        // Scheduling barrier only: preserve the actual first filesystem result while the real worker voluntarily exits
-        // and the real helper durably publishes its proof.
+        // 延后交回首次真实读取到的无证明结果，期间让工作进程自然退出，并观察守护程序写出证明后退出。
         Reflect.set(supervisor, "hasProof", async (value: unknown) => {
             const observed = await original(value);
             if (first) {

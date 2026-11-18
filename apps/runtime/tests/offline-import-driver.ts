@@ -1,5 +1,5 @@
 /**
- * Test-only bridge: real host APIs, with control physically stopped during execute.
+ * 集成测试桥接器用真实宿主接口分阶段下载、验包、离线执行和回传，以便外层在执行阶段关闭控制服务。
  */
 import assert from "node:assert/strict";
 import { readFile, writeFile } from "node:fs/promises";

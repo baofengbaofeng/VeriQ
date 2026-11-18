@@ -15,7 +15,7 @@ export interface CompiledAssertion {
     >;
     sourcePath: string;
     /**
-     * Original DSL identifier for report display; absent in historical compiled plans.
+     * 报告可用此字段显示断言在原始 DSL 中的标识，历史编译计划允许缺失该字段，仍保留独立的来源路径。
      */
     sourceId?: string;
     parameters: Record<string, JsonValue>[];
@@ -27,7 +27,7 @@ export interface CompiledStep {
     step: StepV1;
     sourcePath: string;
     /**
-     * Original DSL identifier for report display; absent in historical compiled plans.
+     * 报告可用此字段显示步骤在原始 DSL 中的标识，历史编译计划允许缺失该字段，子步骤仍各有自己的来源路径。
      */
     sourceId?: string;
     before: CompiledAssertion[];

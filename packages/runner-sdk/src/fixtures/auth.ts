@@ -159,7 +159,7 @@ export async function authenticateBusiness(
                         await r.continue();
                         return;
                     }
-                    // Fulfill each hop separately: route.continue headers otherwise follow redirects.
+                    // 认证请求逐跳获取并交付响应，关闭自动重定向。若用 route.continue 注入认证头，头部会随重定向。
                     const response = await r.fetch({
                         headers: { ...r.request().headers(), ...auth },
                         maxRedirects: 0,
@@ -171,8 +171,8 @@ export async function authenticateBusiness(
                         await response.dispose();
                     }
                 } catch {
-                    // Playwright errors can embed authentication headers. Convert transport
-                    // failure into an observable failed browser request, never a raw log.
+                    // Playwright 传输错误可能包含认证头，页面仍打开时将异常转换为请求失败，避免传播原有异常。
+                    // 页面仍打开且中止失败时，仅抛出固定错误码。
                     if (!context.page.isClosed()) {
                         try {
                             await r.abort("failed");

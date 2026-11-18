@@ -83,7 +83,7 @@ export async function apiRequest(
                         ctx.environment.apiBaseURL,
                         ctx.environment.allowedOrigins,
                     );
-                    // Never replay a write at an implicit redirect destination.
+                    // 重定向目标须满足路径格式、同源与 Origin 允许列表检查，只有 GET 和 HEAD 可以继续请求该目标。
                     if (method !== "GET" && method !== "HEAD") throw new Error("WRITE_REDIRECT_FORBIDDEN");
                     continue;
                 }

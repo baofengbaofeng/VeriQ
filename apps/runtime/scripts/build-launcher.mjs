@@ -1,4 +1,4 @@
-// Build-time only. Installed Agents require this precompiled Linux helper and never run cc.
+// 构建阶段使用 cc 把 Linux 启动辅助程序编译到发行所需的位置，安装后的 Agent 直接使用预编译文件。
 import { mkdir } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";

@@ -172,7 +172,7 @@ test(
             await writeFile(join(directory, "rotation.json"), JSON.stringify(pending), {
                 mode: 0o600,
             });
-            // No server is listening: committed local recovery must not attempt another rotation.
+            // 当本地令牌已完成替换而轮换日志尚未清除时，恢复操作应直接采用已提交令牌并清理日志，无需再次联系服务端。
             assert.equal((await store.renew(new RuntimeClient(previous.server))).deviceToken, pending.replacementToken);
             assert.equal(await store.hasPendingRotation(), false);
             await store.remove();

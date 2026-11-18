@@ -4,7 +4,7 @@
  */
 
 /**
- * Cross-member provenance checks after signature/hash verification, before install.
+ * 离线包通过签名与成员哈希校验后，安装前还要交叉核对清单、资源版本和快照引用所形成的依赖闭包。
  */
 import { createHash } from "node:crypto";
 import { analyze, verifyFiles, verifyDistribution } from "@veriq/compiler";
@@ -62,9 +62,8 @@ export function validateContent(
         throw new Error("BUNDLE_SNAPSHOT_MISMATCH");
     const environment = assets.get(selection.environmentVersionId);
     if (environment?.kind !== "ENVIRONMENT") throw new Error("BUNDLE_ENVIRONMENT_MISSING");
-    // Shared compiler analysis owns schema references and public auth bindings. Combined exports add the independently
-    // selected ENVIRONMENT to execution roots. Draft DSL may have business/type diagnostics; only binding diagnostics
-    // block it.
+    // 共享编译分析核对 Schema 引用及公开认证绑定，草稿的业务和类型诊断仍可保留，仅绑定诊断阻断检查。
+    // 组合包还将单独选中的 ENVIRONMENT 纳入执行根，一并核对依赖闭包。
     const bindings = new Set([
         "INVALID_ENTRY_CASE",
         "DUPLICATE_ENTRY_CASE",

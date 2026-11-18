@@ -1,5 +1,5 @@
 /**
- * Test-only actual locked engine release; no fabricated receipt/publication.
+ * 仅为编辑器测试准备真实的锁定引擎发行，缓存按源码与锁文件指纹命中，验证回执与发布仍走正式执行流程。
  */
 import { mkdirSync, writeFileSync, readFileSync, copyFileSync, rmSync, existsSync, readdirSync } from "node:fs";
 import { resolve, dirname, join } from "node:path";
@@ -33,7 +33,7 @@ execFileSync("pnpm", ["--filter", "@veriq/runtime", "build:launcher"], {
 });
 if (existsSync(stamp) && readFileSync(stamp, "utf8") === fingerprint && existsSync(join(release, "inventory.json")))
     process.exit(0);
-// Bootstrapping only an engine archive, never inserting resource versions or receipts.
+// 用空输入触发预期编译失败，仅收集引擎归档与清单。编辑器用例走正式草稿验证流程，验证通过才发布。
 const source = join(root, "source.json");
 writeFileSync(source, "{}");
 try {

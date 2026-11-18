@@ -47,7 +47,7 @@ export class EvidencePolicy {
         }
         if (Array.isArray(value)) return value.map(this.redact);
         if (value && typeof value === "object") {
-            // Dynamic JSON keys are data. Withhold the whole object to avoid collisions.
+            // 动态对象的键也可能包含凭据，发现受保护值后遮蔽整个对象，避免逐键替换造成同名键并覆盖数据。
             if (Object.keys(value).some((key) => [...this.values].some((secret) => key.includes(secret))))
                 return "[REDACTED]";
             const restricted = value.sensitivity === "CREDENTIAL_RESTRICTED" || value.kind === "download";
@@ -69,7 +69,7 @@ export class EvidencePolicy {
         return value;
     };
     /**
-     * Engine-owned record trees have protocol IDs/enums; their dynamic values do not.
+     * 引擎记录中的协议标识和枚举保持原值，预期值、变量等动态字段按普通证据脱敏，以保留事件间的关联。
      */
     readonly redactProtocol = (value: JsonValue): JsonValue => {
         if (Array.isArray(value)) return value.map(this.redactProtocol);

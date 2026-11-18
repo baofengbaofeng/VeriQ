@@ -17,7 +17,7 @@ export async function serveAgentControl(root: string, stop: () => void) {
         else if (message.type !== "status") throw new Error("INVALID_OPERATION");
         return { running: true, pid: process.pid };
     });
-    // The profile's live-owner lock is held before this stale socket can be removed.
+    // 调用方先持有配置目录的运行实例锁，才清理遗留的控制套接字，避免移除另一正在运行的代理的控制入口。
     await unlink(broker.path).catch((e: NodeJS.ErrnoException) => {
         if (e.code !== "ENOENT") throw e;
     });

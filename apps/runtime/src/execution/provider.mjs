@@ -2,7 +2,7 @@
  * 本文件是受信任的工作进程注入模块：由监督器复制进 Attempt 工作区：创建执行上下文且永不由 DSL 选取（provider）。
  */
 import { join } from "node:path";
-// Trusted worker module copied by the supervisor, never selected by DSL or a bundle.
+// 工作进程加载监督器复制的固定模块，由它读取随任务写入的调用配置和执行快照，再建立本次执行的上下文。
 import { readFile } from "node:fs/promises";
 import { connect } from "node:net";
 import { createHttpLifecycle } from "@veriq/runner-sdk";

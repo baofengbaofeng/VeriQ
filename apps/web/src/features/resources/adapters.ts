@@ -141,7 +141,7 @@ export type LocalResourceSnapshot = {
     resources: Resource[];
     versions: Version[];
     /**
-     * Host-verified DSL-only candidates; updatedAt denotes snapshot freeze time.
+     * 仅包含宿主完成验证的纯 DSL 草稿候选，草稿记录的 updatedAt 表示快照冻结时间，供离线界面展示。
      */
     drafts?: Draft[];
     sourceFiles: Record<string, SourceFiles>;

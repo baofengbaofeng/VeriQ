@@ -30,7 +30,7 @@ export type EventEvidence =
           kind: "download";
           sensitivity: "CREDENTIAL_RESTRICTED";
           /**
-           * Present in trusted raw capture, omitted from ordinary report projection.
+           * 下载的本地路径只在可信原始捕获中提供，供受限制品接收器使用，普通报告投影会删去这个字段。
            */
           path?: string;
           sizeBytes: number;

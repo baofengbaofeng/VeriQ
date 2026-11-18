@@ -3,7 +3,7 @@
  */
 
 /**
- * Disconnected host execution. No AgentClient, lease or platform transport is involved.
+ * 离线宿主从已安装且重新核验的包生成执行变体，用本机存储与进程监督管理尝试，全程无需 AgentClient 或平台租约。
  */
 import { randomUUID } from "node:crypto";
 import { mkdir, mkdtemp, readFile, writeFile, copyFile, readdir, rm } from "node:fs/promises";
@@ -68,7 +68,7 @@ export interface OfflineConfig {
     browsers?: Browser[];
     retry?: boolean;
     /**
-     * A trusted native host explicitly authorizes each public routing override.
+     * 可信宿主须逐项授权业务页、接口及夹具地址的覆盖，执行只修改环境的副本，原始签名快照仍可用于核验。
      */
     overrides?: {
         baseURL?: string;
@@ -330,7 +330,7 @@ async function attempt(
             },
         });
         if (controller.signal.aborted || store.cancelled(runId)) throw new Error("USER_CANCELLED");
-        // Fail explicitly before launching; secrets stay in this host and private IPC only.
+        // 启动工作进程前逐个试解析冻结的凭据版本，解析失败时立即中止，工作进程另经私有控制通道请求凭据。
         for (const pin of execution.secretVersions)
             await resolver.resolve({ ...context, secretRef: pin.secretRef, versionId: pin.versionId }, context);
         const release = await loadRelease(config.releaseDirectory, checked.manifest.engineVersion);
@@ -720,7 +720,7 @@ export async function runOffline(
                     processStopped: false,
                 },
             ];
-            // Keep retry ordering while atomically handing ownership to its durable checkpoint.
+            // 检查点将已结束的尝试按原顺序排在待执行项之前，使存储层在交接执行所有权时一并保存尝试历史。
             pending.unshift(...attempts);
             return {
                 schemaVersion: "1.0",

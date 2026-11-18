@@ -3,7 +3,7 @@
  */
 
 import canonicalizeModule from "canonicalize";
-// canonicalize 2.x ships an ESM default declaration for its CommonJS export.
+// canonicalize 2.x 为 CommonJS 导出提供 ESM 默认声明，这里将默认导入收敛为契约层使用的调用签名。
 const canonicalize = canonicalizeModule as unknown as (value: unknown) => string | undefined;
 import { schemaValidator } from "./validators.js";
 import schema from "../schemas/platform-v1.schema.json" with { type: "json" };
@@ -87,7 +87,7 @@ export function canonicalBytes(value: unknown): Uint8Array {
     if (!portableJson(value)) throw new Error("Expected portable JSON");
     const result = canonicalize(value);
     if (result === undefined) throw new Error("Expected JSON");
-    // JCS rejects lone surrogates; JSON.stringify otherwise silently escapes them.
+    // JCS 拒绝孤立代理项，而 JSON.stringify 会将它转义，因此编码前须递归检查字符串值和对象键。
     function unicode(v: unknown): void {
         if (typeof v === "string" && /[\uD800-\uDFFF]/u.test(v)) throw new Error("Invalid Unicode");
         if (Array.isArray(v)) v.forEach(unicode);

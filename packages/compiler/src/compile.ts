@@ -36,16 +36,16 @@ export interface EngineDistribution {
     engineVersion: string;
     runnerSdkVersion: string;
     /**
-     * Exact installable distribution package and npm v3 lock bytes, supplied by the engine release.
+     * 从引擎发行读取可安装的包清单和 npm 三版锁文件，校验成功后将这两份输入的精确字节交给执行包。
      */
     packageJson: Uint8Array;
     packageLock: Uint8Array;
     /**
-     * Complete pinned dependency inventory, including transitives.
+     * 依赖清单记录直接和传递包的精确版本及完整性值，装配时逐项和锁文件核对，缺项或多项均会失败。
      */
     dependencies: DependencyVersion[];
     /**
-     * Offline npm archives referenced by the lock; only vendor/ paths are accepted.
+     * 这里只接收 vendor/ 下的离线 npm 归档，锁文件逐个引用它们，装配时重算归档完整性以核对库存。
      */
     files: Record<string, Uint8Array>;
 }
@@ -236,7 +236,7 @@ export function compileFiles(snapshot: AssetSnapshotV1, distribution?: EngineDis
     if (analysis.issues.length) throw new Error("ASSET_VALIDATION_FAILED: " + JSON.stringify(analysis.issues));
     const files = distributionFiles(distribution, snapshot.engineVersion);
     const { validationTarget: _target, ...source } = snapshot;
-    // Frozen identity projection is also the recoverable Workspace/source context for downloaded bundles.
+    // 有可执行入口时把去掉验证目标的冻结源随产物交付，使下载的包能够恢复原工作区和来源快照上下文。
     files[SOURCE_SNAPSHOT_PATH] = canonicalBytes(snapshot.entryCaseVersionIds.length ? source : snapshot);
     if (snapshot.entryCaseVersionIds.length)
         files["source/context.ts"] = bytes(
@@ -476,8 +476,7 @@ export function assembleExecution(
               ];
     if (suite ? variants.length === 0 : selectedCase.document.roleKey !== snapshot.roleKey)
         throw new Error("ROLE_MISMATCH");
-    // A no-data alternative remains distinct from every dataset alternative.
-    // Role/browser filtering above must stay coupled to this exact row match.
+    // 角色和浏览器筛出的每个候选单独核对数据，无数据的选项只接受缺失的行，有数据的选项则逐行比对规范哈希。
     const matchesData = variants.some((variant) => {
         const datasetId = variant.datasetVersionId ?? selectedCase.document.datasetVersionId;
         if (!datasetId) return snapshot.dataRow === undefined;

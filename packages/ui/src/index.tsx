@@ -71,7 +71,7 @@ export function ConfirmDialog({
     );
 }
 /**
- * 公开组件 Section 渲染带标题的页面分区，供各功能页统一区块结构。
+ * 统一的页面分区容器先用三级标题呈现区块名称，再渲染调用方提供的内容，使各功能页保持一致的结构。
  */
 export function Section({ title, children }: { title: string; children: ReactNode }) {
     return (

@@ -77,7 +77,7 @@ export async function claimLoop(options: {
         }
         await unlink(pending);
         if (options.once) return;
-        // A fresh poll every >=10s gives at most8,640 empty receipts/24h (<10,000 cap).
+        // 循环在空认领后先等十秒，纯空轮询每二十四小时最多产生八千六百四十条空回执，低于一万条上限。
         if (!claim)
             await delay(10000, undefined, { signal }).catch((error) => {
                 if (!signal.aborted) throw error;

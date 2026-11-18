@@ -1,5 +1,5 @@
 /**
- * Test-only actual-byte producer. Never imported by production controller/runtime.
+ * 测试队列夹具调用真实编译器，按文件字节封装产物、依赖和引擎库存，供测试验证内容寻址协议。
  */
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";

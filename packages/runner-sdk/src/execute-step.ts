@@ -285,7 +285,7 @@ export async function executeStep(plan: ResolvedStep, outer: StepContext): Promi
             result.blockedByStepId = s.id;
             result.blockedByAssertionId = blocker;
             const all = [...plan.before, ...plan.responseAssertions, ...plan.after];
-            // requestCount is executed only after observer finalization.
+            // requestCount 断言要等观察窗口结算后执行，补记跳过结果时也排在其他断言之后，以保持实际阻塞顺序。
             const ordered = [
                 ...all.filter((a) => a.assertion.type !== "requestCount"),
                 ...all.filter((a) => a.assertion.type === "requestCount"),

@@ -1,5 +1,5 @@
 /**
- * Test-only real UI/API/CLI helpers; never a production compiler or receipt writer.
+ * 这些测试辅助通过真实的编辑器界面和控制接口准备数据，并启动 Runtime CLI 处理验证，回执由正式执行链产生。
  */
 import { spawn } from "node:child_process";
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
@@ -82,8 +82,8 @@ export async function replaceEditorJson(page: Page, text: string) {
         });
     await editor.locator(".view-lines").click();
     await page.keyboard.press("Control+A");
-    // Monaco0.57 mirrors selection into native EditContext at render time.
-    // Wait for actual browser selection before bulk text input, without changing a model.
+    // Monaco 0.57 在渲染时同步原生 EditContext 的选区，测试等选中范围覆盖完整文本后才继续输入。
+    // 随后通过浏览器剪贴板粘贴，测试不直接改写编辑器模型。
     await expect
         .poll(() =>
             editor.locator(".native-edit-context").evaluate((element) => {

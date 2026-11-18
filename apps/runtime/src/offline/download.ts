@@ -44,7 +44,7 @@ export async function downloadBundle(
         await fd.sync();
         await fd.close();
         fd = undefined;
-        // Destination must be chosen by the trusted host; create-only prevents accidental overwrite.
+        // 可信宿主提供最终路径，下载文件同步后才创建同目录硬链接，目标名称已存在时会失败而不会覆盖原文件。
         const { link } = await import("node:fs/promises");
         await link(temporary, destination);
         await unlink(temporary);

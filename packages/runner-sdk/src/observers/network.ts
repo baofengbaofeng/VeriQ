@@ -102,7 +102,7 @@ export async function responseData(response: Response | APIResponse): Promise<Ex
             bodyKind = "json";
         } catch {
             /*
-             * Non-JSON remains evidence, never a JSON null.
+             * 正文无法解析为 JSON 时保留原始文本及其文本类型，使断言仍能区分非 JSON 内容、空响应和 JSON 空值。
              */
         }
     }
@@ -297,8 +297,7 @@ export function armObserver(spec: NetworkObserverV1, ctx: NetworkContext): Obser
         },
         async finalize() {
             const settled = Date.now();
-            // Exact-count windows validate their count below. An ordinary observer must acquire a request, but need
-            // not await its response body.
+            // 普通观察器须在截止前匹配至少一个请求，但无需等响应体完成，指定精确数量的窗口则在关闭后核对计数。
             if (spec.expectedCount === undefined) {
                 const acquisitionEnd = Math.min(timeout, fixedEnd ?? Infinity);
                 while (records.length === 0) {

@@ -4,7 +4,7 @@
  */
 
 /**
- * Local-only pinned Playwright viewer. A private copy restricts its file-serving root.
+ * 本机查看器使用私有临时目录中的 Trace 副本，嵌入模式限制文件服务只访问该目录，两种入口均绑定回环地址。
  */
 import { spawn } from "node:child_process";
 import { mkdtemp, stat, copyFile, chmod, rm } from "node:fs/promises";

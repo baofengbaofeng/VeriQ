@@ -1,5 +1,5 @@
 /**
- * Cross-language test utility: consume only a host-verified snapshot in shared local UI adapter.
+ * 跨语言测试工具先用宿主信任库核验离线包，再把已验证的资源快照交给共享本地界面适配器读取草稿。
  */
 import assert from "node:assert/strict";
 import { verifyBundle } from "../src/offline/verify.ts";

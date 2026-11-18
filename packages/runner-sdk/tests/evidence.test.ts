@@ -33,7 +33,8 @@ test(
                 trace.path,
                 secret,
             ]);
-            expect(archive.stdout.trim()).toBe("True"); // proves raw Playwright Trace really contains protected data
+            // 先检查真实 Trace 归档确实包含测试用的合成凭据，再验证原件访问授权与普通报告中的脱敏结果。
+            expect(archive.stdout.trim()).toBe("True");
             expect(() => policy.access(trace, { credentialEvidence: false })).toThrow("CREDENTIAL_EVIDENCE_FORBIDDEN");
             expect(policy.access(trace, { credentialEvidence: true }).path).toBe(trace.path);
             const projected = policy.redact({

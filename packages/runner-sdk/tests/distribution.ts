@@ -6,7 +6,7 @@ import { execFileSync } from "node:child_process";
 import ts from "typescript";
 import type { EngineDistribution } from "../../compiler/src/index.js";
 /**
- * Builds real SDK/contracts JS + declarations and exact local dependency archives; no fixture SDK.
+ * 测试发行从真实 SDK 与契约源码编译出 JavaScript 和声明，再按实际本机解析结果封装依赖归档。
  */
 export function actualDistribution(root: string): EngineDistribution {
     const packages = resolve("../"),
@@ -82,7 +82,7 @@ export function actualDistribution(root: string): EngineDistribution {
         for (const dep of Object.keys(pkg.dependencies ?? {})) collect(dep, local ? join(packages, local) : dir);
     }
     collect("@veriq/runner-sdk", process.cwd());
-    // T10 executes the archived compiler in the same approved offline closure.
+    // 从编译器包的位置解析 TypeScript 并加入离线依赖库存，供 T10 执行归档内的编译器时使用。
     collect("typescript", join(packages, "compiler"));
     const files: Record<string, Uint8Array> = {},
         inventory: EngineDistribution["dependencies"] = [],

@@ -4,7 +4,7 @@
  */
 
 /**
- * Verify exact signed bytes before writing any archive member to disk.
+ * 以归档中的原始清单字节校验签名，随后逐项比对成员哈希和来源关系，全部通过后才把归档成员写入暂存目录。
  */
 import { createHash, verify } from "node:crypto";
 import { readdir, lstat, mkdir, mkdtemp, rename, rm, chmod, writeFile, open, type FileHandle } from "node:fs/promises";
@@ -248,7 +248,7 @@ export async function verifyBundle(
             await mkdir(dirname(path), { recursive: true, mode: 0o700 });
             await writeFile(path, body, { flag: "wx", mode: 0o400 });
         }
-        // Never overwrite an existing verified installation (including nonempty/symlink targets).
+        // 发布前用 lstat 检查目标路径，发现现有安装或符号链接即报目标已存在，仅在路径不存在时继续。
         try {
             await lstat(options.destination);
             throw new Error("BUNDLE_DESTINATION_EXISTS");

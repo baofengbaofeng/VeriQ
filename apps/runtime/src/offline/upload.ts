@@ -3,7 +3,7 @@
  */
 
 /**
- * Explicit upload only: enrolled device origin/credential, never bundle routing metadata.
+ * 仅在宿主显式请求时上传离线结果，目标来源和设备令牌取自已登记配置，包内的路由元数据不参与发送。
  */
 import { LocalStore } from "./store.ts";
 import { LocalReports } from "./reports.ts";
@@ -59,7 +59,7 @@ export async function uploadOffline(
                     ).code;
                 } catch {
                     /*
-                     * Unstructured server error remains UPLOAD_FAILED.
+                     * 无法解析 422 响应的错误体时仍返回 UPLOAD_FAILED，只有识别到变体事实缺失码才单独报告。
                      */
                 }
                 if (code === "OFFLINE_VARIANT_FACTS_REQUIRED") throw new Error(code);
@@ -135,7 +135,7 @@ export async function uploadOffline(
     } catch (error) {
         const failure =
             error instanceof Error && /^[A-Z_]{1,80}$/.test(error.message) ? error.message : "UPLOAD_FAILED";
-        // Scope mismatch must not disclose or update another Workspace's history.
+        // 当前工作区查不到该运行时直接返回同一失败码，跳过失败历史写入，避免披露或改动其他工作区的记录。
         if (failure !== "LOCAL_RUN_NOT_FOUND") store.uploadFailed(config.workspaceId, runId, failure);
         throw new Error(failure);
     } finally {

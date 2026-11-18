@@ -21,7 +21,7 @@ it("installs actual fixture archive from emitted lock offline and typechecks gen
                 exports: { types: "./index.d.ts", default: "./index.js" },
             }),
         );
-        // This deliberately does not implement browser execution. It tests packaging and the import ABI only.
+        // 夹具的 registerCase 一经调用就抛错，测试只验证归档可离线安装且生成代码符合导入 ABI，无需启动浏览器。
         writeFileSync(
             join(sdk, "index.js"),
             'export function registerCase() { throw new Error("Fixture SDK cannot execute tests"); }\n',

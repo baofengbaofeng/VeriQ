@@ -1,5 +1,5 @@
 /**
- * Retained compiler compatibility uses actual Git source and real locked archives.
+ * 兼容性用例取固定 Git 提交的旧编译器及依赖源码，构建真实离线归档来验证当前工作进程仍可加载旧发行。
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -31,8 +31,7 @@ test(
                 { cwd: repository, maxBuffer: 16 * 1024 * 1024 },
             );
             execFileSync("tar", ["-x", "-C", old], { input: archive });
-            // Reuse installed third-party packages; local @veriq names resolve to the historical source tree. The
-            // producer packs actual old SDK/contracts bytes.
+            // 第三方依赖复用当前安装的文件，三个 @veriq 包则链接到历史源码树，使归档包含旧版 SDK 和契约字节。
             for (const pkg of ["compiler", "contracts", "runner-sdk"]) {
                 const modules = join(old, "packages", pkg, "node_modules");
                 await mkdir(join(modules, "@veriq"), { recursive: true });
@@ -175,7 +174,7 @@ test(
             assert.deepEqual(JSON.parse(await readFile(join(work, "worker-result.json"), "utf8")), {
                 kind: "READY",
             });
-            // Existing provenance comparison still rejects a changed retained bundle.
+            // 保留编译器产物先通过正常执行准备，再篡改快照来源哈希，验证现有来源比较仍会拒绝该保留产物。
             const changed = JSON.parse(retainedBundle.toString());
             changed.sourceHash = "0".repeat(64);
             await writeFile(join(work, "bundle.json"), canonicalBytes(changed));

@@ -84,7 +84,7 @@ test(
             const state = structuredClone(f.issuer);
             state.revision++;
             state.keys[0]!.revoked = true;
-            // Authenticated exact-origin transport establishes complete rotation/revocation metadata.
+            // 测试通过登记的控制地址和设备令牌刷新发行方状态，夹具核对请求方法与接口，再返回撤销和替换记录。
             const replacement = generateKeyPairSync("ed25519")
                 .publicKey.export({ format: "der", type: "spki" })
                 .subarray(-32);

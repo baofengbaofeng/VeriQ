@@ -93,7 +93,8 @@ export type SdkEvent = { type: "STEP_FINISHED"; step: StepResult } | { type: "CA
  */
 export interface ExecutionOptions {
     /**
-     * Trusted worker closes the complete business Context before retry observation is final.
+     * 可信回调负责关闭业务 BrowserContext，已有观察器始终结算，标记可能写入时优先返回 WRITE_POSSIBLE。
+     * 只有回调成功、观察到上下文关闭且未标记可能写入时，才返回 READ_ONLY_OBSERVED。
      */
     finalizeExecution?: (context: import("@playwright/test").BrowserContext) => Promise<void>;
     page: Page;
@@ -104,7 +105,7 @@ export interface ExecutionOptions {
     files?: StepContextOptions["files"];
     downloads?: StepContextOptions["downloads"];
     /**
-     * Trusted restricted artifact sink; never an ordinary event/report callback.
+     * 捕获到的下载文件由可信受限制品接收器处理，普通报告和事件回调收到的脱敏投影会移除原始路径。
      */
     restrictedEvidence?: (evidence: RestrictedEvidence) => Promise<void>;
     onEvent?: (

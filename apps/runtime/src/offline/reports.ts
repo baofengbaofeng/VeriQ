@@ -3,7 +3,7 @@
  */
 
 /**
- * Typed host projection matching the shared LocalReportAdapter without browser imports.
+ * 宿主按工作区及运行从本地存储读取记录，再投影为共享 LocalReportAdapter 接口规定的报告字段。
  */
 import { join } from "node:path";
 import type { OfflineResultV1, PlatformComponents, JsonValue, ReportDisplayV1 } from "@veriq/contracts";

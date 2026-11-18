@@ -64,7 +64,7 @@ else
         if (invocation.kind !== "VALIDATE" && invocation.localDraftCompile !== true)
             throw new Error("COMPILED_PROVENANCE_MISMATCH");
         const code = diagnostics?.[0]?.code ?? "COMPILATION_FAILED";
-        // Never persist compiler diagnostics containing source literals, URLs or credentials.
+        // 磁盘编译日志只写结构化错误码，避免保存可能含源码字面量、地址或凭据的原始异常和诊断文本。
         await writeFile(join(root, "compiler.log"), `VeriQ compiler failed: ${code}\n`, {
             mode: 0o600,
         });

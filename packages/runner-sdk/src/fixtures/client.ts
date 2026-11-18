@@ -77,7 +77,7 @@ async function call(request: FixtureRequest, operation: "prepare" | "cleanup", t
     } catch (error) {
         if (context.signal.aborted) throw new Error("CANCELLED");
         if (error instanceof Error && error.message === "FIXTURE_CONFLICT") throw error;
-        // Playwright's call log includes request headers; never expose it as an error.
+        // Playwright 调用日志可能包含请求头，所以仅保留已知冲突与取消信号，其他错误统一转为夹具请求失败。
         throw new Error("FIXTURE_REQUEST_FAILED");
     } finally {
         await authenticated.dispose();

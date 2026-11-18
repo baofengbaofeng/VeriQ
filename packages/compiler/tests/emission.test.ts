@@ -12,8 +12,7 @@ import {
 } from "../src/index.js";
 import { snapshot, asset, catalog, rehash, hash, id } from "./helpers.js";
 const bytes = (s: string) => new TextEncoder().encode(s);
-// Isolated fixture distribution: a real archive payload is supplied by packing tests below;
-// these byte-integrity tests make no claim to provide or execute the future production SDK.
+// 字节完整性用例用固定字节模拟依赖归档并构造锁摘要，以验证装配时对归档字节、清单与闭包的核对。
 function distribution(): EngineDistribution {
     const archive = bytes("isolated dependency byte fixture");
     const integrity = "sha512-" + createHash("sha512").update(archive).digest("base64");

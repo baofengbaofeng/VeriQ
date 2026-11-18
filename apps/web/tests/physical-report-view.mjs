@@ -1,4 +1,4 @@
-// Consumes the live guarded Python/Agent fixture; no intercepted responses or synthetic reports.
+// 浏览器通过代理访问受管的 Python 与 Agent 夹具，从真实报告界面核对脱敏断言和获准的 Trace 下载。
 import { createServer } from "vite";
 import react from "@vitejs/plugin-react";
 import { chromium, expect } from "@playwright/test";

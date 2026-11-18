@@ -159,7 +159,7 @@ export async function runAssertion(
                 actual = await uiActual(a, ctx);
             } catch {
                 /*
-                 * Preserve missing evidence when the page is unavailable.
+                 * 页面不可用而无法补取界面或地址证据时，继续保留原断言错误及已有值，缺失的数据维持缺失状态。
                  */
             }
         }
