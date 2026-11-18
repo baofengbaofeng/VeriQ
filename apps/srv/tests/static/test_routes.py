@@ -74,7 +74,7 @@ async def published(static_package, production_settings):
     "path",
     (
         "/ /login /setup /reset /reset/confirm /account /admin/users /workspaces "
-        "/runtimes /resources /environments /ai /agent /bundles /reports /execution-plans /invitations/accept"
+        "/runtimes /resources /environments /ai /agent /reports /execution-plans /invitations/accept"
     ).split(),
 )
 async def test_registered_spa_refresh_and_head(published, static_package, path):
@@ -101,7 +101,7 @@ async def test_registered_spa_refresh_and_head(published, static_package, path):
 @pytest.mark.parametrize(
     "path",
     (
-        "/api/missing /api/v1/missing /internal/v1/missing /unknown-page /reports/missing "
+        "/api/missing /api/v1/missing /internal/v1/missing /unknown-page /bundles /reports/missing "
         "/assets/missing.js /missing.css /missing.png /build-info.json /static-manifest.json "
         "/.vite/manifest.json /raw-evidence.html"
     ).split(),
