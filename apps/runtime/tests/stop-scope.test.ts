@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, writeFile, open } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rename, rm, unlink, writeFile, open } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
@@ -339,7 +339,7 @@ test("online recovery rejects linked pre-spawn journal bytes before reconciling 
  * 在线探针使用真实原生守护和一个等待 START 的小型执行进程，私有发行清单与下载内容仍走正式校验；业务夹具只产生最小
  * CLEANUP 结果，测试目标是提交门、退出证明与完成清单的范围传递。
  */
-async function online(root: string) {
+async function online(root: string, observeRequest?: (path: string, attemptId: string) => Promise<void>) {
     const attemptId = randomUUID(),
         workspaceId = randomUUID(),
         fixtureVersionId = randomUUID();
@@ -414,6 +414,7 @@ async function online(root: string) {
         download: async (path: string) => (path === "/manifest" ? manifest : source),
         request: async (path: string, _method: string, body: Record<string, unknown>) => {
             bodies.push({ path, body });
+            await observeRequest?.(path, attemptId);
             if (path.endsWith("/artifact-uploads")) return { artifactId: randomUUID(), uploadUrl: "/uploads" };
             if (path.endsWith("/events"))
                 return {
@@ -453,6 +454,36 @@ test("online completion copies the actual kernel scope and persists its stop rec
     }
 });
 
+test("completion finally preserves replacement data inserted after retirement and before finish returns", async () => {
+    const root = await mkdtemp(join(tmpdir(), "vq-online-retirement-"));
+    try {
+        const fixture = await online(root, async (path, id) => {
+            const dir = join(root, "work", id, "node_modules"),
+                file = join(dir, "copy");
+            if (path.endsWith("/activate")) await writeFile(file, "original bytes");
+            if (path.endsWith("/finish")) {
+                assert.equal(await readFile(file, "utf8"), "");
+                await unlink(join(dir, ".veriq-retirement-inventory"));
+                await unlink(join(dir, ".veriq-retired"));
+                await rename(file, file + "-old");
+                await writeFile(file, "operator replacement bytes");
+            }
+        });
+        const result = await fixture.run();
+        assert.equal(result.completion?.businessOutcome, "PASSED", JSON.stringify(result.stop));
+        assert.equal(result.stop.processStopScope, "FULL_DESCENDANT_TREE");
+        const id = fixture.claim.attemptId;
+        assert.equal(
+            await readFile(join(root, "work", id, "node_modules", "copy"), "utf8"),
+            "operator replacement bytes",
+        );
+        const journal = JSON.parse(await readFile(join(root, "attempts", id + ".json"), "utf8"));
+        assert.equal(journal.dataCleanup, "OWNERSHIP_UNCONFIRMED");
+    } finally {
+        await rm(root, { recursive: true, force: true });
+    }
+});
+
 for (const phase of ["ACTIVATING", "ACTIVATED", "SPAWNING"]) {
     test(`online ${phase} directory commit failure never grants unspawned scope`, async (context) => {
         const root = await mkdtemp(join(tmpdir(), "vq-online-fault-"));
@@ -463,7 +494,7 @@ for (const phase of ["ACTIVATING", "ACTIVATED", "SPAWNING"]) {
         await handle.close();
         let injected = false;
         context.mock.method(prototype, "sync", async function (this: Awaited<ReturnType<typeof open>>) {
-            if (!injected && (await this.stat()).isDirectory()) {
+            if (!injected && (await realpath("/proc/self/fd/" + this.fd)) === join(root, "attempts")) {
                 const journal = JSON.parse(
                     await readFile(join(root, "attempts", `${fixture.claim.attemptId}.json`), "utf8"),
                 );

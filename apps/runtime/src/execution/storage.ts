@@ -4,7 +4,7 @@
  */
 
 import { lstat, readdir, realpath, open, mkdir, readFile, writeFile } from "node:fs/promises";
-import { constants } from "node:fs";
+import { constants, type BigIntStats } from "node:fs";
 import { createHash, randomUUID } from "node:crypto";
 import { readBoundedFile } from "../offline/config.ts";
 import type { StopReceipt } from "./processes.ts";
@@ -64,7 +64,7 @@ export function monitorStorage(
     };
 }
 
-interface DirectoryIdentity {
+interface PhysicalIdentity {
     dev: string;
     ino: string;
     birth: string;
@@ -76,26 +76,92 @@ interface DirectoryIdentity {
 export interface TaskAllocation {
     temporaryName: string;
     owner: string;
-    work: DirectoryIdentity;
-    temporaryParent: DirectoryIdentity;
-    temporary: DirectoryIdentity;
-    modules: DirectoryIdentity;
+    work: PhysicalIdentity;
+    temporaryParent: PhysicalIdentity;
+    temporary: PhysicalIdentity;
+    modules: PhysicalIdentity;
+    retirementPermit?: PhysicalIdentity;
 }
 export type DataCleanup = "CLEANED" | "OWNERSHIP_UNCONFIRMED" | "STOP_UNCONFIRMED" | "REPORT_RETAINED";
+const retirementDirectory = "scratch-retirements";
+const retirementReady = Buffer.from("READY\n");
 
 /**
- * 读取时拒绝目录链接与平台无效文件标识，创建时间额外区分删除后恰好复用相同 inode 的不同代际。
+ * 文件和目录都使用设备号、物理编号及创建时间辨认代际，拒绝编号或时间无效的对象以免同名替换得到授权。
  */
-async function directoryIdentity(path: string): Promise<DirectoryIdentity> {
-    const st = await lstat(path, { bigint: true });
-    if (!st.isDirectory() || st.ino === 0n || st.birthtimeNs <= 0n) throw new Error("TASK_DIRECTORY_UNCONFIRMED");
+function physicalIdentity(st: BigIntStats): PhysicalIdentity {
+    if (st.ino === 0n || st.birthtimeNs <= 0n) throw new Error("TASK_IDENTITY_UNCONFIRMED");
     return { dev: String(st.dev), ino: String(st.ino), birth: String(st.birthtimeNs) };
+}
+
+async function directoryIdentity(path: string): Promise<PhysicalIdentity> {
+    const st = await lstat(path, { bigint: true });
+    if (!st.isDirectory()) throw new Error("TASK_DIRECTORY_UNCONFIRMED");
+    return physicalIdentity(st);
+}
+
+/**
+ * Linux 宿主在两个退休目录之外独占签发一次性许可。私有日志绑定许可文件本身的物理身份，
+ * 旧任务和丢失的许可不能通过重新创建同名文件取得第一次退休的授权。
+ */
+async function issueRetirementPermit(root: string, owner: string): Promise<PhysicalIdentity> {
+    const directory = join(root, retirementDirectory);
+    await mkdir(directory, { mode: 0o700, recursive: true });
+    const parent = await open(directory, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
+    try {
+        const st = await parent.stat();
+        if (st.uid !== process.getuid!() || (st.mode & 0o777) !== 0o700) throw new Error("TASK_PERMIT_NOT_PRIVATE");
+        const file = await open(join("/proc/self/fd/" + parent.fd, owner), "wx", 0o600);
+        try {
+            await file.writeFile(retirementReady);
+            await file.sync();
+            await parent.sync();
+            return physicalIdentity(await file.stat({ bigint: true }));
+        } finally {
+            await file.close();
+        }
+    } finally {
+        await parent.close();
+    }
+}
+
+/**
+ * 只有分配时签发的原始许可可以追加开始记录。追加写由内核串行定位，同步后的长度只允许第一个写者进入退休遍历；
+ * 若两个写者竞争而均无法确认第一条记录，两个调用都保留现场。中断、缺失或旧日志也不给予重试写权限。
+ */
+async function startRetirement(parent: string, owner: string, permit: PhysicalIdentity): Promise<boolean> {
+    const flags =
+        constants.O_RDWR | constants.O_APPEND | constants.O_NOFOLLOW | constants.O_NONBLOCK | constants.O_NOCTTY;
+    const file = await open(join(parent, owner), flags);
+    try {
+        const st = await file.stat({ bigint: true });
+        if (
+            !st.isFile() ||
+            st.uid !== BigInt(process.getuid!()) ||
+            (st.mode & 0o777n) !== 0o600n ||
+            st.nlink !== 1n ||
+            st.dev.toString() !== permit.dev ||
+            st.ino.toString() !== permit.ino ||
+            st.birthtimeNs.toString() !== permit.birth ||
+            st.size !== BigInt(retirementReady.length)
+        )
+            return false;
+        const bytes = Buffer.alloc(retirementReady.length);
+        if ((await file.read(bytes, 0, bytes.length, 0)).bytesRead !== bytes.length || !bytes.equals(retirementReady))
+            return false;
+        const started = "STARTED\n";
+        const { bytesWritten } = await file.write(started);
+        await file.sync();
+        return bytesWritten === started.length && (await file.stat()).size === retirementReady.length + started.length;
+    } finally {
+        await file.close();
+    }
 }
 
 /**
  * 只有新建的 Attempt 才能签发清理身份，包安装缓存和控制面投影使用不同目录，崩溃后无需读取业务内容来辨认它们。
  */
-export async function allocateScratch(work: string, tmp: string): Promise<TaskAllocation> {
+export async function allocateScratch(root: string, work: string, tmp: string): Promise<TaskAllocation> {
     const owner = randomUUID();
     const modules = join(work, "node_modules");
     await mkdir(modules, { mode: 0o700 });
@@ -107,6 +173,7 @@ export async function allocateScratch(work: string, tmp: string): Promise<TaskAl
         temporaryParent: await directoryIdentity(await realpath(dirname(tmp))),
         temporary: await directoryIdentity(tmp),
         modules: await directoryIdentity(modules),
+        ...(process.platform === "linux" ? { retirementPermit: await issueRetirementPermit(root, owner) } : {}),
     };
 }
 
@@ -134,7 +201,8 @@ export async function retireScratch(
     const a = record.allocation,
         work = join(root, "work", stop.attemptId);
     if (
-        !a ||
+        !a?.retirementPermit ||
+        (record.dataCleanup !== undefined && record.dataCleanup !== "STOP_UNCONFIRMED") ||
         record.work !== work ||
         !/^[a-zA-Z0-9_-]{1,100}$/.test(stop.attemptId) ||
         !/^veriq-a-[a-zA-Z0-9]{6}$/.test(a.temporaryName) ||
@@ -143,7 +211,7 @@ export async function retireScratch(
         return "OWNERSHIP_UNCONFIRMED";
     const handles: Awaited<ReturnType<typeof open>>[] = [];
     try {
-        const check = async (path: string, id: DirectoryIdentity, marked: boolean) => {
+        const check = async (path: string, id: PhysicalIdentity, marked: boolean) => {
             const current = await directoryIdentity(path);
             if (current.dev !== id.dev || current.ino !== id.ino || current.birth !== id.birth)
                 throw new Error("TASK_DIRECTORY_CHANGED");
@@ -174,16 +242,12 @@ export async function retireScratch(
             await check(anchor + "/.", id, marked);
             targets.push({ path, child, id, marked });
         }
+        const permits = await parent(join(root, retirementDirectory));
+        if (!(await startRetirement(permits, a.owner, a.retirementPermit))) return "OWNERSHIP_UNCONFIRMED";
         for (const target of targets) {
             const verifyRoot = () => check(target.path, target.id, target.marked);
             try {
-                await retireContents(
-                    target.child,
-                    a.owner,
-                    target.marked,
-                    record.dataCleanup === "CLEANED",
-                    verifyRoot,
-                );
+                await retireContents(target.child, a.owner, target.marked, verifyRoot);
             } catch {
                 // 单个目录核验失败时保留原件；其余目录仍可分别核验并写入已识别文件的退休回执。
                 continue;
@@ -206,7 +270,6 @@ async function retireContents(
     root: Awaited<ReturnType<typeof open>>,
     owner: string,
     marked: boolean,
-    previouslyCleaned: boolean,
     verifyRoot: () => Promise<void>,
 ): Promise<void> {
     const anchor = "/proc/self/fd/" + root.fd;
@@ -222,7 +285,7 @@ async function retireContents(
         doneName = ".veriq-retired";
     const rootNames = await readdir(anchor);
     const finished = rootNames.includes(doneName);
-    if ((previouslyCleaned || finished) && !rootNames.includes(markerName)) throw new Error("TASK_INVENTORY_MISSING");
+    if (finished && !rootNames.includes(markerName)) throw new Error("TASK_INVENTORY_MISSING");
     const scan = async (phase: "discover" | "truncate" | "verify") => {
         const digest = createHash("sha256");
         let safe = true;
@@ -317,7 +380,6 @@ async function retireContents(
     await marker(markerName, rootNames.includes(markerName));
     if (finished) await marker(doneName, true);
     else if (!rootNames.includes(markerName)) {
-        if (previouslyCleaned) return;
         if ((await scan("truncate")).digest !== inventory.digest) return;
     }
     const verified = await scan("verify");

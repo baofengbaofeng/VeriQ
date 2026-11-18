@@ -463,7 +463,7 @@ export class ExecutionSupervisor {
         const record: AttemptJournal = {
             claim,
             state: "ALLOCATED",
-            allocation: await allocateScratch(work, tmp),
+            allocation: await allocateScratch(this.options.root, work, tmp),
             work,
             ...(assignment.claimRequestId ? { claimRequestId: assignment.claimRequestId } : {}),
         };
@@ -1162,7 +1162,7 @@ export class ExecutionSupervisor {
             } finally {
                 await brokerDirectory?.close();
             }
-            if (stop && record.dataCleanup !== "CLEANED") {
+            if (stop && record.dataCleanup === undefined) {
                 record.dataCleanup = retainPrivateReports
                     ? "REPORT_RETAINED"
                     : await retireScratch(this.options.root, this.source?.temporaryDirectory ?? tmpdir(), record, stop);
