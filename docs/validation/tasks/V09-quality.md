@@ -63,3 +63,9 @@ PyCharm 的 TS5097 配置修复与定向诊断见
 根全量测量700/28/164、C10594/K149576、ratio=null、passed=false，观测子集6.61422%非权威全仓值。修正计数揭示Vite指令与一个短说明两处既有正文问题，不能为守旧162而隐藏。28阻断仍为native25加Dockerfile/tpl/nsh各1；YAML/GYP与其余质量范围继续开放。
 
 正常发行的Pylint使用`apps/srv scripts tests`，调用环境未显式加入仓库根；定向命令加入`PYTHONPATH=.:scripts`后可解析tests.acceptance。需要独立真实入口环境预检，不能把局部结果视为正式入口通过。下一普通正文批次为8服务文件14处及模块头，只改有实际内容的中文说明，不改运行AST、其它字符串或类/函数docstring；全仓>40%保持MVP硬门禁。
+
+## 正式 Pylint 源根修复已交付
+
+`62ebe3c` 已复审：Pylint子进程显式绝对根、原caller非空路径有序保留，非Pylint/父环境/MYPYPATH/argv/rcfile/目录/监督等不改。冻结同字节六项真实RED→GREEN，相关16项通过；同三目录E0401诊断6→0并观察六目标成功读入，未当全消息或正常发行通过。生产SHA不变的中间等值字面量测试版本用于唯一专项，最终55f8fc61另有16实跑和AST/夹具字节证明。scripts19类型0、两路径Pylint31和测试类型7旧项保持，941保护相同。
+
+三处摘要后缺空行Minor已具体排入下一纯注释批次（8服务文件+build_release及其测试两文件）。只改14普通正文/8模块头与额外3doc空行，验证所有运行AST、其它string及pragma保真；不跑16/401/188。恢复UTC offset/rootmode两建议仍开放。Python引号布局8/13旧债未清，本轮未global；68cda13的700/28/164及ratio=null仍是最近实测，>40%硬门禁未通过。

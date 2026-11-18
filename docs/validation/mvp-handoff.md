@@ -40,7 +40,7 @@
 | V06 | 示例全流程、前后端接入和手册可复现性                             | 未执行本轮代码验证                                                                                                               | [接入](tasks/V06-integration.md)            |
 | V07 | 实际 AI Provider、预算、usage/cost、审核与无模型执行             | 阻塞：需独立提供 endpoint/model/密钥配置和预算授权                                                                               | [Provider](tasks/V07-provider.md)           |
 | V08 | 正常前端→static/dist→Python wheel→离线安装→OCI 发行              | 未通过；不能以候选包替代正常成功包                                                                                               | [发行](tasks/V08-release.md)                |
-| V09 | 编码规范、全量测试、覆盖率、许可与SBOM                           | 68cda13计数修复及Fix1已复审；700支持/28阻断/164正文，ratio null，全质量未过                                                      | [质量](tasks/V09-quality.md)                |
+| V09 | 编码规范、全量测试、覆盖率、许可与SBOM                           | 62ebe3c发行Pylint源根修复已复审；16项通过、E0401专项6→0，全质量仍未过                                                            | [质量](tasks/V09-quality.md)                |
 | V10 | 最终需求追踪、并发/故障/篡改和整分支独立复审                     | 待 V00–V09 及 V11 的适用条件满足                                                                                                 | [最终验收](tasks/V10-final-review.md)       |
 | V11 | Windows SQLite Claim 日志、本地保留期和未知进程保护              | Linux 既有回归 55 项、新增专项 12 项通过并复审；Windows 与完整 V11 未验收                                                        | [本地持久化](tasks/V11-local-durability.md) |
 
@@ -271,3 +271,13 @@ Pylint的23项原诊断逐条保持，预算local计数未增加，回调仍返�
 根最新全仓测量明确绑定68cda13：700支持、28阻断、164正文、C10594/K149576、ratio=null、coverageComplete=false、passed=false、退出1。观测支持子集6.61422%不表示全仓比例或MVP完成度。两个新增暴露的旧正文位置在apps/web/tests/contracts.spec.ts的Vite指令和tests/acceptance/test_comment_syntax.py的短说明；不得填充或撤销硬门禁，工具语法身份须按规则单独处理。
 
 接续优先核验正式发行Pylint的仓库源根：局部四路径需显式`PYTHONPATH=.:scripts`，正常`build_release.py`只显式补MYPYPATH，是否出现命名空间解析问题尚未实证。保持完整模块导入、原rcfile与扫描范围，不能降级检查来通过。另有8个服务文件14普通正文及模块头的只读预检，后续仅普通注释/模块首doc改写，以真实语义及AST/字符串保真验收。正常发行、原生平台、真实恢复/Provider、完整Runtime和全量质量继续保持独立任务，不视为已交付。
+
+### 正式检查源根已修复，继续纯注释批次
+
+`62ebe3c` 已完成前节命名空间后续：仅在Pylint子进程显式加入真实绝对仓库根，保留调用者非空路径顺序、其它阶段/父环境及原MYPYPATH。完整三目录与全部生产检查消息未改，旧两tests.acceptance及四apps.srv.tests的E0401专项实际6→0；这是导入专项，不是全消息正式Pylint通过。
+
+冻结同字节六场景RED→GREEN，最终相关16项通过（21.70秒）；实际构建闭包、监督、Pylint与Black运行，安装/前端等是原轻量夹具，成功Pylint后固定Black错误保证无发布产物。唯一仓库专项在中间测试版本，最终字面量仅排版等值，完整AST/夹具字节与生产SHA相同；最终测试另有真实RED/16通过，不冒称专项重复。scripts19类型0、两文件31Pylint/7测试类型旧债不增，941保护保持，独立规格/质量均通过。
+
+下一任务合并10个文件的同形注释整改：completion/import_result/import_upload/jobs/publication/report/results/runtime共8服务文件的14处普通英文正文与模块首doc；另在build_release.\_phase_environment、test_build_release.\_write_namespace_imports与test_release_pylint_resolves_checkout_namespaces三个摘要后补空行。后两文件只能改这三doc的空行，不能改函数体、夹具字节或其它doc。真实业务AST、其它字符串、工具pragma以精确证明保留，禁止用比例填充；无须重跑16/401/188或业务/DB/浏览器。
+
+三处doc建议有具体接续，不丢给含糊最终复审；原恢复UTC offset/root mode两项继续开放。最近全仓实际测量仍是68cda13的700/28/164、ratio=null、passed=false，未对本次代码测量。>40%MVP硬门禁与全部原平台/恢复/Provider/Runtime/发行范围不变。
