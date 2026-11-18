@@ -107,3 +107,36 @@ and warranty notices. Official wheel hashes, original MIT texts, and the 2026-11
 query are recorded in the [SDK type audit](docs/dependencies/v09-sdk-types-audit.json).
 [ADR 0027](docs/decisions/0027-sdk-type-stubs.md) records the verified scope of the older core declarations.
 The production `--no-dev` requirements export retains the same 56 entries and distribution hashes.
+
+## V09 qualified HTML comment parser
+
+V09 extends the source-comment adapters to qualified HTML with development-only
+tree-sitter-html 0.23.2 under the MIT license. Its distribution retains the upstream notice
+below. The grammar is absent from the production service `--no-dev` requirements and is
+used for static source measurement. The Linux x86_64 wheel, exact-version OSV response,
+and qualification scope are recorded in the [comment parser audit](docs/dependencies/v09-comment-parsers-audit.json)
+and [ADR 0026](docs/decisions/0026-trusted-comment-parsers.md).
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2014 Max Brunsfeld
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```

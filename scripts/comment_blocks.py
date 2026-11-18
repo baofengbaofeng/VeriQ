@@ -15,11 +15,12 @@ from typing import Any
 
 import comment_syntax
 from line_width import source_paths
+import source_inventory
 
 JAVASCRIPT = {".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"}
 NATIVE = {".c", ".h", ".cc", ".hh", ".cxx", ".hxx", ".cpp", ".hpp", ".m", ".mm"}
 STYLES = {".css", ".scss", ".less"}
-UNSUPPORTED_BLOCK_LANGUAGES = {".html", ".sql", ".go", ".rs", ".swift", ".tpl"}
+UNSUPPORTED_BLOCK_LANGUAGES = {".sql", ".go", ".rs", ".swift", ".tpl"}
 PRAGMA = re.compile(
     r"^(?:[#!]?@?__PURE__|[#!]?@?__NO_SIDE_EFFECTS__|@type\b|@ts-|@vite-ignore\b|"
     r"eslint-|biome-ignore\b|prettier-ignore\b|[#@]\s*source(?:Mapping)?URL=)"
@@ -140,7 +141,7 @@ def comment_ranges(
             )
         )
     for path in paths:
-        if path.suffix in {".css", ".java"}:
+        if path.suffix in source_inventory.TREE_SITTER_FILE_EXTENSIONS:
             output[path.as_posix()] = [
                 dict(span)
                 for span in comment_syntax.comment_ranges(
@@ -231,6 +232,9 @@ def main() -> None:
         changed = 0
         for name, spans in ranges.items():
             path = root / name
+            if path.suffix == ".html":
+                # 此处已完成全部 HTML 范围提取与验证，块排版只处理具有正式斜杠分隔符的语言。
+                continue
             with path.open(encoding="utf-8", newline="") as source:
                 text = source.read()
             unsafe = inline_violations(text, spans)

@@ -930,3 +930,64 @@ def test_java_same_line_code_and_effective_comment_are_both_counted(repository: 
     report = _audit(repository)
     assert report["files"] == [{"path": "sample.java", "commentLines": 2, "codeLines": 1}]
     assert report["violations"] == []
+
+
+def test_html_body_preserves_literal_markers_and_physical_code_positions(repository: Path) -> None:
+    """
+    只移除 HTML 开闭边界并保留正文中的星号、井号和斜杠，物理分行及真实代码注释同行都必须进入各自的计数。
+    """
+    text = "<p>😀</p><!--\r\n/*#" + LONG + "\u2028*\r\n*/\r\n--><p>尾</p>\r\n<!---->"
+    _write(repository, "mixed.html", text)
+    report = _audit(repository)
+    assert report["files"] == [{"path": "mixed.html", "commentLines": 3, "codeLines": 2}]
+    assert report["ratio"] == 0.6
+    assert report["violations"] == [
+        {
+            "path": "mixed.html",
+            "line": 6,
+            "reason": "Chinese comment first line must contain at least 40 characters",
+        }
+    ]
+
+
+@pytest.mark.parametrize(("length", "issues"), [(39, 1), (40, 0), (120, 0), (121, 1)])
+def test_html_literal_body_punctuation_contributes_to_unicode_length(
+    repository: Path, length: int, issues: int
+) -> None:
+    """
+    首行长度以 HTML 边界以内的 Unicode 码点计算，前置星号属于正文，闭合标签与原文列宽不能替代正文校验。
+    """
+    text = "<!--*" + "中" * (length - 1) + "--><p>代码</p>"
+    _write(repository, "length.html", text)
+    report = _audit(repository)
+    assert report["files"] == [{"path": "length.html", "commentLines": 1, "codeLines": 1}]
+    assert len(report["violations"]) == issues
+
+
+@pytest.mark.parametrize(
+    ("markup", "category"),
+    [
+        ('<div title="<!--hidden_secret-->"></div>', "Unsupported HTML comment context"),
+        ('<script src="/x.js">hidden_secret</script>', "Unsupported inline script"),
+    ],
+)
+def test_html_audit_cli_fails_before_writing_partial_rows(
+    repository: Path, markup: str, category: str
+) -> None:
+    """
+    页面已含真实说明也不能放宽后续属性或脚本的资格，公开审计命令必须保留具名路径并在写入任意文件计数之前失败。
+    """
+    _write(repository, "a.html", "<p>代码</p>")
+    _write(repository, "z.html", "<!--" + LONG + "-->" + markup)
+    output = repository / "report.json"
+    result = subprocess.run(
+        [sys.executable, str(repository / "scripts/comment_audit.py"), "--output", str(output)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 2
+    assert not output.exists()
+    assert result.stdout == ""
+    assert '"z.html": ' + category in result.stderr
+    assert "hidden_secret" not in result.stderr

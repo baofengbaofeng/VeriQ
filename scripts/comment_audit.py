@@ -33,6 +33,8 @@ def _comment_body(name: str, raw: str) -> str:
     """正文仅剥离所属语言的实际注释分隔符，脚本内字面的斜杠星号须保留，而旧脚本桥接继续使用既有剥离顺序。"""
     if Path(name).suffix == ".java":
         return _java_body(raw)
+    if Path(name).suffix == ".html":
+        return raw[4:-3]
     if _is_shell(name):
         return raw.removeprefix("#").lstrip()
     return raw.removeprefix("//").removeprefix("/*").removesuffix("*/").lstrip("* ")
@@ -52,7 +54,7 @@ def _java_body(raw: str) -> str:
 
 def _first_comment_line(name: str, content: str) -> str:
     """首行跳过纯空白分隔符但保留脚本正文的字面星号，块注释续行仍沿用原有星号前缀剥离和 Unicode 长度契约。"""
-    if Path(name).suffix == ".java":
+    if Path(name).suffix in {".java", ".html"}:
         return next((line.strip() for line in content.splitlines() if line.strip()), "")
     return next(
         (
@@ -66,13 +68,10 @@ def _first_comment_line(name: str, content: str) -> str:
 
 def _read_source(root: Path, name: str, ranges: dict[str, Any]) -> str:
     """读取源文时保留原始换行并为新增语言装入已验证区间，保证字节定位与后续码点遮罩来自同一份未经转换的文本。"""
-    if (
-        Path(name).suffix in {".css", ".java"}
-        or Path(name).suffix == ".sh"
-        or name in source_inventory.SOURCE_PATHS
-    ):
+    suffix = Path(name).suffix
+    if suffix in source_inventory.TREE_SITTER_FILE_EXTENSIONS or _is_shell(name):
         raw = (root / name).read_bytes()
-        language = Path(name).suffix[1:] if Path(name).suffix in {".css", ".java"} else "shell"
+        language = suffix[1:] if suffix in source_inventory.TREE_SITTER_FILE_EXTENSIONS else "shell"
         ranges[name] = comment_syntax.comment_ranges(raw, language, name)
         return raw.decode("utf-8")
     with (root / name).open(encoding="utf-8", newline="") as source:
@@ -81,7 +80,7 @@ def _read_source(root: Path, name: str, ranges: dict[str, Any]) -> str:
 
 def _comment_lines(name: str, start: int, end: int, content: str, lines: list[str]) -> set[int]:
     """新增语言只累计真实范围中的非空正文，旧语言保留既有关闭行规则，防止空注释旁的代码在新增适配中被错误计为说明。"""
-    if Path(name).suffix == ".java":
+    if Path(name).suffix in {".java", ".html"}:
         return {start + offset for offset, line in enumerate(content.splitlines()) if line.strip()}
     if Path(name).suffix in {".sh", ".css"} or name in source_inventory.SOURCE_PATHS:
         return {
@@ -95,7 +94,7 @@ def _comment_lines(name: str, start: int, end: int, content: str, lines: list[st
 def _masked_source(name: str, text: str, spans: list[dict[str, Any]]) -> str:
     """新增语言遮罩保留既有物理分行定义的全部边界，防止注释空行错移后吞掉代码；旧类型脚本仍保持原有回车换行规则。"""
     line_breaks = "\r\n"
-    if _is_shell(name) or Path(name).suffix in {".css", ".java"}:
+    if _is_shell(name) or Path(name).suffix in source_inventory.TREE_SITTER_FILE_EXTENSIONS:
         line_breaks += "\v\f\x1c\x1d\x1e\x85\u2028\u2029"
     residual = list(text)
     for item in spans:
@@ -197,7 +196,12 @@ def audit(root: Path) -> dict[str, Any]:
             code = {index for index, line in enumerate(residual.splitlines(), 1) if line.strip()}
         merged: list[tuple[int, int, str]] = []
         for start, end, content in sorted(blocks):
-            if merged and start == merged[-1][1] + 1 and start == end:
+            if (
+                merged
+                and start == merged[-1][1] + 1
+                and start == end
+                and Path(name).suffix != ".html"
+            ):
                 previous = merged.pop()
                 merged.append((previous[0], end, previous[2] + "\n" + content))
             else:

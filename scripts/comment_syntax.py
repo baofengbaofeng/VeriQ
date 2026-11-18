@@ -4,6 +4,7 @@
 """
 
 from bisect import bisect_right
+import collections.abc
 import importlib
 import importlib.metadata
 import json
@@ -19,13 +20,69 @@ VERSIONS = {
     "tree-sitter-css": "0.25.0",
     "tree-sitter-java": "0.23.5",
 }
-GRAMMARS = {"shell": "tree_sitter_bash", "css": "tree_sitter_css", "java": "tree_sitter_java"}
-GRAMMAR_ABIS = {"shell": 15, "css": 15, "java": 14}
+GRAMMARS = {
+    "shell": "tree_sitter_bash",
+    "css": "tree_sitter_css",
+    "java": "tree_sitter_java",
+    "html": "tree_sitter_html",
+}
+GRAMMAR_ABIS = {"shell": 15, "css": 15, "java": 14, "html": 14}
 COMMENT_KINDS = {
     "shell": {"comment"},
     "css": {"comment"},
     "java": {"line_comment", "block_comment"},
 }
+HTML_WHITESPACE = b" \t\r\n\f"
+HTML_TEMPLATE_MARKERS = (
+    b"{{",
+    b"}}",
+    b"{%",
+    b"%}",
+    b"<%",
+    b"%>",
+    b"<?",
+    b"?>",
+    b"${",
+    b"<#",
+    b"[#",
+)
+HTML_ELEMENTS = frozenset(
+    b"a abbr address area article aside audio b bdi bdo blockquote body br button canvas caption "
+    b"cite code col colgroup data datalist dd del details dfn dialog div dl dt em fieldset "
+    b"figcaption figure footer form h1 h2 h3 h4 h5 h6 head header hgroup hr html i img input "
+    b"ins kbd label legend li link main map mark menu meta meter nav ol optgroup option output "
+    b"p picture pre progress q rp rt ruby s samp script section select small source span strong "
+    b"sub summary sup table tbody td th thead time title tr track u ul var video wbr".split()
+)
+HTML_TAG_NODES = {"start_tag", "end_tag", "self_closing_tag"}
+HTML_NODES = HTML_TAG_NODES | {
+    "attribute",
+    "attribute_name",
+    "attribute_value",
+    "comment",
+    "doctype",
+    "document",
+    "element",
+    "entity",
+    "quoted_attribute_value",
+    "raw_text",
+    "script_element",
+    "style_element",
+    "tag_name",
+    "text",
+}
+HTML_SCRIPT_ATTRIBUTES = {
+    b"src",
+    b"type",
+    b"async",
+    b"defer",
+    b"nomodule",
+    b"integrity",
+    b"crossorigin",
+    b"referrerpolicy",
+}
+HTML_SCRIPT_TYPES = {b"", b"module", b"text/javascript", b"application/javascript"}
+HTML_SCRIPT_SRC = re.compile(rb"(?:/|\./)[A-Za-z0-9._~-]+(?:/[A-Za-z0-9._~-]+)*")
 
 
 class CommentSyntaxError(ValueError):
@@ -43,7 +100,8 @@ def _failure(path: str, category: str, line: int = 1) -> CommentSyntaxError:
 def _parser(language: str, path: str) -> "Parser":
     """实际需要适配时才核验冻结版本并加载当前语言，核心兼容范围及语法 ABI 必须符合已审计环境才能创建解析器。"""
     try:
-        for package, version in VERSIONS.items():
+        versions = VERSIONS | ({"tree-sitter-html": "0.23.2"} if language == "html" else {})
+        for package, version in versions.items():
             if importlib.metadata.version(package) != version:
                 raise _failure(path, "Parser version mismatch")
         core = importlib.import_module("tree_sitter")
@@ -140,6 +198,172 @@ def _check_css_context(node: "Node", path: str) -> None:
         parent = parent.parent
 
 
+def _checked_nodes(root: "Node", path: str) -> collections.abc.Iterator["Node"]:
+    """
+    按原文顺序遍历全部语法节点并在遍历末尾核验根状态，语法恢复留下的错误或缺失节点均不得交付任何可信结果。
+
+    Yields:
+        按源码顺序验证过的语法节点，根节点状态在完整消费时一并核验。
+    """
+    pending = [root]
+    while pending:
+        node = pending.pop()
+        if node.is_missing or node.is_error:
+            category = "Missing syntax node" if node.is_missing else "Syntax ERROR"
+            raise _failure(path, category, node.start_point.row + 1)
+        yield node
+        pending.extend(reversed(node.children))
+    if root.has_error:
+        raise _failure(path, "Syntax error", root.start_point.row + 1)
+
+
+def _html_comment_span(node: "Node", path: str) -> tuple[int, int, bytes]:
+    """
+    属性值内的伪注释可能被成熟语法标成真节点，直接父节点和原始边界均须符合限定域才能交给通用坐标转换。
+    """
+    line = node.start_point.row + 1
+    parent = node.parent
+    if parent is None or parent.type not in {"document", "element"}:
+        raise _failure(path, "Unsupported HTML comment context", line)
+    raw = node.text
+    if raw is None or not raw.startswith(b"<!--") or not raw.endswith(b"-->"):
+        raise _failure(path, "Unsupported HTML comment delimiter", line)
+    body = raw[4:-3]
+    if (
+        len(raw) < 7
+        or body.startswith((b">", b"->"))
+        or body.endswith(b"<!-")
+        or any(marker in body for marker in (b"<!--", b"-->", b"--!>"))
+    ):
+        raise _failure(path, "Unsupported HTML comment delimiter", line)
+    return node.start_byte, node.end_byte, raw
+
+
+def _html_attribute(node: "Node", source: bytes, path: str) -> tuple[bytes, bytes]:
+    """
+    属性名只接受普通 ASCII 形态，赋值取自树上原始范围以保留实体和引号边界，供脚本严格核验实际源码拼写。
+    """
+    line = node.start_point.row + 1
+    parts = node.children
+    name = parts[0]
+    key = source[name.start_byte : name.end_byte].lower()
+    if (
+        name.type != "attribute_name"
+        or not re.fullmatch(rb"[a-z][a-z0-9-]*", key)
+        or key.startswith(b"on")
+        or key in {b"srcdoc", b"xmlns", b"is", b"style", b"http-equiv"}
+    ):
+        raise _failure(path, "Unsupported HTML attribute", line)
+    if len(parts) == 1:
+        return key, b""
+    value = parts[-1]
+    if len(parts) != 3 or source[name.end_byte : value.start_byte].strip(HTML_WHITESPACE) != b"=":
+        raise _failure(path, "Unsupported HTML attribute boundary", line)
+    raw = source[value.start_byte : value.end_byte]
+    if value.type == "quoted_attribute_value":
+        return key, raw[1:-1]
+    if value.type != "attribute_value" or not re.fullmatch(rb"[^ \t\r\n\f\"'<>`=]+", raw):
+        raise _failure(path, "Unsupported HTML attribute boundary", line)
+    return key, raw
+
+
+def _html_tag(node: "Node", source: bytes, path: str) -> tuple[bytes, dict[bytes, bytes]]:
+    """
+    复核成熟树给出的标签边界及属性间隔，防止宽松空白把普通文字误解释成标签，也保留已限定的空元素和省略闭合形式。
+    """
+    line = node.start_point.row + 1
+    opening, name, *remaining = node.children
+    closing = remaining[-1]
+    tag = source[name.start_byte : name.end_byte].lower()
+    if name.type != "tag_name" or tag not in HTML_ELEMENTS:
+        raise _failure(path, "Unsupported HTML element", line)
+    if opening.end_byte != name.start_byte:
+        raise _failure(path, "Unsupported HTML tag boundary", line)
+    attributes: dict[bytes, bytes] = {}
+    last = name.end_byte
+    for attribute in remaining[:-1]:
+        gap = source[last : attribute.start_byte]
+        if attribute.type != "attribute" or not gap or gap.strip(HTML_WHITESPACE):
+            raise _failure(path, "Unsupported HTML tag boundary", line)
+        key, value = _html_attribute(attribute, source, path)
+        if tag == b"script" and key in attributes:
+            raise _failure(path, "Duplicate script attribute", line)
+        attributes[key] = value
+        last = attribute.end_byte
+    if source[last : closing.start_byte].strip(HTML_WHITESPACE):
+        raise _failure(path, "Unsupported HTML tag boundary", line)
+    return tag, attributes
+
+
+def _check_html_title(start: "Node", path: str) -> None:
+    """
+    标题在浏览器中使用特殊字符数据状态，仅接纳具有明确开闭标签及文本或实体子节点的标题，以保证正文边界一致。
+    """
+    parent = start.parent
+    children = [child.type for child in parent.named_children] if parent is not None else []
+    if (
+        start.type != "start_tag"
+        or children[-1:] != ["end_tag"]
+        or any(kind not in {"text", "entity"} for kind in children[1:-1])
+    ):
+        raise _failure(path, "Unsupported title RCDATA context", start.start_point.row + 1)
+
+
+def _check_html_script(
+    start: "Node", attributes: dict[bytes, bytes], source: bytes, path: str
+) -> None:
+    """
+    只接受具有明确起止标签和空白正文的外部脚本，路径与类型按原始拼写核验，解析注释时无需加载或理解脚本代码。
+    """
+    line = start.start_point.row + 1
+    parent = start.parent
+    if parent is None or parent.type != "script_element":
+        raise _failure(path, "Unsupported script boundary", line)
+    children = parent.named_children
+    if [child.type for child in children] != ["start_tag", "raw_text", "end_tag"]:
+        raise _failure(path, "Unsupported script boundary", line)
+    end = children[-1]
+    if source[start.end_byte : end.start_byte].strip(HTML_WHITESPACE):
+        raise _failure(path, "Unsupported inline script or data body", line)
+    if attributes.keys() - HTML_SCRIPT_ATTRIBUTES:
+        raise _failure(path, "Unsupported script attribute", line)
+    if not HTML_SCRIPT_SRC.fullmatch(attributes.get(b"src", b"")):
+        raise _failure(path, "Unsupported external script src spelling", line)
+    if attributes.get(b"type", b"") not in HTML_SCRIPT_TYPES:
+        raise _failure(path, "Unsupported script type", line)
+
+
+def _check_html_node(node: "Node", source: bytes, path: str) -> None:
+    """
+    精确限制可信语法节点与公开声明的元素域，文档类型和脚本边界由完整树给出，未知节点不能作为空注释继续计量。
+    """
+    if node.is_named and node.type not in HTML_NODES:
+        raise _failure(path, "Unsupported HTML syntax context", node.start_point.row + 1)
+    if node.type == "doctype" and node.is_named:
+        raw = source[node.start_byte : node.end_byte]
+        if not re.fullmatch(rb"<!doctype[ \t\r\n\f]+html[ \t\r\n\f]*>", raw, re.IGNORECASE):
+            raise _failure(path, "Unsupported HTML doctype", node.start_point.row + 1)
+    if node.type in HTML_TAG_NODES:
+        tag, attributes = _html_tag(node, source, path)
+        if node.type == "end_tag":
+            return
+        if tag == b"title":
+            _check_html_title(node, path)
+        elif tag == b"script":
+            _check_html_script(node, attributes, source, path)
+
+
+def _html_ranges(source: bytes, root: "Node", path: str) -> list[CommentRange]:
+    """
+    先查验整棵语法树，再限定每个注释与嵌入上下文；已识别的真实范围等到文档全部通过才交付给两个消费者。
+    """
+    nodes = tuple(_checked_nodes(root, path))
+    spans = [_html_comment_span(node, path) for node in nodes if node.type == "comment"]
+    for node in nodes:
+        _check_html_node(node, source, path)
+    return convert_ranges(source, spans, path)
+
+
 def comment_ranges(source: bytes, language: str, path: str) -> list[CommentRange]:
     """固定语言的完整语法树必须没有错误或缺失节点才可导出注释，Shell 首行解释器指令不作为说明范围返回给比例消费者。"""
     if language not in GRAMMARS:
@@ -153,14 +377,13 @@ def comment_ranges(source: bytes, language: str, path: str) -> list[CommentRange
     # 固定 Java 语法把裸回车后的代码吞进行注释，因此在构造任何解析器前拒绝这种原始字节序列。
     if language == "java" and re.search(rb"\r(?!\n)", source):
         raise _failure(path, "Unsupported Java bare carriage return")
+    if language == "html" and any(marker in source for marker in HTML_TEMPLATE_MARKERS):
+        raise _failure(path, "Unsupported HTML template marker")
     tree = _parser(language, path).parse(source)
-    pending = [tree.root_node]
+    if language == "html":
+        return _html_ranges(source, tree.root_node, path)
     spans: list[tuple[int, int, bytes]] = []
-    while pending:
-        node = pending.pop()
-        if node.is_missing or node.is_error:
-            category = "Missing syntax node" if node.is_missing else "Syntax ERROR"
-            raise _failure(path, category, node.start_point.row + 1)
+    for node in _checked_nodes(tree.root_node, path):
         if node.type in COMMENT_KINDS[language]:
             if language == "css":
                 _check_css_context(node, path)
@@ -169,7 +392,4 @@ def comment_ranges(source: bytes, language: str, path: str) -> list[CommentRange
                 raise _failure(path, "Invalid comment span")
             if not (language == "shell" and node.start_byte == 0 and raw.startswith(b"#!")):
                 spans.append((node.start_byte, node.end_byte, raw))
-        pending.extend(reversed(node.children))
-    if tree.root_node.has_error:
-        raise _failure(path, "Syntax error", tree.root_node.start_point.row + 1)
     return convert_ranges(source, spans, path)

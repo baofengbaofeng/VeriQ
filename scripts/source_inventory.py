@@ -57,6 +57,7 @@ GENERATED = {
 }
 PYTHON_EXTENSIONS = {".py", ".pyi"}
 TYPESCRIPT_EXTENSIONS = {".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"}
+TREE_SITTER_FILE_EXTENSIONS = {".css", ".java", ".html"}
 
 
 class SourceFile(TypedDict):
@@ -93,7 +94,7 @@ def inventory(root: Path) -> list[SourceFile]:
             language, reason = "python", None
         elif path.suffix in TYPESCRIPT_EXTENSIONS:
             language, reason = "typescript", None
-        elif path.suffix in {".css", ".java"}:
+        elif path.suffix in TREE_SITTER_FILE_EXTENSIONS:
             language, reason = path.suffix[1:], None
         elif path.suffix == ".sh" or path.as_posix() in SOURCE_PATHS:
             language = "shell"

@@ -7,6 +7,7 @@ import importlib.util
 from pathlib import Path
 import subprocess
 import sys
+import types
 from typing import Any
 
 import pytest
@@ -206,13 +207,19 @@ def test_fix_rejects_inline_explanations_and_leaves_code_unchanged(repository: P
 
 @pytest.mark.parametrize("extension", [".html", ".sql", ".go", ".rs", ".swift", ".tpl"])
 def test_unsupported_block_languages_fail_explicitly(repository: Path, extension: str) -> None:
-    """未接入解析器的语言出现块注释标记时须明确失败并保留原文件，不能把未检查的源码当作格式合格或猜测字符串上下文。"""
+    """
+    块标记所在的未接入语言及 HTML 内联脚本都须报告具体类别并保留原文件，以免把未验证能力当作排版成功。
+    """
     source = repository / ("source" + extension)
     original = "/** documentation marker */\n"
+    category = "unsupported source language requires a block-comment parser"
+    if extension == ".html":
+        original = "<script>" + original + "</script>"
+        category = "Unsupported inline script"
     source.write_text(original)
     result = _run(repository, "--fix")
     assert result.returncode == 2
-    assert "unsupported source language requires a block-comment parser" in result.stderr
+    assert category in result.stderr
     assert source.read_text() == original
 
 
@@ -310,3 +317,40 @@ def test_java_textblock_and_emoji_keep_real_block_only(formatter: Any, tmp_path:
     assert source[:start] + replacement + source[end:] == source.replace(
         "/**真实*/", "/**\n * 真实\n */"
     )
+
+
+def test_html_block_consumer_checks_mature_ranges_without_writing(
+    formatter: types.ModuleType, repository: Path
+) -> None:
+    """
+    正式 HTML 注释原始区间要传到块消费者，修复入口必须完整保留这些边界与其中的样式标记及物理换行字节。
+    """
+    source = repository / "page.html"
+    raw = '<div title="/*数据*/">😀</div><!-- /*真实*/\r\n#* -->'.encode()
+    source.write_bytes(raw)
+    result = _run(repository, "--fix")
+    assert result.returncode == 0, result.stderr
+    assert "0 files formatted" in result.stdout
+    assert source.read_bytes() == raw
+    (span,) = formatter.comment_ranges(repository, [Path("page.html")])["page.html"]
+    assert span["text"] == "<!-- /*真实*/\r\n#* -->"
+    assert (span["start"], span["end"]) == (1, 2)
+    assert raw[span["offsetByte"] : span["limitByte"]] == span["text"].encode()
+
+
+def test_html_block_consumer_rejects_without_c_marker_or_partial_fix(repository: Path) -> None:
+    """
+    真实说明之后的属性伪注释须触发同一成熟语法拒绝，即使完全没有斜杠星号，失败也必须发生在更早文件修复之前。
+    """
+    good = repository / "a.css"
+    good.write_bytes(b"/* would format */")
+    bad = repository / "z.html"
+    raw = b'<!-- valid --><div title="<!--hidden_secret-->"></div>'
+    bad.write_bytes(raw)
+    result = _run(repository, "--fix")
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert '"z.html": Unsupported HTML comment context' in result.stderr
+    assert "hidden_secret" not in result.stderr
+    assert good.read_bytes() == b"/* would format */"
+    assert bad.read_bytes() == raw

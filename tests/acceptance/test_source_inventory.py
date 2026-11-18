@@ -129,9 +129,14 @@ def test_source_boundary_keeps_all_existing_suffixes_names_and_explicit_path(
     assert width.check_sources(repository) == [(name, 1, 122) for name in sorted(names)]
     report = _tool("comment_audit").audit(repository)
     assert [item["path"] for item in report["unsupportedPaths"]] == sorted(
-        set(names) - {"style.css", "app.java"}
+        set(names) - {"style.css", "app.java", "index.html"}
     )
     assert all(item["reason"] for item in report["unsupportedPaths"])
+    assert report["files"] == [
+        {"path": "app.java", "commentLines": 1, "codeLines": 0},
+        {"path": "index.html", "commentLines": 0, "codeLines": 1},
+        {"path": "style.css", "commentLines": 1, "codeLines": 0},
+    ]
 
 
 def test_exact_generated_contracts_remain_width_inputs_but_not_ratio_inputs(
@@ -193,6 +198,7 @@ def test_inventory_and_width_work_without_optional_parser_packages(repository: P
     _write(repository, "style.css", "/*" + "中" * 59 + "*/\n")
     _write(repository, "setup.sh", "#!/bin/sh\n")
     _write(repository, "sample.java", "class X {}\n")
+    _write(repository, "sample.html", "<p>中文</p>\n")
     result = subprocess.run(
         [
             sys.executable,
@@ -200,7 +206,7 @@ def test_inventory_and_width_work_without_optional_parser_packages(repository: P
             "-c",
             "import sys; from pathlib import Path; sys.path.insert(0, sys.argv[1]); "
             "import source_inventory, line_width; root=Path(sys.argv[2]); "
-            "assert len(source_inventory.inventory(root)) == 3; "
+            "assert len(source_inventory.inventory(root)) == 4; "
             "assert line_width.check_sources(root) == [('style.css', 1, 122)]; "
             "assert not any(k.startswith('tree_sitter') for k in sys.modules)",
             str(ROOT / "scripts"),
@@ -220,3 +226,26 @@ def test_java_inventory_routes_without_excluding_guarded_files(repository: Path)
     assert entry["language"] == "java"
     assert entry["unsupportedReason"] is None
     assert entry["path"] == Path("sample.java")
+
+
+def test_html_inventory_routes_even_unqualified_documents(repository: Path) -> None:
+    """
+    库存单独登记全部实际 HTML 路径，只有消费成熟树的入口才能拒绝内联脚本，不能在库存阶段静默删去分母。
+    """
+    _write(repository, "page.html", "<script>hidden_secret</script>")
+    (entry,) = _tool("source_inventory").inventory(repository)
+    assert entry == {
+        "path": Path("page.html"),
+        "language": "html",
+        "generated": False,
+        "unsupportedReason": None,
+    }
+    assert _tool("line_width").source_paths(repository) == [Path("page.html")]
+
+
+def test_html_comment_width_keeps_delimiters_and_wide_characters(repository: Path) -> None:
+    """
+    正文计数可以独立通过中文长度规则，列宽扫描仍必须计入全部实际分隔符、缩进与宽字符，确保两个口径均可验证。
+    """
+    _write(repository, "width.html", "<!--" + "中" * 57 + "-->")
+    assert _tool("line_width").check_sources(repository) == [("width.html", 1, 121)]
