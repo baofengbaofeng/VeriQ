@@ -169,6 +169,7 @@ test("resource forms save a canonical case and publish only after real Agent val
             await expect(page.getByRole("heading", { name: "Resources", exact: true })).toBeVisible();
             await page.getByLabel("Workspace").selectOption(workspace.id);
             await expect(page.getByText("No resources in this Workspace.")).toBeVisible();
+            await page.getByRole("button", { name: "New resource", exact: true }).click();
             await resourceCreateForm(page)
                 .getByRole("combobox", { name: "Kind", exact: true })
                 .selectOption("ELEMENT_CATALOG");
@@ -211,6 +212,7 @@ test("resource forms save a canonical case and publish only after real Agent val
                     .locator(".vq-monaco"),
             ).toBeVisible();
             await closeResourceEditor(page);
+            await page.getByRole("button", { name: "New resource", exact: true }).click();
             await resourceCreateForm(page).getByRole("combobox", { name: "Kind", exact: true }).selectOption("CASE");
             await resourceCreateForm(page).getByLabel("Key", { exact: true }).fill("smoke");
             await resourceCreateForm(page).getByLabel("Name", { exact: true }).fill("Smoke case");
@@ -425,6 +427,7 @@ test("all eight kinds expose usable typed controls and preserve literal business
     ];
     for (const kind of kinds) {
         await closeResourceEditor(page);
+        await page.getByRole("button", { name: "New resource", exact: true }).click();
         await resourceCreateForm(page).getByRole("combobox", { name: "Kind", exact: true }).selectOption(kind);
         await resourceCreateForm(page)
             .getByLabel("Key", { exact: true })
@@ -610,6 +613,7 @@ test("JSON Apply is lossless, blocks unapplied writes, and revision recovery ret
     const ownWorkspace = (await ownWorkspaceResponse.json()).data;
     await page.goto("/resources");
     await page.getByLabel("Workspace").selectOption(ownWorkspace.id);
+    await page.getByRole("button", { name: "New resource", exact: true }).click();
     await resourceCreateForm(page).getByRole("combobox", { name: "Kind", exact: true }).selectOption("ELEMENT_CATALOG");
     await resourceCreateForm(page).getByLabel("Key", { exact: true }).fill("conflict_catalog");
     await resourceCreateForm(page).getByLabel("Name", { exact: true }).fill("Conflict catalog");
@@ -713,7 +717,7 @@ test("JSON Apply is lossless, blocks unapplied writes, and revision recovery ret
         "Editor isolation",
     );
     await page.getByLabel("Workspace").selectOption(ownWorkspace.id);
-    await page.getByRole("button", { name: "conflict_catalog" }).click();
+    await page.getByRole("button", { name: "Conflict catalog" }).click();
     await page.getByRole("button", { name: "JSON source" }).click();
     await replaceJson("{ invalid");
     await page.getByRole("button", { name: "Apply JSON" }).click();
@@ -743,6 +747,7 @@ test("fixture binding picker exposes declared initial variables without future o
     const workspace = (await response.json()).data;
     await page.goto("/resources");
     await page.getByLabel("Workspace").selectOption(workspace.id);
+    await page.getByRole("button", { name: "New resource", exact: true }).click();
     await resourceCreateForm(page).getByRole("combobox", { name: "Kind", exact: true }).selectOption("CASE");
     await resourceCreateForm(page).getByLabel("Key", { exact: true }).fill("bindings");
     await resourceCreateForm(page).getByLabel("Name", { exact: true }).fill("Binding source");

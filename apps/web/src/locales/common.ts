@@ -3,6 +3,16 @@
  * 请求参数、技术标识或用户创建的业务名称。
  */
 export const commonMessages: Record<string, readonly [string, string]> = {
+    Settings: ["设置", "Settings"],
+    Menu: ["菜单", "Menu"],
+    "New resource": ["新建资源", "New resource"],
+    "Back to list": ["返回列表", "Back to list"],
+    "Basic information": ["基本信息", "Basic information"],
+    "{{count}} loaded": ["当前 {{count}} 条", "{{count}} loaded"],
+    "Resource key format": [
+        "以字母或下划线开头，可包含数字、下划线和连字符。",
+        "Start with a letter or underscore. Digits, underscores and hyphens are also allowed.",
+    ],
     Close: ["关闭", "Close"],
     "Help for": ["字段帮助", "Help for"],
     Runtimes: ["运行时", "Runtimes"],
