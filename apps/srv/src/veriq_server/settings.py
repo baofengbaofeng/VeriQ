@@ -94,11 +94,8 @@ class Settings(BaseModel):
         if self.environment == "production" and not self.public_url.startswith("https://"):
             raise ValueError("Production requires HTTPS public URL")
         if self.smtp_host:
-            if (
-                not self.smtp_from
-                or "@" not in self.smtp_from
-                or any(c in self.smtp_from for c in "\r\n")
-            ):
+            sender = self.smtp_from or ""
+            if not sender or "@" not in sender or any(c in sender for c in "\r\n"):
                 raise ValueError("SMTP requires a valid sender address")
             if bool(self.smtp_username) != bool(self.smtp_password):
                 raise ValueError("SMTP username and password must be configured together")
@@ -165,7 +162,7 @@ def resolve_settings_values(path: Path, overrides: dict[str, Any] | None = None)
     values = json.loads(path.read_text()) if path.exists() else {}
     if not isinstance(values, dict):
         raise ValueError("Configuration must be a JSON object")
-    for key in Settings.model_fields:
+    for key in dict(Settings.model_fields):
         if (value := os.environ.get("VERIQ_" + key.upper())) is not None:
             values[key] = (
                 json.loads(value)

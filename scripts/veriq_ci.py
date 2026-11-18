@@ -185,6 +185,13 @@ class Client:
         return result
 
 
+def _reject_trigger_http_error(error: HTTPError) -> bool:
+    """
+    触发请求收到 3xx 重定向或 4xx 错误时立即拒绝，HTTP 状态码达到 500 才保留原有重试机会。
+    """
+    return error.code < 500
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """
     触发、轮询和下载构成完整门禁流程，只有权威终态 PASSED 且当前和执行时门禁均通过才退出零。
@@ -220,7 +227,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 receipt = client.request(trigger_path, "POST", body, args.key)
                 break
             except (URLError, TimeoutError) as error:
-                if isinstance(error, HTTPError) and error.code < 500:
+                if isinstance(error, HTTPError) and _reject_trigger_http_error(error):
                     raise
                 client.remaining()
                 if attempt == 2:

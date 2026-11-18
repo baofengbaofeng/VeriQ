@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+import veriq_server.settings
 from veriq_server.settings import Settings, load_settings
 
 
@@ -112,28 +113,66 @@ async def test_real_cli_init_migrate_create_admin_and_serve(site, tmp_path):
 
 
 def test_incomplete_or_plaintext_production_smtp_is_rejected():
-    values = dict(
-        database_url="mysql+asyncmy://u:p@localhost/veriq_test",
-        public_url="https://veriq.example.com",
-        master_key="a" * 64,
-        signing_key="b" * 64,
-    )
-    with pytest.raises(ValidationError):
-        Settings(**values, smtp_host="smtp.example.com")
-    with pytest.raises(ValidationError):
+    """
+    直接校验生产邮件设置的发件地址与成套选项，保留固定错误，并确认合法地址在启用加密时能够通过。
+    """
+    values = {
+        "database_url": "mysql+asyncmy://u:p@localhost/veriq_test",
+        "public_url": "https://veriq.example.com",
+        "master_key": "a" * 64,
+        "signing_key": "b" * 64,
+    }
+    for sender in (None, "", "invalid", "sender@example.com\r", "sender@example.com\n"):
+        with pytest.raises(ValidationError) as invalid:
+            Settings(**values, smtp_host="smtp.example.com", smtp_from=sender)
+        assert (
+            invalid.value.errors()[0]["msg"] == "Value error, SMTP requires a valid sender address"
+        )
+    with pytest.raises(ValidationError, match="Production SMTP requires TLS"):
         Settings(
             **values,
             smtp_host="smtp.example.com",
             smtp_from="sender@example.com",
             smtp_security="none",
         )
-    with pytest.raises(ValidationError):
+    with pytest.raises(
+        ValidationError, match="SMTP username and password must be configured together"
+    ):
         Settings(
             **values,
             smtp_host="smtp.example.com",
             smtp_from="sender@example.com",
             smtp_username="user",
         )
+    with pytest.raises(ValidationError, match="SMTP host is required when delivery is configured"):
+        Settings(**values, smtp_from="sender@example.com")
+    valid = Settings(
+        **values,
+        smtp_host="smtp.example.com",
+        smtp_from="sender@example.com",
+        smtp_security="tls",
+    )
+    assert valid.smtp_from == "sender@example.com" and valid.smtp_security == "tls"
+
+
+def test_resolve_settings_reads_every_declared_environment_field(tmp_path, monkeypatch):
+    """
+    以模型公开字段集合核对原始配置合并行为，覆盖结构化环境值、未知环境键和只读输入文件。
+    """
+    path = tmp_path / "all-fields.json"
+    original = b'{"port":8001,"public_url":"https://file.example.com"}\n'
+    path.write_bytes(original)
+    expected = {key: f"from-env-{key}" for key in dict(Settings.model_fields)}
+    expected["previous_master_keys"] = {"older": "raw-key"}
+    expected["ai_allowed_base_urls"] = ["https://allowed.example.com"]
+    for key, value in expected.items():
+        monkeypatch.setenv(
+            "VERIQ_" + key.upper(), value if isinstance(value, str) else json.dumps(value)
+        )
+    monkeypatch.setenv("VERIQ_UNKNOWN_SETTINGS_FIELD", "ignored")
+    actual = veriq_server.settings.resolve_settings_values(path, {"port": 8003, "public_url": None})
+    assert actual == {**expected, "port": 8003}
+    assert path.read_bytes() == original
 
 
 @pytest.mark.parametrize("resumed", [False, True])

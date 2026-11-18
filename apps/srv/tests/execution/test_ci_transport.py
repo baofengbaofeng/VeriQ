@@ -2,14 +2,19 @@
 该协议测试不代替真实服务账号、已发布套件和 Agent 的组合验收。
 """
 
+import contextlib
+import http.client
+import http.server
 import json
 import os
 import subprocess
+import sys
 import threading
 import time
-import pytest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from uuid import uuid4
+
+import pytest
 
 
 def test_ci_never_reports_success_when_last_junit_observes_a_failed_gate(tmp_path):
@@ -227,3 +232,121 @@ def test_ci_absolute_deadline_covers_terminal_download_and_trigger_retries(tmp_p
         server.shutdown()
         server.server_close()
         worker.join(timeout=2)
+
+
+@contextlib.contextmanager
+def _status_listener(handler):
+    """
+    在独立回环端口逐个处理请求，退出时等待服务线程结束，让后续断言能观察已经排空的请求记录。
+    """
+    with http.server.HTTPServer(("127.0.0.1", 0), handler) as server:
+        worker = threading.Thread(target=server.serve_forever, daemon=True)
+        worker.start()
+        try:
+            yield server
+        finally:
+            server.shutdown()
+            worker.join(timeout=2)
+            assert not worker.is_alive()
+
+
+@pytest.mark.parametrize(
+    ("status", "attempts"), [(301, 1), (302, 1), (303, 1), (307, 1), (308, 1), (403, 1), (503, 3)]
+)
+def test_ci_retains_trigger_request_across_http_status_retries(tmp_path, status, attempts):
+    """
+    让真实脚本向回环服务触发计划，直接拒绝跳转和客户端错误，并用相同正文与幂等键重试服务端错误。
+    """
+    trigger_requests = []
+    redirect_requests = []
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        """
+        两个来源共用同一个响应处理器，分别记录触发正文与改向访问，目标端口也接受独立的正向探测。
+        """
+
+        def log_message(self, format, *args):
+            """
+            访问记录保存在测试列表供断言，关闭默认日志可避免输出临时来源地址和夹具的完整请求路径。
+            """
+            # 日志回调的格式及参数仅用于默认输出，协议断言读取保存的请求事实，因此此处不使用这些入参。
+            del format, args
+
+        def _respond(self):
+            """
+            对触发请求保存原始字节与请求头并返回指定状态，另一个来源记录目标收到的 GET 和 POST 请求。
+            """
+            if self.server is redirect:
+                redirect_requests.append((self.command, self.path))
+                self.send_response(204)
+            else:
+                trigger_requests.append(
+                    (
+                        self.command,
+                        self.path,
+                        self.headers.get("Idempotency-Key"),
+                        self.rfile.read(int(self.headers.get("Content-Length", "0"))),
+                    )
+                )
+                self.send_response(status)
+                if status < 400:
+                    self.send_header(
+                        "Location", f"http://127.0.0.1:{redirect.server_port}/redirect"
+                    )
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+        do_GET = _respond
+        do_POST = _respond
+
+    workspace, plan, key = (str(uuid4()) for _ in range(3))
+    token = "synthetic-http-status-token"
+    with _status_listener(Handler) as redirect, _status_listener(Handler) as trigger:
+        target = http.client.HTTPConnection("127.0.0.1", redirect.server_port, timeout=2)
+        try:
+            target.request("GET", "/positive")
+            with target.getresponse() as response:
+                assert response.status == 204
+        finally:
+            target.close()
+        process = subprocess.run(
+            [
+                sys.executable,
+                "scripts/veriq_ci.py",
+                "--server",
+                f"http://127.0.0.1:{trigger.server_port}",
+                "--workspace",
+                workspace,
+                "--plan",
+                plan,
+                "--key",
+                key,
+                "--build-sha",
+                "f" * 40,
+                "--junit",
+                str(tmp_path / "rejected.xml"),
+            ],
+            env={**os.environ, "VERIQ_CI_TOKEN": token, "no_proxy": "127.0.0.1"},
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+
+    assert redirect_requests == [("GET", "/positive")]
+    assert process.returncode == 2
+    assert token not in process.stderr
+    assert process.stderr == f"VeriQ HTTP request failed ({status}); gate failed\n"
+    assert not (tmp_path / "rejected.xml").exists()
+    assert (
+        trigger_requests
+        == [
+            (
+                "POST",
+                f"/api/v1/workspaces/{workspace}/execution-plans/{plan}/trigger",
+                key,
+                b'{"buildSha": "' + b"f" * 40 + b'"}',
+            )
+        ]
+        * attempts
+    )

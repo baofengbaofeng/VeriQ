@@ -1,3 +1,4 @@
+import hashlib
 import json
 from uuid import uuid4
 from sqlalchemy import select
@@ -5,6 +6,7 @@ from test_auth import setup, login
 from test_workspace import workspace
 from test_publish import create, publish
 from test_lease_mysql import device
+import veriq_server.db
 from veriq_server.db import Job, Artifact, CaseExecution
 
 
@@ -76,7 +78,85 @@ async def environment(c, db, ws, with_fixture=False):
     return await published(c, db, ws, "env", "ENVIRONMENT", doc)
 
 
+def _resource_lock(*parts: str) -> str:
+    """
+    以标准库为固定字符串数组生成紧凑的 UTF-8 正文及摘要，独立核对任务持久化的资源锁标识。
+    """
+    raw = json.dumps(parts, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
+
+
+async def _snapshot(session, ws, job):
+    """
+    用请求指定的工作空间与任务内容摘要读取快照原件，分别核对任务及冻结数据所属的工作空间。
+    """
+    assert job.workspace_id == ws
+    frozen = json.loads((await session.get(Artifact, (ws, job.snapshot_hash))).content)
+    assert frozen["workspaceId"] == ws
+    return frozen
+
+
+async def _assert_dataset_snapshots(session, ws, env, datasets, run_id):
+    """
+    根据提交套件的条目顺序确定预期数据集和行值，逐一核对执行来源、冻结快照及数据资源锁。
+    """
+    jobs = (await session.execute(select(Job).where(Job.run_id == run_id))).scalars().all()
+    assert len(jobs) == 2
+    executions = (
+        (await session.execute(select(CaseExecution).where(CaseExecution.run_id == run_id)))
+        .scalars()
+        .all()
+    )
+    assert {e.provenance["datasetVersionId"] for e in executions} == set(datasets)
+    assert {e.provenance["suiteEntryIndex"] for e in executions} == {0, 1}
+    environment_version = await session.get(veriq_server.db.ResourceVersion, env)
+    versions = [
+        await session.get(veriq_server.db.ResourceVersion, dataset_id) for dataset_id in datasets
+    ]
+    assert versions[0].resource_id != versions[1].resource_id
+    by_id = {execution.id: execution for execution in executions}
+    assert {job.case_execution_id for job in jobs} == set(by_id)
+    for job in jobs:
+        execution = by_id[job.case_execution_id]
+        index = execution.provenance["suiteEntryIndex"]
+        dataset_id = datasets[index]
+        assert execution.provenance["datasetVersionId"] == dataset_id
+        frozen = await _snapshot(session, ws, job)
+        assert execution.provenance["rowKey"] == "same"
+        assert frozen["caseExecutionId"] == execution.id
+        assert frozen["datasetVersionId"] == dataset_id
+        assert frozen["dataRow"] == {"key": "same", "values": {"value": ("A", "B")[index]}}
+        assert frozen["variables"] == {"initial": "frozen input"} and frozen["authAdapters"]
+        assert "synthetic-business-secret" not in json.dumps(frozen)
+        assert job.required_capabilities["resourceKeys"] == [
+            _resource_lock("identity", environment_version.resource_id, "business", "reader"),
+            _resource_lock("data", versions[index].resource_id, "same"),
+        ]
+
+
+async def _assert_data_free_snapshot(session, ws, run_id, env):
+    """
+    从调试运行的持久化记录读取执行与快照，确认空数据行只保留空来源键且不增加数据资源锁。
+    """
+    execution = (
+        await session.execute(select(CaseExecution).where(CaseExecution.run_id == run_id))
+    ).scalar_one()
+    job = (await session.execute(select(Job).where(Job.run_id == run_id))).scalar_one()
+    environment_version = await session.get(veriq_server.db.ResourceVersion, env)
+    frozen = await _snapshot(session, ws, job)
+    assert execution.provenance["rowKey"] is None
+    assert execution.provenance["datasetVersionId"] is None
+    assert frozen["caseExecutionId"] == execution.id
+    assert "dataRow" not in frozen and "datasetVersionId" not in frozen
+    assert job.required_capabilities["resourceKeys"] == [
+        _resource_lock("identity", environment_version.resource_id, "business", "reader"),
+    ]
+
+
 async def test_suite_matrix_preserves_dataset_row_provenance_and_frozen_variables(site):
+    """
+    经真实运行入口验证跨数据集矩阵、冻结输入及资源锁，并保留同一运行的幂等和容量控制断言。
+    """
     c, db = site
     await setup(c)
     await login(c)
@@ -158,20 +238,7 @@ async def test_suite_matrix_preserves_dataset_row_provenance_and_frozen_variable
         "data"
     ] == run
     async with db.sessions() as session:
-        jobs = (await session.execute(select(Job).where(Job.run_id == run["id"]))).scalars().all()
-        assert len(jobs) == 2
-        executions = (
-            (await session.execute(select(CaseExecution).where(CaseExecution.run_id == run["id"])))
-            .scalars()
-            .all()
-        )
-        assert {e.provenance["datasetVersionId"] for e in executions} == set(datasets)
-        assert {e.provenance["suiteEntryIndex"] for e in executions} == {0, 1}
-        snapshots = [
-            json.loads((await session.get(Artifact, (ws, j.snapshot_hash))).content) for j in jobs
-        ]
-        assert all(s["variables"] == data["variables"] and s["authAdapters"] for s in snapshots)
-        assert all("synthetic-business-secret" not in json.dumps(s) for s in snapshots)
+        await _assert_dataset_snapshots(session, ws, env, datasets, run["id"])
     empty = {k: v for k, v in data.items() if k != "suiteVersionId"}
     empty["caseVersionIds"] = []
     zero = await c.post(endpoint, json=empty, headers={"Idempotency-Key": str(uuid4())})
@@ -198,6 +265,9 @@ async def test_suite_matrix_preserves_dataset_row_provenance_and_frozen_variable
 
 
 async def test_debug_candidate_waits_for_validation_without_fabricating_published_version(site):
+    """
+    调试运行先冻结不含数据行的候选快照，仍须经原验证任务完成后才能领取，且不生成发布版本。
+    """
     from test_publish import create, queue, completed
     from test_lease_mysql import auth, claim_body
     from veriq_server.db import ResourceVersion
@@ -251,6 +321,7 @@ async def test_debug_candidate_waits_for_validation_without_fabricating_publishe
     assert admitted.json()["data"]["triggerKind"] == "DEBUG"
     async with db.sessions() as session:
         assert await session.get(ResourceVersion, preview["candidateVersionId"]) is None
+        await _assert_data_free_snapshot(session, ws, admitted.json()["data"]["id"], env)
     assert (
         await c.post("/internal/v1/jobs/claim", json=claim_body(d), headers=auth(d))
     ).status_code == 204

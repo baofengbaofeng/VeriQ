@@ -383,7 +383,11 @@ class RunService:
                                 resource_keys.append(
                                     sha256(
                                         canonical_bytes(
-                                            ["data", assets[dataset_id]["resourceId"], row["key"]]
+                                            [
+                                                "data",
+                                                assets[dataset_id]["resourceId"],
+                                                provenance["rowKey"],
+                                            ]
                                         )
                                     ).hexdigest()
                                 )
