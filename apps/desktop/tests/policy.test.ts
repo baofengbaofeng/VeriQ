@@ -160,3 +160,46 @@ test("HTTP dataset previews stay within the selected workspace and reject creden
     const bad = { ...httpDataset, source: { ...httpDataset.source, auth: { kind: "BEARER", value: "fixture" } } };
     assert.throws(() => resolveOperation({ ...item, data: { document: bad, arguments: {} } }, workspaceId));
 });
+
+test("updateDraft accepts CASE HTTP source arguments with a bound value", () => {
+    const workspaceId = "00000000-0000-4000-8000-000000000001";
+    const resourceId = "00000000-0000-4000-8000-000000000002";
+    const query = { alias: "remote", op: "field", key: "one", field: "label", parameters: { search: "{{data.name}}" } };
+    const data = {
+        revision: 1,
+        content: {
+            kind: "CASE",
+            document: {
+                schemaVersion: "1.0",
+                caseKey: "lookup",
+                title: "Lookup",
+                kind: "READ",
+                roleKey: "reader",
+                catalogVersionId: resourceId,
+                datasetBindings: { remote: resourceId },
+                steps: [
+                    {
+                        id: "home",
+                        action: "goto",
+                        path: "/",
+                        afterAssertions: [
+                            {
+                                id: "match",
+                                type: "url",
+                                source: "page",
+                                operator: "contains",
+                                severity: "WARN",
+                                expectedSource: "catalog",
+                                datasetExpected: query,
+                            },
+                        ],
+                    },
+                ],
+            },
+        },
+    };
+    assert.deepEqual(
+        resolveOperation({ operation: "updateDraft", params: { workspaceId, resourceId }, data }, workspaceId).data,
+        data,
+    );
+});

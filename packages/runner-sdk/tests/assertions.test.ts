@@ -540,3 +540,32 @@ it.each(["DATASET_REQUEST_TIMEOUT", "DATASET_UPSTREAM_REJECTED", "DATASET_PAGINA
         ctx.dispose();
     },
 );
+
+it.each(["WARN", "BLOCK"] as const)("reports a pre-sampling deadline as ERROR for %s", async (severity) => {
+    const { runAssertion } = await import("../src/assertions/http.js");
+    const ctx = createStepContext({ ...f.options, datasetProtected: true });
+    const assertion = a({
+        type: "url",
+        source: "page",
+        operator: "contains",
+        severity,
+        datasetExpected: { alias: "remote", op: "field", key: "one", field: "label" },
+    });
+    const item = step({ id: "home", action: "goto", path: "/" }, [], [assertion]).after[0]!;
+    try {
+        const result = await runAssertion(item, { ...ctx, deadline: Date.now() - 1 });
+        expect(result).toMatchObject({
+            status: "ERROR",
+            errorCode: "BUSINESS_TIMEOUT",
+            expected: null,
+            actual: { present: false },
+            severity,
+        });
+        expect(result).not.toHaveProperty("sample");
+        const cancelled = new AbortController();
+        cancelled.abort();
+        await expect(runAssertion(item, { ...ctx, signal: cancelled.signal })).rejects.toThrow("CANCELLED");
+    } finally {
+        ctx.dispose();
+    }
+});

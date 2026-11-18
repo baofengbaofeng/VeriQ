@@ -75,7 +75,7 @@ export async function runAssertion(
         expected: JsonValue = "expected" in a ? a.expected : null,
         ctx = outer;
     let sample: import("@veriq/contracts").HttpDatasetSample | undefined;
-    let queryError = false;
+    let queryError = "datasetExpected" in a;
     let errorCode: string | undefined;
     try {
         budget(ctx, 1);
@@ -86,7 +86,6 @@ export async function runAssertion(
             ctx = { ...ctx, page: await interruptible(ctx, () => page) };
         }
         if ("datasetExpected" in a) {
-            queryError = true;
             if (!ctx.datasets) throw new Error("DATASET_RESOLVER_REQUIRED");
             expected = await interruptible(ctx, () =>
                 ctx.datasets!.read(

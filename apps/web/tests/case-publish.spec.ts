@@ -1785,6 +1785,9 @@ test("edits and previews HTTP datasets", async ({ page }) => {
     await expect(editor.getByLabel("Query value").nth(0)).toHaveValue("first");
     await closeResourceEditor(page);
     await page.getByLabel("Workspace").selectOption(scope.workspaceId);
+    const local = await publishWriterDataset(page, scope);
+    await page.reload();
+    await page.getByLabel("Workspace").selectOption(scope.workspaceId);
     await createResource(page, "CASE", "http-source-arguments");
     const remoteId = (await pub.json()).data.id;
     await applyDocument(page, {
@@ -1838,4 +1841,13 @@ test("edits and previews HTTP datasets", async ({ page }) => {
             },
         ],
     });
+    await page
+        .getByRole("group", { name: "Named datasets" })
+        .getByRole("combobox", { name: "remote", exact: true })
+        .selectOption(local.id);
+    const rebound = (await saveDraft(page)).content;
+    if (rebound.kind !== "CASE") throw new Error("Expected CASE");
+    const reboundAssertion = rebound.document.steps[0]!.afterAssertions![0]!;
+    expect(reboundAssertion).toHaveProperty("datasetExpected.alias", "remote");
+    expect(reboundAssertion).not.toHaveProperty("datasetExpected.parameters");
 });

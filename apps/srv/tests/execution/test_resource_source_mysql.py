@@ -447,9 +447,47 @@ async def test_static_fetch_is_scoped_to_attempt_fence_and_version(site):
     assert (await c.post(path, json=selection, headers=headers)).status_code == 401
 
 
+@pytest.fixture
+async def dataset_wire(monkeypatch):
+    """真实回环服务器按线上的路径记录每一笔请求，测试只替换部署目标套接字，继续使用 HTTPX 完整收发响应。"""
+    from veriq_server.datasets import request
+
+    calls = []
+    state = {}
+
+    async def serve(reader, writer):
+        try:
+            head = await reader.readuntil(b"\r\n\r\n")
+            method, target, _ = head.split(b"\r\n", 1)[0].split()
+            assert method == b"GET"
+            calls.append(target)
+            body = json.dumps(state["read"](target)).encode()
+            writer.write(
+                b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\nContent-Length: "
+                + str(len(body)).encode()
+                + b"\r\n\r\n"
+                + body
+            )
+            await writer.drain()
+        finally:
+            writer.close()
+            await writer.wait_closed()
+
+    async with await asyncio.start_server(serve, "127.0.0.1", 0) as server:
+        port = server.sockets[0].getsockname()[1]
+
+        class Loopback(httpx.AsyncHTTPTransport):
+            async def handle_async_request(self, req):
+                req.url = req.url.copy_with(scheme="http", host="127.0.0.1", port=port)
+                return await super().handle_async_request(req)
+
+        monkeypatch.setattr(request, "open_transport", Loopback)
+        yield calls, state
+
+
 @pytest.mark.parametrize("live", [False, True], ids=["static", "http"])
 async def test_legacy_published_dataset_revalidation_uses_frozen_original(
-    site, business, dataset_deployment, monkeypatch, live
+    site, business, dataset_deployment, dataset_wire, live
 ):
     from uuid import uuid4
     from sqlalchemy import select
@@ -550,10 +588,10 @@ async def test_legacy_published_dataset_revalidation_uses_frozen_original(
     }
     editor = await new_member(c, ws, "previous-publisher@example.com", "ADMIN")
     executor_id = await new_member(c, ws, "current-executor@example.com", "EXECUTOR")
-    http_calls = []
+    http_calls, wire = dataset_wire
+    phase_targets = [b"/items?q=first&q=", b"/items?q=first&q=", b"/items?q=second&q="]
     if live:
         from test_http_datasets import config, connection, REF
-        from veriq_server.datasets import request
 
         actor = (await c.get("/api/v1/account")).json()["data"]["id"]
         remote = config()
@@ -585,23 +623,38 @@ async def test_legacy_published_dataset_revalidation_uses_frozen_original(
             }
         )
 
-        def upstream(req):
-            http_calls.append(req.url.raw_path)
-            return httpx.Response(
-                200,
-                stream=httpx.ByteStream(
-                    json.dumps(
-                        {
-                            "items": [
-                                {"id": "first", "name": marker},
-                                {"id": "unused", "name": payload},
-                            ]
-                        }
-                    ).encode()
-                ),
-            )
+        primary = checks[-1]
 
-        monkeypatch.setattr(request, "open_transport", lambda: httpx.MockTransport(upstream))
+        def sampled(name, key, search):
+            return {
+                **primary,
+                "id": name,
+                "datasetExpected": {
+                    **primary["datasetExpected"],
+                    "key": key,
+                    "parameters": {"search": search},
+                },
+            }
+
+        document["steps"][0]["beforeAssertions"] = [
+            sampled("preA", "common", "{{data.lookup}}"),
+            sampled("preB", "common", "{{data.lookup}}"),
+        ]
+        checks.extend(
+            [sampled("repeat", "first", "{{data.lookup}}"), sampled("different", "first", "second")]
+        )
+
+        def response(target):
+            transient = wire.get("mismatch") and target == phase_targets[-1]
+            return {
+                "items": [
+                    {"id": "first", "name": "missing-on-first-attempt" if transient else marker},
+                    {"id": "common", "name": ":"},
+                    {"id": "unused", "name": payload},
+                ]
+            }
+
+        wire["read"] = response
     case_path = await create(c, ws, "legacy", {"kind": "CASE", "document": document})
     async with client(c, "previous-publisher@example.com") as publisher:
         version, original_receipt, original = await publish(publisher, db, case_path)
@@ -835,20 +888,27 @@ async def test_legacy_published_dataset_revalidation_uses_frozen_original(
             assert marker not in json.dumps(events)
             assert {entry["kind"] for entry in uploads} == {"MANIFEST"}
             assertions = [event for event in events if event["type"] == "ASSERTION_RESULT"]
-            assert len(assertions) == (3 if live else 2) and all(
+            assert len(assertions) == (7 if live else 2) and all(
                 event["payload"]["status"] == "PASSED" for event in assertions
             )
             assert all(event["payload"]["actual"] == {"present": False} for event in assertions)
-            assert assertions[0]["payload"]["expectedSource"] == "CASE"
+            static = [e for e in assertions if "sample" not in e["payload"]]
+            assert len(static) == 2
+            assert static[0]["payload"]["expectedSource"] == "CASE"
             assert all("Published CAST" not in json.dumps(event) for event in assertions)
-            assert dataset_version["id"] in assertions[1]["payload"]["expectedSource"]
+            assert dataset_version["id"] in static[1]["payload"]["expectedSource"]
             if live:
-                assert http_calls == [b"/items?q=first&q="]
+                assert http_calls == phase_targets
                 remote_payload = assertions[-1]["payload"]
                 assert remote_payload["expectedSource"] == "DATASET:" + live_id
                 assert remote_payload["sample"]["sourceVersionId"] == live_id
                 assert set(remote_payload["sample"]) == {"sourceVersionId", "fetchedAt"}
-                assert all("sample" not in event["payload"] for event in assertions[:-1])
+                times = [
+                    e["payload"]["sample"]["fetchedAt"]
+                    for e in assertions
+                    if "sample" in e["payload"]
+                ]
+                assert len(times) == 5 and times[0] == times[1] and times[2] == times[3]
                 history = await c.get(f"/api/v1/workspaces/{ws}/attempts/{attempt.id}/history")
                 assert history.status_code == 200, history.text
                 reported = history.json()["data"]
@@ -863,7 +923,9 @@ async def test_legacy_published_dataset_revalidation_uses_frozen_original(
         # 相同执行主体随后再次运行同一发布版本，应复用已经成功的独立验证，不能改写回执或重复创建验证任务。
         async with client(c, "current-executor@example.com") as executor:
             rerun = await executor.post(
-                endpoint, headers={"Idempotency-Key": str(uuid4())}, json=selection
+                endpoint,
+                headers={"Idempotency-Key": str(uuid4())},
+                json={**selection, "maxRetries": 1 if live else 0},
             )
             assert rerun.status_code == 202, rerun.text
         async with db.sessions() as session:
@@ -896,7 +958,10 @@ async def test_legacy_published_dataset_revalidation_uses_frozen_original(
                     continue
 
         # 目标网页已接收冻结值之后分别观察真实业务失败、心跳取消和宿主 SIGKILL；后者由新进程取得原生停止证明。
-        facts["echo_mode"] = "fail"
+        if live:
+            wire["mismatch"] = True
+        else:
+            facts["echo_mode"] = "fail"
         await finish(await launch())
         async with db.sessions() as session:
             failed = (
@@ -917,6 +982,27 @@ async def test_legacy_published_dataset_revalidation_uses_frozen_original(
                 and e["payload"]["errorCode"] == "ASSERTION_FAILED"
                 for e in failed_facts
             )
+        if live:
+            assert http_calls == phase_targets * 2
+            async with db.sessions() as session:
+                waiting = await session.get(Job, queued.id)
+                assert waiting.state == "QUEUED", failed.facts
+            wire["mismatch"] = False
+            await finish(await launch())
+            async with db.sessions() as session:
+                attempts = (
+                    await session.scalars(
+                        select(Attempt)
+                        .where(Attempt.job_id == queued.id)
+                        .order_by(Attempt.attempt_no)
+                    )
+                ).all()
+                assert [(a.attempt_no, a.outcome) for a in attempts] == [
+                    (1, "FAILED"),
+                    (2, "PASSED"),
+                ]
+                assert attempts[0].id != attempts[1].id
+            assert http_calls == phase_targets * 3
         for end in ["cancel", "crash"]:
             facts["echo_mode"] = "hold"
             facts["echo_observed"].clear()
@@ -1109,18 +1195,17 @@ def test_protected_occurrences_expand_only_frozen_case_and_resolve_parameter_pro
     ]
 
 
-@pytest.mark.parametrize("historic", [True, False], ids=["old-queued", "current"])
-async def test_http_dataset_rechecks_access_before_delivery(
-    dataset_deployment, site, monkeypatch, historic
-):
+async def test_http_dataset_rechecks_access_before_delivery(dataset_deployment, site, monkeypatch):
     """在独立的回环上游收到请求后撤销真实凭证，证明交付前重新校验，同时观察未绑定版本与旧围栏不会发包。"""
     from uuid import uuid4
-    from test_http_datasets import REF, ENV, config, connection
-    from test_lease_mysql import auth, claim_body, queued_browser_jobs
+    from test_http_datasets import REF, config, connection
+    from test_lease_mysql import auth, claim_body
+    from test_runs_mysql import environment, published
+    from test_publish import create, queue, completed
     from veriq_server.auth.authorization import WorkspaceScope
-    from veriq_server.contracts import asset_source_hash, canonical_bytes
+    from veriq_server.services.connected_datasets import protected_event_context
     from veriq_server.datasets import request
-    from veriq_server.db import Job, CaseExecution
+    from veriq_server.db import Job, Attempt
     from veriq_server.repositories.resource import ResourceRepository
 
     c, db = site
@@ -1140,10 +1225,12 @@ async def test_http_dataset_rechecks_access_before_delivery(
     )
     assert secret.status_code == 201
     key = secret.json()["data"]["versionId"]
+    env = await environment(c, db, ws)
     deployment = connection()
     dataset_deployment[REF] = deployment.model_copy(
         update={
             "workspace_id": ws,
+            "environment_version_id": env,
             "user_ids": [actor],
             "credentials": {
                 "catalog": deployment.credentials["catalog"].model_copy(update={"version_id": key})
@@ -1151,6 +1238,7 @@ async def test_http_dataset_rechecks_access_before_delivery(
         }
     )
     doc = config()
+    doc["source"]["environmentVersionId"] = env
     doc["source"]["auth"]["secretVersionId"] = key
     doc["source"]["pagination"] = {
         "kind": "PAGE",
@@ -1158,57 +1246,85 @@ async def test_http_dataset_rechecks_access_before_delivery(
         "next": "/more",
         "maxPages": 1,
     }
-    vid, other = str(uuid4()), str(uuid4())
-    (jid,) = await queued_browser_jobs(c, db, ws, 1)
-    async with db.sessions.begin() as session:
-        repo = ResourceRepository(session, WorkspaceScope(ws))
-        job = await session.get(Job, jid)
-        case = await session.get(CaseExecution, job.case_execution_id)
-
-        def asset(kind, version, document):
-            content = {"kind": kind, "document": document}
-            return {
-                **content,
-                "versionId": version,
-                "resourceId": str(uuid4()),
-                "sha256": sha256(canonical_bytes(content)).hexdigest(),
-            }
-
-        case_doc = {"datasetBindings": {"named": vid}, "steps": []}
-        source = {
+    versions = [await published(c, db, ws, name, "DATASET", doc) for name in ("named", "other")]
+    catalog = await published(
+        c,
+        db,
+        ws,
+        "catalog",
+        "ELEMENT_CATALOG",
+        {
             "schemaVersion": "1.0",
-            "workspaceId": ws,
-            "engineVersion": "0.1.0",
-            "entryCaseVersionIds": [case.case_version_id],
-            "assets": [
-                asset("CASE", case.case_version_id, case_doc),
-                asset("DATASET", vid, doc),
-                asset("DATASET", other, doc),
-            ],
-        }
-        source["sourceHash"] = asset_source_hash(source)
-        case.source_snapshot_hash = await repo.store(canonical_bytes(source))
-        snapshot = {
-            "schemaVersion": "2.0",
-            "workspaceId": ws,
-            "caseExecutionId": case.id,
-            "runId": job.run_id,
-            "caseVersionId": case.case_version_id,
-            "assetSourceHash": source["sourceHash"],
-            "environmentVersionId": ENV,
-            "datasetBindings": {"named": vid},
-        }
-        job.snapshot_hash = await repo.store(canonical_bytes(snapshot))
-        job.manifest_hash = await repo.store(
-            canonical_bytes({"caseVersionId": case.case_version_id})
+            "elements": [{"key": "label", "locator": {"by": "veriqId", "value": "label"}}],
+        },
+    )
+    cases = []
+    for name, value in zip(("named", "other"), versions):
+        checks = [
+            {
+                "id": level.lower(),
+                "type": "url",
+                "operator": "contains",
+                "source": "page",
+                "expectedSource": "catalog",
+                "severity": level,
+                "datasetExpected": {
+                    "op": "field",
+                    "alias": name,
+                    "key": "one",
+                    "field": "label",
+                    "parameters": {"search": "one"},
+                },
+            }
+            for level in ("WARN", "BLOCK")
+        ]
+        cases.append(
+            await published(
+                c,
+                db,
+                ws,
+                name + "Case",
+                "CASE",
+                {
+                    "schemaVersion": "1.0",
+                    "caseKey": name,
+                    "title": name,
+                    "kind": "READ",
+                    "roleKey": "reader",
+                    "catalogVersionId": catalog,
+                    "datasetBindings": {name: value},
+                    "steps": [
+                        {"id": "home", "action": "goto", "path": "/", "afterAssertions": checks}
+                    ],
+                },
+            )
         )
-        job.required_capabilities = {
-            **job.required_capabilities,
-            "connectedDatasets": "2.0",
-            "environmentVersionId": ENV,
-        }
-        if not historic:
-            job.required_capabilities = {**job.required_capabilities, "httpDatasets": "1.0"}
+    suite = await create(
+        c,
+        ws,
+        "suite",
+        {
+            "kind": "SUITE",
+            "document": {"schemaVersion": "1.0", "cases": [{"versionId": case} for case in cases]},
+        },
+    )
+    preview, validate = await queue(c, suite)
+    receipt, _ = await completed(db, validate["id"], connected=True)
+    pub = await c.post(
+        suite + "/publish", json={"revision": preview["revision"], "validationReceiptId": receipt}
+    )
+    assert pub.status_code == 201, pub.text
+    selection = {
+        "suiteVersionId": pub.json()["data"]["id"],
+        "environmentVersionId": env,
+        "roleKeys": ["reader"],
+        "browsers": ["chromium"],
+        "runtimeIds": [d["runnerId"]],
+    }
+    submit = await c.post(
+        f"/api/v1/workspaces/{ws}/runs", headers={"Idempotency-Key": str(uuid4())}, json=selection
+    )
+    assert submit.status_code == 202, submit.text
     body = claim_body(d)
     body["capabilities"] = {**body["capabilities"], "connectedDatasets": "2.0"}
     old = await c.post("/internal/v1/jobs/claim", json=body, headers=auth(d))
@@ -1221,6 +1337,14 @@ async def test_http_dataset_rechecks_access_before_delivery(
     claimed = await c.post("/internal/v1/jobs/claim", json=body, headers=auth(d))
     assert claimed.status_code == 200, claimed.text
     claim = claimed.json()["data"]
+    jid = claim["jobId"]
+    async with db.sessions() as session:
+        job = await session.get(Job, jid)
+        attempt = await session.get(Attempt, claim["attemptId"])
+        repo = ResourceRepository(session, WorkspaceScope(ws))
+        ctx = await protected_event_context(repo, attempt, job)
+        vid = next(iter(ctx["httpAssertions"].values()))
+        other = next(v for v in versions if v != vid)
     base = f"/internal/v1/attempts/{claim['attemptId']}"
     headers = {
         **auth(d),
@@ -1266,6 +1390,44 @@ async def test_http_dataset_rechecks_access_before_delivery(
         await writer.drain()
         writer.close()
         await writer.wait_closed()
+
+    proof = {k: claim[k] for k in ("leaseToken", "fencingToken")}
+    deadline_events = [
+        {
+            "schemaVersion": "1.0",
+            "sequence": seq,
+            "attemptId": claim["attemptId"],
+            "timestamp": claim["serverTime"],
+            "type": "ASSERTION_RESULT",
+            "stepId": step,
+            "assertionId": assertion,
+            "payload": {
+                "expectedSource": "PROTECTED_CASE",
+                "status": "ERROR",
+                "severity": ctx["sources"][step, assertion][1],
+                "errorCode": "BUSINESS_TIMEOUT",
+                "durationMs": 0,
+                "expected": None,
+                "actual": {"present": False},
+            },
+        }
+        for seq, (step, assertion) in enumerate(ctx["httpAssertions"], 1)
+    ]
+    assert {e["payload"]["severity"] for e in deadline_events} == {"WARN", "BLOCK"}
+    events_url = base + "/events"
+    for event in deadline_events:
+        severity = event["payload"]["severity"]
+        for status in ("PASSED", "WARN" if severity == "WARN" else "FAILED"):
+            invalid = {**event, "sequence": 1, "payload": {**event["payload"], "status": status}}
+            rejected = await c.post(
+                events_url, headers=auth(d), json={**proof, "events": [invalid]}
+            )
+            assert (
+                rejected.status_code == 409
+                and rejected.json()["code"] == "DATASET_EVIDENCE_FORBIDDEN"
+            )
+    accepted = await c.post(events_url, headers=auth(d), json={**proof, "events": deadline_events})
+    assert accepted.status_code == 200, accepted.text
 
     async with await asyncio.start_server(upstream, "127.0.0.1", 0) as server:
         port = server.sockets[0].getsockname()[1]
@@ -1445,7 +1607,7 @@ async def test_old_http_projection_reuses_only_the_live_capable_revalidation():
 
 
 async def test_previously_projected_http_job_revalidates_its_immutable_bundle(
-    site, dataset_deployment
+    site, dataset_deployment, dataset_wire
 ):
     """复现旧式投影回执与已排队测试同时跨版本升级；新增运行及既有运行应共享同一份从冻结原稿生成的重验证。"""
     from uuid import uuid4
@@ -1536,15 +1698,36 @@ async def test_previously_projected_http_job_revalidates_its_immutable_bundle(
         assert response.status_code == 202, response.text
         return response.json()["data"]["id"]
 
-    prior = await submit()
+    from veriq_server.auth.authorization import WorkspaceScope
+    from veriq_server.repositories.resource import ResourceRepository
+    from veriq_server.contracts import canonical_bytes
+    from veriq_server.db import Attempt
+    from veriq_server.services.connected_datasets import frozen_object
+
+    malformed = [await submit(), await submit()]
+    prior, waiting = await submit(), await submit()
     async with db.sessions.begin() as session:
-        queued = (await session.execute(select(Job).where(Job.run_id == prior))).scalar_one()
-        assert "validationJobId" not in queued.required_capabilities
+        repo = ResourceRepository(session, WorkspaceScope(ws))
         original = await session.get(Job, validation["id"])
-        for job in (queued, original):
-            job.required_capabilities = {
-                k: v for k, v in job.required_capabilities.items() if k != "httpDatasets"
+        for rid in [*malformed, prior, waiting]:
+            queued = (await session.execute(select(Job).where(Job.run_id == rid))).scalar_one()
+            assert "validationJobId" not in queued.required_capabilities
+            queued.required_capabilities = {
+                k: v for k, v in queued.required_capabilities.items() if k != "httpDatasets"
             }
+            manifest = await frozen_object(repo, queued.manifest_hash)
+            if rid != prior:
+                manifest.pop("compiledBundleSha256")
+            if rid in (malformed[1], waiting):
+                queued.required_capabilities = {
+                    **queued.required_capabilities,
+                    "validationJobId": original.id,
+                }
+                manifest["pendingValidationJobId"] = original.id if rid == waiting else str(uuid4())
+            queued.manifest_hash = await repo.store(canonical_bytes(manifest))
+        original.required_capabilities = {
+            k: v for k, v in original.required_capabilities.items() if k != "httpDatasets"
+        }
         retained = (await session.get(ValidationReceipt, receipt)).compiled_bundle_sha256
     later = await submit()
     body = claim_body(d)
@@ -1559,11 +1742,31 @@ async def test_previously_projected_http_job_revalidates_its_immutable_bundle(
     assert claimed["jobKind"] == "VALIDATE" and claimed["jobId"] != validation["id"]
     async with db.sessions() as session:
         jobs = (
-            (await session.execute(select(Job).where(Job.run_id.in_([prior, later]))))
+            (await session.execute(select(Job).where(Job.run_id.in_([prior, waiting, later]))))
             .scalars()
             .all()
         )
-        assert len(jobs) == 2
+        assert len(jobs) == 3
+        broken = (await session.scalars(select(Job).where(Job.run_id.in_(malformed)))).all()
+        assert len(broken) == 2 and all(
+            j.state == "FINISHED" and j.outcome == "ERROR" for j in broken
+        )
+        assert not (
+            await session.scalars(select(Attempt).where(Attempt.job_id.in_([j.id for j in broken])))
+        ).all()
         assert all(j.required_capabilities.get("validationJobId") == claimed["jobId"] for j in jobs)
         assert all(j.required_capabilities.get("httpDatasets") == "1.0" for j in jobs)
         assert (await session.get(ValidationReceipt, receipt)).compiled_bundle_sha256 == retained
+    headers = {
+        **auth(d),
+        "X-VeriQ-Lease-Token": claimed["leaseToken"],
+        "X-VeriQ-Fencing-Token": str(claimed["fencingToken"]),
+    }
+    for rejected in broken:
+        response = await c.post(
+            f"/internal/v1/attempts/{rejected.id}/datasets/http",
+            headers=headers,
+            json={"versionId": vid, "parameters": {"search": "one"}},
+        )
+        assert response.status_code == 403
+    assert dataset_wire[0] == []

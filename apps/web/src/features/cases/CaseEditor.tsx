@@ -5,8 +5,9 @@
  */
 
 import { useState } from "react";
+import { useFormContext } from "react-hook-form";
 import { tx, useAppLocale } from "../../locale";
-import type { StepV1, ObserverV1 } from "@veriq/contracts";
+import type { CaseDslV1, StepV1, ObserverV1 } from "@veriq/contracts";
 import {
     Field,
     JsonField,
@@ -30,7 +31,33 @@ function DatasetBindingsEditor({ versions }: { versions: VersionOption[] }) {
     const [alias, setAlias] = useState("");
     const [version, setVersion] = useState("");
     const set = useSet();
+    const { getValues } = useFormContext<{ content: { document: CaseDslV1 } }>();
     const datasets = versions.filter((v) => v.kind === "DATASET");
+    function bindVersion(name: string, id: string) {
+        const selected = datasets.find((v) => v.id === id)?.content;
+        if (
+            selected?.kind === "DATASET" &&
+            (selected.document.schemaVersion === "1.0" || selected.document.source.kind === "STATIC")
+        ) {
+            // 只清理本用例直接编写的断言，流程与模板来自不可变版本，控件不应改写引用资源或同名的其它参数。
+            const steps = getValues("content.document.steps") ?? [];
+            steps.forEach((step, index) => {
+                for (const phase of ["beforeAssertions", "afterAssertions"] as const) {
+                    step[phase]?.forEach((assertion, position) => {
+                        if (
+                            !("datasetExpected" in assertion) ||
+                            assertion.datasetExpected.alias !== name ||
+                            assertion.datasetExpected.parameters === undefined
+                        )
+                            return;
+                        const { parameters: _parameters, ...query } = assertion.datasetExpected;
+                        set(`content.document.steps.${index}.${phase}.${position}.datasetExpected`, query);
+                    });
+                }
+            });
+        }
+        set(path, { ...bindings, [name]: id });
+    }
     return (
         <fieldset>
             <legend>{tx("命名数据集 / Named datasets")}</legend>
@@ -38,7 +65,7 @@ function DatasetBindingsEditor({ versions }: { versions: VersionOption[] }) {
                 <div key={name}>
                     <label>
                         {name}
-                        <select value={id} onChange={(e) => set(path, { ...bindings, [name]: e.target.value })}>
+                        <select value={id} onChange={(e) => bindVersion(name, e.target.value)}>
                             {!datasets.some((v) => v.id === id) && <option value={id}>{id}</option>}
                             {datasets.map((v) => (
                                 <option key={v.id} value={v.id}>
@@ -76,7 +103,7 @@ function DatasetBindingsEditor({ versions }: { versions: VersionOption[] }) {
                 type="button"
                 disabled={!version || !/^[A-Za-z_][A-Za-z0-9_.-]{0,159}$/.test(alias) || Object.hasOwn(bindings, alias)}
                 onClick={() => {
-                    set(path, { ...bindings, [alias]: version });
+                    bindVersion(alias, version);
                     setAlias("");
                     setVersion("");
                 }}

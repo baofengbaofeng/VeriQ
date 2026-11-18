@@ -564,25 +564,34 @@ async def upgrade_queued(repo: ResourceRepository, job: Job) -> bool:
             retained = await frozen_object(repo, digest)
             if needed := http_capabilities(retained):
                 caps = {**job.required_capabilities, **needed}
-                if job.kind == "TEST" and "validationJobId" not in caps:
+                if job.kind == "TEST":
+                    if (
+                        validate_schema("AssetSnapshotV1", retained)
+                        or retained["workspaceId"] != job.workspace_id
+                        or retained["engineVersion"] != caps.get("engineVersion")
+                        or asset_source_hash(retained) != retained["sourceHash"]
+                    ):
+                        raise Problem(
+                            409, "COMPILED_PROVENANCE_REQUIRED", "Invalid historical source"
+                        )
                     manifest = await frozen_object(repo, job.manifest_hash)
-                    if "compiledBundleSha256" in manifest:
-                        subject = await frozen_object(
-                            repo, job.snapshot_hash, "ConnectedExecutionSnapshotV2"
-                        )
-                        expected = {
-                            "schemaVersion": "1.0",
-                            "kind": job.kind,
-                            "workspaceId": job.workspace_id,
-                            "jobId": job.id,
-                            "engineVersion": caps.get("engineVersion"),
-                            "snapshotSha256": job.snapshot_hash,
-                        }
-                        dependency = await historical_test_validation(
-                            repo, job, retained, subject, manifest, expected
-                        )
+                    subject = await frozen_object(
+                        repo, job.snapshot_hash, "ConnectedExecutionSnapshotV2"
+                    )
+                    expected = {
+                        "schemaVersion": "1.0",
+                        "kind": job.kind,
+                        "workspaceId": job.workspace_id,
+                        "jobId": job.id,
+                        "engineVersion": caps.get("engineVersion"),
+                        "snapshotSha256": job.snapshot_hash,
+                    }
+                    dependency = await historical_test_validation(
+                        repo, job, retained, subject, manifest, expected
+                    )
+                    if "validationJobId" not in caps:
                         caps["validationJobId"] = manifest["pendingValidationJobId"] = dependency
-                        manifest.pop("compiledBundleSha256")
+                        del manifest["compiledBundleSha256"]
                         job.manifest_hash = await repo.store(canonical_bytes(manifest))
                 job.required_capabilities = caps
         return False
