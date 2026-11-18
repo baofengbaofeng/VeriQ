@@ -40,7 +40,7 @@
 | V06 | 示例全流程、前后端接入和手册可复现性                             | 未执行本轮代码验证                                                                                                               | [接入](tasks/V06-integration.md)            |
 | V07 | 实际 AI Provider、预算、usage/cost、审核与无模型执行             | 阻塞：需独立提供 endpoint/model/密钥配置和预算授权                                                                               | [Provider](tasks/V07-provider.md)           |
 | V08 | 正常前端→static/dist→Python wheel→离线安装→OCI 发行              | 未通过；不能以候选包替代正常成功包                                                                                               | [发行](tasks/V08-release.md)                |
-| V09 | 编码规范、全量测试、覆盖率、许可与SBOM                           | 4b6649b定向6E清零并复审；严格102服务/19工具0；最近全量1d78be4仍ratio null，全质量未过                                            | [质量](tasks/V09-quality.md)                |
+| V09 | 编码规范、全量测试、覆盖率、许可与SBOM                           | 68cda13计数修复及Fix1已复审；700支持/28阻断/164正文，ratio null，全质量未过                                                      | [质量](tasks/V09-quality.md)                |
 | V10 | 最终需求追踪、并发/故障/篡改和整分支独立复审                     | 待 V00–V09 及 V11 的适用条件满足                                                                                                 | [最终验收](tasks/V10-final-review.md)       |
 | V11 | Windows SQLite Claim 日志、本地保留期和未知进程保护              | Linux 既有回归 55 项、新增专项 12 项通过并复审；Windows 与完整 V11 未验收                                                        | [本地持久化](tasks/V11-local-durability.md) |
 
@@ -261,3 +261,13 @@ Pylint的23项原诊断逐条保持，预算local计数未增加，回调仍返�
 接手不要重新派发该六项错误。下一切片仅修改`scripts/comment_audit.py`与`tests/acceptance/test_comment_audit.py`，先用真实输入证明文档串同行代码、Python/TS换行坐标、纯分隔符及跨类型块首行的旧计数偏差，再保留已有节点运行四份完整注释验收。纯结束分隔符旁的代码只计代码；有真实正文与代码同行时两者各计。旧TS混合结束行的4/7断言应按同一原文纠正为3/(3+3)=1/2，不能为保留错误oracle掩盖分子。
 
 最新全量注释结果仍是历史`1d78be4`，不是本次提交实测：698支持/28阻断/162正文、C10560/K149080、ratio=null、passed=false。用户确认的全仓>40%MVP硬门禁、中文首正文40～120 Unicode、整物理行120显示列继续保留；其它目标平台、真实恢复/Provider、Runtime及正常发行均未因此验收。
+
+### 旧语言计数完成及最新交接锚点
+
+`68cda13` 已复审并提交 Python/TS 可信计数修复。文档串同行代码、各自语言换行、空分隔符与跨类型合并都有真实RED/GREEN；CLI同原文从错误通过C2/K1改为拒绝C1/K2，严格>40%不变。原356项保留，新45项加入后401项完整实跑通过（23.66秒）。Fix1仅测试类型/导入修正，生产SHA不变；最终188项实跑通过（24.30秒），401仅收集。不要重复401来替代仍未完成的MVP项或把旧测试SHA证据说成最终SHA实跑。
+
+四路径包括生产审计脚本、原验收、新legacy验收及共享支持模块。按职责拆分以守1000行限制、复用真实桥接/CLI调用消除复制，原参数/夹具字节/断言及I/O语义保留。独立规格和质量均通过，Fix1两项关闭，939保护一致。严格脚本19/最终测试支持3为0，Pylint只余继承locals18/15；脚本9与原测试44处Python引号布局仍须整改，不能由C风格块工具0推导Python布局通过。
+
+根最新全仓测量明确绑定68cda13：700支持、28阻断、164正文、C10594/K149576、ratio=null、coverageComplete=false、passed=false、退出1。观测支持子集6.61422%不表示全仓比例或MVP完成度。两个新增暴露的旧正文位置在apps/web/tests/contracts.spec.ts的Vite指令和tests/acceptance/test_comment_syntax.py的短说明；不得填充或撤销硬门禁，工具语法身份须按规则单独处理。
+
+接续优先核验正式发行Pylint的仓库源根：局部四路径需显式`PYTHONPATH=.:scripts`，正常`build_release.py`只显式补MYPYPATH，是否出现命名空间解析问题尚未实证。保持完整模块导入、原rcfile与扫描范围，不能降级检查来通过。另有8个服务文件14普通正文及模块头的只读预检，后续仅普通注释/模块首doc改写，以真实语义及AST/字符串保真验收。正常发行、原生平台、真实恢复/Provider、完整Runtime和全量质量继续保持独立任务，不视为已交付。
