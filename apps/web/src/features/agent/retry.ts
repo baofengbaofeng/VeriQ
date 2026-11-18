@@ -1,10 +1,21 @@
 /**
- * 对话响应丢失时跨重载只恢复请求身份。存储内容仅有 UUID 与意图摘要，不含消息正文、模型配置或员工凭证。
+ * 对话响应丢失时跨重载只恢复请求身份和已审阅的标识。存储没有消息正文、模型配置或员工凭证。
  */
 import type { AgentSchemas } from "./adapters";
 
 type Submission = AgentSchemas["AgentTurnSubmit"];
 const fallback = new Map<string, string>();
+const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+
+// 三段记录分别保存正文摘要、请求和原始目标，旧版两段记录不具备足够信息来推断唯一确认目标。
+function retryRecord(raw?: string) {
+    const parts = raw?.split("/");
+    const [digest, requestId, target] = parts ?? [];
+    if (parts?.length !== 3 || !digest || !/^[0-9a-f]{64}$/.test(digest) || !requestId || !uuid.test(requestId))
+        return undefined;
+    if (target && !uuid.test(target)) return undefined;
+    return { digest, requestId, target: target || undefined };
+}
 
 // 只在当前标签页读取操作身份。受限存储模式仍能在当前渲染进程重用已发送的请求编号，切换工作区不会共用一条记录。
 function read(key: string): string | undefined {
@@ -28,29 +39,39 @@ function write(key: string, value?: string) {
 }
 
 /**
- * 原文及确认目标共同确定一次可重试意图。异步计算返回后检查当前会话仍拥有信号，避免切换后登记另一请求。
+ * 即使线程已出现不同动作，保存的原始确认仍可尝试重放；发送逻辑会再次核对精确正文摘要和作用域。
+ */
+export function hasPendingAgentConfirmation(key: string): boolean {
+    return !!retryRecord(read(key))?.target;
+}
+
+/**
+ * 同一未结算正文复用已登记的目标和请求编号，刷新出来的新提议只适用于新意图，不能替换原确认目标。
  */
 export async function agentSubmission(
     key: string,
     text: string,
-    expectedProposalId: string | undefined,
+    intent: { confirmation: boolean; expectedProposalId?: string },
     signal: AbortSignal,
 ): Promise<Submission> {
-    const encoded = new TextEncoder().encode(JSON.stringify([text, expectedProposalId ?? null]));
+    const encoded = new TextEncoder().encode(text);
     const bytes = new Uint8Array(await crypto.subtle.digest("SHA-256", encoded));
     const digest = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
     signal.throwIfAborted();
-    const previous = read(key);
-    const requestId = previous?.startsWith(digest + "/") ? previous.slice(65) : undefined;
-    const id =
-        requestId && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(requestId) ? requestId : crypto.randomUUID();
-    write(key, `${digest}/${id}`);
-    return { requestId: id, text, ...(expectedProposalId ? { expectedProposalId } : {}) };
+    const raw = read(key);
+    const stored = retryRecord(raw);
+    if (raw && !stored && intent.confirmation) throw new Error("AGENT_CONFIRM_RETRY_UNAVAILABLE");
+    const previous = stored?.digest === digest ? stored : undefined;
+    const target = previous ? previous.target : intent.expectedProposalId;
+    if (intent.confirmation && !target) throw new Error("AGENT_CONFIRM_TARGET_REQUIRED");
+    const requestId = previous?.requestId ?? crypto.randomUUID();
+    write(key, `${digest}/${requestId}/${target ?? ""}`);
+    return { requestId, text, ...(target ? { expectedProposalId: target } : {}) };
 }
 
 /**
  * 清除已知结算的请求，迟到结果须匹配现存编号，手工重试已失败轮次时则明确要求下一次重新生成编号。
  */
 export function clearAgentSubmission(key: string, requestId?: string) {
-    if (!requestId || read(key)?.endsWith("/" + requestId)) write(key);
+    if (!requestId || retryRecord(read(key))?.requestId === requestId) write(key);
 }

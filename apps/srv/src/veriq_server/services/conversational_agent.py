@@ -1,6 +1,7 @@
 """编排员工私有会话的模型调用及确定性确认，用短事务隔离付费网络等待，按保存的轮次围栏提交结果。"""
 
 import asyncio
+import re
 from datetime import timedelta
 from functools import cache
 from hashlib import sha256
@@ -51,6 +52,16 @@ REPORT_TERMS = (
     "状态",
     "报告",
 )
+EXPECTED_RESULTS = re.compile(r"\bexpected\s+(?:test\s+)?results?\b|预期结果")
+PLANNING_REQUEST = re.compile(
+    r"^(?:please\s+)?(?:plan|propose|draft|design|write|create|refine|rename|revise|update)\b"
+    r"|^(?:请)?(?:(?:给|为).{1,24})?(?:制定|拟定|设计|修改|调整|补充)"
+)
+REPORT_ACTION = re.compile(
+    r"\b(?:show|view|check|read|open|inspect|get|fetch)\s+"
+    r"(?:(?:me|the|current|actual|latest|run|test|its)\s+)*(?:status|progress|results?|reports?)\b"
+    r"|(?:查看|查询|打开|显示)(?:当前|最新|这次|该|本次)?(?:运行)?(?:状态|进度|结果|报告)"
+)
 SAVE = {"SAVE_PLAN"}
 RUN = {"RUN_ONCE", "TRIGGER_PLAN"}
 CONFIRM = {
@@ -65,6 +76,18 @@ CONFIRM = {
     "确认执行": RUN,
     "确认运行": RUN,
 }
+
+
+def _asks_for_report(text: str) -> bool:
+    """预期结果属于测试设计；明确的规划词不因报告主题而改变意图，但点名或明确读取运行报告仍走授权事实路径。"""
+    prompt = EXPECTED_RESULTS.sub("", text.casefold()).strip()
+    if not any(word in prompt for word in REPORT_TERMS):
+        return False
+    return bool(
+        not PLANNING_REQUEST.search(prompt)
+        or UUID_IN_TEXT.search(prompt)
+        or REPORT_ACTION.search(prompt)
+    )
 
 
 @cache
@@ -349,6 +372,40 @@ class ConversationalAgent(AgentSessionService):
             raise denied
         return result
 
+    async def _run_reply(self, s, scope, user, run_ids):
+        """回复仅使用当前授权的运行摘要，模型文本不能提供运行状态、结果或作为替代标识使用。"""
+        report = ReportService(s, user, self.ai.settings)
+        lines = []
+        for rid in run_ids:
+            summary = await run_summary(report, scope, rid)
+            lines.append(f"Run {rid} · {summary['state']} · {summary['outcome'] or '—'}")
+        return "\n".join(lines)
+
+    async def _requested_report(self, s, scope, user, prompt, available):
+        """先判断用户是否点名运行，再决定能否回退到唯一历史运行；未确认目标不产生报告链接或模型生成的结论。"""
+        chinese = any("\u4e00" <= character <= "\u9fff" for character in prompt)
+        unavailable = (
+            "无法核实指定运行。请核对运行 ID 和工作区访问权限。"
+            if chinese
+            else "I could not verify the requested Run. Check the Run ID and Workspace access."
+        )
+        requested = list(dict.fromkeys(rid.lower() for rid in UUID_IN_TEXT.findall(prompt)))
+        if requested and not set(requested) <= available:
+            return unavailable, None
+        if not requested and len(available) != 1:
+            return (
+                "要查看哪次运行？请提供运行 ID。"
+                if chinese
+                else "Which Run do you want to inspect? Include its Run ID."
+            ), None
+        run_ids = requested or list(available)
+        try:
+            return await self._run_reply(s, scope, user, run_ids), run_ids[0]
+        except Problem as problem:
+            if problem.status not in {403, 404, 410}:
+                raise
+            return unavailable, None
+
     async def _accept(self, s, scope, user, turn, output, context):
         """限制模型输出键并验证每个引用，取得当前报告事实后才一次赋值到轮次，任何中途拒绝都不会残留半份提议。"""
         canonical_bytes(output)
@@ -357,7 +414,24 @@ class ConversationalAgent(AgentSessionService):
             raise Problem(422, "AGENT_OUTPUT_INVALID", "Conversation reply is empty")
         proposal = None
         reply_text = output["reply"]
-        if "proposal" in output:
+        available = {r["runId"] for r in context["runs"]}
+        asks_for_report = _asks_for_report(turn.text)
+        report_text = None
+        if asks_for_report:
+            report_text, related = await self._requested_report(
+                s, scope, user, turn.text, available
+            )
+        else:
+            related = output.get("relatedRunId")
+            if related is not None and related not in available:
+                raise Problem(
+                    422,
+                    "AGENT_RUN_UNAVAILABLE",
+                    "The selected Run is outside this conversation context",
+                )
+            if related and "proposal" not in output:
+                report_text = await self._run_reply(s, scope, user, [related])
+        if "proposal" in output and (not asks_for_report or related):
             proposal = await proposal_preview(s, scope, user, output["proposal"], context)
             try:
                 await current_selection(s, scope, user, proposal)
@@ -366,33 +440,8 @@ class ConversationalAgent(AgentSessionService):
                     raise
                 # 选择属于本空间但无法展开任何执行变体时，仅展示覆盖缺口；不记录可以确认的空运行或计划。
                 proposal, reply_text = None, problem.message
-        available = {r["runId"] for r in context["runs"]}
-        related = output.get("relatedRunId")
-        if related is not None and related not in available:
-            raise Problem(
-                422,
-                "AGENT_RUN_UNAVAILABLE",
-                "The selected Run is outside this conversation context",
-            )
-        explicit = [
-            rid.lower() for rid in UUID_IN_TEXT.findall(turn.text) if rid.lower() in available
-        ]
-        asks_for_report = any(word in turn.text.casefold() for word in REPORT_TERMS)
-        report_ids = [related] if related and ("proposal" not in output or asks_for_report) else []
-        # 用户明确索取的报告取自真实运行，即使供应商同轮附有计划提议也不改变依据；仅引用运行的规划仍可继续细化。
-        if asks_for_report:
-            if explicit:
-                report_ids = list(dict.fromkeys(explicit))
-            elif not related and len(available) == 1:
-                report_ids = list(available)
-        if report_ids:
-            related = report_ids[0]
-            report = ReportService(s, user, self.ai.settings)
-            lines = []
-            for rid in report_ids:
-                summary = await run_summary(report, scope, rid)
-                lines.append(f"Run {rid} · {summary['state']} · {summary['outcome'] or '—'}")
-            reply_text = "\n".join(lines)
+        if report_text is not None:
+            reply_text = report_text
         dto = {**turn_dto(turn), "status": "COMPLETED", "reply": reply_text}
         if proposal:
             dto["proposal"] = proposal

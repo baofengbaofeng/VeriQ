@@ -25,7 +25,8 @@ from .agent_sessions import receipt_dto
 from .report import ReportService
 from .runtime import RuntimeService
 
-UUID_IN_TEXT = re.compile(r"\b[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\b", re.I)
+# 标识可直接邻接中文而不带空格，但不能从较长的英数标记中截出一个 UUID 当成用户指定的运行。
+UUID_IN_TEXT = re.compile(r"\b[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}\b", re.I | re.ASCII)
 PLAN_FIELDS = {
     "suiteVersionId",
     "environmentVersionId",

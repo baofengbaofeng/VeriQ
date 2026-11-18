@@ -8,7 +8,7 @@ import type { Workspace } from "../../api";
 import type { ReportAdapter } from "../reports/adapters";
 import type { AgentSchemas, CloudAgentAdapter } from "./adapters";
 import { useAgentLifetime } from "./lifetime";
-import { agentSubmission, clearAgentSubmission } from "./retry";
+import { agentSubmission, clearAgentSubmission, hasPendingAgentConfirmation } from "./retry";
 import { AgentError, agentProblem } from "./feedback";
 import { Proposal, ActionReceipt } from "./Proposal";
 import { RunCard, type ReportNavigation, type RunReference } from "./RunCard";
@@ -133,7 +133,8 @@ function Thread({
         (latest?.proposal?.type === "SAVE_PLAN"
             ? plan && (confirmAny.has(confirmationText) || confirmSave.has(confirmationText))
             : execute && (confirmAny.has(confirmationText) || confirmRun.has(confirmationText)));
-    const canSend = !!text.trim() && (isConfirmation ? mayConfirmText : plan);
+    const canRetryConfirmation = execute && hasPendingAgentConfirmation(retryKey);
+    const canSend = !!text.trim() && (isConfirmation ? mayConfirmText || canRetryConfirmation : plan);
     const busy = !!operation || running;
 
     // 从快照得知运行终态后重新分配实时订阅名额，不把报告读取成功或已排队的工作误作运行结束。
@@ -178,9 +179,14 @@ function Thread({
     function send(event: FormEvent) {
         event.preventDefault();
         if (!canSend || busy) return;
-        const target = isConfirmation ? latest?.id : undefined;
+        const expectedProposalId = isConfirmation && mayConfirmText ? latest?.id : undefined;
         void act("send", async () => {
-            const data = await agentSubmission(retryKey, text, target, signal);
+            const data = await agentSubmission(
+                retryKey,
+                text,
+                { confirmation: isConfirmation, expectedProposalId },
+                signal,
+            );
             const turn = await adapter.submit(id, data, signal);
             if (turn.status === "RUNNING") recovering.current = { id: turn.id, requestId: data.requestId };
             else clearAgentSubmission(retryKey, data.requestId);
@@ -286,27 +292,26 @@ function Thread({
             <AgentError error={error} />
             {operation === "send" && <p role="status">{tx("Submitting message…")}</p>}
             {operation === "confirm" && <p role="status">{tx("Confirming action…")}</p>}
-            {execute && (plan || (latest?.proposal && latest.proposal.type !== "SAVE_PLAN")) && (
-                <form className="vq-agent-composer" onSubmit={send}>
-                    <label>
-                        {tx("Message")}
-                        <textarea
-                            value={text}
-                            rows={3}
-                            maxLength={8_000}
-                            onChange={(event) => setText(event.target.value)}
-                            disabled={!!operation}
-                        />
-                    </label>
-                    {isConfirmation && !mayConfirmText && (
-                        <p>{tx("Review a matching proposal before confirming it.")}</p>
-                    )}
-                    {!plan && <p>{tx("You can confirm a run proposal here.")}</p>}
-                    <button type="submit" disabled={busy || !canSend}>
-                        {tx("Send")}
-                    </button>
-                </form>
-            )}
+            {execute &&
+                (plan || canRetryConfirmation || (latest?.proposal && latest.proposal.type !== "SAVE_PLAN")) && (
+                    <form className="vq-agent-composer" onSubmit={send}>
+                        <label>
+                            {tx("Message")}
+                            <textarea
+                                value={text}
+                                rows={3}
+                                maxLength={8_000}
+                                onChange={(event) => setText(event.target.value)}
+                                disabled={!!operation}
+                            />
+                        </label>
+                        {isConfirmation && !canSend && <p>{tx("Review a matching proposal before confirming it.")}</p>}
+                        {!plan && <p>{tx("You can confirm a run proposal here.")}</p>}
+                        <button type="submit" disabled={busy || !canSend}>
+                            {tx("Send")}
+                        </button>
+                    </form>
+                )}
         </article>
     );
 }

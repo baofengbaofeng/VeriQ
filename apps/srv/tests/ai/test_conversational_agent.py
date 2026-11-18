@@ -638,3 +638,78 @@ async def test_typed_confirmation_is_pinned_to_the_proposal_the_user_reviewed(si
         same_run = (await c.get(base)).json()["data"]["items"]
         assert [item["id"] for item in same_run] == [accepted["receipt"]["runId"]]
         assert len(model.calls) == 3
+
+
+async def test_report_request_without_context_never_invents_results(site):
+    """没有会话报告依据时只提示选择运行，即使供应商声称全部用例通过也不构造结果或链接。"""
+    c, _ = site
+    ws = await _scope(c)
+    async with emulator() as model:
+        path, _, _ = await conversation(c, ws, model)
+        model.output = {"reply": "All cases PASSED"}
+        empty = await submit(c, path, "What are the run results?")
+        assert empty["reply"] == "Which Run do you want to inspect? Include its Run ID."
+        assert "relatedRunId" not in empty
+
+
+async def test_report_request_never_substitutes_another_run_or_invents_results(site):
+    """确切的运行标识与无候选的状态问题都必须失败关闭，真实历史不能替换指定的运行，也不能补出模型声称的结果。"""
+    c, _, ws, _, plan = await plan_fixture(site)
+    base = f"/api/v1/workspaces/{ws}"
+    started = await c.post(
+        base + f"/execution-plans/{plan['id']}/trigger",
+        json={},
+        headers={"Idempotency-Key": str(uuid4())},
+    )
+    assert started.is_success, started.text
+    original = started.json()["data"]["runId"]
+    missing = str(uuid4())
+    async with emulator() as model:
+        path, _, _ = await conversation(c, ws, model)
+        model.output = {
+            "reply": "Exercise checkout and identify its acceptance criteria.",
+            "proposal": {
+                "type": "SAVE_PLAN",
+                "planId": plan["id"],
+                "plan": {"revision": plan["revision"], "name": "Next release smoke"},
+            },
+        }
+        for prompt in (
+            "Plan checkout tests and include expected results",
+            "给下次发布制定回归计划，列出预期结果",
+            "Draft a report export regression plan",
+        ):
+            coverage = await submit(c, path, prompt)
+            assert coverage["reply"] == model.output["reply"]
+            assert coverage["proposal"]["plan"]["name"] == "Next release smoke"
+            assert "relatedRunId" not in coverage
+        model.output = {"reply": "All cases PASSED"}
+        named = await submit(c, path, "Status of run " + original)
+        assert named["relatedRunId"] == original
+        model.output["relatedRunId"] = original
+        unavailable = await submit(c, path, "Status of run " + missing)
+        assert (
+            unavailable["reply"]
+            == "I could not verify the requested Run. Check the Run ID and Workspace access."
+        )
+        assert "relatedRunId" not in unavailable
+        text = await submit(c, path, f"查看运行{missing}的结果")
+        assert text["reply"] == "无法核实指定运行。请核对运行 ID 和工作区访问权限。"
+        assert "relatedRunId" not in text
+        model.output = {"reply": "Which scenarios should we cover next?"}
+        planning = await submit(c, path, "Propose follow-up coverage for " + missing)
+        assert planning["reply"] == model.output["reply"]
+        assert "relatedRunId" not in planning
+        second_start = await c.post(
+            base + f"/execution-plans/{plan['id']}/trigger",
+            json={},
+            headers={"Idempotency-Key": str(uuid4())},
+        )
+        assert second_start.is_success, second_start.text
+        second = second_start.json()["data"]["runId"]
+        model.output = {"reply": "Another Run PASSED", "relatedRunId": original}
+        second_report = await submit(c, path, "Report for " + second)
+        assert second_report["relatedRunId"] == second
+        ambiguous = await submit(c, path, "Show the current report")
+        assert ambiguous["reply"] == "Which Run do you want to inspect? Include its Run ID."
+        assert "relatedRunId" not in ambiguous

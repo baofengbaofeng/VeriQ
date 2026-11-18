@@ -175,15 +175,56 @@ test("inherits a model and persists plan and Run receipts through authorized UI"
     await page.getByLabel("Message").fill("Execute the saved reader smoke plan now");
     await page.getByRole("button", { name: "Send", exact: true }).click();
     await expect(page.getByRole("button", { name: "Confirm run saved plan" })).toBeVisible();
+    const lastIntent = "**/agent/sessions/*/turns";
+    let lost: S["AgentTurnSubmit"] | undefined;
+    // 第一次确认已经到达真实服务，浏览器却没有收到回执。另一个客户端随后在同一会话提出不同运行。
+    await page.route(lastIntent, async (route) => {
+        const request = route.request();
+        if (request.method() !== "POST" || lost || request.postDataJSON().text !== "confirm run")
+            return route.continue();
+        lost = request.postDataJSON();
+        const response = await route.fetch();
+        expect(response.status(), await response.text()).toBe(200);
+        expect((await response.json()).data.receipt.decision).toBe("ENQUEUED");
+        await route.abort();
+    });
+    await page.getByLabel("Message").fill("confirm run");
+    await page.getByRole("button", { name: "Send", exact: true }).click();
+    await expect(page.getByRole("alert")).toHaveText("Unable to load conversation data. Retry the request.");
+    const sessionList = await page.request.get(`${base}/agent/sessions`);
+    const sessionId = (await sessionList.json()).data.items[0].id;
+    output = {
+        reply: "A second client proposes another run.",
+        proposal: { type: "TRIGGER_PLAN", planId: saved.id, planRevision: saved.revision },
+    };
+    const newer = await page.request.post(`${base}/agent/sessions/${sessionId}/turns`, {
+        headers: scope.headers,
+        data: { requestId: crypto.randomUUID(), text: "Queue a second run from the other client" },
+    });
+    expect(newer.status(), await newer.text()).toBe(200);
+    const replacement = (await newer.json()).data.id;
+    expect(replacement).not.toBe(lost?.expectedProposalId);
     const previousCalls = modelCalls;
     const settings = await page.request.put(`${base}/agent/settings`, {
         headers: scope.headers,
         data: { defaultProviderId: null, agentProviderId: null },
     });
     expect(settings.status()).toBe(200);
+    await page.reload();
+    await page.getByLabel("Agent Workspace").selectOption(scope.workspaceId);
     const stream = page.waitForRequest((request) => request.url().endsWith("/events/stream"));
+    await page.getByRole("button", { name: "Smoke history", exact: true }).click();
+    await expect(page.getByText("A second client proposes another run.")).toBeVisible();
+    const replay = page.waitForResponse(
+        (response) => response.url().endsWith("/turns") && response.request().method() === "POST",
+    );
     await page.getByLabel("Message").fill("confirm run");
     await page.getByRole("button", { name: "Send", exact: true }).click();
+    const repeated = await replay;
+    expect(repeated.status(), await repeated.text()).toBe(200);
+    expect(repeated.request().postDataJSON()).toEqual(lost);
+    expect((await (await page.request.get(`${base}/runs`)).json()).data.items).toHaveLength(1);
+    await expect(page.getByRole("button", { name: "Confirm run saved plan" })).toBeVisible();
     const run = page.getByRole("region", { name: "Run status" });
     await expect(run).toContainText("ENQUEUED");
     await expect(run).toContainText("QUEUED");
@@ -317,7 +358,7 @@ test("StrictMode preserves conversation requests and reload retries reuse the sa
         Object.entries(sessionStorage).filter(([key]) => key.startsWith("veriq.agent.retry/")),
     );
     expect(stored.map(([, value]) => value)).toEqual([
-        expect.stringMatching(new RegExp(`^[a-f0-9]{64}/${originalId}$`)),
+        expect.stringMatching(new RegExp(`^[a-f0-9]{64}/${originalId}/$`)),
     ]);
     expect(JSON.stringify(stored)).not.toContain(text);
     await page.reload();

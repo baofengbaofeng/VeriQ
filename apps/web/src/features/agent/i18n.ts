@@ -93,6 +93,10 @@ export const agentMessages: Record<string, readonly [string, string]> = {
         "This proposal was superseded. Review the latest proposal.",
     ],
     "Configure a model to request a plan.": ["请先配置模型，再请求计划。", "Configure a model to request a plan."],
+    "The previous confirmation cannot be recovered. Use the proposal button.": [
+        "无法恢复先前的确认。请使用提议上的确认按钮。",
+        "The previous confirmation cannot be recovered. Use the proposal button.",
+    ],
     "Review a matching proposal before confirming it.": [
         "请先查看匹配的提议，再发送确认。",
         "Review a matching proposal before confirming it.",
