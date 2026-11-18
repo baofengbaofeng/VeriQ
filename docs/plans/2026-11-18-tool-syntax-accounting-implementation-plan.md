@@ -50,14 +50,14 @@
 **接口：** 既有区间字段全部保持；仅合格区间增加 `codeDirective: "vite-ignore"`。
 Python 类型用可选已知字面量，普通或未知角色仍按旧说明处理；不得增加 `Any` 或通用免检配置。
 
-- [ ] 写测试 `test_dynamic_import_directive_keeps_code_denominator`：实际 CLI 对仅含合格标记的导入断言 C=0、K=1、无正文问题、门禁退出 1。
-- [ ] 补充表中五类输入及独立行、同行混合、未知角色负例；真实 Vite 测试沿用只读预检确认的可观察正反差异。
-- [ ] 执行新模块观察明确的缺失分类/错误计量 RED，保留命令及失败输出；已有消费控制可先通过，不能虚构全部失败。
-- [ ] 实现 AST 上下文分类和 Python 计量，不改变既有普通区间 JSON 形状、坐标、换行或批次语法检查。
-- [ ] 修正上述三处普通说明并同步三份长期规则；注释修正用 AST/词元及原始其他字节证明业务代码不变。
-- [ ] 新模块通过后，执行相关完整六模块一次：`PYTHONPATH=apps/srv/src apps/srv/.venv/bin/python -m pytest tests/acceptance/test_comment_audit.py tests/acceptance/test_comment_audit_legacy.py tests/acceptance/test_comment_blocks.py tests/acceptance/test_comment_syntax.py tests/acceptance/test_source_inventory.py tests/acceptance/test_tool_directives.py -q`。
-- [ ] 运行触及文件 Prettier/Biome、Python Black/Ruff/Pylint/mypy、正文与显示列宽、块排版；对既存诊断做同命令前后差分，不加忽略或全仓重排。
-- [ ] 冻结全部归属源码及非归属 Git blob/模式，保存完整 U10 补丁；实现者报告给协调者，等待独立 SPEC 与 QUALITY 审查。
+- [x] 写测试 `test_dynamic_import_directive_keeps_code_denominator`：实际 CLI 对仅含合格标记的导入断言 C=0、K=1、无正文问题、门禁退出 1。
+- [x] 补充表中五类输入及独立行、同行混合、未知角色负例；真实 Vite 测试沿用只读预检确认的可观察正反差异。
+- [x] 执行新模块观察明确的缺失分类/错误计量 RED，保留命令及失败输出；已有消费控制可先通过，不能虚构全部失败。
+- [x] 实现 AST 上下文分类和 Python 计量，不改变既有普通区间 JSON 形状、坐标、换行或批次语法检查。
+- [x] 修正上述三处普通说明并同步三份长期规则；注释修正用 AST/词元及原始其他字节证明业务代码不变。
+- [x] 新模块通过后，执行相关完整六模块一次：`PYTHONPATH=apps/srv/src apps/srv/.venv/bin/python -m pytest tests/acceptance/test_comment_audit.py tests/acceptance/test_comment_audit_legacy.py tests/acceptance/test_comment_blocks.py tests/acceptance/test_comment_syntax.py tests/acceptance/test_source_inventory.py tests/acceptance/test_tool_directives.py -q`。
+- [x] 运行触及文件 Prettier/Biome、Python Black/Ruff/Pylint/mypy、正文与显示列宽、块排版；对既存诊断做同命令前后差分，不加忽略或全仓重排。
+- [x] 冻结全部归属源码及非归属 Git blob/模式，保存完整 U10 补丁；实现者报告给协调者，等待独立 SPEC 与 QUALITY 审查。
 - [ ] 协调者审查通过后明确路径提交源码，在该源码提交上刷新全仓注释审计一次；公开记录结果和剩余阻断，再单独提交文档并推送 dev。
 
 ## 自审记录
@@ -66,3 +66,9 @@ Python 类型用可选已知字面量，普通或未知角色仍按旧说明处�
 桥接器产出的可选字段与消费者已知字面量一致，原有公开助手复用且无需编辑。
 只读预检报告位于同一 MVP 台账的 `v09-tool-directive-qualified-preflight/report.md`，
 实际结果决定 Vite 消费断言，不能把源码中警告分支静态观察写成已运行证据。
+
+## 实际执行结果
+
+源码 b92f53f 已提交并独立规格/质量通过，430项相关验收通过；全仓701/28/138、ratio=null，门禁仍失败。
+最后一步的源码、一次审计及公开记录已完成，文档提交与远端同步状态以Git历史为准。
+Windows警告路径格式Minor登记到V09，不弱化断言；详见主计划和独立质量清单。

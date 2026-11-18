@@ -37,7 +37,7 @@ AI 是可选辅助：用于生成结构化草稿、边界建议与失败分析�
 | F01  | 安装与系统初始化 | 部署、数据库迁移、管理员创建、配置校验、健康检查、示例资源                        |
 | F02  | 自有用户         | 登录/退出、邀请或管理员创建、密码重置、禁用、会话撤销                             |
 | F03  | Workspace        | 一项目一空间、多空间成员、角色、切换、资源隔离与审计                              |
-| F04  | 页面与元素       | veriqId/role 定位、记录 key、作用域、目录版本与引用影响                            |
+| F04  | 页面与元素       | veriqId/role 定位、记录 key、作用域、目录版本与引用影响                           |
 | F05  | 用例             | 步骤与 JSON 编辑、数据驱动、变量、公共流程、草稿、校验、发布、差异与归档          |
 | F06  | 操作与断言       | UI、URL、请求/响应、JSON 字段/Schema、持久化、最终一致性、模板版本与预期依据      |
 | F07  | 环境与身份       | 前后端地址、域名约束、语言/时区、业务角色、凭证引用与构建版本                     |
@@ -185,7 +185,9 @@ veriq/
 
 贡献应包含可审阅的行为说明、相应测试与实际验证结果，并同步受影响的 Schema、OpenAPI、客户端和文档。不要以空接口、假数据页面、TODO 或默认跳过测试代替模块交付；未运行的验证须如实说明。已交付的检查入口见上文，实施计划中的其他命令须由对应任务实现并实际验证。
 
-编码相关要求见 `AGENTS.md`：全部语言 4 空格缩进；源码注释使用中文且注释覆盖率大于 40%；公开方法与接口必须有注释；注释块首行不少于 60 个字符；日志输出使用英文。
+编码相关要求见 `AGENTS.md`：全部语言 4 空格缩进；普通源码注释使用中文，公开 API 与关键逻辑须有说明；独立单行及块首行有效正文为 40～120 个 Unicode 字符，整物理行最多 120 显示列（中文两列）；日志输出使用英文。全仓有效注释行占比必须严格大于 40%，禁止无信息填充。
+
+经成熟解析器上下文和实际工具行为验证的固定工具词元按功能代码计量：C=0，代码分母 K 保留。普通说明、显示列宽及全仓门槛保持，精确范围见[工具语法计量规格](docs/specs/tool-syntax-accounting.md)。
 
 规划中的质量门禁包括 Python/TypeScript 单测、跨语言契约样本、真实 MySQL 集成、Web/桌面 E2E、权限与故障恢复、离线与幂等回传、wheel 干净安装及各目标 OS 原生发行验收。Python 可执行代码与 TS 核心包行覆盖率目标分别不低于 75%；关键状态、权限和错误恢复仍须独立测试。构建默认完整测试，缺 MySQL/浏览器条件不得自动跳过；证据须绑定同一提交、锁文件与静态资源清单。全部 F01–F14 及桌面验收通过后，才标记 1.0 完成。
 
@@ -224,7 +226,7 @@ The first release targets all 14 modules below. Internal milestones are not a co
 | F01 | Install and system init   | Deploy, DB migration, admin bootstrap, config validation, health checks, sample resources                                         |
 | F02 | First-party users         | Login/logout, invite or admin create, password reset, disable, session revoke                                                     |
 | F03 | Workspace                 | One project per space, multi-space membership, roles, switch, isolation and audit                                                 |
-| F04 | Pages and elements        | veriqId/role locators, record keys, scopes, catalog versions and reference impact                                                  |
+| F04 | Pages and elements        | veriqId/role locators, record keys, scopes, catalog versions and reference impact                                                 |
 | F05 | Cases                     | Step and JSON editing, data-driven runs, variables, shared flows, draft, validate, publish, diff, archive                         |
 | F06 | Actions and assertions    | UI, URL, request/response, JSON field/Schema, persistence, eventual consistency, template versions and expected basis             |
 | F07 | Environments and identity | Front/back URLs, domain constraints, locale/timezone, business roles, credential refs and build versions                          |
@@ -372,7 +374,9 @@ Start with the [1.0 requirements and technical spec](docs/specs/veriq-1.0.md), [
 
 Contributions should include reviewable behavior notes, matching tests, and real verification results, and should keep affected Schema, OpenAPI, clients, and docs in sync. Do not substitute empty interfaces, fake-data pages, TODOs, or default-skipped tests for module delivery; unrun verification must be stated honestly. Delivered check entry points are above; other commands in the plan must be implemented and actually verified by their owning tasks.
 
-Coding requirements are in `AGENTS.md`: 4-space indentation for all languages; Chinese source comments with comment coverage above 40%; public methods and interfaces must be commented; each comment block’s first line must be at least 60 characters; log output must be English.
+Coding requirements are in `AGENTS.md`: 4-space indentation; Chinese explanatory comments for public APIs and critical logic; 40–120 Unicode characters in each standalone line or first effective block body; at most 120 display columns per physical line, counting CJK wide characters as two. Logs use English. Effective comment coverage must be strictly above 40% repository-wide, without filler.
+
+Fixed tool tokens require verified parser context and actual tool behavior before counting as functional code: C=0, with K retained. Ordinary prose, display width and the repository-wide threshold still apply. See the [tool syntax accounting specification](docs/specs/tool-syntax-accounting.md).
 
 Planned quality gates include Python/TypeScript unit tests, cross-language contract samples, real MySQL integration, web/desktop E2E, permission and failure recovery, offline and idempotent upload, clean wheel install, and native release acceptance on each target OS. Line coverage targets are at least 75% for Python executables and core TS packages; critical state, authorization, and error recovery still need dedicated tests. Builds default to full tests and must not auto-skip when MySQL/browser conditions are missing; evidence must bind the same commit, lockfiles, and static asset manifest. Mark 1.0 complete only after all F01–F14 and desktop acceptance pass.
 
