@@ -40,7 +40,7 @@
 | V06 | 示例全流程、前后端接入和手册可复现性                             | 未执行本轮代码验证                                                                                                               | [接入](tasks/V06-integration.md)            |
 | V07 | 实际 AI Provider、预算、usage/cost、审核与无模型执行             | 阻塞：需独立提供 endpoint/model/密钥配置和预算授权                                                                               | [Provider](tasks/V07-provider.md)           |
 | V08 | 正常前端→static/dist→Python wheel→离线安装→OCI 发行              | 未通过；不能以候选包替代正常成功包                                                                                               | [发行](tasks/V08-release.md)                |
-| V09 | 编码规范、全量测试、覆盖率、许可与SBOM                           | 1d78be4受限HTML356项已复审；最新698支持/28阻断/162正文、ratio null；严格102服务/19工具原0，全质量仍未过                          | [质量](tasks/V09-quality.md)                |
+| V09 | 编码规范、全量测试、覆盖率、许可与SBOM                           | 4b6649b定向6E清零并复审；严格102服务/19工具0；最近全量1d78be4仍ratio null，全质量未过                                            | [质量](tasks/V09-quality.md)                |
 | V10 | 最终需求追踪、并发/故障/篡改和整分支独立复审                     | 待 V00–V09 及 V11 的适用条件满足                                                                                                 | [最终验收](tasks/V10-final-review.md)       |
 | V11 | Windows SQLite Claim 日志、本地保留期和未知进程保护              | Linux 既有回归 55 项、新增专项 12 项通过并复审；Windows 与完整 V11 未验收                                                        | [本地持久化](tasks/V11-local-durability.md) |
 
@@ -251,3 +251,13 @@ Pylint的23项原诊断逐条保持，预算local计数未增加，回调仍返�
 `1d78be4` 已采用固定MIT dev grammar，四tracked HTML源码完整解析后0注释/58代码行，原SHA/模式保持。明确受限域与所有消费者统一失败关闭，属性伪comment整文拒绝；不能解释为任意HTML、浏览器或正式安装通过。最后四模块356/356（18.56秒），scripts19/tests4类型0，Pylint四项继承，928保护一致。116旧锁记录、运行依赖14项及正式56项导出不变；规范化/正式导出命令区别已公开记录，不混用摘要或把安装后重放说成安装前运行。
 
 最新全量1d78be4：698支持、28解析阻断（25native+Dockerfile/tpl/nsh各1）、162正文、C10560/K149080，ratio=null、passed=false，支持子集约6.61488%。严格>40%仍为MVP硬门禁。接续Pylint三文件6E的精确边界整改，已有只读报告；SMTP/model_fields/数据行/HTTPError推断限制并未证明实际业务错误，不准用默认成功、Any、ignore或新警告消除它们。CI直接3xx、恢复UTCoffset/rootmode三项Minor仍交后续真实控制和最终复审。其它平台/恢复/Provider/发行保持开放。
+
+### Pylint 边界完成及当前计数任务入口
+
+`4b6649b` 已完成三源6E→0，原12项诊断与复杂度完全相同，测试43→37。Settings局部sender与公共字段浅快照、Runs复用已冻结rowKey、CI具体HTTPError谓词保持原运行行为。102服务与19工具严格类型0；8项设置和14项回环CI实际通过。最终两项MySQL在Fix1测试版本通过（11.233秒）；CI最终只有一句说明改动，用去docstring AST等价与初审14项记录说明来源，未声称最终测试SHA重跑14项。
+
+独立审查的Workspace自证与数据集整组互换两项Important已关闭：请求ws决定快照复合主键，固定Suite入口顺序决定版本/A/B/资源锁期望。GET/POST文案Minor及原直接3xx控制缺口关闭，最后定向规格/质量均通过，无新增问题；935个保护文件未变。生产runs.py四组旧Black差异、旧短正文/分隔符、全量Pylint/覆盖率/发行仍待执行；恢复UTC offset和沙箱根mode两个建议不丢失。
+
+接手不要重新派发该六项错误。下一切片仅修改`scripts/comment_audit.py`与`tests/acceptance/test_comment_audit.py`，先用真实输入证明文档串同行代码、Python/TS换行坐标、纯分隔符及跨类型块首行的旧计数偏差，再保留已有节点运行四份完整注释验收。纯结束分隔符旁的代码只计代码；有真实正文与代码同行时两者各计。旧TS混合结束行的4/7断言应按同一原文纠正为3/(3+3)=1/2，不能为保留错误oracle掩盖分子。
+
+最新全量注释结果仍是历史`1d78be4`，不是本次提交实测：698支持/28阻断/162正文、C10560/K149080、ratio=null、passed=false。用户确认的全仓>40%MVP硬门禁、中文首正文40～120 Unicode、整物理行120显示列继续保留；其它目标平台、真实恢复/Provider、Runtime及正常发行均未因此验收。
