@@ -1,7 +1,8 @@
-"""Job 领取服务：按 Runtime 能力与容量用 FOR UPDATE SKIP LOCKED 领取任务，递增 fencingToken，原子分配 Attempt 与租约。
-require_requester 验证原始请求者对
+"""
+任务领取按 Runtime 能力和容量筛选候选任务，锁定后递增围栏并原子分配 Attempt 与租约。
 
-Runtime 仍有效；database_time 使用服务器 UTC。claim 失败返回 None 让 Agent 退避，禁止先 count 再无锁启动。
+claim 使用数据库 UTC，核对原始发起者的当前权限，并用 FOR UPDATE SKIP LOCKED 锁定待领任务。
+没有可领任务或重放空回执时可返回 None，授权、请求冲突与回执上限各有错误分支。
 """
 
 import secrets
@@ -243,7 +244,8 @@ class JobService:
                 workspace_id=job.workspace_id,
             )
             return self.response(job, attempt, secret, current)
-        # Bound idle receipts even if the external scheduler is unavailable.
+        # 先处理已有领取请求的重放。即使外部维护停摆，同一 Runtime 的空领取回执也限制在 10000 条，
+        # 只统计 attempt_id 为 NULL 的回执，达到上限后拒绝新的领取请求。
         count = (
             await self.session.execute(
                 select(func.count())

@@ -1,7 +1,8 @@
-"""报告服务：在 Workspace 授权下聚合 Run 与 Attempt 事件及产物元数据，脱敏后供 UI 与审计流读取。redact 递归剥离秘密；
-offline_report 以保守门禁展示导入结果。原始 Trace
+"""
+报告服务在 Workspace 授权下读取 Run 与 Attempt 的事件和产物元数据，供报告和审计使用。
 
-等敏感产物另需更强权限，不在普通报告中内联字节。
+在线投影使用 redact 递归脱敏，离线事件只提供结构字段，offline_report 保留保守的正式门禁。
+下载 Trace 等受限产物的原始字节，另须 Workspace 的 MANAGE_ENVIRONMENT 权限和精确 Attempt 关联。
 """
 
 import base64
@@ -76,8 +77,8 @@ def redact(value: Any, secrets: set[str], *, dynamic_keys: bool = True) -> Any:
         if isinstance(item, list):
             return [visit(v) for v in item]
         if isinstance(item, dict):
-            # Withhold the whole dynamic object: renaming protected keys could merge distinct members (including an
-            # existing literal "[REDACTED]" key).
+            # 动态 JSON 对象的任一键命中受保护值时，整对象都替换为 [REDACTED]，避免逐个改写键名
+            # 时合并不同成员，或撞上已经存在的字面键 [REDACTED]。
             if dynamic_keys and any(secret in k for k in item for secret in protected):
                 return "[REDACTED]"
             if str(item.get("name", "")).lower() in SENSITIVE and "value" in item:
@@ -382,8 +383,8 @@ class ReportService:
             offline_items: list[dict[str, Any]] = []
             total = 0
             for event in rows[:limit]:
-                # Local vault values are unknowable to the server. Preserve structural facts while explicitly
-                # withholding dynamic values on imported history.
+                # 服务端无法获知离线本地库的凭据值，导入历史通过授权与保留期检查后只投影白名单内的结构事实，
+                # 显式标记 valuesAvailable=False，返回时使用服务端保存的离线 Attempt ID。
                 payload = {
                     k: v
                     for k, v in event["payload"].items()
@@ -452,8 +453,8 @@ class ReportService:
                         ),
                     },
                 }
-            # Envelope, event payload and ActualValue keys are protocol-owned. Only the JsonValue fields above may
-            # contain response-selected member names.
+            # 断言的 expected 和存在时的 actual.value 是 JsonValue，可能含响应选定的动态键，须先脱敏。
+            # 事件信封、payload 和 ActualValue 的外层键由协议定义，处理外层时保留原键。
             item = redact(
                 {**e, "payload": payload, "valuesAvailable": available},
                 secrets,

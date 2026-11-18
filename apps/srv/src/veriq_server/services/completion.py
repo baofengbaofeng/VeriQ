@@ -1,7 +1,9 @@
-"""CompletionService 处理事件追加、finish、校验回执落地与 Run/Job 聚合；整案重试最多一次且重试通过记 UNSTABLE。finish
-校验围栏与租约后写入 outcome；validation 生成
+"""
+CompletionService 追加执行事件，完成后写入回执并归约 Run 与 Job 的结果。
 
-ValidationReceipt。retry_is_safe 判断失败是否允许整案重试，避免不安全副作用重放。
+finish 核对设备和发起者，仅以同一清单重放既有回执，新完成还须通过围栏和租约检查。
+validation 生成 ValidationReceipt。retry_is_safe 要求声明夹具且清理成功，或无潜在写入且已观察为只读。
+整案重试最多一次，重试通过记为 UNSTABLE。
 """
 
 import json
@@ -141,8 +143,9 @@ class CompletionService:
         evidence_complete = data["lastSequence"] == attempt.last_sequence
         matched_evidence: list[AttemptUpload] = []
         for entry in manifest["evidence"]:
-            # Distinct paths may legitimately share bytes (for example empty compiler metadata). Bind each entry to its
-            # own complete upload/event, not an arbitrary last upload in the digest index used for closure membership.
+            # 不同路径可共享相同字节，例如空编译元数据，但清单中的每个路径仍须匹配自身已完成的上传。
+            # 摘要索引可用于核对闭包成员。证据须逐项匹配摘要、大小、敏感级别和文件名，并由 ARTIFACT_CREATED
+            # 关联该上传 ID、kind 和完整文件项。任一匹配缺失会使证据不完整。
             matched = [
                 upload
                 for upload in uploads
@@ -272,7 +275,7 @@ class CompletionService:
             and not was_cancelled
         )
         if retry_candidate and not safe_to_retry:
-            # Keep the existing terminal reducer/history; only suppress unsafe replay.
+            # 首次测试结案符合重试条件但安全性未确认时，保留原终局、回执和历史，继续归约且禁止重排。
             attempt.facts = {**facts, "retryReasonCode": "RETRY_SAFETY_UNCONFIRMED"}
         if retry_candidate and safe_to_retry:
             snapshot = json.loads((await repo.artifact(attempt.snapshot_hash)).content)

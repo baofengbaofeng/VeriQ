@@ -1,5 +1,8 @@
-"""结果归约：aggregate 合并多 Attempt 结果；reduce_test 按步骤/断言时序裁剪展示树，保留阻塞失败语义。
-供报告与完成聚合复用，不直接触达数据库。
+"""
+结果归约按固定优先级合并多个 Attempt 的结果，并依据计划和事件时序校验单次测试的执行证据。
+
+aggregate 合并结果。reduce_test 返回业务、清理和证据事实，并保留阻塞观察器信息，
+供在线完成和离线导入复用，无需访问数据库。
 """
 
 from typing import Any
@@ -50,7 +53,8 @@ def reduce_test(
     if lifecycle:
         begin, end, clean = attempt_starts[0], attempt_ends[0], cleanups[0]
         lifecycle &= begin < clean < end and events[clean]["payload"]["cleanupStatus"] == cleanup
-        # Only upload notification/log tails may occur outside the execution interval.
+        # Attempt 起止之外只允许 ARTIFACT_CREATED 和 LOG，步骤、断言、观察器及变量提取须在区间内且先于清理。
+        # 起止和清理记录各须唯一，清理须位于起止之间且与清单状态一致。时序无效会使证据不完整。
         lifecycle &= all(
             begin < i < end
             or e["type"] in {"ATTEMPT_STARTED", "ATTEMPT_FINISHED", "ARTIFACT_CREATED", "LOG"}
@@ -175,7 +179,8 @@ def reduce_test(
                 valid &= skipped(step, actual, assertion)
             elif actual["payload"]["status"] == "FAILED" and assertion["severity"] != "WARN":
                 outcomes.append("FAILED")
-            # Executed parent assertions bracket child work by actual execution stage.
+            # 对实际执行的父断言，BEFORE 必须早于已开始的直接子步骤，AFTER 等其它阶段须等子步骤结束。
+            # 需要子步骤结束事件时若缺失，时序即无效。
             if actual["payload"]["status"] != "SKIPPED":
                 for child in steps.values():
                     if child.get("parentId") != sid or child["id"] not in starts:
@@ -223,7 +228,8 @@ def reduce_test(
             else:
                 complete = False
 
-    # Direct siblings execute in declared order; children must remain within parents.
+    # 同一父步骤下的相邻步骤按计划顺序比较，顶层也适用。实际执行的子步骤首尾须严格落在父步骤内。
+    # 比较相邻步骤时，以右侧开始为界，缺少开始事件时以其结束为界。
     for parent_id in {s.get("parentId") for s in steps.values()}:
         siblings = sorted(
             (s for s in steps.values() if s.get("parentId") == parent_id), key=lambda s: s["order"]

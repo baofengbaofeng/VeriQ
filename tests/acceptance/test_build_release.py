@@ -489,6 +489,7 @@ def test_python_quality_failure_stops_release_before_artifacts(
 def _write_namespace_imports(checkout: Path, pythonpath_case: str) -> str | None:
     """
     在服务验收与根验收的命名空间各放一个真实模块，再让发行检查范围内的脚本通过完整包名引用两个模块。
+
     外部路径包含两个目录及空项，第一个目录的同名模块提供值，第二个目录提供另一项独有依赖。
     """
     documentation = '"""\n此模块参与真实发行静态检查，常量被另一个文件通过完整包名读取以验证跨目录导入能够解析。\n"""\n'
@@ -555,6 +556,7 @@ def test_release_pylint_resolves_checkout_namespaces(
 ) -> None:
     """
     发行的真实 Pylint 必须解析两个仓库命名空间及调用方提供的模块，随后未排版的固定源码在 Black 阶段失败。
+
     正常和应急模式均验证阶段顺序及退出记录，并确认其它阶段和父进程保留原有搜索路径。
     """
     spec = importlib.util.spec_from_file_location(

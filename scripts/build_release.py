@@ -133,6 +133,7 @@ def _phase_environment(
 ) -> dict[str, str]:
     """
     Pylint 以模块方式启动时移除隐式工作目录，显式传入仓库根以解析跨目录命名空间，并保留调用者的非空搜索项。
+
     其它阶段继续沿用继承的 Python 搜索路径，所有阶段的类型检查路径仍按原顺序覆盖。
     """
     environment = {

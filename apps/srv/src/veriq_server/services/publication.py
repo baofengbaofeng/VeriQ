@@ -1,7 +1,9 @@
-"""产物发布围栏：retire/recover/expire_offline 管理 PENDING 到 COMMITTED/RETIRED 与外部对象清理，均限定 Workspace。
-offline_pins 判断 digest
+"""
+产物发布服务按 Workspace、摘要和实际存储实例恢复挂起发布，并为到期实例安排外部删除。
 
-是否仍被离线导入钉住，决定过期删除是否必须让路。恢复路径按 limit 批量推进，避免一次扫描拖垮控制面事务。
+recover 以 limit 限制批量大小，按有效引用确认发布或调用 retire 记录退役。
+expire_offline 保留仍被离线 pin 或在线上传引用的产物，以及不可变的内联源。
+File 或 S3 的物理删除交给后续的事务外处理。
 """
 
 from uuid import uuid4
@@ -200,7 +202,8 @@ async def expire_offline(
         artifact = await session.get(Artifact, (workspace, upload.sha256))
         if not artifact or artifact.expired_at or artifact.storage_backend == "INLINE":
             continue
-        # INLINE roots are immutable source content, not raw-store authority.
+        # 前置检查已保留仍有效的在线上传、离线 pin 和不可变内联源，此处只标记实际外部实例到期，
+        # 按其 incarnation 登记退役，物理删除由后续工作处理。
         artifact.expired_at = current
         await retire(
             session,

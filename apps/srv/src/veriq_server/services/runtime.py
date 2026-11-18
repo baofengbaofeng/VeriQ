@@ -1,7 +1,9 @@
-"""Runtime 注册与设备凭证：人机审批码与轮询密钥分离，服务账号 enroll、令牌轮换与 Workspace 绑定授权管理。approve
-消耗审批；poll 用设备密钥领取凭证；rotate 防止旧代令牌重放。派发前
+"""
+Runtime 服务管理设备注册、令牌轮换和 Workspace 绑定授权，人机审批码与设备轮询密钥分开使用。
 
-require_dispatch 检查信任、绑定与共享授权。
+approve_enrollment 建立绑定并记录批准，poll 校验设备轮询密钥后才消费注册、签发凭据。
+服务账号通过 service_enroll 注册，设备令牌轮换后旧代失效。
+派发前核验执行权限、绑定、共享范围和所有者资格，凭据投递还须 MANAGED 审批。
 """
 
 import base64
@@ -494,7 +496,8 @@ class RuntimeService:
                 RuntimeGrant(runtime_id=runtime.id, workspace_id=binding.workspace_id, user_id=uid)
             )
         binding.shared_with_workspace = grants["sharedWithWorkspace"]
-        # Any consent change invalidates the earlier admin trust/delivery approval.
+        # 每次成功写入共享授权都撤去旧凭据投递许可和管理批准，信任状态回到 USER_REGISTERED。
+        # 重新开启投递须有 MANAGE_ENVIRONMENT 权限、当前所有者资格、共享许可和 MANAGED 信任。
         binding.allow_credential_delivery = False
         runtime.trust_status = "USER_REGISTERED"
         audit(

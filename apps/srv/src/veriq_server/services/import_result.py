@@ -1,7 +1,9 @@
-"""离线结果导入：验签归档、核对清单与变体、幂等写入 OfflineImport，来源固定 OFFLINE_IMPORT 且不提升正式门禁。
-verify_archive 校验清单哈希与公钥；expected_variants
+"""
+离线结果导入校验签名归档和当前来源闭包，并核对结果是否属于归档所选用例的执行变体。
 
-决定缺失变体时的保守展示。重复 Idempotency-Key 返回既有回执，不覆盖不同清单。
+verify_archive 使用清单摘要和发行方公钥校验归档。
+在当前导入权限下，幂等键按 Workspace、发起人及规范化请求摘要校验，已有本地 Run 的负载须一致才重放回执。
+写入 OfflineImport 的结果标记为 OFFLINE_IMPORT，officialGatePassed 始终为 False。
 """
 
 import asyncio
@@ -285,7 +287,8 @@ class ImportService:
         async with authority_guard(self.settings, False) as authority:
             await lock_installation(self.session)
             await self.authorize(scope, result["bundleId"], authority)
-            # Current engine, draft and nested resource closure authority is checked again.
+            # 锁外验签后重新取得配置锁和安装锁，在当前权威下重验权限与包来源，并以当前引擎、草稿和嵌套资源
+            # 闭包重新 prepare。已验签快照不匹配时直接拒绝，此检查先于幂等回执重放。
             service = BundleService(self.session, self.actor, self.settings)
             service.issuer, service.engines = authority
             prepared = await service.prepare(scope, checked["selection"])
@@ -579,7 +582,8 @@ class ImportService:
                     or execution.get("dataRow") != group["selection"]["dataRow"]
                 ):
                     raise Problem(422, "INVALID_OFFLINE_VARIANT", "Frozen auth or dataset differs")
-            # Older descriptors without variant facts remain importable as INCOMPLETE.
+            # 缺 execution 的旧结果只有变体可唯一归属时才可继续校验，后续仍须核对事实和已上传字节。
+            # 缺变体事实会使证据为 INCOMPLETE，有计划时终局仍按优先级归约，无计划时终局为 INCOMPLETE。
             plan_raw = (
                 None
                 if group["draft"]

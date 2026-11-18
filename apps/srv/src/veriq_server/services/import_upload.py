@@ -1,5 +1,8 @@
-"""离线导入分块上传：reserve 预订 OfflineImportUpload 与 publication，chunk 校验偏移，完成后才可被 import 提交。
-未 COMMITTED 前报告不得当作已提交证据；Workspace 与幂等键全程绑定。
+"""
+离线导入分块上传先由 reserve 预订文件记录，收齐并验证字节后才把上传标记为 COMPLETE。
+
+预订按 Workspace、包、本地 Run 和 Attempt 及路径定位，重放还须匹配发起人和文件描述符。
+chunk 核对偏移和重放字节，收齐后才创建或复用外部发布记录。结果导入只接受已完成且仍有效的上传。
 """
 
 from datetime import timedelta
@@ -257,7 +260,8 @@ class ImportUploadService(ImportService):
             content = retained
             digest = row.sha256
             await self.session.commit()
-        # All filesystem/S3 work occurs outside transactions and configuration locks.
+        # 收齐字节并核对摘要后先提交外部发布意图。File 或 S3 写入在事务和配置锁之外进行，
+        # 返回后重新核验当前权威、上传和产物实例，确认未退役才将上传置为 COMPLETE、发布置为 COMMITTED。
         try:
             await artifact_store(self.settings, backend).put(
                 scope.workspace_id, digest, content, incarnation
