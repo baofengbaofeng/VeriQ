@@ -105,6 +105,7 @@ def asset_references(content: dict[str, Any]) -> list[tuple[str, str]]:
     kind, doc = content["kind"], content["document"]
     result: list[tuple[str, str]] = []
     if kind == "CASE":
+        result.extend((version, "DATASET") for version in doc.get("datasetBindings", {}).values())
         for key, target in [
             ("catalogVersionId", "ELEMENT_CATALOG"),
             ("datasetVersionId", "DATASET"),

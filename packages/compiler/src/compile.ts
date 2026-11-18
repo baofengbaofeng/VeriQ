@@ -269,16 +269,19 @@ export function compileFiles(snapshot: AssetSnapshotV1, distribution?: EngineDis
                         ...step.before.map((a) => ({
                             id: a.assertion.id,
                             severity: a.assertion.severity,
+                            ...("datasetExpected" in a.assertion ? { datasetExpected: true } : {}),
                             stage: a.assertion.type === "requestCount" ? "FINALIZE" : "BEFORE",
                         })),
                         ...step.responseAssertions.map((a) => ({
                             id: a.assertion.id,
                             severity: a.assertion.severity,
+                            ...("datasetExpected" in a.assertion ? { datasetExpected: true } : {}),
                             stage: a.assertion.type === "requestCount" ? "FINALIZE" : "RESPONSE",
                         })),
                         ...step.after.map((a) => ({
                             id: a.assertion.id,
                             severity: a.assertion.severity,
+                            ...("datasetExpected" in a.assertion ? { datasetExpected: true } : {}),
                             stage: a.assertion.type === "requestCount" ? "FINALIZE" : "AFTER",
                         })),
                     ],
@@ -457,6 +460,11 @@ export function assembleExecution(
         throw new Error("ENTRYPOINT_SOURCE_MISMATCH");
     const selectedCase = source.assets.find((a) => a.versionId === snapshot.caseVersionId);
     if (selectedCase?.kind !== "CASE") throw new Error("UNKNOWN_SELECTED_CASE");
+    if (
+        sha256(canonicalBytes(selectedCase.document.datasetBindings ?? {})) !==
+        sha256(canonicalBytes(snapshot.datasetBindings ?? {}))
+    )
+        throw new Error("DATASET_BINDINGS_MISMATCH");
     const suite = source.assets.find((a) => a.kind === "SUITE");
     const variants =
         suite?.kind === "SUITE"

@@ -134,5 +134,5 @@ export function assetSourceBytes(snapshot: Record<string, unknown>): Uint8Array 
 }
 
 export * from "./bindings.js";
-export type * from "./compiled.js";
+export * from "./compiled.js";
 export { validateDataset } from "./dataset.js";

@@ -4,7 +4,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdtemp, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
-import { chromium, test, expect } from "@playwright/test";
+import { chromium, test, expect, type Page } from "@playwright/test";
 import type { ResourceDocumentV1 } from "@veriq/contracts";
 import { cleanupCaseProfile, withCleanup } from "./support/case-profile-cleanup";
 import { holdValidationReceipt } from "./support/hold-validation-receipt";
@@ -1261,16 +1261,10 @@ test("primitive rows preserve focused survivors and persist only business values
     }
 });
 
-test("copy dataset opens an independent target draft", async ({ page }) => {
-    test.setTimeout(180_000);
-    const scope = await editorScope(page, "copy-source");
-    const target = await page.request.post("/api/v1/workspaces", {
-        headers: scope.headers,
-        data: { key: "copy-target", name: "Copy target" },
-    });
-    expect(target.status()).toBe(201);
-    const targetId = (await target.json()).data.id;
-    await expect(page.getByRole("button", { name: "Copy dataset" })).toBeVisible();
+/**
+ * 通过真实发布接口为编辑流程建立可选择的固定版本，测试回执只负责准备夹具，断言覆盖可见控件和保存的草稿。
+ */
+async function publishWriterDataset(page: Page, scope: Awaited<ReturnType<typeof editorScope>>) {
     const source = await createResource(page, "DATASET", "source-data");
     await saveDraft(page);
     const job = await queueValidation(page);
@@ -1296,7 +1290,20 @@ test("copy dataset opens an independent target draft", async ({ page }) => {
         data: { revision: frozen.revision, validationReceiptId: frozen.id },
     });
     expect(publication.status(), await publication.text()).toBe(201);
-    const version = (await publication.json()).data;
+    return (await publication.json()).data;
+}
+
+test("copy dataset opens an independent target draft", async ({ page }) => {
+    test.setTimeout(180_000);
+    const scope = await editorScope(page, "copy-source");
+    const target = await page.request.post("/api/v1/workspaces", {
+        headers: scope.headers,
+        data: { key: "copy-target", name: "Copy target" },
+    });
+    expect(target.status()).toBe(201);
+    const targetId = (await target.json()).data.id;
+    await expect(page.getByRole("button", { name: "Copy dataset" })).toBeVisible();
+    const version = await publishWriterDataset(page, scope);
     await page.reload();
     await page.getByRole("combobox", { name: "Workspace", exact: true }).selectOption(targetId);
     await page.getByRole("button", { name: "Copy dataset" }).click();
@@ -1312,7 +1319,7 @@ test("copy dataset opens an independent target draft", async ({ page }) => {
     const copied = await response;
     expect(copied.status(), await copied.text()).toBe(201);
     const resource = (await copied.json()).data;
-    expect(resource.id).not.toBe(source.id);
+    expect(resource.id).not.toBe(version.resourceId);
     expect(resource.key).toBe("checkout.copied-data");
     await expect(page.getByRole("article").getByRole("heading", { name: "Copied data · DATASET" })).toBeVisible();
     const draft = await page.request.get(`/api/v1/workspaces/${targetId}/resources/${resource.id}/draft`);
@@ -1598,4 +1605,62 @@ test("deletes the selected physical line break in a static dataset", async ({ pa
         .rows;
     expect.soft(adjacent!.values.body).toBe("a\nb");
     expect(separate!.values.body.replace(/\r\n?/gu, "\n")).toBe("a\n\nb");
+});
+
+test("writes named dataset queries without changing the expected provenance", async ({ page }) => {
+    test.setTimeout(120_000);
+    const scope = await editorScope(page, "named-queries");
+    const version = await publishWriterDataset(page, scope);
+    await page.reload();
+    await page.getByRole("combobox", { name: "Workspace", exact: true }).selectOption(scope.workspaceId);
+    await createResource(page, "CASE", "named-case");
+    await expect(page.getByLabel("New dataset alias")).toBeVisible();
+    await applyDocument(page, {
+        kind: "CASE",
+        document: {
+            schemaVersion: "1.0",
+            caseKey: "read",
+            title: "Read",
+            kind: "READ",
+            roleKey: "reader",
+            catalogVersionId: randomUUID(),
+            steps: [
+                {
+                    id: "open",
+                    action: "goto",
+                    path: "/",
+                    afterAssertions: [
+                        {
+                            id: "match",
+                            type: "url",
+                            source: "page",
+                            operator: "equals",
+                            expected: "/",
+                            severity: "BLOCK",
+                            expectedSource: "policy",
+                        },
+                    ],
+                },
+            ],
+        },
+    });
+    await page.getByLabel("New dataset alias").fill("names");
+    await page.getByLabel("Named dataset version").selectOption(version.id);
+    await page.getByRole("button", { name: "Add alias", exact: true }).click();
+    await page.getByLabel("Expected value mode").selectOption("dataset");
+    await page.getByLabel("Query alias").fill("names");
+    await page.getByLabel("Query field").fill("path");
+    const saved = (await saveDraft(page)).content;
+    if (saved.kind !== "CASE") throw new Error("Expected CASE");
+    expect(saved.document.datasetBindings).toEqual({ names: version.id });
+    const assertion = saved.document.steps[0]!.afterAssertions![0]!;
+    expect(assertion).toMatchObject({
+        expectedSource: "policy",
+        datasetExpected: { alias: "names", op: "field", field: "path" },
+    });
+    expect(assertion).not.toHaveProperty("expected");
+    await page.getByLabel("Expected value mode").selectOption("literal");
+    const literal = (await saveDraft(page)).content;
+    if (literal.kind !== "CASE") throw new Error("Expected CASE");
+    expect(literal.document.steps[0]!.afterAssertions![0]).not.toHaveProperty("datasetExpected");
 });

@@ -2644,6 +2644,354 @@ export interface components {
              */
             operator: "exists";
             expected: boolean;
+        } | {
+            id: components["schemas"]["Key"];
+            /**
+             * @enum {string}
+             */
+            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+            expectedSource: string;
+            timeoutMs?: components["schemas"]["Timeout"];
+            /**
+             * @constant
+             */
+            type: "ui";
+            target: components["schemas"]["Key"];
+            /**
+             * @enum {string}
+             */
+            operator: "visible" | "enabled" | "checked" | "attached" | "editable";
+            pageKey?: components["schemas"]["Key"];
+            datasetExpected: components["schemas"]["DatasetQuery"];
+        } | {
+            id: components["schemas"]["Key"];
+            /**
+             * @enum {string}
+             */
+            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+            expectedSource: string;
+            timeoutMs?: components["schemas"]["Timeout"];
+            /**
+             * @constant
+             */
+            type: "ui";
+            target: components["schemas"]["Key"];
+            /**
+             * @enum {string}
+             */
+            operator: "textEquals" | "textContains" | "valueEquals";
+            pageKey?: components["schemas"]["Key"];
+            datasetExpected: components["schemas"]["DatasetQuery"];
+        } | {
+            id: components["schemas"]["Key"];
+            /**
+             * @enum {string}
+             */
+            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+            expectedSource: string;
+            timeoutMs?: components["schemas"]["Timeout"];
+            /**
+             * @constant
+             */
+            type: "ui";
+            target: components["schemas"]["Key"];
+            /**
+             * @constant
+             */
+            operator: "countEquals";
+            pageKey?: components["schemas"]["Key"];
+            datasetExpected: components["schemas"]["DatasetQuery"];
+        } | {
+            id: components["schemas"]["Key"];
+            /**
+             * @enum {string}
+             */
+            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+            expectedSource: string;
+            timeoutMs?: components["schemas"]["Timeout"];
+            /**
+             * @constant
+             */
+            type: "url";
+            /**
+             * @constant
+             */
+            source: "page";
+            /**
+             * @enum {string}
+             */
+            operator: "equals" | "contains";
+            pageKey?: components["schemas"]["Key"];
+            datasetExpected: components["schemas"]["DatasetQuery"];
+        } | {
+            id: components["schemas"]["Key"];
+            /**
+             * @enum {string}
+             */
+            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+            expectedSource: string;
+            timeoutMs?: components["schemas"]["Timeout"];
+            /**
+             * @constant
+             */
+            type: "httpStatus";
+            source: components["schemas"]["ResponseRef"];
+            /**
+             * @constant
+             */
+            operator: "equals";
+            datasetExpected: components["schemas"]["DatasetQuery"];
+        } | {
+            id: components["schemas"]["Key"];
+            /**
+             * @enum {string}
+             */
+            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+            expectedSource: string;
+            timeoutMs?: components["schemas"]["Timeout"];
+            /**
+             * @constant
+             */
+            type: "request";
+            source: components["schemas"]["RequestRef"];
+            /**
+             * @constant
+             */
+            operator: "methodEquals";
+            datasetExpected: components["schemas"]["DatasetQuery"];
+        } | {
+            id: components["schemas"]["Key"];
+            /**
+             * @enum {string}
+             */
+            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+            expectedSource: string;
+            timeoutMs?: components["schemas"]["Timeout"];
+            /**
+             * @constant
+             */
+            type: "request";
+            source: components["schemas"]["RequestRef"];
+            /**
+             * @constant
+             */
+            operator: "pathEquals";
+            datasetExpected: components["schemas"]["DatasetQuery"];
+        } | {
+            id: components["schemas"]["Key"];
+            /**
+             * @enum {string}
+             */
+            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+            expectedSource: string;
+            timeoutMs?: components["schemas"]["Timeout"];
+            /**
+             * @constant
+             */
+            type: "duration";
+            source: components["schemas"]["SourceRef"];
+            /**
+             * @constant
+             */
+            operator: "lessThanOrEqual";
+            datasetExpected: components["schemas"]["DatasetQuery"];
+        } | {
+            id: components["schemas"]["Key"];
+            /**
+             * @enum {string}
+             */
+            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+            expectedSource: string;
+            timeoutMs?: components["schemas"]["Timeout"];
+            /**
+             * @constant
+             */
+            type: "requestCount";
+            source: components["schemas"]["RequestRef"];
+            /**
+             * @constant
+             */
+            operator: "equals";
+            datasetExpected: components["schemas"]["DatasetQuery"];
+        } | {
+            id: components["schemas"]["Key"];
+            /**
+             * @enum {string}
+             */
+            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+            expectedSource: string;
+            timeoutMs?: components["schemas"]["Timeout"];
+            /**
+             * @constant
+             */
+            type: "eventually";
+            query: {
+                /**
+                 * @constant
+                 */
+                method: "GET";
+                path: components["schemas"]["Path"];
+                query?: components["schemas"]["BindingJsonObject"];
+            };
+            pointer: components["schemas"]["Pointer"];
+            /**
+             * @constant
+             */
+            operator: "equals";
+            intervalMs?: number;
+            datasetExpected: components["schemas"]["DatasetQuery"];
+        } | {
+            id: components["schemas"]["Key"];
+            /**
+             * @enum {string}
+             */
+            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+            expectedSource: string;
+            timeoutMs?: components["schemas"]["Timeout"];
+            /**
+             * @constant
+             */
+            type: "responseField";
+            source: components["schemas"]["ResponseRef"];
+            pointer: components["schemas"]["Pointer"];
+            /**
+             * @enum {string}
+             */
+            operator: "equals" | "notEquals";
+            datasetExpected: components["schemas"]["DatasetQuery"];
+        } | {
+            id: components["schemas"]["Key"];
+            /**
+             * @enum {string}
+             */
+            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+            expectedSource: string;
+            timeoutMs?: components["schemas"]["Timeout"];
+            /**
+             * @constant
+             */
+            type: "responseField";
+            source: components["schemas"]["ResponseRef"];
+            pointer: components["schemas"]["Pointer"];
+            /**
+             * @constant
+             */
+            operator: "contains";
+            datasetExpected: components["schemas"]["DatasetQuery"];
+        } | {
+            id: components["schemas"]["Key"];
+            /**
+             * @enum {string}
+             */
+            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+            expectedSource: string;
+            timeoutMs?: components["schemas"]["Timeout"];
+            /**
+             * @constant
+             */
+            type: "responseField";
+            source: components["schemas"]["ResponseRef"];
+            pointer: components["schemas"]["Pointer"];
+            /**
+             * @constant
+             */
+            operator: "in";
+            datasetExpected: components["schemas"]["DatasetQuery"];
+        } | {
+            id: components["schemas"]["Key"];
+            /**
+             * @enum {string}
+             */
+            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+            expectedSource: string;
+            timeoutMs?: components["schemas"]["Timeout"];
+            /**
+             * @constant
+             */
+            type: "responseField";
+            source: components["schemas"]["ResponseRef"];
+            pointer: components["schemas"]["Pointer"];
+            /**
+             * @constant
+             */
+            operator: "exists";
+            datasetExpected: components["schemas"]["DatasetQuery"];
+        } | {
+            id: components["schemas"]["Key"];
+            /**
+             * @enum {string}
+             */
+            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+            expectedSource: string;
+            timeoutMs?: components["schemas"]["Timeout"];
+            /**
+             * @constant
+             */
+            type: "requestField";
+            source: components["schemas"]["RequestRef"];
+            pointer: components["schemas"]["Pointer"];
+            /**
+             * @enum {string}
+             */
+            operator: "equals" | "notEquals";
+            datasetExpected: components["schemas"]["DatasetQuery"];
+        } | {
+            id: components["schemas"]["Key"];
+            /**
+             * @enum {string}
+             */
+            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+            expectedSource: string;
+            timeoutMs?: components["schemas"]["Timeout"];
+            /**
+             * @constant
+             */
+            type: "requestField";
+            source: components["schemas"]["RequestRef"];
+            pointer: components["schemas"]["Pointer"];
+            /**
+             * @constant
+             */
+            operator: "contains";
+            datasetExpected: components["schemas"]["DatasetQuery"];
+        } | {
+            id: components["schemas"]["Key"];
+            /**
+             * @enum {string}
+             */
+            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+            expectedSource: string;
+            timeoutMs?: components["schemas"]["Timeout"];
+            /**
+             * @constant
+             */
+            type: "requestField";
+            source: components["schemas"]["RequestRef"];
+            pointer: components["schemas"]["Pointer"];
+            /**
+             * @constant
+             */
+            operator: "in";
+            datasetExpected: components["schemas"]["DatasetQuery"];
+        } | {
+            id: components["schemas"]["Key"];
+            /**
+             * @enum {string}
+             */
+            severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+            expectedSource: string;
+            timeoutMs?: components["schemas"]["Timeout"];
+            /**
+             * @constant
+             */
+            type: "requestField";
+            source: components["schemas"]["RequestRef"];
+            pointer: components["schemas"]["Pointer"];
+            /**
+             * @constant
+             */
+            operator: "exists";
+            datasetExpected: components["schemas"]["DatasetQuery"];
         };
         StepV1: {
             id: components["schemas"]["Key"];
@@ -2873,6 +3221,7 @@ export interface components {
             steps: components["schemas"]["StepV1"][];
             fixtureInput?: components["schemas"]["BindingJsonObject"];
             initialVariables?: components["schemas"]["ParameterTypes"];
+            datasetBindings?: components["schemas"]["DatasetBindings"];
         };
         LocatorV1: {
             /**
@@ -2976,6 +3325,45 @@ export interface components {
             };
         };
         DatasetDocument: components["schemas"]["DatasetV1"] | components["schemas"]["DatasetV2"];
+        DatasetQuery: {
+            alias: components["schemas"]["Key"];
+            /**
+             * @constant
+             */
+            op: "field";
+            key: components["schemas"]["BindingJsonValue"];
+            field: components["schemas"]["Key"];
+        } | {
+            alias: components["schemas"]["Key"];
+            /**
+             * @constant
+             */
+            op: "contains";
+            key: components["schemas"]["BindingJsonValue"];
+        } | {
+            alias: components["schemas"]["Key"];
+            /**
+             * @constant
+             */
+            op: "filter";
+            field: components["schemas"]["Key"];
+            equals: components["schemas"]["BindingJsonValue"];
+            select: components["schemas"]["Key"];
+        } | {
+            alias: components["schemas"]["Key"];
+            /**
+             * @constant
+             */
+            op: "path";
+            key: components["schemas"]["BindingJsonValue"];
+        } | {
+            alias: components["schemas"]["Key"];
+            /**
+             * @constant
+             */
+            op: "children";
+            parentKey: components["schemas"]["BindingJsonValue"];
+        };
         FlowV1: {
             /**
              * @constant
@@ -3210,6 +3598,7 @@ export interface components {
             authAdapters?: components["schemas"]["AuthAdapterVersionV1"][];
             datasetVersionId?: components["schemas"]["Id"];
             suiteEntryIndex?: number;
+            datasetBindings?: components["schemas"]["DatasetBindings"];
         };
         CompiledAssetBundle: {
             /**
@@ -5298,6 +5687,9 @@ export interface components {
              */
             kind: "download";
         };
+        DatasetBindings: {
+            [key: string]: components["schemas"]["Id"];
+        };
         FixtureIdentityV1: {
             authAdapterVersionId: components["schemas"]["Id"];
             secretRef: components["schemas"]["Key"];
@@ -5357,7 +5749,7 @@ export interface components {
             /**
              * @enum {string}
              */
-            status: "PASSED" | "FAILED" | "WARN" | "SKIPPED";
+            status: "PASSED" | "FAILED" | "WARN" | "SKIPPED" | "ERROR";
             /**
              * @enum {string}
              */

@@ -6,6 +6,8 @@
 import { Ajv2020 } from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import {
+    assertionExpectedTypes,
+    type DatasetDocument,
     assetSourceBytes,
     canonicalBytes,
     resolveBinding,
@@ -51,6 +53,7 @@ interface Scope {
     pages?: Set<string>;
     data: Map<string, SymbolType>;
     vars: Map<string, SymbolType>;
+    datasets?: Map<string, DatasetDocument>;
     catalog?: Set<string>;
     locatorBindings?: Map<string, unknown[]>;
     library?: boolean;
@@ -533,6 +536,47 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
                         ? "string"
                         : undefined,
                 );
+            if ("datasetExpected" in a) {
+                const q = a.datasetExpected;
+                const at = path + "/datasetExpected";
+                const dataset = scope.datasets?.get(q.alias);
+                if (!dataset && !scope.library) fail("UNKNOWN_DATASET_ALIAS", at + "/alias");
+                const argument = q.op === "filter" ? "equals" : q.op === "children" ? "parentKey" : "key";
+                const input = binding(
+                    q.op === "filter" ? q.equals : q.op === "children" ? q.parentKey : q.key,
+                    scope,
+                    at + "/" + argument,
+                );
+                const argumentTypes = input?.alternatives ?? (input ? [input.type] : []);
+                if (
+                    q.op !== "filter" &&
+                    argumentTypes.some((t) => t !== "string" && !(q.op === "children" && t === "null"))
+                )
+                    fail("DATASET_KEY_TYPE", at + "/" + argument);
+                if (dataset) {
+                    const fields = dataset.schemaVersion === "1.0" ? dataset.columns : dataset.fields;
+                    const types = (field: string, key: string): ValueType[] => {
+                        if (!Object.hasOwn(fields, field)) {
+                            fail("UNKNOWN_DATASET_FIELD", at + "/" + key);
+                            return [];
+                        }
+                        const spec = fields[field]!;
+                        return typeof spec === "string" ? [spec] : spec.nullable ? [spec.type, "null"] : [spec.type];
+                    };
+                    let output: ValueType[] = ["array"];
+                    if (q.op === "filter") {
+                        const match = types(q.field, "field");
+                        types(q.select, "select");
+                        if (!argumentTypes.every((t) => match.some((m) => accepts(m, t))))
+                            fail("DATASET_FILTER_TYPE", at);
+                    } else if (q.op === "field") output = types(q.field, "field");
+                    else if (q.op === "contains") output = ["boolean"];
+                    else if (dataset.schemaVersion === "1.0" || dataset.shape !== "TREE")
+                        fail("DATASET_TREE_REQUIRED", at);
+                    const accepted = assertionExpectedTypes(a);
+                    if (!output.every((t) => accepted.some((e) => accepts(e, t)))) fail("DATASET_EXPECTED_TYPE", at);
+                }
+            }
             if (a.type === "eventually") binding(a.query, scope, path + "/query");
             result.push({
                 assertion: { ...a, id: wireId(path) },
@@ -676,6 +720,7 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
                       : !!value && typeof value === "object" && Object.values(value).some(usesExtract);
             const dependent = (a: CompiledAssertion): boolean =>
                 usesExtract(a.parameters) ||
+                ("datasetExpected" in a.assertion && usesExtract(a.assertion.datasetExpected)) ||
                 (a.assertion.type !== "responseSchema" &&
                     "expected" in a.assertion &&
                     usesExtract(a.assertion.expected)) ||
@@ -712,12 +757,18 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
                 if (!variants?.length || variants.some((variant) => !variant.datasetVersionId))
                     checkMatrixDataset(dataset, inputPath);
             }
+            const named = new Map<string, DatasetDocument>();
+            for (const [alias, id] of Object.entries(d.datasetBindings ?? {})) {
+                const version = ref(a.versionId, id, "DATASET", p + "/datasetBindings/" + pointerKey(alias));
+                if (version?.kind === "DATASET") named.set(alias, version.document);
+            }
             const datasets = variants?.length
                 ? [...new Set(variants.map((c) => c.datasetVersionId ?? d.datasetVersionId))]
                 : [d.datasetVersionId];
             let compiled: CompiledCase | undefined;
             for (const datasetVersionId of datasets) {
                 const scope: Scope = {
+                    datasets: named,
                     data: new Map(),
                     vars: new Map(Object.entries(d.initialVariables ?? {}).map(([key, type]) => [key, { type }])),
                     ...(c?.kind === "ELEMENT_CATALOG"

@@ -476,3 +476,31 @@ def test_cancellation_does_not_bypass_invalid_lifecycle_order():
         cancel_requested=True,
     )
     assert result["outcome"] == "INCOMPLETE"
+
+
+@pytest.mark.parametrize("declared", [True, False])
+def test_dataset_error_blocks_warn_only_with_frozen_query(declared):
+    declaration = {"id": "lookup", "stage": "BEFORE", "severity": "WARN"}
+    if declared:
+        declaration["datasetExpected"] = True
+    proof = {"blockedByStepId": "save", "blockedByAssertionId": "lookup"}
+    plan = [
+        expected_step(
+            assertions=[declaration, {"id": "after", "severity": "BLOCK", "stage": "AFTER"}]
+        )
+    ]
+    result = canonical_case(
+        plan,
+        [
+            began(),
+            event("STEP_STARTED", {}, stepId="save"),
+            assertion_event("lookup", "ERROR", severity="WARN", errorCode="DATASET_ROW_MISSING"),
+            assertion_event("after", "SKIPPED", **proof),
+            step_end(status="ERROR", **proof),
+            cleanup_event(),
+            finished("ERROR"),
+        ],
+        "ERROR",
+    )
+    assert result["outcome"] == "ERROR"
+    assert result["evidence"] == ("COMPLETE" if declared else "INCOMPLETE")

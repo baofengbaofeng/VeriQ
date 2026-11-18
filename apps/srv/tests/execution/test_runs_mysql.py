@@ -94,6 +94,19 @@ async def test_suite_matrix_preserves_dataset_row_provenance_and_frozen_variable
             "elements": [{"key": "name", "locator": {"by": "veriqId", "value": "name"}}],
         },
     )
+    reference = await published(
+        c,
+        db,
+        ws,
+        "reference",
+        "DATASET",
+        {
+            "schemaVersion": "2.0",
+            "shape": "TABLE",
+            "fields": {},
+            "source": {"kind": "STATIC", "rows": []},
+        },
+    )
     case = await published(
         c,
         db,
@@ -108,6 +121,7 @@ async def test_suite_matrix_preserves_dataset_row_provenance_and_frozen_variable
             "roleKey": "reader",
             "catalogVersionId": catalog,
             "initialVariables": {"initial": "string"},
+            "datasetBindings": {"reference": reference},
             "steps": [
                 {"id": "fill", "action": "fill", "target": "name", "value": "{{vars.initial}}"}
             ],
@@ -189,6 +203,7 @@ async def test_suite_matrix_preserves_dataset_row_provenance_and_frozen_variable
             json.loads((await session.get(Artifact, (ws, j.snapshot_hash))).content) for j in jobs
         ]
         assert all(s["variables"] == data["variables"] and s["authAdapters"] for s in snapshots)
+        assert all(s["datasetBindings"] == {"reference": reference} for s in snapshots)
         assert {s["datasetVersionId"]: s["dataRow"] for s in snapshots} == {
             datasets[0]: {"key": "same", "values": {"value": "A"}},
             datasets[1]: {"key": "same", "values": {"value": "B"}},

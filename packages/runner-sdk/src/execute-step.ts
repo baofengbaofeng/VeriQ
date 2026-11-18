@@ -75,8 +75,13 @@ export async function executeStep(plan: ResolvedStep, outer: StepContext): Promi
                 assertionId: id,
                 result: payload,
             });
+            if (r.status === "ERROR") {
+                result.status = "ERROR";
+                blocker = r.id;
+                throw new Error(r.errorCode);
+            }
             if (r.status === "FAILED") {
-                result.status = "FAILED";
+                if (result.status !== "ERROR") result.status = "FAILED";
                 if (r.severity === "BLOCK") {
                     blocker = r.id;
                     throw new Error(r.errorCode ?? "ASSERTION_FAILED");
@@ -211,7 +216,7 @@ export async function executeStep(plan: ResolvedStep, outer: StepContext): Promi
                         throw new ExecutionCancelled();
                     }
                     if (r.status !== "PASSED") {
-                        result.status = r.status;
+                        if (result.status !== "ERROR") result.status = r.status;
                         if (child.step.failurePolicy !== "CONTINUE") {
                             for (const remaining of plan.children.slice(plan.children.indexOf(child) + 1))
                                 await skipStep(remaining, ctx, child.step.id);
@@ -273,7 +278,7 @@ export async function executeStep(plan: ResolvedStep, outer: StepContext): Promi
             result.status === "FAILED" ||
             result.assertions.some((a) => a.status === "FAILED") ||
             result.children.some((child) => ["FAILED", "ERROR"].includes(child.status));
-        result.status = cancelled && !failed ? "CANCELLED" : "FAILED";
+        result.status = result.status === "ERROR" ? "ERROR" : cancelled && !failed ? "CANCELLED" : "FAILED";
         result.errorCode =
             cancelled && !failed
                 ? "CANCELLED"

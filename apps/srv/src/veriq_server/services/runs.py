@@ -333,6 +333,11 @@ class RunService:
                                 "roleKey": role_key,
                                 "browser": browser,
                                 "variables": variables,
+                                **(
+                                    {"datasetBindings": document["datasetBindings"]}
+                                    if document.get("datasetBindings")
+                                    else {}
+                                ),
                                 "secretVersions": [
                                     {"secretRef": r["secretRef"], "versionId": r["secretVersionId"]}
                                     for r in identities

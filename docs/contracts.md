@@ -582,3 +582,18 @@ T14 复审修正：createBundle 要求可打印 ASCII Idempotency-Key，并同�
 桌面复用既有平台 OpenAPI，未新增 Server Run、DSL 或设备 token 模式。`DesktopBridge` 是本机内部类型边界：云端调用使用明确枚举的 `operationId`、结构化参数和契约正文，由宿主重新绑定当前 Workspace；Cookie / CSRF 只属于独立 Electron Session，设备身份只属于独立 Node24 Agent。报告流同时限制待连接与活动句柄，总计最多四条；切换工作区或注销撤销旧流。`operations.generated.*` 和宿主校验闭包由 `apps/desktop/scripts/generate-operations.mjs` 读取共享 OpenAPI 与平台模式生成，服务端新增端点不会自动扩张桌面权限。
 
 本机启动准备使用独立的 `startupId` 和 `preparing` 状态，尚未创建 Run 时不伪造 Run ID。取消启动必须引用当前准备事务，取消执行必须匹配当前持久化 Run；旧标识不能中止新任务。离线执行的可选 `headless` 默认为 `true`，可见模式要求已探测到匹配的完整浏览器，选择与实际能力写入本机执行记录。原始证据经当前范围检查和原生确认后保存或查看，renderer 不接收文件路径或原始字节。
+
+### 命名数据集断言
+
+CASE 的可选 `datasetBindings` 将别名固定到当前工作区已发布的 DATASET 版本。执行快照记录相同映射，安装时逐项核对。矩阵仍由 CASE 或 SUITE 的 `datasetVersionId` 决定。
+除模板调用与 `responseSchema` 外，每个断言恰有一个 `expected` 或 `datasetExpected`，并保留独立的 `expectedSource`。查询节点的 `alias` 在调用 CASE 中解析。仅键、父键和等值参数展开当前步骤或模板的显式绑定，返回值始终保持 JSON 字面内容。
+
+| op | 参数 | 结果 |
+| --- | --- | --- |
+| field | key、field | 返回字段原值；缺行或未设置的字段产生 ERROR |
+| contains | key | 存在对应行返回 true，否则 false |
+| filter | field、equals、select | 按冻结行顺序返回匹配行的 select 字段。严格 JSON 等值，缺字段不匹配 null，匹配后缺少投影字段产生 ERROR |
+| path | key | 从树根至目标的键序列，包含根与目标 |
+| children | parentKey | 直接子节点键，按 order 再按键排序。null 选择根节点，叶节点返回空数组 |
+
+查询错误产生 ERROR，即使断言为 WARN。正常比较失败继续沿用原严重性。查询断言事件使用空预期和缺失实际值来避免传递数据正文。

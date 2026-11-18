@@ -360,3 +360,54 @@ it("allows same-origin reads to redirect but never replays a redirected write", 
     expect(write.errorCode).toBe("WRITE_REDIRECT_FORBIDDEN");
     expect(f.requests.filter((r) => r.path === "/save" && r.method === "POST")).toHaveLength(writes);
 });
+it("distinguishes empty membership, missing field, and null", async () => {
+    const { staticDatasetResolver } = await import("../src/index.js");
+    const resolver = staticDatasetResolver(
+        new Map([
+            [
+                "names",
+                {
+                    schemaVersion: "2.0",
+                    shape: "TREE",
+                    fields: { name: { type: "string", required: false, nullable: true } },
+                    source: {
+                        kind: "STATIC",
+                        rows: [
+                            { key: "root", parentKey: null, order: 0, values: { name: null } },
+                            { key: "b", parentKey: "root", order: 0, values: {} },
+                            { key: "B", parentKey: "root", order: 0, values: { name: "{{data.input}}" } },
+                        ],
+                    },
+                },
+            ],
+        ]),
+    );
+    const read = (query: import("@veriq/contracts").DatasetQuery) =>
+        resolver.read(query, { data: { input: "root" }, vars: {} }, new AbortController().signal);
+    await expect(read({ alias: "names", op: "field", key: "{{data.input}}", field: "name" })).resolves.toBeNull();
+    await expect(read({ alias: "names", op: "field", key: "b", field: "name" })).rejects.toThrow(
+        "DATASET_FIELD_MISSING",
+    );
+    await expect(read({ alias: "names", op: "field", key: "B", field: "name" })).resolves.toBe("{{data.input}}");
+    await expect(read({ alias: "names", op: "contains", key: "absent" })).resolves.toBe(false);
+    await expect(read({ alias: "names", op: "path", key: "B" })).resolves.toEqual(["root", "B"]);
+    await expect(read({ alias: "names", op: "children", parentKey: "root" })).resolves.toEqual(["B", "b"]);
+    await expect(read({ alias: "names", op: "filter", field: "name", equals: null, select: "name" })).resolves.toEqual([
+        null,
+    ]);
+    const r = await executeStep(
+        step({ id: "get", action: "apiRequest", method: "GET", path: "/save" }, [
+            a({
+                type: "responseField",
+                source: "response:action",
+                pointer: "/nil",
+                operator: "equals",
+                severity: "WARN",
+                datasetExpected: { alias: "names", op: "field", key: "b", field: "name" },
+            }),
+        ]),
+        createStepContext({ ...f.options, datasets: resolver }),
+    );
+    expect(r.status).toBe("ERROR");
+    expect(r.errorCode).toBe("DATASET_FIELD_MISSING");
+});

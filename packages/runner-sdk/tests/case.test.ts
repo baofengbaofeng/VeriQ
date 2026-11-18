@@ -1,6 +1,6 @@
 import { beforeAll, afterAll, it, expect } from "vitest";
 import * as sdk from "../src/index.js";
-import { snapshot, id } from "../../compiler/tests/helpers.js";
+import { snapshot, id, asset } from "../../compiler/tests/helpers.js";
 import { analyze } from "../../compiler/src/index.js";
 import { fixture } from "./helpers.js";
 import type { ExecutionSnapshotV1 } from "@veriq/contracts";
@@ -118,4 +118,61 @@ it("WRITE cannot pass solely on HTTP 200 or missing checkpoint results", async (
     });
     expect(r.outcome).toBe("FAILED");
     expect(r.errorCode).toBe("PERSISTENCE_CHECKPOINT_FAILED");
+});
+it.each([
+    ["row", "PASSED"],
+    ["absent", "ERROR"],
+])("looks up %s through the calling CASE alias", async (key, outcome) => {
+    const bindings = { reference: id(5) };
+    const source = snapshot(
+        [
+            {
+                id: "open",
+                action: "goto",
+                path: "/",
+                afterAssertions: [
+                    {
+                        id: "call",
+                        type: "template",
+                        versionId: id(4),
+                        parameters: { key },
+                        severity: "WARN",
+                        expectedSource: "policy",
+                    },
+                ],
+            },
+        ],
+        [
+            asset(4, "ASSERTION_TEMPLATE", {
+                schemaVersion: "1.0",
+                parameters: { key: "string" },
+                assertions: [
+                    {
+                        id: "url",
+                        type: "url",
+                        source: "page",
+                        operator: "contains",
+                        severity: "BLOCK",
+                        expectedSource: "policy",
+                        datasetExpected: { alias: "reference", op: "field", key: "{{data.key}}", field: "path" },
+                    },
+                ],
+            }),
+            asset(5, "DATASET", {
+                schemaVersion: "1.0",
+                columns: { path: "string" },
+                rows: [{ key: "row", values: { path: "/" } }],
+            }),
+        ],
+        { datasetBindings: bindings },
+    );
+    const analysis = analyze(source);
+    expect(analysis.issues).toEqual([]);
+    const r = await sdk.executeCase(analysis.cases[0]!, source, {
+        page: f.page,
+        execution: { ...execution(source), datasetBindings: bindings },
+        lifecycle: { authenticate: async () => ({ identityId: "test-identity" }) },
+    });
+    expect(r.outcome).toBe(outcome);
+    expect(r.steps[0]?.assertions[0]).toMatchObject({ status: outcome, expected: null, actual: { present: false } });
 });

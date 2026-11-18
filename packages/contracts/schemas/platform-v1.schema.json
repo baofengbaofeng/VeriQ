@@ -1114,6 +1114,743 @@
                         "expected"
                     ],
                     "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "id": {
+                            "$ref": "#/$defs/Key"
+                        },
+                        "severity": {
+                            "type": "string",
+                            "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                        },
+                        "expectedSource": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "timeoutMs": {
+                            "$ref": "#/$defs/Timeout"
+                        },
+                        "type": {
+                            "const": "ui"
+                        },
+                        "target": {
+                            "$ref": "#/$defs/Key"
+                        },
+                        "operator": {
+                            "type": "string",
+                            "enum": ["visible", "enabled", "checked", "attached", "editable"]
+                        },
+                        "pageKey": {
+                            "$ref": "#/$defs/Key"
+                        },
+                        "datasetExpected": {
+                            "$ref": "#/$defs/DatasetQuery"
+                        }
+                    },
+                    "required": ["id", "type", "severity", "expectedSource", "target", "operator", "datasetExpected"],
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "id": {
+                            "$ref": "#/$defs/Key"
+                        },
+                        "severity": {
+                            "type": "string",
+                            "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                        },
+                        "expectedSource": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "timeoutMs": {
+                            "$ref": "#/$defs/Timeout"
+                        },
+                        "type": {
+                            "const": "ui"
+                        },
+                        "target": {
+                            "$ref": "#/$defs/Key"
+                        },
+                        "operator": {
+                            "type": "string",
+                            "enum": ["textEquals", "textContains", "valueEquals"]
+                        },
+                        "pageKey": {
+                            "$ref": "#/$defs/Key"
+                        },
+                        "datasetExpected": {
+                            "$ref": "#/$defs/DatasetQuery"
+                        }
+                    },
+                    "required": ["id", "type", "severity", "expectedSource", "target", "operator", "datasetExpected"],
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "id": {
+                            "$ref": "#/$defs/Key"
+                        },
+                        "severity": {
+                            "type": "string",
+                            "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                        },
+                        "expectedSource": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "timeoutMs": {
+                            "$ref": "#/$defs/Timeout"
+                        },
+                        "type": {
+                            "const": "ui"
+                        },
+                        "target": {
+                            "$ref": "#/$defs/Key"
+                        },
+                        "operator": {
+                            "const": "countEquals"
+                        },
+                        "pageKey": {
+                            "$ref": "#/$defs/Key"
+                        },
+                        "datasetExpected": {
+                            "$ref": "#/$defs/DatasetQuery"
+                        }
+                    },
+                    "required": ["id", "type", "severity", "expectedSource", "target", "operator", "datasetExpected"],
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "id": {
+                            "$ref": "#/$defs/Key"
+                        },
+                        "severity": {
+                            "type": "string",
+                            "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                        },
+                        "expectedSource": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "timeoutMs": {
+                            "$ref": "#/$defs/Timeout"
+                        },
+                        "type": {
+                            "const": "url"
+                        },
+                        "source": {
+                            "const": "page"
+                        },
+                        "operator": {
+                            "type": "string",
+                            "enum": ["equals", "contains"]
+                        },
+                        "pageKey": {
+                            "$ref": "#/$defs/Key"
+                        },
+                        "datasetExpected": {
+                            "$ref": "#/$defs/DatasetQuery"
+                        }
+                    },
+                    "required": ["id", "type", "severity", "expectedSource", "source", "operator", "datasetExpected"],
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "id": {
+                            "$ref": "#/$defs/Key"
+                        },
+                        "severity": {
+                            "type": "string",
+                            "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                        },
+                        "expectedSource": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "timeoutMs": {
+                            "$ref": "#/$defs/Timeout"
+                        },
+                        "type": {
+                            "const": "httpStatus"
+                        },
+                        "source": {
+                            "$ref": "#/$defs/ResponseRef"
+                        },
+                        "operator": {
+                            "const": "equals"
+                        },
+                        "datasetExpected": {
+                            "$ref": "#/$defs/DatasetQuery"
+                        }
+                    },
+                    "required": ["id", "type", "severity", "expectedSource", "source", "operator", "datasetExpected"],
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "id": {
+                            "$ref": "#/$defs/Key"
+                        },
+                        "severity": {
+                            "type": "string",
+                            "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                        },
+                        "expectedSource": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "timeoutMs": {
+                            "$ref": "#/$defs/Timeout"
+                        },
+                        "type": {
+                            "const": "request"
+                        },
+                        "source": {
+                            "$ref": "#/$defs/RequestRef"
+                        },
+                        "operator": {
+                            "const": "methodEquals"
+                        },
+                        "datasetExpected": {
+                            "$ref": "#/$defs/DatasetQuery"
+                        }
+                    },
+                    "required": ["id", "type", "severity", "expectedSource", "source", "operator", "datasetExpected"],
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "id": {
+                            "$ref": "#/$defs/Key"
+                        },
+                        "severity": {
+                            "type": "string",
+                            "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                        },
+                        "expectedSource": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "timeoutMs": {
+                            "$ref": "#/$defs/Timeout"
+                        },
+                        "type": {
+                            "const": "request"
+                        },
+                        "source": {
+                            "$ref": "#/$defs/RequestRef"
+                        },
+                        "operator": {
+                            "const": "pathEquals"
+                        },
+                        "datasetExpected": {
+                            "$ref": "#/$defs/DatasetQuery"
+                        }
+                    },
+                    "required": ["id", "type", "severity", "expectedSource", "source", "operator", "datasetExpected"],
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "id": {
+                            "$ref": "#/$defs/Key"
+                        },
+                        "severity": {
+                            "type": "string",
+                            "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                        },
+                        "expectedSource": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "timeoutMs": {
+                            "$ref": "#/$defs/Timeout"
+                        },
+                        "type": {
+                            "const": "duration"
+                        },
+                        "source": {
+                            "$ref": "#/$defs/SourceRef"
+                        },
+                        "operator": {
+                            "const": "lessThanOrEqual"
+                        },
+                        "datasetExpected": {
+                            "$ref": "#/$defs/DatasetQuery"
+                        }
+                    },
+                    "required": ["id", "type", "severity", "expectedSource", "source", "operator", "datasetExpected"],
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "id": {
+                            "$ref": "#/$defs/Key"
+                        },
+                        "severity": {
+                            "type": "string",
+                            "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                        },
+                        "expectedSource": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "timeoutMs": {
+                            "$ref": "#/$defs/Timeout"
+                        },
+                        "type": {
+                            "const": "requestCount"
+                        },
+                        "source": {
+                            "$ref": "#/$defs/RequestRef"
+                        },
+                        "operator": {
+                            "const": "equals"
+                        },
+                        "datasetExpected": {
+                            "$ref": "#/$defs/DatasetQuery"
+                        }
+                    },
+                    "required": ["id", "type", "severity", "expectedSource", "source", "operator", "datasetExpected"],
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "id": {
+                            "$ref": "#/$defs/Key"
+                        },
+                        "severity": {
+                            "type": "string",
+                            "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                        },
+                        "expectedSource": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "timeoutMs": {
+                            "$ref": "#/$defs/Timeout"
+                        },
+                        "type": {
+                            "const": "eventually"
+                        },
+                        "query": {
+                            "type": "object",
+                            "properties": {
+                                "method": {
+                                    "const": "GET"
+                                },
+                                "path": {
+                                    "$ref": "#/$defs/Path"
+                                },
+                                "query": {
+                                    "$ref": "#/$defs/BindingJsonObject"
+                                }
+                            },
+                            "required": ["method", "path"],
+                            "additionalProperties": false
+                        },
+                        "pointer": {
+                            "$ref": "#/$defs/Pointer"
+                        },
+                        "operator": {
+                            "const": "equals"
+                        },
+                        "intervalMs": {
+                            "type": "integer",
+                            "minimum": 100,
+                            "maximum": 10000
+                        },
+                        "datasetExpected": {
+                            "$ref": "#/$defs/DatasetQuery"
+                        }
+                    },
+                    "required": [
+                        "id",
+                        "type",
+                        "severity",
+                        "expectedSource",
+                        "query",
+                        "pointer",
+                        "operator",
+                        "datasetExpected"
+                    ],
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "id": {
+                            "$ref": "#/$defs/Key"
+                        },
+                        "severity": {
+                            "type": "string",
+                            "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                        },
+                        "expectedSource": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "timeoutMs": {
+                            "$ref": "#/$defs/Timeout"
+                        },
+                        "type": {
+                            "const": "responseField"
+                        },
+                        "source": {
+                            "$ref": "#/$defs/ResponseRef"
+                        },
+                        "pointer": {
+                            "$ref": "#/$defs/Pointer"
+                        },
+                        "operator": {
+                            "type": "string",
+                            "enum": ["equals", "notEquals"]
+                        },
+                        "datasetExpected": {
+                            "$ref": "#/$defs/DatasetQuery"
+                        }
+                    },
+                    "required": [
+                        "id",
+                        "type",
+                        "severity",
+                        "expectedSource",
+                        "source",
+                        "pointer",
+                        "operator",
+                        "datasetExpected"
+                    ],
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "id": {
+                            "$ref": "#/$defs/Key"
+                        },
+                        "severity": {
+                            "type": "string",
+                            "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                        },
+                        "expectedSource": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "timeoutMs": {
+                            "$ref": "#/$defs/Timeout"
+                        },
+                        "type": {
+                            "const": "responseField"
+                        },
+                        "source": {
+                            "$ref": "#/$defs/ResponseRef"
+                        },
+                        "pointer": {
+                            "$ref": "#/$defs/Pointer"
+                        },
+                        "operator": {
+                            "const": "contains"
+                        },
+                        "datasetExpected": {
+                            "$ref": "#/$defs/DatasetQuery"
+                        }
+                    },
+                    "required": [
+                        "id",
+                        "type",
+                        "severity",
+                        "expectedSource",
+                        "source",
+                        "pointer",
+                        "operator",
+                        "datasetExpected"
+                    ],
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "id": {
+                            "$ref": "#/$defs/Key"
+                        },
+                        "severity": {
+                            "type": "string",
+                            "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                        },
+                        "expectedSource": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "timeoutMs": {
+                            "$ref": "#/$defs/Timeout"
+                        },
+                        "type": {
+                            "const": "responseField"
+                        },
+                        "source": {
+                            "$ref": "#/$defs/ResponseRef"
+                        },
+                        "pointer": {
+                            "$ref": "#/$defs/Pointer"
+                        },
+                        "operator": {
+                            "const": "in"
+                        },
+                        "datasetExpected": {
+                            "$ref": "#/$defs/DatasetQuery"
+                        }
+                    },
+                    "required": [
+                        "id",
+                        "type",
+                        "severity",
+                        "expectedSource",
+                        "source",
+                        "pointer",
+                        "operator",
+                        "datasetExpected"
+                    ],
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "id": {
+                            "$ref": "#/$defs/Key"
+                        },
+                        "severity": {
+                            "type": "string",
+                            "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                        },
+                        "expectedSource": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "timeoutMs": {
+                            "$ref": "#/$defs/Timeout"
+                        },
+                        "type": {
+                            "const": "responseField"
+                        },
+                        "source": {
+                            "$ref": "#/$defs/ResponseRef"
+                        },
+                        "pointer": {
+                            "$ref": "#/$defs/Pointer"
+                        },
+                        "operator": {
+                            "const": "exists"
+                        },
+                        "datasetExpected": {
+                            "$ref": "#/$defs/DatasetQuery"
+                        }
+                    },
+                    "required": [
+                        "id",
+                        "type",
+                        "severity",
+                        "expectedSource",
+                        "source",
+                        "pointer",
+                        "operator",
+                        "datasetExpected"
+                    ],
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "id": {
+                            "$ref": "#/$defs/Key"
+                        },
+                        "severity": {
+                            "type": "string",
+                            "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                        },
+                        "expectedSource": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "timeoutMs": {
+                            "$ref": "#/$defs/Timeout"
+                        },
+                        "type": {
+                            "const": "requestField"
+                        },
+                        "source": {
+                            "$ref": "#/$defs/RequestRef"
+                        },
+                        "pointer": {
+                            "$ref": "#/$defs/Pointer"
+                        },
+                        "operator": {
+                            "type": "string",
+                            "enum": ["equals", "notEquals"]
+                        },
+                        "datasetExpected": {
+                            "$ref": "#/$defs/DatasetQuery"
+                        }
+                    },
+                    "required": [
+                        "id",
+                        "type",
+                        "severity",
+                        "expectedSource",
+                        "source",
+                        "pointer",
+                        "operator",
+                        "datasetExpected"
+                    ],
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "id": {
+                            "$ref": "#/$defs/Key"
+                        },
+                        "severity": {
+                            "type": "string",
+                            "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                        },
+                        "expectedSource": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "timeoutMs": {
+                            "$ref": "#/$defs/Timeout"
+                        },
+                        "type": {
+                            "const": "requestField"
+                        },
+                        "source": {
+                            "$ref": "#/$defs/RequestRef"
+                        },
+                        "pointer": {
+                            "$ref": "#/$defs/Pointer"
+                        },
+                        "operator": {
+                            "const": "contains"
+                        },
+                        "datasetExpected": {
+                            "$ref": "#/$defs/DatasetQuery"
+                        }
+                    },
+                    "required": [
+                        "id",
+                        "type",
+                        "severity",
+                        "expectedSource",
+                        "source",
+                        "pointer",
+                        "operator",
+                        "datasetExpected"
+                    ],
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "id": {
+                            "$ref": "#/$defs/Key"
+                        },
+                        "severity": {
+                            "type": "string",
+                            "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                        },
+                        "expectedSource": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "timeoutMs": {
+                            "$ref": "#/$defs/Timeout"
+                        },
+                        "type": {
+                            "const": "requestField"
+                        },
+                        "source": {
+                            "$ref": "#/$defs/RequestRef"
+                        },
+                        "pointer": {
+                            "$ref": "#/$defs/Pointer"
+                        },
+                        "operator": {
+                            "const": "in"
+                        },
+                        "datasetExpected": {
+                            "$ref": "#/$defs/DatasetQuery"
+                        }
+                    },
+                    "required": [
+                        "id",
+                        "type",
+                        "severity",
+                        "expectedSource",
+                        "source",
+                        "pointer",
+                        "operator",
+                        "datasetExpected"
+                    ],
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "id": {
+                            "$ref": "#/$defs/Key"
+                        },
+                        "severity": {
+                            "type": "string",
+                            "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
+                        },
+                        "expectedSource": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "timeoutMs": {
+                            "$ref": "#/$defs/Timeout"
+                        },
+                        "type": {
+                            "const": "requestField"
+                        },
+                        "source": {
+                            "$ref": "#/$defs/RequestRef"
+                        },
+                        "pointer": {
+                            "$ref": "#/$defs/Pointer"
+                        },
+                        "operator": {
+                            "const": "exists"
+                        },
+                        "datasetExpected": {
+                            "$ref": "#/$defs/DatasetQuery"
+                        }
+                    },
+                    "required": [
+                        "id",
+                        "type",
+                        "severity",
+                        "expectedSource",
+                        "source",
+                        "pointer",
+                        "operator",
+                        "datasetExpected"
+                    ],
+                    "additionalProperties": false
                 }
             ]
         },
@@ -1837,6 +2574,9 @@
                 },
                 "initialVariables": {
                     "$ref": "#/$defs/ParameterTypes"
+                },
+                "datasetBindings": {
+                    "$ref": "#/$defs/DatasetBindings"
                 }
             },
             "required": ["schemaVersion", "caseKey", "title", "kind", "roleKey", "catalogVersionId", "steps"],
@@ -2752,6 +3492,9 @@
                     "type": "integer",
                     "minimum": 0,
                     "maximum": 999
+                },
+                "datasetBindings": {
+                    "$ref": "#/$defs/DatasetBindings"
                 }
             },
             "required": [
@@ -4105,7 +4848,7 @@
             "properties": {
                 "status": {
                     "type": "string",
-                    "enum": ["PASSED", "FAILED", "WARN", "SKIPPED"]
+                    "enum": ["PASSED", "FAILED", "WARN", "SKIPPED", "ERROR"]
                 },
                 "severity": {
                     "type": "string",
@@ -4761,6 +5504,7 @@
                                                     "severity": {
                                                         "enum": ["BLOCK", "CONTINUE_FAIL", "WARN"]
                                                     },
+                                                    "datasetExpected": { "const": true },
                                                     "stage": {
                                                         "enum": ["BEFORE", "RESPONSE", "AFTER", "FINALIZE"]
                                                     }
@@ -5571,6 +6315,108 @@
         "ProcessStopScope": {
             "type": "string",
             "enum": ["FULL_DESCENDANT_TREE", "CONTROLLED_WORKER_BROWSER", "NO_PROCESS_SPAWNED"]
+        },
+        "DatasetBindings": {
+            "type": "object",
+            "propertyNames": {
+                "$ref": "#/$defs/Key"
+            },
+            "additionalProperties": {
+                "$ref": "#/$defs/Id"
+            }
+        },
+        "DatasetQuery": {
+            "oneOf": [
+                {
+                    "type": "object",
+                    "properties": {
+                        "alias": {
+                            "$ref": "#/$defs/Key"
+                        },
+                        "op": {
+                            "const": "field"
+                        },
+                        "key": {
+                            "$ref": "#/$defs/BindingJsonValue"
+                        },
+                        "field": {
+                            "$ref": "#/$defs/Key"
+                        }
+                    },
+                    "required": ["alias", "op", "key", "field"],
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "alias": {
+                            "$ref": "#/$defs/Key"
+                        },
+                        "op": {
+                            "const": "contains"
+                        },
+                        "key": {
+                            "$ref": "#/$defs/BindingJsonValue"
+                        }
+                    },
+                    "required": ["alias", "op", "key"],
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "alias": {
+                            "$ref": "#/$defs/Key"
+                        },
+                        "op": {
+                            "const": "filter"
+                        },
+                        "field": {
+                            "$ref": "#/$defs/Key"
+                        },
+                        "equals": {
+                            "$ref": "#/$defs/BindingJsonValue"
+                        },
+                        "select": {
+                            "$ref": "#/$defs/Key"
+                        }
+                    },
+                    "required": ["alias", "op", "field", "equals", "select"],
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "alias": {
+                            "$ref": "#/$defs/Key"
+                        },
+                        "op": {
+                            "const": "path"
+                        },
+                        "key": {
+                            "$ref": "#/$defs/BindingJsonValue"
+                        }
+                    },
+                    "required": ["alias", "op", "key"],
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "alias": {
+                            "$ref": "#/$defs/Key"
+                        },
+                        "op": {
+                            "const": "children"
+                        },
+                        "parentKey": {
+                            "$ref": "#/$defs/BindingJsonValue"
+                        }
+                    },
+                    "required": ["alias", "op", "parentKey"],
+                    "additionalProperties": false
+                }
+            ]
         }
     }
 }

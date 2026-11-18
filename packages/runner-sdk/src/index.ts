@@ -12,3 +12,4 @@ export * from "./fixtures/client.js";
 export * from "./fixtures/auth.js";
 export * from "./evidence.js";
 export * from "./fixtures/local.js";
+export * from "./datasets.js";

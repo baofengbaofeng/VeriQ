@@ -2,6 +2,8 @@
  * 本文件注册并执行整案：注入凭证/夹具/生命周期：编排准备清理与取消并产出 CaseResult（register-case）。
  */
 
+import { staticDatasetResolver } from "./datasets.js";
+import { isDeepStrictEqual } from "node:util";
 import { RetryObservation, type RetrySafety } from "./retry-safety.js";
 import { EvidencePolicy, type RestrictedEvidence } from "./evidence.js";
 import { type Page, type TestInfo, type Route } from "@playwright/test";
@@ -208,6 +210,15 @@ export async function executeCase(
             execution.caseVersionId !== plan.caseVersionId
         )
             throw new Error("EXECUTION_CONTEXT_MISMATCH");
+        if (!isDeepStrictEqual(plan.document.datasetBindings ?? {}, execution.datasetBindings ?? {}))
+            throw new Error("DATASET_BINDINGS_MISMATCH");
+        const documents = new Map(
+            Object.entries(plan.document.datasetBindings ?? {}).map(([alias, id]) => {
+                const version = source.assets.find((a) => a.versionId === id);
+                if (version?.kind !== "DATASET") throw new Error("DATASET_VERSION_MISSING");
+                return [alias, version.document] as const;
+            }),
+        );
         const catalog = source.assets.find((a) => a.versionId === plan.document.catalogVersionId);
         if (catalog?.kind !== "ELEMENT_CATALOG") throw new Error("CATALOG_REQUIRED");
         if (!options.lifecycle?.authenticate) throw new Error("AUTH_PROVIDER_REQUIRED");
@@ -251,6 +262,7 @@ export async function executeCase(
         }
         retryObservation = new RetryObservation(options.page.context(), plan.document.kind === "WRITE");
         ctx = createStepContext({
+            datasets: staticDatasetResolver(documents),
             onBusinessRequest: (method) => retryObservation!.method(method),
             page: options.page,
             onEvent: async (event) => {
@@ -287,12 +299,15 @@ export async function executeCase(
             result.steps.push(r);
             await emit({ type: "STEP_FINISHED", step: r });
             if (r.cancelled) {
-                if (result.businessOutcome !== "FAILED")
+                if (result.businessOutcome !== "FAILED" && result.businessOutcome !== "ERROR")
                     result.businessOutcome = r.status === "CANCELLED" ? "CANCELLED" : "FAILED";
                 break;
             }
             if (r.status !== "PASSED") {
-                result.businessOutcome = "FAILED";
+                if (r.status === "ERROR") {
+                    result.businessOutcome = "ERROR";
+                    result.errorCode = r.errorCode ?? "DATASET_READ_ERROR";
+                } else if (result.businessOutcome !== "ERROR") result.businessOutcome = "FAILED";
                 if (step.step.failurePolicy !== "CONTINUE") {
                     for (const remaining of plan.steps.slice(plan.steps.indexOf(step) + 1))
                         await skipStep(remaining, ctx, step.step.id);
@@ -312,7 +327,7 @@ export async function executeCase(
                 result.errorCode = "PERSISTENCE_CHECKPOINT_FAILED";
             }
         }
-        if (originFailure) {
+        if (originFailure && result.businessOutcome !== "ERROR") {
             result.businessOutcome = "FAILED";
             result.errorCode = "ORIGIN_NOT_ALLOWED";
         }

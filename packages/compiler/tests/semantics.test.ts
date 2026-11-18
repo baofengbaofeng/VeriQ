@@ -1214,3 +1214,95 @@ it("I4 leaves business JSON fields named headers as JSON rather than treating th
     );
     expect(validate(s)).toEqual([]);
 });
+it("locks named dataset versions for each CASE binding", () => {
+    const table = asset(3, "DATASET", {
+        schemaVersion: "1.0",
+        columns: { label: "string" },
+        rows: [{ key: "one", values: { label: "one" } }],
+    });
+    const make = (alias: string, field: string, op = "field") =>
+        snapshot(
+            [
+                {
+                    id: "read",
+                    action: "apiRequest",
+                    method: "GET",
+                    path: "/{{data.label}}",
+                    observers: [
+                        {
+                            id: "answer",
+                            method: "GET",
+                            path: "/one",
+                            window: { mode: "UNTIL_ACTION_SETTLED", quietMs: 0 },
+                        },
+                    ],
+                    afterAssertions: [
+                        {
+                            id: "match",
+                            type: "responseField",
+                            source: "response:answer",
+                            pointer: "",
+                            operator: "equals",
+                            severity: "BLOCK",
+                            expectedSource: "catalog",
+                            datasetExpected:
+                                op === "path"
+                                    ? { op, alias, key: "one" }
+                                    : { op: "field", alias, key: "{{data.label}}", field },
+                        },
+                    ],
+                },
+            ],
+            [table],
+            { datasetVersionId: id(3), datasetBindings: { names: id(3) } },
+        );
+    expect(validate(make("names", "label"))).toEqual([]);
+    expect(codes(make("missing", "label"))).toContain("UNKNOWN_DATASET_ALIAS");
+    expect(codes(make("names", "unknown"))).toContain("UNKNOWN_DATASET_FIELD");
+    expect(codes(make("names", "label", "path"))).toContain("DATASET_TREE_REQUIRED");
+});
+it("checks query parameters and result types when expanding templates in the CASE scope", () => {
+    const library = asset(4, "ASSERTION_TEMPLATE", {
+        schemaVersion: "1.0",
+        parameters: { lookup: "string" },
+        assertions: [
+            {
+                id: "visible",
+                type: "ui",
+                operator: "visible",
+                target: "name",
+                severity: "BLOCK",
+                expectedSource: "policy",
+                datasetExpected: { op: "field", alias: "reference", key: "{{data.lookup}}", field: "name" },
+            },
+        ],
+    });
+    const steps: StepV1[] = [
+        {
+            id: "read",
+            action: "reload",
+            afterAssertions: [
+                {
+                    id: "call",
+                    type: "template",
+                    versionId: id(4),
+                    parameters: { lookup: "one" },
+                    severity: "BLOCK",
+                    expectedSource: "policy",
+                },
+            ],
+        },
+    ];
+    expect(codes(snapshot(steps, [library]))).toContain("UNKNOWN_DATASET_ALIAS");
+    expect(
+        codes(snapshot(steps, [library, namedDataset(3, "string", ["a"])], { datasetBindings: { reference: id(3) } })),
+    ).toContain("DATASET_EXPECTED_TYPE");
+});
+it("rejects a nonstatic source as the execution matrix", () => {
+    const source = snapshot(
+        undefined,
+        [asset(3, "DATASET", { schemaVersion: "2.0", shape: "TABLE", fields: {}, source: { kind: "HTTP", rows: [] } })],
+        { datasetVersionId: id(3) },
+    );
+    expect(validate(source).length).toBeGreaterThan(0);
+});

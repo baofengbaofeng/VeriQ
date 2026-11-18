@@ -100,10 +100,12 @@ def reduce_test(
         actual = assertions.get((blocker["id"], aid))
         if (
             expected
-            and expected["severity"] == "BLOCK"
             and actual
-            and actual["payload"]["status"] == "FAILED"
-            and actual["payload"]["severity"] == "BLOCK"
+            and expected["severity"] == actual["payload"]["severity"]
+            and (
+                (expected.get("datasetExpected") is True and actual["payload"]["status"] == "ERROR")
+                or (expected["severity"] == "BLOCK" and actual["payload"]["status"] == "FAILED")
+            )
             and before(actual, fact)
         ):
             return blocker, expected
@@ -173,6 +175,9 @@ def reduce_test(
             seen_assertions.append((rank(step, assertion), positions[id(actual)]))
             if actual["payload"]["status"] == "SKIPPED":
                 valid &= skipped(step, actual, assertion)
+            elif actual["payload"]["status"] == "ERROR":
+                outcomes.append("ERROR")
+                valid &= assertion.get("datasetExpected") is True and status == "ERROR"
             elif actual["payload"]["status"] == "FAILED" and assertion["severity"] != "WARN":
                 outcomes.append("FAILED")
             # Executed parent assertions bracket child work by actual execution stage.

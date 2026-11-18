@@ -767,3 +767,45 @@ async def test_revalidation_requires_identical_compiled_artifacts(site, changed_
         from veriq_server.db import ResourceVersion
 
         assert (await s.get(ResourceVersion, old["id"])).receipt_id == receipt_id
+
+
+async def test_named_dataset_dependency_uses_only_local_published_version(site):
+    c, db = site
+    await setup(c)
+    await login(c)
+    ws = await workspace(c)
+    other = await workspace(c, "other")
+    catalog, _, _ = await publish(c, db, await create(c, ws))
+    dataset = {
+        "kind": "DATASET",
+        "document": {
+            "schemaVersion": "1.0",
+            "columns": {"versionId": "string"},
+            "rows": [{"key": "one", "values": {"versionId": str(uuid4())}}],
+        },
+    }
+    path = await create(c, ws, "names", dataset)
+    local, _, _ = await publish(c, db, path)
+    foreign, _, _ = await publish(c, db, await create(c, other, "remote", dataset))
+    case = {
+        "kind": "CASE",
+        "document": {
+            "schemaVersion": "1.0",
+            "caseKey": "read",
+            "title": "Read",
+            "kind": "READ",
+            "roleKey": "user",
+            "catalogVersionId": catalog["id"],
+            "datasetBindings": {"names": local["id"]},
+            "steps": [{"id": "open", "action": "goto", "path": "/"}],
+        },
+    }
+    target = await create(c, ws, "read", case)
+    version, _, snap = await publish(c, db, target)
+    assert {a["versionId"] for a in snap["assets"]} == {version["id"], local["id"], catalog["id"]}
+    assert (await c.get(path + "/dependents")).json()["data"]["items"][0]["id"] == version[
+        "resourceId"
+    ]
+    case["document"]["datasetBindings"]["names"] = foreign["id"]
+    foreign_target = await create(c, ws, "reject", case)
+    assert (await c.get(foreign_target + "/validation-preview")).status_code == 422

@@ -883,3 +883,25 @@ it("checks a frozen tree matrix row using the existing execution row identity", 
     e.dataRow.values.code = "1";
     expect(() => assembleExecution(result.bundle, e, result.files)).toThrow("DATA_ROW_MISMATCH");
 });
+it("requires execution alias versions to match the CASE closure", () => {
+    const s = snapshot(
+        undefined,
+        [
+            asset(3, "DATASET", {
+                schemaVersion: "2.0",
+                shape: "TABLE",
+                fields: {},
+                source: { kind: "STATIC", rows: [] },
+            }),
+        ],
+        { datasetBindings: { reference: id(3) } },
+    );
+    const output = compileFiles(s, distribution());
+    const frozen = { ...execution(), assetSourceHash: s.sourceHash, datasetBindings: { reference: id(3) } };
+    expect(assembleExecution(output.bundle, frozen, output.files).snapshot.datasetBindings).toEqual(
+        frozen.datasetBindings,
+    );
+    expect(() => assembleExecution(output.bundle, { ...frozen, datasetBindings: {} }, output.files)).toThrow(
+        "DATASET_BINDINGS_MISMATCH",
+    );
+});

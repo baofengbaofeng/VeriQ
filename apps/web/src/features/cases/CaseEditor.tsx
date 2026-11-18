@@ -4,6 +4,7 @@
  * flow=true 时编辑参数声明而非 caseKey；版本引用保持固定 UUID。
  */
 
+import { useState } from "react";
 import { tx, useAppLocale } from "../../locale";
 import type { StepV1, ObserverV1 } from "@veriq/contracts";
 import {
@@ -20,6 +21,72 @@ import {
     type VersionOption,
 } from "../resources/fields";
 import { AssertionEditor } from "../assertions/AssertionEditor";
+/**
+ * 将别名作为对象自有键整体写回，避免点号被表单解释成嵌套路径；用户只能从当前空间已发布版本中选择。
+ */
+function DatasetBindingsEditor({ versions }: { versions: VersionOption[] }) {
+    const path = "content.document.datasetBindings";
+    const bindings = useValue<Record<string, string> | undefined>(path) ?? {};
+    const [alias, setAlias] = useState("");
+    const [version, setVersion] = useState("");
+    const set = useSet();
+    const datasets = versions.filter((v) => v.kind === "DATASET");
+    return (
+        <fieldset>
+            <legend>{tx("命名数据集 / Named datasets")}</legend>
+            {Object.entries(bindings).map(([name, id]) => (
+                <div key={name}>
+                    <label>
+                        {name}
+                        <select value={id} onChange={(e) => set(path, { ...bindings, [name]: e.target.value })}>
+                            {!datasets.some((v) => v.id === id) && <option value={id}>{id}</option>}
+                            {datasets.map((v) => (
+                                <option key={v.id} value={v.id}>
+                                    {v.name} · v{v.versionNo} · {v.id}
+                                </option>
+                            ))}
+                        </select>
+                    </label>
+                    <button
+                        type="button"
+                        onClick={() =>
+                            set(path, Object.fromEntries(Object.entries(bindings).filter(([k]) => k !== name)))
+                        }
+                    >
+                        {tx("删除别名 / Remove alias")}
+                    </button>
+                </div>
+            ))}
+            <label>
+                {tx("新数据集别名 / New dataset alias")}
+                <input value={alias} onChange={(e) => setAlias(e.target.value)} />
+            </label>
+            <label>
+                {tx("命名数据集版本 / Named dataset version")}
+                <select value={version} onChange={(e) => setVersion(e.target.value)}>
+                    <option value="">{tx("选择固定版本 / Select pinned version")}</option>
+                    {datasets.map((v) => (
+                        <option key={v.id} value={v.id}>
+                            {v.name} · v{v.versionNo} · {v.id}
+                        </option>
+                    ))}
+                </select>
+            </label>
+            <button
+                type="button"
+                disabled={!version || !/^[A-Za-z_][A-Za-z0-9_.-]{0,159}$/.test(alias) || Object.hasOwn(bindings, alias)}
+                onClick={() => {
+                    set(path, { ...bindings, [alias]: version });
+                    setAlias("");
+                    setVersion("");
+                }}
+            >
+                {tx("添加别名 / Add alias")}
+            </button>
+        </fieldset>
+    );
+}
+
 const actions = [
     "goto",
     "click",
@@ -109,6 +176,7 @@ export function CaseEditor({ versions, flow = false }: { versions: VersionOption
                         versions={versions}
                         optional
                     />
+                    <DatasetBindingsEditor versions={versions} />
                     <Field
                         name="content.document.persistenceCheckpointStepId"
                         label={tx("持久化检查点 / Persistence checkpoint")}

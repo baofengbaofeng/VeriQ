@@ -446,6 +446,245 @@ export type AssertionV1 =
       pointer: Pointer;
       operator: "exists";
       expected: boolean;
+    }
+  | {
+      id: Key;
+      severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+      expectedSource: string;
+      timeoutMs?: Timeout;
+      type: "ui";
+      target: Key;
+      operator: "visible" | "enabled" | "checked" | "attached" | "editable";
+      pageKey?: Key;
+      datasetExpected: DatasetQuery;
+    }
+  | {
+      id: Key;
+      severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+      expectedSource: string;
+      timeoutMs?: Timeout;
+      type: "ui";
+      target: Key;
+      operator: "textEquals" | "textContains" | "valueEquals";
+      pageKey?: Key;
+      datasetExpected: DatasetQuery;
+    }
+  | {
+      id: Key;
+      severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+      expectedSource: string;
+      timeoutMs?: Timeout;
+      type: "ui";
+      target: Key;
+      operator: "countEquals";
+      pageKey?: Key;
+      datasetExpected: DatasetQuery;
+    }
+  | {
+      id: Key;
+      severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+      expectedSource: string;
+      timeoutMs?: Timeout;
+      type: "url";
+      source: "page";
+      operator: "equals" | "contains";
+      pageKey?: Key;
+      datasetExpected: DatasetQuery;
+    }
+  | {
+      id: Key;
+      severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+      expectedSource: string;
+      timeoutMs?: Timeout;
+      type: "httpStatus";
+      source: ResponseRef;
+      operator: "equals";
+      datasetExpected: DatasetQuery;
+    }
+  | {
+      id: Key;
+      severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+      expectedSource: string;
+      timeoutMs?: Timeout;
+      type: "request";
+      source: RequestRef;
+      operator: "methodEquals";
+      datasetExpected: DatasetQuery;
+    }
+  | {
+      id: Key;
+      severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+      expectedSource: string;
+      timeoutMs?: Timeout;
+      type: "request";
+      source: RequestRef;
+      operator: "pathEquals";
+      datasetExpected: DatasetQuery;
+    }
+  | {
+      id: Key;
+      severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+      expectedSource: string;
+      timeoutMs?: Timeout;
+      type: "duration";
+      source: SourceRef;
+      operator: "lessThanOrEqual";
+      datasetExpected: DatasetQuery;
+    }
+  | {
+      id: Key;
+      severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+      expectedSource: string;
+      timeoutMs?: Timeout;
+      type: "requestCount";
+      source: RequestRef;
+      operator: "equals";
+      datasetExpected: DatasetQuery;
+    }
+  | {
+      id: Key;
+      severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+      expectedSource: string;
+      timeoutMs?: Timeout;
+      type: "eventually";
+      query: {
+        method: "GET";
+        /**
+         * Origin-relative literal path: starts with exactly one slash; no backslash or C0/DEL controls. After DSL
+         * substitution the SDK must recheck the path and WHATWG-resolved origin against the frozen authorized
+         * base/allowedOrigins before any request/navigation, and enforce policy on redirects.
+         *
+         * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+         * via the `definition` "Path".
+         */
+        path: SafeString & Path;
+        query?: BindingJsonObject;
+      };
+      pointer: Pointer;
+      operator: "equals";
+      intervalMs?: number;
+      datasetExpected: DatasetQuery;
+    }
+  | {
+      id: Key;
+      severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+      expectedSource: string;
+      timeoutMs?: Timeout;
+      type: "responseField";
+      source: ResponseRef;
+      pointer: Pointer;
+      operator: "equals" | "notEquals";
+      datasetExpected: DatasetQuery;
+    }
+  | {
+      id: Key;
+      severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+      expectedSource: string;
+      timeoutMs?: Timeout;
+      type: "responseField";
+      source: ResponseRef;
+      pointer: Pointer;
+      operator: "contains";
+      datasetExpected: DatasetQuery;
+    }
+  | {
+      id: Key;
+      severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+      expectedSource: string;
+      timeoutMs?: Timeout;
+      type: "responseField";
+      source: ResponseRef;
+      pointer: Pointer;
+      operator: "in";
+      datasetExpected: DatasetQuery;
+    }
+  | {
+      id: Key;
+      severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+      expectedSource: string;
+      timeoutMs?: Timeout;
+      type: "responseField";
+      source: ResponseRef;
+      pointer: Pointer;
+      operator: "exists";
+      datasetExpected: DatasetQuery;
+    }
+  | {
+      id: Key;
+      severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+      expectedSource: string;
+      timeoutMs?: Timeout;
+      type: "requestField";
+      source: RequestRef;
+      pointer: Pointer;
+      operator: "equals" | "notEquals";
+      datasetExpected: DatasetQuery;
+    }
+  | {
+      id: Key;
+      severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+      expectedSource: string;
+      timeoutMs?: Timeout;
+      type: "requestField";
+      source: RequestRef;
+      pointer: Pointer;
+      operator: "contains";
+      datasetExpected: DatasetQuery;
+    }
+  | {
+      id: Key;
+      severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+      expectedSource: string;
+      timeoutMs?: Timeout;
+      type: "requestField";
+      source: RequestRef;
+      pointer: Pointer;
+      operator: "in";
+      datasetExpected: DatasetQuery;
+    }
+  | {
+      id: Key;
+      severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+      expectedSource: string;
+      timeoutMs?: Timeout;
+      type: "requestField";
+      source: RequestRef;
+      pointer: Pointer;
+      operator: "exists";
+      datasetExpected: DatasetQuery;
+    };
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "DatasetQuery".
+ */
+export type DatasetQuery =
+  | {
+      alias: Key;
+      op: "field";
+      key: BindingJsonValue;
+      field: Key;
+    }
+  | {
+      alias: Key;
+      op: "contains";
+      key: BindingJsonValue;
+    }
+  | {
+      alias: Key;
+      op: "filter";
+      field: Key;
+      equals: BindingJsonValue;
+      select: Key;
+    }
+  | {
+      alias: Key;
+      op: "path";
+      key: BindingJsonValue;
+    }
+  | {
+      alias: Key;
+      op: "children";
+      parentKey: BindingJsonValue;
     };
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -1397,6 +1636,8 @@ export interface ContractDefinitions {
   OfflineArtifactV1?: OfflineArtifactV1;
   OfflineExecutionChoicesV1?: OfflineExecutionChoicesV1;
   ProcessStopScope?: ProcessStopScope;
+  DatasetBindings?: DatasetBindings;
+  DatasetQuery?: DatasetQuery;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -1495,6 +1736,14 @@ export interface CaseDslV1 {
   steps: [StepV1, ...StepV1[]];
   fixtureInput?: BindingJsonObject;
   initialVariables?: ParameterTypes;
+  datasetBindings?: DatasetBindings;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "DatasetBindings".
+ */
+export interface DatasetBindings {
+  [k: string]: Id;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -1775,6 +2024,7 @@ export interface ExecutionSnapshotV1 {
   authAdapters?: AuthAdapterVersionV1[];
   datasetVersionId?: Id;
   suiteEntryIndex?: number;
+  datasetBindings?: DatasetBindings;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -1875,7 +2125,7 @@ export interface StepFinishedPayloadV1 {
  * via the `definition` "AssertionResultPayloadV1".
  */
 export interface AssertionResultPayloadV1 {
-  status: "PASSED" | "FAILED" | "WARN" | "SKIPPED";
+  status: "PASSED" | "FAILED" | "WARN" | "SKIPPED" | "ERROR";
   severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
   expectedSource: string;
   expected: JsonValue;
@@ -2196,6 +2446,7 @@ export interface ExpectedPlansV1 {
       assertions: {
         id: Key;
         severity: "BLOCK" | "CONTINUE_FAIL" | "WARN";
+        datasetExpected?: true;
         stage: "BEFORE" | "RESPONSE" | "AFTER" | "FINALIZE";
       }[];
       /**

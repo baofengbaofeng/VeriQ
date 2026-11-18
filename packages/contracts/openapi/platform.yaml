@@ -10831,6 +10831,7 @@
             "DataRowV2": { "$ref": "../schemas/platform-v1.schema.json#/$defs/DataRowV2" },
             "DatasetV2": { "$ref": "../schemas/platform-v1.schema.json#/$defs/DatasetV2" },
             "DatasetDocument": { "$ref": "../schemas/platform-v1.schema.json#/$defs/DatasetDocument" },
+            "DatasetQuery": { "$ref": "../schemas/platform-v1.schema.json#/$defs/DatasetQuery" },
             "FlowV1": { "$ref": "../schemas/platform-v1.schema.json#/$defs/FlowV1" },
             "FixtureEndpointV1": { "$ref": "../schemas/platform-v1.schema.json#/$defs/FixtureEndpointV1" },
             "FixtureV1": { "$ref": "../schemas/platform-v1.schema.json#/$defs/FixtureV1" },

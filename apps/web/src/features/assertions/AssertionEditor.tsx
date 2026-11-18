@@ -5,7 +5,7 @@
  */
 
 import { tx, useAppLocale } from "../../locale";
-import type { AssertionV1 } from "@veriq/contracts";
+import type { AssertionV1, DatasetQuery } from "@veriq/contracts";
 import {
     Field,
     JsonField,
@@ -74,6 +74,15 @@ export const newAssertion = (): AssertionV1 => ({
     severity: "BLOCK",
     expectedSource: "人工审核 / Human review",
 });
+function literalDefault(type: string, operator: string) {
+    if (["visible", "enabled", "checked", "attached", "editable", "exists"].includes(operator)) return true;
+    if (operator === "countEquals" || type === "duration" || type === "requestCount") return 1;
+    if (type === "httpStatus") return 200;
+    if (operator === "in") return [""];
+    if (operator === "methodEquals") return "GET";
+    if (operator === "pathEquals" || type === "url") return "/";
+    return "";
+}
 function defaults(type: string, network: string[]) {
     const source =
         (type === "request" || type === "requestField" || type === "requestCount" ? "request:" : "response:") +
@@ -154,6 +163,48 @@ export function AssertionEditor({
         </>
     );
 }
+/**
+ * 五种受限查询使用独立字段和类型化 JSON 参数控件，切换操作时重建节点，防止遗留参数混入另一个分支。
+ */
+function DatasetQueryEditor({ path, query }: { path: string; query: DatasetQuery }) {
+    const set = useSet();
+    return (
+        <>
+            <Field name={path + ".alias"} label={tx("查询别名 / Query alias")} />
+            <label>
+                {tx("查询操作 / Query operation")}
+                <select
+                    value={query.op}
+                    onChange={(e) => {
+                        const op = e.target.value;
+                        const args =
+                            op === "children"
+                                ? { parentKey: null }
+                                : op === "filter"
+                                  ? { field: "value", equals: null, select: "value" }
+                                  : op === "field"
+                                    ? { key: "row", field: "value" }
+                                    : { key: "row" };
+                        set(path, { alias: query.alias, op, ...args });
+                    }}
+                >
+                    {["field", "contains", "filter", "path", "children"].map((op) => (
+                        <option key={op}>{op}</option>
+                    ))}
+                </select>
+            </label>
+            {"field" in query && <Field name={path + ".field"} label={tx("查询字段 / Query field")} />}
+            {query.op === "filter" && <Field name={path + ".select"} label={tx("返回字段 / Selected field")} />}
+            <JsonField
+                key={query.op}
+                name={path + (query.op === "filter" ? ".equals" : query.op === "children" ? ".parentKey" : ".key")}
+                label={tx("查询参数 / Query argument")}
+                allowBinding
+            />
+        </>
+    );
+}
+
 function AssertionFields({
     path,
     network,
@@ -228,20 +279,8 @@ function AssertionFields({
                             onChange={(e) => {
                                 const next = e.target.value;
                                 set(`${path}.operator`, next);
-                                set(
-                                    `${path}.expected`,
-                                    ["visible", "enabled", "checked", "attached", "editable", "exists"].includes(next)
-                                        ? true
-                                        : next === "countEquals"
-                                          ? 1
-                                          : next === "in"
-                                            ? [""]
-                                            : next === "methodEquals"
-                                              ? "GET"
-                                              : next === "pathEquals"
-                                                ? "/"
-                                                : "",
-                                );
+                                if ("datasetExpected" in a) return;
+                                set(`${path}.expected`, literalDefault(type, next));
                             }}
                         >
                             {operators[type]!.map((op) => (
@@ -305,7 +344,37 @@ function AssertionFields({
                             <small>{tx("GET 只读轮询，不重放写操作 / Read-only polling")}</small>
                         </>
                     )}
-                    {boolean ? (
+                    {type !== "responseSchema" && (
+                        <label>
+                            {tx("预期值方式 / Expected value mode")}
+                            <select
+                                value={"datasetExpected" in a ? "dataset" : "literal"}
+                                onChange={(e) => {
+                                    if ("expected" in a && e.target.value === "dataset") {
+                                        const { expected: _expected, ...rest } = a;
+                                        set(path, {
+                                            ...rest,
+                                            datasetExpected: {
+                                                alias: "dataset",
+                                                op: "field",
+                                                key: "row",
+                                                field: "value",
+                                            },
+                                        });
+                                    } else if ("datasetExpected" in a && e.target.value === "literal") {
+                                        const { datasetExpected: _query, ...rest } = a;
+                                        set(path, { ...rest, expected: literalDefault(type, operator) });
+                                    }
+                                }}
+                            >
+                                <option value="literal">{tx("字面预期值 / Literal value")}</option>
+                                <option value="dataset">{tx("数据集查询 / Dataset query")}</option>
+                            </select>
+                        </label>
+                    )}
+                    {"datasetExpected" in a ? (
+                        <DatasetQueryEditor path={path + ".datasetExpected"} query={a.datasetExpected} />
+                    ) : boolean ? (
                         <Field name={`${path}.expected`} label={tx("预期 / Expected")} check />
                     ) : number ? (
                         <Field name={`${path}.expected`} label={tx("预期 / Expected")} number />
