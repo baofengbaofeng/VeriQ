@@ -138,3 +138,14 @@ node --import tsx --test tests/controlled-*.test.ts tests/guardian-browser.test.
 - 本轮 source 跨模块类型、完整注释覆盖率、真实原生命令/SDK 输出格式、正式签名与打包顺序均未执行检查。Runtime 先签名再封库存；打包后改变已登记字节会使全部 hash 失效，不能标成功。
 - Windows 在线持久化、离线/cache 保留期及 active/未知 Attempt 屏障的后续源码与验证单列 V11；本文件没有将其降格为纯环境验收。
 - 失败/关闭未知路径保留本轮拥有根，操作者需按实际 owner 与真实关闭证据处理现场；没有任意同用户并发写入下的原子整树保证，也没有无限后代的自动清理承诺。
+
+## Windows 三例历史结果不能绑定当前源码
+
+只读证据核对确认2455199的Windows Server2025原生组93/96，三例各首先停在合成Cookie文件owner、
+迁移夹具根owner、Node/SQLite五子项owner断言。原始日志保留，gzip及解压双摘要一致；该次没有创建令牌的
+TokenOwner/提升类型，不能静默接受Administrators owner或改变唯一用户ACE规则来关闭失败。
+
+当前C07已使Windows LocalStore先原生建立私有主库，并在打开/建表后检查主库与辅助文件；
+所以旧profile失败点和当前三项通过数均待复验。尚未找到V03/V05/V11的当前原生结案记录。
+后续先选仅临时ACL/合成文件、不触任何实际凭据库的观察路径，再按明确范围执行三例；
+Windows Server临时宿主的结果不能替代Windows11桌面安装/GUI验收，也不改变Mac双架构最高优先级。
