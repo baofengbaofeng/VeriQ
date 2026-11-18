@@ -5,7 +5,7 @@
  */
 
 import { tx, useAppLocale } from "../../locale";
-import { type ReactNode, useId, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useId, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FormProvider, useForm, useWatch } from "react-hook-form";
@@ -213,6 +213,17 @@ export function ResourceWorkspaceView({
     // 仅云端资源列表传入工具栏。桌面及专用环境页保留行内创建表单，也保留资源标识作为编辑入口。
     const library = workspaceControls !== undefined;
     const [creating, setCreating] = useState(false);
+    const heading = useRef<HTMLHeadingElement>(null);
+    const newResource = useRef<HTMLButtonElement>(null);
+    // 主动返回时焦点交回新建按钮；提交成功紧接着打开编辑抽屉，避免在抽屉接管焦点后再次争抢。
+    const returnToList = useRef(false);
+    useLayoutEffect(() => {
+        if (creating) heading.current?.focus();
+        else if (returnToList.current) {
+            returnToList.current = false;
+            newResource.current?.focus();
+        }
+    }, [creating]);
     const keyHint = useId();
     const [kind, setKind] = useState<ResourceKind | "">(initialKind ?? ""),
         [createKind, setCreateKind] = useState<ResourceKind>(initialKind ?? "CASE"),
@@ -360,6 +371,7 @@ export function ResourceWorkspaceView({
         </Button>
     );
     const leave = () => {
+        returnToList.current = true;
         setCreating(false);
         setKey("");
         setName("");
@@ -451,12 +463,15 @@ export function ResourceWorkspaceView({
                         )}
                     </div>
                     <div className="vq-page-heading">
-                        <h1 tabIndex={-1}>{creating ? tx("New resource") : t("resources")}</h1>
+                        <h1 ref={heading} tabIndex={-1}>
+                            {creating ? tx("New resource") : t("resources")}
+                        </h1>
                         {creating ? (
                             <div className="vq-workspace-context">{workspaceControls}</div>
                         ) : (
                             !adapter.readOnly && (
                                 <Button
+                                    ref={newResource}
                                     disabled={!editableRole(workspace, "CASE")}
                                     onClick={() => {
                                         setCreateKind(kind && editableRole(workspace, kind) ? kind : "CASE");
@@ -499,6 +514,7 @@ export function ResourceWorkspaceView({
             )}
             <Sheet
                 open={!!selected}
+                fallbackFocus={library ? newResource : undefined}
                 onOpenChange={(open) => {
                     if (!open) setSelected(null);
                 }}

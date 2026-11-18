@@ -50,7 +50,20 @@ export function WorkspacePage() {
     }, [firstWorkspaceId, selected, select]);
     if (!user) return <Navigate to="/login" />;
     return (
-        <Panel title={tx("Workspaces")}>
+        <Panel
+            title={tx("Workspaces")}
+            action={
+                <button
+                    type="button"
+                    ref={sampleTrigger}
+                    aria-expanded={sampleOpen}
+                    aria-controls="sample-workspace-panel"
+                    onClick={() => setSampleOpen((open) => !open)}
+                >
+                    {tx("Import sample workspace")}
+                </button>
+            }
+        >
             <p>{tx("One project is one Workspace. Membership controls access to its resources.")}</p>
             {workspaces.isPending && <p role="status">{tx("Loading Workspaces…")}</p>}
             {workspaces.error && (
@@ -90,15 +103,6 @@ export function WorkspacePage() {
                     {tx("Load more Workspaces")}
                 </button>
             )}
-            <button
-                type="button"
-                ref={sampleTrigger}
-                aria-expanded={sampleOpen}
-                aria-controls="sample-workspace-panel"
-                onClick={() => setSampleOpen((open) => !open)}
-            >
-                {tx("Import sample workspace")}
-            </button>
             {sampleOpen && (
                 <div id="sample-workspace-panel">
                     <SampleWorkspaceWizard

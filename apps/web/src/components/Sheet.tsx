@@ -3,7 +3,7 @@
  * 描述参与无障碍名称计算，关闭按钮与遮罩沿用 Radix 的焦点圈定和 Escape 语义。
  */
 
-import { useLayoutEffect, useRef, type ReactNode } from "react";
+import { useLayoutEffect, useRef, type ReactNode, type RefObject } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { tx, useAppLocale } from "../locale";
 
@@ -16,6 +16,7 @@ export function Sheet({
     onOpenChange,
     title,
     description,
+    fallbackFocus,
     children,
     size = "default",
 }: {
@@ -23,6 +24,7 @@ export function Sheet({
     onOpenChange: (open: boolean) => void;
     title: string;
     description?: string;
+    fallbackFocus?: RefObject<HTMLElement>;
     children: ReactNode;
     size?: "default" | "wide";
 }) {
@@ -48,7 +50,10 @@ export function Sheet({
                         if (wasOpen.current) return;
                         const target = opener.current;
                         opener.current = null;
-                        if (target?.isConnected) target.focus({ preventScroll: true });
+                        // 新建表单在提交后离开主区，打开时浏览器可能已经把焦点还给文档，此时采用列表提供的入口。
+                        const destination =
+                            target?.isConnected && target !== document.body ? target : fallbackFocus?.current;
+                        destination?.focus({ preventScroll: true });
                     }}
                 >
                     <div className="vq-sheet-header">

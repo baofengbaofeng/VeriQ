@@ -5,7 +5,7 @@
 
 import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
-import { closeResourceEditor, editorScope } from "../editor-fixture";
+import { editorScope } from "../editor-fixture";
 import { installed } from "../support/install-console";
 
 test.beforeEach(async ({ page }) => installed(page));
@@ -56,6 +56,21 @@ test("server console follows the approved layout", async ({ page }) => {
     await expect(table.getByRole("columnheader").first()).toHaveCSS("font-size", "12px");
     await expect(table.getByRole("cell").first()).toHaveCSS("font-size", "12px");
     await expect(table.getByRole("button").first()).toHaveCSS("font-size", "12px");
+    const glyph = await header.getByRole("button", { name: "Sign out" }).locator("svg").screenshot();
+    const contrast = await page.evaluate(
+        async (image) => {
+            const bitmap = await createImageBitmap(await (await fetch(image)).blob());
+            const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+            const context = canvas.getContext("2d");
+            if (!context) throw new Error("Missing 2D context");
+            context.drawImage(bitmap, 0, 0);
+            const pixels = context.getImageData(0, 0, bitmap.width, bitmap.height).data;
+            const red = pixels.filter((_, index) => index % 4 === 0);
+            return Math.max(...red) - Math.min(...red);
+        },
+        `data:image/png;base64,${glyph.toString("base64")}`,
+    );
+    expect(contrast).toBeGreaterThan(60);
     await settings.click();
     await expect(page.getByRole("heading", { name: "Your account" })).toBeVisible();
 });
@@ -63,16 +78,21 @@ test("server console follows the approved layout", async ({ page }) => {
 test("compact console navigation closes on selection and exposes the current branch", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await signIn(page);
-    await page.goto("/resources");
+    await page.goto("/resources/");
     const menu = page.getByRole("button", { name: "Menu", exact: true });
     await expect(menu).toHaveAttribute("aria-expanded", "false");
     await menu.click();
     const nav = page.getByRole("navigation", { name: "Main navigation" });
     await expect(nav.getByRole("link", { name: "Resources" })).toHaveAttribute("aria-current", "page");
-    await nav.getByRole("link", { name: "Workspaces" }).click();
+    await nav.getByRole("button", { name: "Authoring" }).click();
+    await expect(nav.getByRole("link", { name: "Resources" })).toBeHidden();
+    await menu.click();
+    await menu.click();
+    await expect(nav.getByRole("link", { name: "Resources" })).toBeVisible();
+    await nav.getByRole("link", { name: "Runtimes" }).click();
     await expect(nav).toBeHidden();
     await menu.click();
-    await expect(nav.getByRole("link", { name: "Workspaces" })).toHaveAttribute("aria-current", "page");
+    await expect(nav.getByRole("link", { name: "Runtimes" })).toHaveAttribute("aria-current", "page");
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
 });
 
@@ -82,10 +102,11 @@ test("console resources return to the selected list and create in the same works
     await filter.selectOption("DATASET");
     const start = page.getByRole("button", { name: "New resource", exact: true });
     await expect(start).toBeVisible();
-    await start.click();
-    await expect(page.getByRole("heading", { name: "New resource", level: 1 })).toBeVisible();
+    await start.press("Enter");
+    await expect(page.getByRole("heading", { name: "New resource", level: 1 })).toBeFocused();
     await expect(filter).toBeHidden();
-    await page.getByRole("button", { name: "Back to list" }).click();
+    await page.getByRole("button", { name: "Back to list" }).press("Enter");
+    await expect(start).toBeFocused();
     await expect(page.getByLabel("Workspace")).toHaveValue(workspaceId);
     await expect(filter).toHaveValue("DATASET");
     await start.click();
@@ -98,7 +119,39 @@ test("console resources return to the selected list and create in the same works
     await page.getByRole("button", { name: "Create resource" }).click();
     expect((await response).status()).toBe(201);
     await expect(page.getByRole("dialog").getByRole("article")).toBeVisible();
-    await closeResourceEditor(page);
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toBeHidden();
+    await expect(start).toBeFocused();
     await expect(page.getByRole("row", { name: /Console dataset/ })).toBeVisible();
     await expect(filter).toHaveValue("DATASET");
+});
+
+test("workspace title and import action share a row", async ({ page }) => {
+    await signIn(page);
+    await page.goto("/workspaces");
+    const heading = page.getByRole("heading", { name: "Workspaces", level: 1 });
+    const importAction = page.getByRole("button", { name: "Import sample workspace" });
+    await expect(importAction).toBeVisible();
+    const title = await heading.boundingBox();
+    const button = await importAction.boundingBox();
+    if (!title || !button) throw new Error("Missing workspace title or import action");
+    expect(button.x).toBeGreaterThanOrEqual(title.x + title.width);
+    expect(Math.abs(button.y + button.height / 2 - title.y - title.height / 2)).toBeLessThan(1);
+    await importAction.press("Enter");
+    await expect(page.locator("#sample-wizard-title")).toBeFocused();
+});
+
+test.describe("desktop touch console", () => {
+    test.use({ hasTouch: true, viewport: { width: 1280, height: 800 } });
+
+    test("desktop touch header stays 56px with 44px targets", async ({ page }) => {
+        await signIn(page);
+        const header = page.getByRole("banner");
+        await expect(header).toHaveCSS("height", "56px");
+        for (const control of await header.locator("a, button, select").all()) {
+            const box = await control.boundingBox();
+            expect(box?.height).toBeGreaterThanOrEqual(44);
+            expect(box?.width).toBeGreaterThanOrEqual(44);
+        }
+    });
 });

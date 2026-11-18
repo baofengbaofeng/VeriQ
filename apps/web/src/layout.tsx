@@ -4,7 +4,7 @@
  */
 
 import { useContext, useEffect, useId, useState, type ReactNode } from "react";
-import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
+import { Link, matchPath, NavLink, useLocation, useNavigate } from "react-router-dom";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Auth } from "./auth-context";
 import { tx, useAppLocale } from "./locale";
@@ -57,22 +57,21 @@ const administration: MenuGroup = {
 /**
  * 直接打开深层链接或浏览器前进后退时，目标所在分组随路由展开；手动折叠只影响当前分组。
  */
-function SidebarGroup({ group, onSelect }: { group: MenuGroup; onSelect: () => void }) {
-    const [open, setOpen] = useState(true);
-    const { pathname } = useLocation();
+function SidebarGroup({
+    group,
+    open,
+    onSelect,
+    onToggle,
+}: {
+    group: MenuGroup;
+    open: boolean;
+    onSelect: () => void;
+    onToggle: () => void;
+}) {
     const id = useId();
-    useEffect(() => {
-        if (group.items.some((item) => item.path === pathname)) setOpen(true);
-    }, [pathname, group]);
     return (
         <div className="vq-nav-group">
-            <button
-                type="button"
-                className="vq-nav-item"
-                aria-expanded={open}
-                aria-controls={id}
-                onClick={() => setOpen(!open)}
-            >
+            <button type="button" className="vq-nav-item" aria-expanded={open} aria-controls={id} onClick={onToggle}>
                 <Icon name={group.icon} />
                 {tx(group.label)}
                 <Icon name="chevron" />
@@ -89,6 +88,12 @@ function SidebarGroup({ group, onSelect }: { group: MenuGroup; onSelect: () => v
 }
 
 /**
+ * 导航和重开菜单都按路由自身的匹配规则展开当前路径所属分组，保留用户对其他分组的折叠选择。
+ */
+function revealCurrentGroup(groups: MenuGroup[], pathname: string) {
+    return groups.filter((group) => !group.items.some((item) => matchPath({ path: item.path, end: false }, pathname)));
+}
+/**
  * 窄屏按钮位于导航前面，关闭后链接同时退出布局和键盘顺序；桌面保留各分组的独立展开状态。
  */
 function Sidebar() {
@@ -96,11 +101,29 @@ function Sidebar() {
     const { user } = useContext(Auth);
     const { pathname } = useLocation();
     const [openedAt, setOpenedAt] = useState<string | null>(null);
+    const [collapsed, setCollapsed] = useState<MenuGroup[]>([]);
     const open = openedAt === pathname;
     useEffect(() => {
         setOpenedAt((path) => (path === pathname ? path : null));
+        setCollapsed((groups) => revealCurrentGroup(groups, pathname));
     }, [pathname]);
     const close = () => setOpenedAt(null);
+    const toggleMenu = () => {
+        if (!open) setCollapsed((groups) => revealCurrentGroup(groups, pathname));
+        setOpenedAt(open ? null : pathname);
+    };
+    const renderGroup = (group: MenuGroup) => (
+        <SidebarGroup
+            group={group}
+            open={!collapsed.includes(group)}
+            onSelect={close}
+            onToggle={() =>
+                setCollapsed((groups) =>
+                    groups.includes(group) ? groups.filter((item) => item !== group) : [...groups, group],
+                )
+            }
+        />
+    );
     return (
         <aside className="vq-sidebar">
             <button
@@ -108,7 +131,7 @@ function Sidebar() {
                 className="vq-mobile-menu"
                 aria-controls="vq-navigation"
                 aria-expanded={open}
-                onClick={() => setOpenedAt(open ? null : pathname)}
+                onClick={toggleMenu}
             >
                 <Icon name="menu" />
                 {tx("Menu")}
@@ -118,13 +141,13 @@ function Sidebar() {
                     <Icon name="account" />
                     {tx("Account")}
                 </NavLink>
-                <SidebarGroup group={authoring} onSelect={close} />
-                <SidebarGroup group={execution} onSelect={close} />
+                {renderGroup(authoring)}
+                {renderGroup(execution)}
                 <NavLink className="vq-nav-item" to="/reports" onClick={close}>
                     <Icon name="reports" />
                     {tx("Reports")}
                 </NavLink>
-                {user?.systemAdmin && <SidebarGroup group={administration} onSelect={close} />}
+                {user?.systemAdmin && renderGroup(administration)}
             </nav>
         </aside>
     );

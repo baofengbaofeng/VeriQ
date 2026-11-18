@@ -25,7 +25,7 @@
     background: white;
 }
 .vq-topbar {
-    padding: 6px 16px;
+    padding: 5px 16px;
     min-height: var(--vq-topbar-height);
     height: auto;
     gap: 8px;
