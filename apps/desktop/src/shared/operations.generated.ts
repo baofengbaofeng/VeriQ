@@ -258,14 +258,6 @@ export type CloudOperation =
           data: S["EnrollmentApprove"];
       }
     | {
-          operation: "createBundle";
-          params: {
-              workspaceId: string;
-          };
-          data: S["BundleCreate"];
-          idempotencyKey: string;
-      }
-    | {
           operation: "listBundles";
           params: {
               workspaceId: string;
@@ -274,13 +266,6 @@ export type CloudOperation =
       }
     | {
           operation: "getBundle";
-          params: {
-              workspaceId: string;
-              bundleId: string;
-          };
-      }
-    | {
-          operation: "getBundleManifest";
           params: {
               workspaceId: string;
               bundleId: string;

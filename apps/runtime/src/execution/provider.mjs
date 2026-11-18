@@ -148,11 +148,12 @@ export async function createExecutionContext() {
     return {
         execution,
         hydrateSource,
+        datasetProtected: settings.datasetProtected === true,
         finalizeExecution: async (context) => {
             try {
                 // 可信取消后不再启动可选截图，但无论截图是否执行都必须关闭上下文，才能结算物理完成与重试观察。
                 const page = context.pages()[0];
-                if (!controller.signal.aborted && page && !page.isClosed())
+                if (!settings.datasetProtected && !controller.signal.aborted && page && !page.isClosed())
                     await page.screenshot({
                         path: join(settings.tmp, "screenshot.png"),
                         timeout: 5000,
@@ -170,7 +171,9 @@ export async function createExecutionContext() {
                 return secrets.get(key);
             },
         },
-        downloads: { directory: settings.downloads, maxBytes: settings.downloadLimit },
+        ...(!settings.datasetProtected && {
+            downloads: { directory: settings.downloads, maxBytes: settings.downloadLimit },
+        }),
         redact: (value) => value,
         onEvent: async (event) => {
             if (event.type === "CASE_FINISHED") clearInterval(timer);

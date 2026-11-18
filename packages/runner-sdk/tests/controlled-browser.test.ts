@@ -22,11 +22,11 @@ const LIMIT = 5 * 1024 * 1024,
  * 子进程输出仅进入有界内存供扫描，错误对象不会进入诊断；超时只终止本次原始 ChildProcess 并等待真实退出，既不扫描 PID，
  * 也不把命令或参数中塞入控制端点，标准输入只给归档解析器使用。
  */
-async function command(executable: string, args: string[], cwd: string, input?: string) {
+async function command(executable: string, args: string[], cwd: string, input?: string, env: NodeJS.ProcessEnv = {}) {
     const child = spawn(executable, args, {
         cwd,
         stdio: ["pipe", "pipe", "pipe"],
-        env: { ...process.env, FORCE_COLOR: "0" },
+        env: { ...process.env, ...env, FORCE_COLOR: "0" },
     });
     const stdout: Buffer[] = [],
         stderr: Buffer[] = [];
@@ -819,3 +819,50 @@ test("public connection overloads preserve actual handshake options and restore 
         await new Promise<void>((resolve) => server.close(() => resolve()));
     }
 });
+
+test("protected browser fixture never writes the Playwright failure context", async () => {
+    const root = await mkdtemp(join(tmpdir(), "veriq-protected-failure-"));
+    try {
+        const fixture = fileURLToPath(new URL("../src/controlled-browser.ts", import.meta.url));
+        await writeFile(join(root, "package.json"), '{"type":"module"}');
+        await writeFile(
+            join(root, "protected.spec.ts"),
+            "import { controlledBrowserTest as test } from " +
+                JSON.stringify(fixture) +
+                ";\n" +
+                "test('protected failure', async ({page}) => { " +
+                "await page.setContent('<p>' + process.env.TEST_ECHO + '</p>'); " +
+                "throw new Error(await page.locator('p').innerText()); });",
+        );
+        const config = {
+            reporter: [["null"]],
+            testDir: root,
+            workers: 1,
+            outputDir: join(root, "results"),
+            use: {
+                launchOptions: { executablePath: process.env.VERIQ_TEST_CHROMIUM },
+                trace: "off",
+                acceptDownloads: false,
+            },
+        };
+        await writeFile(join(root, "playwright.config.mjs"), "export default " + JSON.stringify(config));
+        const marker = randomUUID();
+        const actual = await command(
+            process.execPath,
+            [require.resolve("@playwright/test/cli"), "test"],
+            root,
+            undefined,
+            { VERIQ_DATASET_PROTECTED: "1", PLAYWRIGHT_NO_COPY_PROMPT: "1", TEST_ECHO: marker },
+        );
+        expect(actual.code).toBe(1);
+        const results = await readdir(join(root, "results"), { recursive: true });
+        const last = JSON.parse(await readFile(join(root, "results/.last-run.json"), "utf8"));
+        expect(last.failedTests).toHaveLength(1);
+        for (const path of results) {
+            const file = join(root, "results", path);
+            if ((await lstat(file)).isFile()) expect((await readFile(file)).includes(Buffer.from(marker))).toBe(false);
+        }
+    } finally {
+        await rm(root, { recursive: true, force: true });
+    }
+}, 20000);

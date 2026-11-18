@@ -277,6 +277,70 @@ async def test_static_fetch_is_scoped_to_attempt_fence_and_version(site):
     assert (
         await c.post(path.rsplit("/datasets", 1)[0] + "/activate", json=proof, headers=auth(d))
     ).status_code == 200
+    base = path.rsplit("/datasets", 1)[0]
+    blocked = await c.post(
+        base + "/artifact-uploads",
+        json={
+            **proof,
+            "kind": "TRACE",
+            "filename": "trace.zip",
+            "contentType": "application/octet-stream",
+            "sizeBytes": 12,
+            "sha256": "1" * 64,
+            "sensitivity": "CREDENTIAL_RESTRICTED",
+        },
+        headers=auth(d),
+    )
+    assert blocked.status_code == 409 and blocked.json()["code"] == "DATASET_EVIDENCE_FORBIDDEN"
+    body = b'{"echo":"synthetic-private-body"}'
+    metadata = {
+        **proof,
+        "kind": "MANIFEST",
+        "filename": "completion.json",
+        "contentType": "application/octet-stream",
+        "sizeBytes": len(body),
+        "sha256": sha256(body).hexdigest(),
+        "sensitivity": "REDACTED",
+    }
+    blocked = await c.post(
+        base + "/artifact-uploads",
+        json={**metadata, "contentType": "synthetic-private-body"},
+        headers=auth(d),
+    )
+    assert blocked.status_code == 409 and blocked.json()["code"] == "DATASET_EVIDENCE_FORBIDDEN"
+    allowed = await c.post(base + "/artifact-uploads", json=metadata, headers=auth(d))
+    assert allowed.status_code == 201
+    upload = allowed.json()["data"]
+    blocked = await c.put(
+        upload["uploadUrl"] + "?offset=0",
+        content=body,
+        headers={**headers, "Content-Type": "application/octet-stream"},
+    )
+    assert blocked.status_code == 409 and blocked.json()["code"] == "DATASET_EVIDENCE_FORBIDDEN"
+    from veriq_server.db import AttemptUpload
+
+    async with db.sessions() as session:
+        retained = await session.get(AttemptUpload, upload["artifactId"])
+        assert not retained.complete and retained.content == b""
+    unsafe = {
+        "schemaVersion": "1.0",
+        "sequence": 1,
+        "attemptId": claim["attemptId"],
+        "timestamp": claim["serverTime"],
+        "type": "ASSERTION_RESULT",
+        "stepId": "example",
+        "assertionId": "echo",
+        "payload": {
+            "status": "FAILED",
+            "severity": "BLOCK",
+            "expectedSource": "published",
+            "expected": None,
+            "actual": {"present": True, "value": "synthetic-private-body"},
+            "durationMs": 1,
+        },
+    }
+    blocked = await c.post(base + "/events", json={**proof, "events": [unsafe]}, headers=auth(d))
+    assert blocked.status_code == 409 and blocked.json()["code"] == "DATASET_EVIDENCE_FORBIDDEN"
     response = await c.post(path, json=selection, headers=headers)
     assert response.status_code == 200, response.text
     assert response.content == canonical_bytes(document)
@@ -325,7 +389,7 @@ async def test_legacy_published_dataset_revalidation_uses_frozen_original(site, 
             runtime_url + "/trust", json={"trustStatus": "MANAGED", "allowCredentialDelivery": True}
         )
     ).status_code == 200
-    origin, _ = business
+    origin, facts = business
     env = await environment(c, db, ws, origin=origin, identity_path="/identity")
     catalog = await published(
         c,
@@ -338,12 +402,12 @@ async def test_legacy_published_dataset_revalidation_uses_frozen_original(site, 
             "elements": [{"key": "e", "locator": {"by": "veriqId", "value": "e"}}],
         },
     )
-    marker = "PRIVATE-synthetic-冻结正文"
+    marker = "TASK-SCOPED-PRIVATE-ECHO-41873"
     payload = marker + "正文😀" * 8000
     assert len(payload.encode()) > 65536
     expected_row = {
         "key": "first",
-        "values": {"label": payload, "lookup": "first", "path": "/verified"},
+        "values": {"label": payload, "lookup": "first", "path": marker},
     }
     dataset = {
         "kind": "DATASET",
@@ -368,8 +432,17 @@ async def test_legacy_published_dataset_revalidation_uses_frozen_original(site, 
             {
                 "id": "go",
                 "action": "goto",
-                "path": "/verified",
+                "path": "/verified?echo={{data.path}}",
                 "afterAssertions": [
+                    {
+                        "id": "echo",
+                        "type": "url",
+                        "source": "page",
+                        "operator": "contains",
+                        "severity": "BLOCK",
+                        "expectedSource": "Published route prefix",
+                        "expected": "/verified",
+                    },
                     {
                         "id": "url",
                         "type": "url",
@@ -383,7 +456,7 @@ async def test_legacy_published_dataset_revalidation_uses_frozen_original(site, 
                             "key": "{{data.lookup}}",
                             "field": "path",
                         },
-                    }
+                    },
                 ],
             }
         ],
@@ -514,8 +587,32 @@ async def test_legacy_published_dataset_revalidation_uses_frozen_original(site, 
         (profile / "device.json").write_text(json.dumps({"server": "http://127.0.0.1:18889", **d}))
         os.chmod(profile / "device.json", 0o600)
 
-        async def once():
-            child = await asyncio.create_subprocess_exec(
+        # 已有历史报告库与联网 Agent 共用档案，真实 CLI 建库后记录其逻辑内容，覆盖 WAL/SQLite 数据的检查。
+        history = await asyncio.create_subprocess_exec(
+            "node",
+            "--import",
+            "tsx",
+            "src/cli.ts",
+            "--config-dir",
+            str(profile),
+            "results",
+            "history",
+            "--workspace",
+            ws,
+            cwd="apps/runtime",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        output, errors = await history.communicate()
+        assert history.returncode == 0 and json.loads(output) == [], errors.decode()
+        import sqlite3
+
+        history_path = profile / "offline/veriq.sqlite"
+        with sqlite3.connect(history_path.as_uri() + "?mode=ro", uri=True) as historical:
+            history_before = list(historical.iterdump())
+
+        async def launch(*args):
+            return await asyncio.create_subprocess_exec(
                 "node",
                 "--import",
                 "tsx",
@@ -523,14 +620,17 @@ async def test_legacy_published_dataset_revalidation_uses_frozen_original(site, 
                 str(profile),
                 str(release),
                 "/usr/bin/chromium",
+                *args,
                 cwd="apps/runtime",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
+
+        async def finish(child):
             _, err = await child.communicate()
             assert child.returncode == 0, err.decode()
 
-        await once()
+        await finish(await launch())
         async with db.sessions() as session:
             migrated = await session.get(Job, migration_id)
             assert migrated.outcome == "PASSED", (migrated.state, migrated.outcome)
@@ -552,7 +652,7 @@ async def test_legacy_published_dataset_revalidation_uses_frozen_original(site, 
         view = await c.get(generated_url)
         assert view.status_code == 200, view.text
         assert view.json()["data"]["descriptorSha256"] == new_receipt.compiled_bundle_sha256
-        await once()
+        await finish(await launch())
         async with db.sessions() as session:
             test_job = await session.get(Job, test_id)
             assert (test_job.state, test_job.outcome) == ("FINISHED", "PASSED"), (
@@ -560,6 +660,38 @@ async def test_legacy_published_dataset_revalidation_uses_frozen_original(site, 
                 test_job.wait_reason,
                 test_job.outcome,
             )
+        from veriq_server.db import Attempt, AttemptEvent, AttemptUpload
+
+        async with db.sessions() as session:
+            attempt = (
+                await session.execute(select(Attempt).where(Attempt.job_id == test_id))
+            ).scalar_one()
+            events = list(
+                (
+                    await session.scalars(
+                        select(AttemptEvent.document).where(AttemptEvent.attempt_id == attempt.id)
+                    )
+                ).all()
+            )
+            uploads = list(
+                (
+                    await session.scalars(
+                        select(AttemptUpload.metadata_json).where(
+                            AttemptUpload.attempt_id == attempt.id
+                        )
+                    )
+                ).all()
+            )
+            assert marker not in json.dumps(events)
+            assert {entry["kind"] for entry in uploads} == {"MANIFEST"}
+            assertions = [event for event in events if event["type"] == "ASSERTION_RESULT"]
+            assert len(assertions) == 2 and all(
+                event["payload"]["status"] == "PASSED" for event in assertions
+            )
+            assert all(event["payload"]["actual"] == {"present": False} for event in assertions)
+            assert assertions[0]["payload"]["expectedSource"] == "Published route prefix"
+            assert dataset_version["id"] in assertions[-1]["payload"]["expectedSource"]
+        assert facts["echo"] == marker
         # 相同执行主体随后再次运行同一发布版本，应复用已经成功的独立验证，不能改写回执或重复创建验证任务。
         async with client(c, "current-executor@example.com") as executor:
             rerun = await executor.post(
@@ -583,9 +715,129 @@ async def test_legacy_published_dataset_revalidation_uses_frozen_original(site, 
         )
         selected = json.loads((testdir / "execution.json").read_bytes())["selectedRow"]
         assert selected["rowSha256"] == sha256(canonical_bytes(expected_row)).hexdigest()
+
+        def inspect_files(directory):
+            # 实际运行中的浏览器会原子替换单个临时文件，只忽略检查时已经消失的名字，不跟随浏览器进程创建的链接。
+            for item in directory.rglob("*"):
+                try:
+                    if item.is_file() and not item.is_symlink():
+                        content = item.read_bytes()
+                        for encoding in ("utf-8", "utf-16le"):
+                            assert marker.encode(encoding) not in content, item
+                except FileNotFoundError:
+                    continue
+
+        # 目标网页已接收冻结值之后分别观察真实业务失败、心跳取消和宿主 SIGKILL；后者由新进程取得原生停止证明。
+        facts["echo_mode"] = "fail"
+        await finish(await launch())
+        async with db.sessions() as session:
+            failed = (
+                await session.scalars(select(Attempt).where(Attempt.job_id == queued.id))
+            ).one()
+            assert failed.outcome == "FAILED", failed.facts
+            failed_facts = list(
+                (
+                    await session.scalars(
+                        select(AttemptEvent.document).where(AttemptEvent.attempt_id == failed.id)
+                    )
+                ).all()
+            )
+            assert marker not in json.dumps(failed_facts)
+            assert any(
+                e["type"] == "ASSERTION_RESULT"
+                and e["payload"]["status"] == "FAILED"
+                and e["payload"]["errorCode"] == "ASSERTION_FAILED"
+                for e in failed_facts
+            )
+        for end in ["cancel", "crash"]:
+            facts["echo_mode"] = "hold"
+            facts["echo_observed"].clear()
+            facts["echo_release"].clear()
+            async with client(c, "current-executor@example.com") as executor:
+                new = await executor.post(
+                    endpoint, headers={"Idempotency-Key": str(uuid4())}, json=selection
+                )
+            assert new.status_code == 202, new.text
+            rid = new.json()["data"]["id"]
+            agent = await launch()
+            try:
+                await asyncio.wait_for(facts["echo_observed"].wait(), 60)
+                async with db.sessions() as session:
+                    active_job = (await session.scalars(select(Job).where(Job.run_id == rid))).one()
+                    active_id = active_job.active_attempt_id
+                active_journal = json.loads(
+                    (profile / "agent/attempts" / (active_id + ".json")).read_bytes()
+                )
+                scratch = (
+                    Path(tempfile.gettempdir()) / active_journal["allocation"]["temporaryName"]
+                )
+                assert scratch.is_dir()
+                await asyncio.to_thread(inspect_files, scratch)
+                await asyncio.to_thread(inspect_files, profile)
+                if end == "cancel":
+                    response = await c.post(
+                        endpoint + "/" + rid + "/cancel", json={"reason": "Privacy test"}
+                    )
+                    assert response.status_code == 200, response.text
+                    await asyncio.wait_for(finish(agent), 50)
+                else:
+                    agent.kill()
+                    await agent.wait()
+                    assert agent.returncode == -9
+                    await finish(await launch("recover"))
+            finally:
+                facts["echo_release"].set()
+                if agent.returncode is None:
+                    agent.kill()
+                    await agent.wait()
+            async with db.sessions() as session:
+                job = (await session.scalars(select(Job).where(Job.run_id == rid))).one()
+                attempt = (
+                    await session.scalars(select(Attempt).where(Attempt.job_id == job.id))
+                ).one()
+                if end == "cancel":
+                    assert attempt.outcome == "CANCELLED", attempt.facts
+                retained = list(
+                    (
+                        await session.scalars(
+                            select(AttemptEvent.document).where(
+                                AttemptEvent.attempt_id == attempt.id
+                            )
+                        )
+                    ).all()
+                )
+                assert marker not in json.dumps(retained)
+            journal = json.loads((profile / "agent/attempts" / (attempt.id + ".json")).read_bytes())
+            assert journal["dataCleanup"] == "CLEANED"
+            assert journal["stop"]["processStopScope"] == "FULL_DESCENDANT_TREE"
+            assert not (
+                Path(tempfile.gettempdir()) / journal["allocation"]["temporaryName"]
+            ).exists()
+        for file in profile.rglob("*"):
+            if file.is_file() and not file.is_symlink():
+                assert marker.encode() not in file.read_bytes(), file
+        with sqlite3.connect(history_path.as_uri() + "?mode=ro", uri=True) as historical:
+            history_after = list(historical.iterdump())
+            assert history_before == history_after
+            assert marker not in "\n".join(history_after)
     finally:
         shutil.rmtree(profile)
         if previous is None:
             approved.unlink(missing_ok=True)
         else:
             approved.write_bytes(previous)
+
+
+async def test_mvp_exposes_connected_runtime_only(site):
+    c, _db = site
+    await setup(c)
+    await login(c)
+    ws = await workspace(c)
+    base = f"/api/v1/workspaces/{ws}"
+    for path in ("bundles", "result-imports", "result-import-uploads"):
+        response = await c.post(base + "/" + path, json={})
+        assert response.status_code == (405 if path == "bundles" else 404), (
+            path,
+            response.status_code,
+        )
+    assert (await c.get(base + "/runtimes")).status_code == 200

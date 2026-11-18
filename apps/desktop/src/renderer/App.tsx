@@ -3,11 +3,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
     ResourceWorkspaceView,
     ReportWorkspaceView,
-    BundleWorkspaceView,
     AiWorkspaceView,
     appI18n,
     setAppLanguage,
-    type ResourceAdapter,
     type Workspace,
 } from "@veriq/web/desktop";
 import type { PlatformComponents } from "@veriq/contracts";
@@ -15,17 +13,15 @@ import type { DesktopState } from "../shared/bridge";
 import { RetentionPanel } from "./RetentionPanel";
 import { desktopErrorMessage, desktopStateLabel } from "../shared/desktop-errors";
 import { credentialGuidance } from "../shared/credential-status";
-import { cloudAdapters, localResources, DesktopLocalReports } from "./adapters";
+import { cloudAdapters, DesktopLocalReports } from "./adapters";
 
 type S = PlatformComponents["schemas"];
-type Tab = "overview" | "resources" | "bundles" | "local" | "reports" | "ai" | "settings";
+type Tab = "overview" | "resources" | "reports" | "ai" | "settings";
 const bridge = window.veriq;
 const labels = {
     zh: {
         overview: "工作台",
         resources: "云端资源",
-        bundles: "下载与导出",
-        local: "本机缓存",
         reports: "报告与历史",
         ai: "AI 辅助",
         settings: "设置与诊断",
@@ -34,14 +30,11 @@ const labels = {
         signOut: "退出登录",
         refresh: "刷新",
         workspace: "工作区",
-        execute: "独立执行",
         cancel: "取消执行",
-        upload: "回传结果",
         empty: "尚无本机执行记录",
         error: "操作未完成",
         connected: "已登录",
         offline: "离线 / 未登录",
-        cache: "已验签的本机资源",
         select: "选择",
         save: "保存",
         stop: "停止后台",
@@ -51,8 +44,6 @@ const labels = {
     en: {
         overview: "Overview",
         resources: "Cloud resources",
-        bundles: "Downloads & exports",
-        local: "Local cache",
         reports: "Reports & history",
         ai: "AI assistance",
         settings: "Settings & diagnostics",
@@ -61,14 +52,11 @@ const labels = {
         signOut: "Sign out",
         refresh: "Refresh",
         workspace: "Workspace",
-        execute: "Run independently",
         cancel: "Cancel run",
-        upload: "Upload result",
         empty: "No local runs yet",
         error: "Operation failed",
         connected: "Signed in",
         offline: "Offline / signed out",
-        cache: "Verified local resources",
         select: "Select",
         save: "Save",
         stop: "Stop Agent",
@@ -95,14 +83,9 @@ export function App() {
         [proxy, setProxy] = useState("");
     const [workspaces, setWorkspaces] = useState<Workspace[]>([]),
         [workspace, setWorkspace] = useState<Workspace>();
-    const [localWorkspace, setLocalWorkspace] = useState(""),
-        [bundleId, setBundle] = useState("");
-    const [resources, setResources] = useState<ResourceAdapter>();
+    const [localWorkspace, setLocalWorkspace] = useState("");
     const [runId, setRun] = useState(""),
-        [reportLocal, setReportLocal] = useState(true);
-    const [headed, setHeaded] = useState(false),
-        [retry, setRetry] = useState(false),
-        [debug, setDebug] = useState(false);
+        [reportLocal, setReportLocal] = useState(false);
     const [deviceName, setDeviceName] = useState("VeriQ Desktop");
     const [enrollment, setEnrollment] = useState<Omit<S["EnrollmentDTO"], "deviceCode">>();
     const [shared, setShared] = useState(false),
@@ -110,17 +93,9 @@ export function App() {
     const [issuer, setIssuer] = useState(""),
         [fingerprint, setFingerprint] = useState("");
     const [diagnostics, setDiagnostics] = useState<unknown>();
-    const [credential, setCredential] = useState("");
-    const [routing, setRouting] = useState({ baseURL: "", apiBaseURL: "", fixtureBaseURL: "" });
-    const [pins, setPins] = useState<{
-        issuerId: string;
-        workspaceId: string;
-        references: { secretRef: string; versionId: string }[];
-    }>();
-    const [pinIndex, setPinIndex] = useState(0);
     const queries = useQueryClient();
     const workspaceId = workspace?.id;
-    const adapters = useMemo(() => (workspaceId ? cloudAdapters(workspaceId, debug) : undefined), [workspaceId, debug]);
+    const adapters = useMemo(() => (workspaceId ? cloudAdapters(workspaceId) : undefined), [workspaceId]);
     const localReports = useMemo(
         () => (localWorkspace ? new DesktopLocalReports(localWorkspace) : undefined),
         [localWorkspace],
@@ -182,21 +157,6 @@ export function App() {
     }, []);
 
     /**
-     * 从后台列出的缓存包选择其所属工作区，再获取验签资源投影与固定凭证引用供离线查看；此处不根据用户输入路径读取文件，
-     * 失败会交由动作包装器显示而不会构造空成功快照。
-     */
-    async function chooseLocal(id: string) {
-        const selected = agent?.bundles.find((bundle) => bundle.id === id);
-        if (!selected) throw new Error("BUNDLE_NOT_FOUND");
-        await bridge.local({ operation: "select", workspaceId: selected.workspaceId });
-        setLocalWorkspace(selected.workspaceId);
-        setBundle(id);
-        setResources(await localResources(id));
-        setPins((await bridge.local({ operation: "credentials", bundleId: id })) as typeof pins);
-        setPinIndex(0);
-        setTab("local");
-    }
-    /**
      * 普通登录只经过专用宿主 Session，成功后清空输入框中的密码并加载真实成员工作区；设备登记状态由另一组后台字段显示，
      * 登录成功不能被用来代替设备令牌的注册流程。
      */
@@ -214,20 +174,9 @@ export function App() {
         const selected = await bridge.select(id);
         setWorkspace(selected);
         queries.clear();
-        setResources(undefined);
         setRun("");
     }
-    const localView: Workspace | undefined = localWorkspace
-        ? {
-              id: localWorkspace,
-              key: "local",
-              name: "本机只读快照 / Local snapshot",
-              role: "VIEWER",
-              archived: false,
-          }
-        : undefined;
     const roles = workspace?.role;
-    const canExecute = roles !== "VIEWER";
 
     return (
         <div className="desktop-shell">
@@ -240,7 +189,7 @@ export function App() {
                     </div>
                 </div>
                 <nav aria-label="主导航 / Navigation">
-                    {(Object.keys(labels.zh).slice(0, 7) as Tab[]).map((key) => (
+                    {(["overview", "resources", "reports", "ai", "settings"] as Tab[]).map((key) => (
                         <button
                             type="button"
                             key={key}
@@ -413,21 +362,9 @@ export function App() {
                         <>
                             <div className="summary-grid">
                                 <section className="panel">
-                                    <span className="eyebrow">SIGNED CACHE</span>
-                                    <strong className="metric">{agent?.bundles.length ?? 0}</strong>
-                                    <p>已下载资源包 / Downloaded packages</p>
-                                </section>
-                                <section className="panel">
                                     <span className="eyebrow">LOCAL RUNS</span>
                                     <strong className="metric">{agent?.history.length ?? 0}</strong>
                                     <p>本机持久历史 / Durable history</p>
-                                </section>
-                                <section className="panel">
-                                    <span className="eyebrow">PENDING UPLOAD</span>
-                                    <strong className="metric">
-                                        {agent?.history.filter((item) => item.uploadState !== "COMPLETE").length ?? 0}
-                                    </strong>
-                                    <p>重连后可手动回传 / Ready to synchronize</p>
                                 </section>
                             </div>
                             <section className="panel">
@@ -609,273 +546,6 @@ export function App() {
                                 登录并选择工作区后浏览或编辑资源。 / Sign in and choose a workspace.
                             </p>
                         ))}
-                    {tab === "bundles" && (
-                        <>
-                            <label className="panel inline">
-                                <input
-                                    type="checkbox"
-                                    checked={debug}
-                                    onChange={(event) => setDebug(event.target.checked)}
-                                />
-                                允许明确标记的未验证 DEBUG 包 / Allow explicitly unvalidated DEBUG package
-                            </label>
-                            {workspace && adapters ? (
-                                <BundleWorkspaceView
-                                    workspaceId={workspace.id}
-                                    adapter={adapters.bundles}
-                                    signal={scope.signal}
-                                    canDownload={canExecute}
-                                    canEdit={["OWNER", "ADMIN", "EDITOR"].includes(workspace.role)}
-                                />
-                            ) : (
-                                <p className="panel">请先登录并选择工作区。 / Choose an authenticated workspace.</p>
-                            )}
-                        </>
-                    )}
-                    {tab === "local" && (
-                        <>
-                            <section className="panel">
-                                <h2>{t.cache}</h2>
-                                <p>
-                                    断网时仍可读取与运行。离线权限撤销状态未知，结果不等同正式门禁通过。 / Cached
-                                    resources remain usable offline. Revocation status is unknown offline; local results
-                                    do not prove official release gates passed. / Cached snapshots stay usable offline;
-                                    revocation is unknown.
-                                </p>
-                                <div className="toolbar">
-                                    <label>
-                                        资源包 / Package
-                                        <select
-                                            aria-label="本机资源包 / Local package"
-                                            value={bundleId}
-                                            onChange={(event) => void action(() => chooseLocal(event.target.value))}
-                                        >
-                                            <option value="">选择已下载包 / Select a package</option>
-                                            {agent?.bundles.map((item) => (
-                                                <option key={item.id} value={item.id}>
-                                                    {item.id} · {item.engineVersion}
-                                                    {item.debug ? " · DEBUG" : ""}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </label>
-                                    <button
-                                        type="button"
-                                        disabled={!bundleId}
-                                        onClick={() => void action(() => chooseLocal(bundleId))}
-                                    >
-                                        {t.refresh}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        disabled={!bundleId}
-                                        onClick={() =>
-                                            void action(async () => {
-                                                await bridge.local({
-                                                    operation: "clearBundle",
-                                                    bundleId,
-                                                });
-                                                setBundle("");
-                                                setResources(undefined);
-                                                setPins(undefined);
-                                            })
-                                        }
-                                    >
-                                        清理所选缓存 / Remove cache
-                                    </button>
-                                </div>
-                                {!agent?.bundles.length && <p>尚未下载资源包。 / No downloaded packages yet.</p>}
-                                <div className="toolbar">
-                                    <label>
-                                        <input
-                                            type="checkbox"
-                                            disabled={!agent?.headedAvailable}
-                                            checked={headed}
-                                            onChange={(event) => setHeaded(event.target.checked)}
-                                        />
-                                        可见浏览器 / Visible browser
-                                    </label>
-                                    <label>
-                                        <input
-                                            type="checkbox"
-                                            checked={retry}
-                                            onChange={(event) => setRetry(event.target.checked)}
-                                        />
-                                        允许一次整用例重试 / One whole-case retry
-                                    </label>
-                                    <button
-                                        type="button"
-                                        disabled={!bundleId || !!agent?.active || !!agent?.preparing || agent?.online}
-                                        onClick={() =>
-                                            void action(() =>
-                                                bridge.local({
-                                                    operation: "run",
-                                                    bundleId,
-                                                    headed,
-                                                    retry,
-                                                    overrides: Object.fromEntries(
-                                                        Object.entries(routing)
-                                                            .filter(([, value]) => value.trim())
-                                                            .map(([key, value]) => [key, value.trim()]),
-                                                    ),
-                                                }),
-                                            )
-                                        }
-                                    >
-                                        {t.execute}
-                                    </button>
-                                </div>
-                                <details>
-                                    <summary>本次本机环境 / Local environment for this run</summary>
-                                    <p>
-                                        留空使用签名包环境；覆盖需要原生确认，报告标记 dirty，不同步回平台资源。 /
-                                        Overrides require confirmation and do not edit the signed resource.
-                                    </p>
-                                    {(["baseURL", "apiBaseURL", "fixtureBaseURL"] as const).map((key) => (
-                                        <label key={key}>
-                                            {key}
-                                            <input
-                                                aria-label={`Local ${key}`}
-                                                value={routing[key]}
-                                                onChange={(event) =>
-                                                    setRouting((current) => ({
-                                                        ...current,
-                                                        [key]: event.target.value,
-                                                    }))
-                                                }
-                                            />
-                                        </label>
-                                    ))}
-                                </details>
-                                {!agent?.headedAvailable && (
-                                    <p className="muted">
-                                        当前安装仅提供已匹配的无头浏览器；完整可见浏览器尚未配置。 / The installed
-                                        browser supports headless execution only.
-                                    </p>
-                                )}
-                                {agent?.preparing && (
-                                    <p role="status">
-                                        {agent.preparing.cancelling
-                                            ? "正在取消启动 / Cancelling startup"
-                                            : "正在准备执行 / Preparing execution"}
-                                        <button
-                                            type="button"
-                                            disabled={agent.preparing.cancelling}
-                                            onClick={() =>
-                                                void action(() =>
-                                                    bridge.local({
-                                                        operation: "cancel",
-                                                        startupId: agent.preparing!.id,
-                                                    }),
-                                                )
-                                            }
-                                        >
-                                            取消启动 / Cancel startup
-                                        </button>
-                                    </p>
-                                )}
-                                {agent?.active && (
-                                    <p role="status">
-                                        {agent.active.runId} · {agent.active.state}{" "}
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                void action(() =>
-                                                    bridge.local({
-                                                        operation: "cancel",
-                                                        runId: agent.active!.runId,
-                                                    }),
-                                                )
-                                            }
-                                        >
-                                            {t.cancel}
-                                        </button>
-                                    </p>
-                                )}
-                                {agent?.error && <p role="alert">{agent.error}</p>}
-                            </section>
-                            {pins && (
-                                <section className="panel">
-                                    <h2>本机凭证映射 / Local credential mapping</h2>
-                                    <p>仅写入所选签名包钉选的引用；已存值不可读取。 / Write-only pinned references.</p>
-                                    <label>
-                                        引用 / Reference
-                                        <select
-                                            value={pinIndex}
-                                            onChange={(event) => setPinIndex(Number(event.target.value))}
-                                        >
-                                            {pins.references.map((pin, index) => (
-                                                <option key={pin.secretRef + pin.versionId} value={index}>
-                                                    {pin.secretRef} · {pin.versionId}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </label>
-                                    <label>
-                                        JSON 凭证 / JSON credential
-                                        <textarea
-                                            value={credential}
-                                            onChange={(event) => setCredential(event.target.value)}
-                                            spellCheck={false}
-                                            autoComplete="off"
-                                        />
-                                    </label>
-                                    <button
-                                        type="button"
-                                        disabled={!pins.references[pinIndex]}
-                                        onClick={() =>
-                                            void action(async () => {
-                                                const pin = pins.references[pinIndex]!;
-                                                await bridge.local({
-                                                    operation: "setCredential",
-                                                    bundleId,
-                                                    reference: {
-                                                        issuerId: pins.issuerId,
-                                                        workspaceId: pins.workspaceId,
-                                                        ...pin,
-                                                    },
-                                                    value: JSON.parse(credential),
-                                                });
-                                                setCredential("");
-                                                setNotice("凭证已保存 / Credential saved");
-                                            })
-                                        }
-                                    >
-                                        {t.save}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        disabled={!pins.references[pinIndex]}
-                                        onClick={() =>
-                                            void action(async () => {
-                                                const pin = pins.references[pinIndex]!;
-                                                await bridge.local({
-                                                    operation: "removeCredential",
-                                                    bundleId,
-                                                    reference: {
-                                                        issuerId: pins.issuerId,
-                                                        workspaceId: pins.workspaceId,
-                                                        ...pin,
-                                                    },
-                                                });
-                                                setNotice("本机凭证已移除 / Local credential removed");
-                                            })
-                                        }
-                                    >
-                                        移除映射 / Remove mapping
-                                    </button>
-                                </section>
-                            )}
-                            {resources && localView && (
-                                <ResourceWorkspaceView
-                                    key={bundleId}
-                                    workspace={localView}
-                                    adapter={resources}
-                                    signal={scope.signal}
-                                />
-                            )}
-                        </>
-                    )}
                     {tab === "reports" && (
                         <>
                             <section className="panel">
@@ -898,7 +568,7 @@ export function App() {
                                 </div>
                                 {reportLocal && (
                                     <>
-                                        <h2>执行与回传 / Runs & uploads</h2>
+                                        <h2>历史记录 / Historical runs</h2>
                                         {!agent?.history.length && <p>{t.empty}</p>}
                                         <ul className="run-list">
                                             {agent?.history.map((item) => (
@@ -915,19 +585,6 @@ export function App() {
                                                             {desktopErrorMessage(item.uploadError, language)}
                                                         </strong>
                                                     )}
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            void action(() =>
-                                                                bridge.local({
-                                                                    operation: "upload",
-                                                                    runId: item.id,
-                                                                }),
-                                                            )
-                                                        }
-                                                    >
-                                                        {t.upload}
-                                                    </button>
                                                     {item.state === "RUNNING" && (
                                                         <button
                                                             type="button"
@@ -976,10 +633,7 @@ export function App() {
                                 signal={scope.signal}
                             />
                         ) : (
-                            <p className="panel">
-                                AI 配置需要平台连接；离线确定性执行不调用模型。 / AI requires a platform connection;
-                                offline execution never calls a model.
-                            </p>
+                            <p className="panel">AI 配置需要平台连接。 / AI requires a platform connection.</p>
                         ))}
                     {tab === "settings" && (
                         <>
@@ -1008,7 +662,8 @@ export function App() {
                                     invalid TLS is rejected.
                                 </p>
                                 <p>
-                                    本机执行容量：1；在线默认全局4 / Workspace2，由平台授权限制。 / Local capacity: 1.
+                                    联网执行默认容量为全局 4、每个工作区 2。 / Connected capacity defaults to 4 globally
+                                    and 2 per workspace.
                                 </p>
                                 <button type="button" onClick={() => void action(() => bridge.directory())}>
                                     打开资源目录 / Open resource directory
@@ -1118,9 +773,6 @@ export function App() {
                                     workspaceId={agent?.workspaceId}
                                     unavailable={!!(busy || agent?.active || agent?.preparing || agent?.online)}
                                     onCompleted={async () => {
-                                        setBundle("");
-                                        setResources(undefined);
-                                        setPins(undefined);
                                         setRun("");
                                         queries.clear();
                                         await refresh();

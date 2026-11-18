@@ -45,7 +45,6 @@ function useMenu(): MenuEntry[] {
             items: [
                 { to: "/execution-plans", label: tx("Plans") },
                 { to: "/runtimes", label: tx("Runtimes") },
-                { to: "/bundles", label: tx("Bundles") },
             ],
         },
         { kind: "item", item: { to: "/reports", label: tx("Reports") } },

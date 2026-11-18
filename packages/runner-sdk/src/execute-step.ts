@@ -28,7 +28,7 @@ import {
     type StepResult,
 } from "./context.js";
 import { apiRequest, authorizedURL } from "./http.js";
-import { runAssertion } from "./assertions/http.js";
+import { assertionExpectedSource, runAssertion } from "./assertions/http.js";
 /**
  * 公开函数 executeStep 按 ResolvedStep 执行动作、观察器与断言：预算耗尽或取消时中断：子步骤递归推进。
  */
@@ -301,7 +301,7 @@ export async function executeStep(plan: ResolvedStep, outer: StepContext): Promi
                     sourcePath: item.sourcePath,
                     status: "SKIPPED" as const,
                     severity: item.assertion.severity,
-                    expectedSource: item.assertion.expectedSource,
+                    expectedSource: assertionExpectedSource(item, ctx),
                     expected: null,
                     actual: { present: false as const },
                     durationMs: 0,

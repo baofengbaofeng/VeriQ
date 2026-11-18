@@ -18,6 +18,7 @@ from ..repositories.resource import ResourceRepository
 from ..service import Problem, stamp
 from ..settings import Settings
 from .lease import LeaseService
+from .connected_datasets import protected_test
 
 MAX_FILE = 32 * 1024 * 1024
 MAX_ATTEMPT_BYTES = 256 * 1024 * 1024
@@ -46,7 +47,20 @@ class ContentService:
         create_upload 实现于 apps/srv/src/veriq_server/services/content.py：请按该符号的输入校验、
         错误码与调用方契约阅读，勿假设通用成功默认值。
         """
-        attempt, _, _, _ = await LeaseService(self.session, self.settings).proof(attempt_id, proof)
+        attempt, job, _, _ = await LeaseService(self.session, self.settings).proof(
+            attempt_id, proof
+        )
+        repo = ResourceRepository(self.session, WorkspaceScope(attempt.workspace_id))
+        if await protected_test(repo, job, attempt.snapshot_hash) and (
+            data["kind"] != "MANIFEST"
+            or data["filename"] != "completion.json"
+            or data["contentType"] not in {"application/octet-stream", "application/json"}
+            or data["sensitivity"] != "REDACTED"
+            or data["sizeBytes"] > 65536
+        ):
+            raise Problem(
+                409, "DATASET_EVIDENCE_FORBIDDEN", "Protected test requires structured evidence"
+            )
         if data["sizeBytes"] > MAX_FILE or validate_schema("FilePath", data["filename"]):
             raise Problem(413, "UPLOAD_LIMIT", "Upload filename or size is outside limits")
         rows = (

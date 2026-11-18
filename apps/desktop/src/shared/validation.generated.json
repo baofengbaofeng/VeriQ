@@ -3625,6 +3625,9 @@
                         "enum": ["TEST", "VALIDATE", "CLEANUP"]
                     },
                     "minItems": 1
+                },
+                "connectedDatasets": {
+                    "const": "2.0"
                 }
             },
             "required": ["engineVersion", "os", "arch", "browsers"],
@@ -5577,6 +5580,12 @@
                                 },
                                 "maxItems": 1000
                             },
+                            "compilerConnectedDatasets": {
+                                "const": "2.0"
+                            },
+                            "runnerSdkConnectedDatasets": {
+                                "const": "2.0"
+                            },
                             "dependencies": {
                                 "type": "array",
                                 "items": {
@@ -6419,6 +6428,319 @@
                 }
             ]
         },
+        "ConnectedDatasetV2": {
+            "type": "object",
+            "properties": {
+                "kind": {
+                    "const": "DATASET"
+                },
+                "resourceId": {
+                    "$ref": "#/$defs/Id"
+                },
+                "versionId": {
+                    "$ref": "#/$defs/Id"
+                },
+                "sha256": {
+                    "$ref": "#/$defs/Sha256"
+                },
+                "schema": {
+                    "oneOf": [
+                        {
+                            "type": "object",
+                            "properties": {
+                                "schemaVersion": {
+                                    "const": "1.0"
+                                },
+                                "columns": {
+                                    "$ref": "#/$defs/ParameterTypes"
+                                }
+                            },
+                            "required": ["schemaVersion", "columns"],
+                            "additionalProperties": false
+                        },
+                        {
+                            "type": "object",
+                            "properties": {
+                                "schemaVersion": {
+                                    "const": "2.0"
+                                },
+                                "shape": {
+                                    "enum": ["TABLE", "TREE"]
+                                },
+                                "fields": {
+                                    "$ref": "#/$defs/DatasetFieldsV2"
+                                }
+                            },
+                            "required": ["schemaVersion", "shape", "fields"],
+                            "additionalProperties": false
+                        }
+                    ]
+                },
+                "contentSha256": {
+                    "$ref": "#/$defs/Sha256"
+                }
+            },
+            "required": ["kind", "resourceId", "versionId", "sha256", "schema", "contentSha256"],
+            "additionalProperties": false
+        },
+        "ConnectedSourceSnapshotV2": {
+            "type": "object",
+            "properties": {
+                "schemaVersion": {
+                    "const": "2.0"
+                },
+                "workspaceId": {
+                    "$ref": "#/$defs/Id"
+                },
+                "sourceHash": {
+                    "$ref": "#/$defs/Sha256"
+                },
+                "engineVersion": {
+                    "$ref": "#/$defs/Version"
+                },
+                "entryCaseVersionIds": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/Id"
+                    },
+                    "minItems": 0
+                },
+                "assets": {
+                    "type": "array",
+                    "items": {
+                        "oneOf": [
+                            {
+                                "$ref": "#/$defs/AssetVersionV1/oneOf/0"
+                            },
+                            {
+                                "$ref": "#/$defs/AssetVersionV1/oneOf/1"
+                            },
+                            {
+                                "$ref": "#/$defs/AssetVersionV1/oneOf/2"
+                            },
+                            {
+                                "$ref": "#/$defs/AssetVersionV1/oneOf/4"
+                            },
+                            {
+                                "$ref": "#/$defs/AssetVersionV1/oneOf/5"
+                            },
+                            {
+                                "$ref": "#/$defs/AssetVersionV1/oneOf/6"
+                            },
+                            {
+                                "$ref": "#/$defs/AssetVersionV1/oneOf/7"
+                            },
+                            {
+                                "$ref": "#/$defs/ConnectedDatasetV2"
+                            }
+                        ]
+                    },
+                    "minItems": 1
+                },
+                "validationTarget": {
+                    "$ref": "#/$defs/ValidationTargetV1"
+                },
+                "authAdapters": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/AuthAdapterVersionV1"
+                    },
+                    "maxItems": 100
+                },
+                "originalSha256": {
+                    "$ref": "#/$defs/Sha256"
+                }
+            },
+            "required": [
+                "schemaVersion",
+                "workspaceId",
+                "sourceHash",
+                "engineVersion",
+                "entryCaseVersionIds",
+                "assets",
+                "originalSha256"
+            ],
+            "additionalProperties": false,
+            "allOf": [
+                {
+                    "if": {
+                        "required": ["validationTarget"],
+                        "properties": {
+                            "validationTarget": {}
+                        }
+                    },
+                    "else": {
+                        "properties": {
+                            "entryCaseVersionIds": {
+                                "minItems": 1,
+                                "type": "array"
+                            }
+                        }
+                    }
+                }
+            ]
+        },
+        "ConnectedExecutionSnapshotV2": {
+            "type": "object",
+            "properties": {
+                "schemaVersion": {
+                    "const": "2.0"
+                },
+                "workspaceId": {
+                    "$ref": "#/$defs/Id"
+                },
+                "runId": {
+                    "$ref": "#/$defs/Id"
+                },
+                "caseExecutionId": {
+                    "$ref": "#/$defs/Id"
+                },
+                "assetSourceHash": {
+                    "$ref": "#/$defs/Sha256"
+                },
+                "environmentVersionId": {
+                    "$ref": "#/$defs/Id"
+                },
+                "environment": {
+                    "$ref": "#/$defs/EnvironmentV1"
+                },
+                "roleKey": {
+                    "$ref": "#/$defs/Key"
+                },
+                "browser": {
+                    "$ref": "#/$defs/Browser"
+                },
+                "variables": {
+                    "$ref": "#/$defs/JsonObject"
+                },
+                "secretVersions": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "secretRef": {
+                                "$ref": "#/$defs/Key"
+                            },
+                            "versionId": {
+                                "$ref": "#/$defs/Id"
+                            }
+                        },
+                        "required": ["secretRef", "versionId"],
+                        "additionalProperties": false
+                    },
+                    "minItems": 0
+                },
+                "namespace": {
+                    "$ref": "#/$defs/Key"
+                },
+                "attemptNo": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 2
+                },
+                "caseVersionId": {
+                    "$ref": "#/$defs/Id"
+                },
+                "authAdapters": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/AuthAdapterVersionV1"
+                    },
+                    "maxItems": 100
+                },
+                "datasetVersionId": {
+                    "$ref": "#/$defs/Id"
+                },
+                "suiteEntryIndex": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 999
+                },
+                "datasetBindings": {
+                    "$ref": "#/$defs/DatasetBindings"
+                },
+                "selectedRow": {
+                    "type": "object",
+                    "properties": {
+                        "versionId": {
+                            "$ref": "#/$defs/Id"
+                        },
+                        "rowKey": {
+                            "$ref": "#/$defs/Key"
+                        },
+                        "rowSha256": {
+                            "$ref": "#/$defs/Sha256"
+                        }
+                    },
+                    "required": ["versionId", "rowKey", "rowSha256"],
+                    "additionalProperties": false
+                }
+            },
+            "required": [
+                "schemaVersion",
+                "workspaceId",
+                "runId",
+                "caseExecutionId",
+                "assetSourceHash",
+                "environmentVersionId",
+                "environment",
+                "roleKey",
+                "browser",
+                "variables",
+                "secretVersions",
+                "namespace",
+                "attemptNo",
+                "caseVersionId"
+            ],
+            "dependentRequired": {
+                "datasetVersionId": ["selectedRow"],
+                "selectedRow": ["datasetVersionId"]
+            },
+            "additionalProperties": false
+        },
+        "StaticDatasetSelection": {
+            "oneOf": [
+                {
+                    "type": "object",
+                    "properties": {
+                        "selection": {
+                            "const": "VALIDATION_SOURCE"
+                        }
+                    },
+                    "required": ["selection"],
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "selection": {
+                            "const": "DATASET"
+                        },
+                        "versionId": {
+                            "$ref": "#/$defs/Id"
+                        }
+                    },
+                    "required": ["selection", "versionId"],
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "selection": {
+                            "const": "ROW"
+                        },
+                        "versionId": {
+                            "$ref": "#/$defs/Id"
+                        },
+                        "rowKey": {
+                            "$ref": "#/$defs/Key"
+                        }
+                    },
+                    "required": ["selection", "versionId", "rowKey"],
+                    "additionalProperties": false
+                }
+            ]
+        },
         "api_Id": {
             "$ref": "#/$defs/Id"
         },
@@ -6583,6 +6905,18 @@
         },
         "api_AssetVersionV1": {
             "$ref": "#/$defs/AssetVersionV1"
+        },
+        "api_ConnectedDatasetV2": {
+            "$ref": "#/$defs/ConnectedDatasetV2"
+        },
+        "api_ConnectedSourceSnapshotV2": {
+            "$ref": "#/$defs/ConnectedSourceSnapshotV2"
+        },
+        "api_ConnectedExecutionSnapshotV2": {
+            "$ref": "#/$defs/ConnectedExecutionSnapshotV2"
+        },
+        "api_StaticDatasetSelection": {
+            "$ref": "#/$defs/StaticDatasetSelection"
         },
         "api_AssetSnapshotV1": {
             "$ref": "#/$defs/AssetSnapshotV1"

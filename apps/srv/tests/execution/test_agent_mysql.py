@@ -29,6 +29,8 @@ async def business():
         "cookies": [],
         "fixtureIds": [],
         "hold_status": False,
+        "echo_observed": asyncio.Event(),
+        "echo_release": asyncio.Event(),
         "prepared": asyncio.Event(),
     }
 
@@ -42,6 +44,18 @@ async def business():
                         else "reader"
                     }
                 )
+            elif path == "verified" and self.get_query_argument("echo", None):
+                facts["echo"] = self.get_query_argument("echo")
+                if facts.get("echo_mode") == "fail":
+                    self.redirect("/mismatch?seen=" + facts["echo"])
+                elif facts.get("echo_mode") == "hold":
+                    self.finish("<div>" + facts["echo"] + "</div><img src='/echo-hold'>")
+                else:
+                    self.finish(facts["echo"])
+            elif path == "echo-hold":
+                facts["echo_observed"].set()
+                await facts["echo_release"].wait()
+                self.finish()
             elif path == "readonly-status":
                 facts["reads"] += 1
                 self.finish({"ok": facts["reads"] == 2})

@@ -55,6 +55,10 @@ test("arbitrary transport fields and device-token operations are rejected", () =
         assert.throws(() => resolveOperation(value, undefined), /IPC_OPERATION_DENIED|IPC_PAYLOAD_INVALID/);
 });
 
+test("connected desktop has no bundle export capability", () => {
+    assert.throws(() => resolveOperation({ operation: "createBundle" }, undefined), /IPC_OPERATION_DENIED/);
+});
+
 test("foreign workspace is rejected before a resource request", () => {
     assert.throws(
         () =>

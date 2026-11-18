@@ -27,6 +27,8 @@ let diagnostics;
 if (invocation.kind === "CLEANUP") result = { kind: "READY" };
 else
     try {
+        if (invocation.datasetProtected && (await import("@veriq/runner-sdk")).datasetEvidencePolicyVersion !== 1)
+            throw new Error("DATASET_EVIDENCE_POLICY_REQUIRED");
         const projected = JSON.parse(await readFile(join(root, "source/asset-snapshot.json"), "utf8"));
         const connected = projected.schemaVersion === "2.0";
         if (connected && typeof compiler.projectConnectedSource !== "function")

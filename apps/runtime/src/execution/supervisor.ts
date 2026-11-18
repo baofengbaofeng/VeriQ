@@ -9,7 +9,6 @@ import {
     writeFile,
     copyFile,
     readdir,
-    rm,
     rename,
     open,
     lstat,
@@ -17,7 +16,7 @@ import {
     type FileHandle,
 } from "node:fs/promises";
 import { constants } from "node:fs";
-import { join, dirname, resolve } from "node:path";
+import { basename, join, dirname, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
 import { randomUUID } from "node:crypto";
@@ -47,7 +46,7 @@ import { AttemptBroker, createDarwinBrokerDirectory } from "./broker.ts";
 import { requireDarwinSource, type DarwinSourceCapability, type DarwinSourceState } from "./darwin-source.ts";
 import { matchesControlledClaim } from "./darwin-proof.ts";
 import { WindowsAttemptJournal } from "./windows-journal.ts";
-import { monitorStorage } from "./storage.ts";
+import { allocateScratch, monitorStorage, retireScratch, type DataCleanup, type TaskAllocation } from "./storage.ts";
 import { loadRelease, sha256 } from "./release.ts";
 import { developmentExecutionPaths, containedPath, type ExecutionPaths } from "./paths.ts";
 import { offlineWorkerEnvironment } from "../offline/worker-environment.ts";
@@ -98,6 +97,8 @@ export interface SupervisorOptions {
     execution?: ExecutionPaths;
 }
 interface AttemptJournal {
+    allocation?: TaskAllocation;
+    dataCleanup?: DataCleanup;
     claimRequestId?: string;
     claim: Claim;
     state: "ALLOCATED" | "ACTIVATING" | "ACTIVATED" | "SPAWNING" | "RUNNING" | "STOPPED";
@@ -280,6 +281,7 @@ export class ExecutionSupervisor {
             for (const name of names) {
                 if (!name.endsWith(".json")) continue;
                 const record = (await records.read(name, 65536)) as AttemptJournal;
+                if (name !== record.claim.attemptId + ".json") throw new Error("ATTEMPT_JOURNAL_ID_MISMATCH");
                 /**
                  * 临时对象可能包含尚未结清的 SPAWNING，即便旧正式日志仍是前置状态也不能走未派生快捷路径；只隔离受影响
                  * Attempt，其余正式日志继续执行原有内核停止核验和对账。
@@ -307,6 +309,12 @@ export class ExecutionSupervisor {
                 )
                     stop.reason = "JOURNAL_STAGING_UNCONFIRMED";
                 if (stop.processStopped && stop.processStopScope !== "NO_PROCESS_SPAWNED") record.state = "STOPPED";
+                record.dataCleanup = await retireScratch(
+                    this.options.root,
+                    this.source?.temporaryDirectory ?? tmpdir(),
+                    record,
+                    stop,
+                );
                 record.stop = stop;
                 try {
                     await this.journal(record);
@@ -367,6 +375,12 @@ export class ExecutionSupervisor {
                     (await this.unspawned(record, true)) ??
                     (await this.terminateAttempt(record.claim.attemptId, "AGENT_RECOVERY"));
                 if (stop.processStopped && stop.processStopScope !== "NO_PROCESS_SPAWNED") record.state = "STOPPED";
+                record.dataCleanup = await retireScratch(
+                    this.options.root,
+                    this.source?.temporaryDirectory ?? tmpdir(),
+                    record,
+                    stop,
+                );
                 record.stop = stop;
                 journal.save(record);
                 await this.reconcile(record.claim, stop, "PENDING");
@@ -434,8 +448,9 @@ export class ExecutionSupervisor {
             throw new Error("UNSUPPORTED_PROCESS_PLATFORM");
         const executionPaths = this.options.execution ?? developmentExecutionPaths();
         const work = join(this.options.root, "work", claim.attemptId);
-        if (this.source) this.source.native.openPrivateDirectory(work, true).close();
-        else await mkdir(work, { recursive: true, mode: 0o700 });
+        await privateDirectory(dirname(work));
+        await mkdir(work, { mode: 0o700 });
+        await privateDirectory(work);
         const brokerDirectory = this.source ? await createDarwinBrokerDirectory() : undefined;
         let tmp: string;
         try {
@@ -448,6 +463,7 @@ export class ExecutionSupervisor {
         const record: AttemptJournal = {
             claim,
             state: "ALLOCATED",
+            allocation: await allocateScratch(work, tmp),
             work,
             ...(assignment.claimRequestId ? { claimRequestId: assignment.claimRequestId } : {}),
         };
@@ -465,11 +481,8 @@ export class ExecutionSupervisor {
         try {
             await commit();
         } catch (error) {
-            try {
-                await brokerDirectory?.close();
-            } finally {
-                await rm(tmp, { recursive: true, force: true });
-            }
+            // 持久分配尚未确认，保留这个空的私有暂存目录，避免按可能已替换的路径递归删除。
+            await brokerDirectory?.close();
             throw error;
         }
         const client = this.options.client,
@@ -610,6 +623,9 @@ export class ExecutionSupervisor {
                 )
                     throw new Error("INVALID_CLEANUP_SUBJECT");
             }
+            const datasetProtected = !!(
+                execution?.datasetVersionId || Object.keys(execution?.datasetBindings ?? {}).length
+            );
             let loading = false,
                 compiled = false;
             let transfer: { bytes: Uint8Array; id: string; next: number } | undefined;
@@ -690,6 +706,7 @@ export class ExecutionSupervisor {
                         sensitivity: "CREDENTIAL_RESTRICTED";
                     };
                     if (
+                        datasetProtected ||
                         evidence.kind !== "DOWNLOAD" ||
                         evidence.sensitivity !== "CREDENTIAL_RESTRICTED" ||
                         !containedPath(this.source ? join(work, "downloads") : tmp, resolve(evidence.path))
@@ -719,6 +736,7 @@ export class ExecutionSupervisor {
             await broker.open();
             const invocation = {
                 online: true,
+                datasetProtected,
                 kind: manifest.kind,
                 work,
                 tmp,
@@ -746,18 +764,21 @@ export class ExecutionSupervisor {
                     testMatch: entry.path.split("/").pop(),
                     workers: 1,
                     retries: 0,
-                    reporter: [
-                        ["json", { outputFile: join(tmp, "playwright.json") }],
-                        ["junit", { outputFile: join(tmp, "junit.xml") }],
-                        ["html", { outputFolder: join(tmp, "html"), open: "never" }],
-                    ],
+                    reporter: datasetProtected
+                        ? [["null"]]
+                        : [
+                              ["json", { outputFile: join(tmp, "playwright.json") }],
+                              ["junit", { outputFile: join(tmp, "junit.xml") }],
+                              ["html", { outputFolder: join(tmp, "html"), open: "never" }],
+                          ],
                     outputDir: join(tmp, "test-results"),
                     use: {
                         browserName: execution.browser,
                         locale: execution.environment.locale,
                         timezoneId: execution.environment.timezone,
                         serviceWorkers: "block",
-                        trace: "on",
+                        trace: datasetProtected ? "off" : "on",
+                        acceptDownloads: !datasetProtected,
                         launchOptions: {
                             executablePath: this.options.browserExecutable,
                             args: ["--no-sandbox"],
@@ -807,15 +828,19 @@ export class ExecutionSupervisor {
                     executable: executionPaths.runnerExecutable,
                     args: [executionPaths.workerEntry, join(work, "invocation.json")],
                     cwd: work,
-                    env: offlineWorkerEnvironment(tmp, join(work, "provider.mjs"), true, process.env, {
-                        runnerExecutable: executionPaths.runnerExecutable,
-                    }),
+                    env: {
+                        ...offlineWorkerEnvironment(tmp, join(work, "provider.mjs"), true, process.env, {
+                            runnerExecutable: executionPaths.runnerExecutable,
+                        }),
+                        ...(datasetProtected ? { VERIQ_DATASET_PROTECTED: "1", PLAYWRIGHT_NO_COPY_PROMPT: "1" } : {}),
+                    },
                 },
                 this.source
                     ? {
                           kind: manifest.kind,
                           ownerGeneration: claim.fencingToken,
                           downloadsPath: invocation.downloads,
+                          ...(datasetProtected ? { protectedTemporaryName: basename(tmp) } : {}),
                           prepare: (context) => {
                               if (controller.signal.aborted) throw new Error("ATTEMPT_STOPPING");
                               context.publish(
@@ -840,15 +865,17 @@ export class ExecutionSupervisor {
                                       Buffer.from(
                                           `export default ${JSON.stringify({
                                               ...playwrightConfig,
-                                              reporter: [
-                                                  ...(playwrightConfig.reporter as unknown[]),
-                                                  [
-                                                      privacyReporter,
-                                                      {
-                                                          outputFile: join(tmp, "playwright.json"),
-                                                      },
-                                                  ],
-                                              ],
+                                              reporter: datasetProtected
+                                                  ? playwrightConfig.reporter
+                                                  : [
+                                                        ...(playwrightConfig.reporter as unknown[]),
+                                                        [
+                                                            privacyReporter,
+                                                            {
+                                                                outputFile: join(tmp, "playwright.json"),
+                                                            },
+                                                        ],
+                                                    ],
                                               use,
                                           })};`,
                                       ),
@@ -888,7 +915,7 @@ export class ExecutionSupervisor {
              * JSON，再允许下载证据读取、附件复制、哈希、元数据或完成提交，任何未知状态保留私有原始
              * 报告而失败关闭。
              */
-            if (this.source && manifest.kind === "TEST") {
+            if (this.source && manifest.kind === "TEST" && !datasetProtected) {
                 if (controller.signal.aborted) throw new Error(reason ?? "ATTEMPT_STOPPING");
                 try {
                     this.source.native.openPrivateDirectory(tmp, false).close();
@@ -960,7 +987,7 @@ export class ExecutionSupervisor {
                     },
                 });
             };
-            if (manifest.kind === "TEST") {
+            if (manifest.kind === "TEST" && !datasetProtected) {
                 for (const [relative, name, kind] of [
                     ["junit.xml", "junit.xml", "JUNIT"],
                     ["html/index.html", "report.html", "HTML"],
@@ -1010,6 +1037,14 @@ export class ExecutionSupervisor {
                     payload: { artifactId, file: file.file, kind: file.kind },
                 });
             }
+            record.dataCleanup = await retireScratch(
+                this.options.root,
+                this.source?.temporaryDirectory ?? tmpdir(),
+                record,
+                stop,
+            );
+            await commit();
+            if (record.dataCleanup !== "CLEANED") throw new Error("TASK_DATA_CLEANUP_UNCONFIRMED");
             const evidence = files.map((f) => f.file),
                 requiredEvidence = files.filter((f) => ["TRACE", "LOG"].includes(f.kind)).map((f) => f.file.sha256);
             const common = {
@@ -1127,11 +1162,12 @@ export class ExecutionSupervisor {
             } finally {
                 await brokerDirectory?.close();
             }
-            // Results/evidence are retained for acknowledgement/recovery. Only task-owned regenerables are removed.
-            if (stop?.processStopped)
-                for (const path of ["node_modules", "tmp/npm-cache"])
-                    await rm(join(work, path), { recursive: true, force: true });
-            if (stop?.processStopped && !retainPrivateReports) await rm(tmp, { recursive: true, force: true });
+            if (stop && record.dataCleanup !== "CLEANED") {
+                record.dataCleanup = retainPrivateReports
+                    ? "REPORT_RETAINED"
+                    : await retireScratch(this.options.root, this.source?.temporaryDirectory ?? tmpdir(), record, stop);
+                await commit();
+            }
         }
     }
     private async resolveCredential(

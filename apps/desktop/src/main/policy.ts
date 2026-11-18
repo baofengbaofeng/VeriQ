@@ -140,7 +140,7 @@ export function resolveOperation(value: unknown, workspace: string | undefined):
  * 返回值投影只在对应 OpenAPI 模式完成实际校验后建立类型，尤其认证 DTO 不能在删去 CSRF 后再冒充完整 SessionDTO；调用方
  * 需要显式构造安全的公开会话形状。
  */
-export function parseSchema<Name extends keyof import("@veriq/contracts").PlatformComponents["schemas"]>(
+export function parseSchema<Name extends string & keyof import("@veriq/contracts").PlatformComponents["schemas"]>(
     name: Name,
     value: unknown,
 ): import("@veriq/contracts").PlatformComponents["schemas"][Name] {

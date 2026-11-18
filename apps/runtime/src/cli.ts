@@ -1,19 +1,14 @@
 #!/usr/bin/env node
 
 /**
- * 本文件是开发期 veriq_cli 入口：编排注册、认领、离线包与信任根命令：密钥经 pino redact 永不写入日志或 URL（cli）。
+ * 开发期 CLI 提供注册、联网认领和历史报告读取，密钥经 pino redact 保护。
  */
 import { readFile } from "node:fs/promises";
-import { randomUUID } from "node:crypto";
-import { runOffline, recoverOffline } from "./offline/run.ts";
+import { recoverOffline } from "./offline/run.ts";
 import { LocalStore } from "./offline/store.ts";
 import { LocalReports } from "./offline/reports.ts";
 import { pruneLocalProfile } from "./offline/retention.ts";
-import { uploadOffline } from "./offline/upload.ts";
-import { updatePrivate, readPrivate } from "./offline/config.ts";
 import { TrustStore, type IssuerTrust } from "./offline/trust.ts";
-import { verifyBundle } from "./offline/verify.ts";
-import { downloadBundle } from "./offline/download.ts";
 import { SecretStore, type SecretReference } from "./credentials/store.ts";
 import { managedFileCredentials } from "./credentials/restricted-file.ts";
 import type { CredentialOptions } from "./credentials/profile.ts";
@@ -455,28 +450,6 @@ runtime.command("stop").action(async () => {
     await agentControl(join(store().directory, "agent"), "stop");
     process.stdout.write("Agent stop requested; active Attempt cleanup and process confirmation precede shutdown.\n");
 });
-const bundle = program.command("bundle").description("Download and verify signed offline data");
-bundle
-    .command("download <bundle-id>")
-    .requiredOption("--output <path>", "New archive file")
-    .action(async (id: string, options: { output: string }) => {
-        await downloadBundle(await store().load(), id, options.output, controller.signal);
-        process.stdout.write("Bundle downloaded; verify before opening.\n");
-    });
-bundle
-    .command("verify <file>")
-    .requiredOption("--destination <directory>", "New read-only snapshot directory")
-    .option("--debug", "Explicitly accept expired/unvalidated data; excludes formal gates")
-    .action(async (file: string, options: { destination: string; debug?: boolean }) => {
-        const result = await verifyBundle(file, {
-            trust: new TrustStore(store().directory),
-            ...options,
-        });
-        process.stdout.write(
-            `Verified ${result.manifest.bundleId}; revocation UNKNOWN; mode ${result.debug ? "DEBUG" : "VALIDATED"}` +
-                `; local results are not formal proof.\n`,
-        );
-    });
 const trust = program.command("trust").description("Issuer roots persist across logout");
 trust
     .command("refresh")
@@ -600,77 +573,7 @@ program
             process.stdout.write(JSON.stringify(result) + "\n");
         },
     );
-program
-    .command("run")
-    .description("Execute a signed installed bundle without the control service")
-    .requiredOption("--offline <directory>", "Installed signed bundle directory")
-    .option("--release-dir <directory>", "Installed approved engine release")
-    .option("--browser-executable <path>", "Installed test browser")
-    .option("--debug", "Explicit expired/unvalidated DEBUG execution")
-    .option("--retry", "One safe whole-case retry at most")
-    .option("--base-url <url>", "Explicit authorized public baseURL override")
-    .option("--fixture-url <url>", "Explicit authorized public fixture URL override")
-    .action(
-        async (options: {
-            offline: string;
-            releaseDir: string;
-            browserExecutable: string;
-            debug?: boolean;
-            retry?: boolean;
-            baseUrl?: string;
-            fixtureUrl?: string;
-        }) => {
-            const installed = await installedDistribution();
-            if (
-                installed &&
-                ((options.releaseDir && options.releaseDir !== installed.engineDirectory) ||
-                    (options.browserExecutable && options.browserExecutable !== installed.browserExecutable))
-            )
-                throw new Error("RUNTIME_CONFIGURATION_MISMATCH");
-            const releaseDirectory = installed?.engineDirectory ?? options.releaseDir;
-            const browserExecutable = installed?.browserExecutable ?? options.browserExecutable;
-            if (!releaseDirectory || !browserExecutable) throw new Error("RUNTIME_CONFIGURATION_REQUIRED");
-            process.title = "veriq_cli";
-            const profile = store().directory;
-            await updatePrivate<{ id: string }>(profile, "local-device.json", (old) => old ?? { id: randomUUID() });
-            const identity = await readPrivate<{ id: string }>(profile, "local-device.json");
-            const overrides = {
-                ...(options.baseUrl ? { baseURL: options.baseUrl } : {}),
-                ...(options.fixtureUrl ? { fixtureBaseURL: options.fixtureUrl } : {}),
-            };
-            const result = await runOffline(
-                { directory: options.offline },
-                {
-                    trust: new TrustStore(profile),
-                    root: localRoot(),
-                    secrets: new SecretStore(profile, entryCredentials),
-                    releaseDirectory,
-                    browserExecutable,
-                    ...(installed ? { execution: installed.execution } : {}),
-                    ...(await installedDarwinExecution(installed, profile)),
-                    deviceId: identity.id,
-                    debug: !!options.debug,
-                    retry: !!options.retry,
-                    overrides,
-                    authorizeOverride: () => true,
-                    signal: controller.signal,
-                },
-            );
-            process.stdout.write(
-                JSON.stringify({
-                    localRunId: result.localRunId,
-                    workspaceId: result.workspaceId,
-                    outcome: result.outcome,
-                    dirty: result.dirty,
-                    revocationStatus: result.revocationStatus,
-                }) + "\n",
-            );
-            process.exitCode = result.outcome === "PASSED" ? 0 : result.outcome === "CANCELLED" ? 130 : 1;
-        },
-    );
-const results = program
-    .command("results")
-    .description("Durable local history, reports, cancellation and explicit upload");
+const results = program.command("results").description("Historical local reports and interrupted host recovery");
 results
     .command("history")
     .requiredOption("--workspace <id>", "Workspace UUID")
@@ -714,17 +617,6 @@ results
                     ...(await installedDarwinExecution(installed, store().directory)),
                 })) ?? { active: false },
             ) + "\n",
-        );
-    });
-results
-    .command("upload <runId>")
-    .description("Upload using the separately enrolled current device; retain failed uploads for retry")
-    .action(async (runId: string) => {
-        const profile = store(),
-            saved = await profile.load();
-        const current = await profile.renew(new RuntimeClient(saved.server));
-        process.stdout.write(
-            JSON.stringify(await uploadOffline(localRoot(), runId, current, controller.signal)) + "\n",
         );
     });
 try {

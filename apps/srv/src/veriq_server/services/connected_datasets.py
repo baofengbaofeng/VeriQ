@@ -27,6 +27,14 @@ async def frozen_object(repo: ResourceRepository, digest: str, schema: str | Non
     return value
 
 
+async def protected_test(repo: ResourceRepository, job: Job, snapshot_hash: str) -> bool:
+    """只使用当前 Attempt 已冻结的矩阵或命名依赖确定证据策略，套件中其它变体和客户端参数都不改变本次义务。"""
+    if job.kind != "TEST":
+        return False
+    subject = await frozen_object(repo, snapshot_hash)
+    return bool(subject.get("datasetVersionId") or subject.get("datasetBindings"))
+
+
 def checksum(value: Any) -> str:
     """对约定传递的对象使用跨语言规范编码计算摘要，树行在此之前已按矩阵语义去掉与执行无关的排序字段。"""
     return sha256(canonical_bytes(value)).hexdigest()

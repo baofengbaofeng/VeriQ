@@ -284,8 +284,18 @@ export class DarwinProcesses {
             entry.directories.push(source.native.openPrivateDirectory(launch.downloadsPath, false));
         let wsEndpoint: string | undefined;
         if (entry.record.browserPlanned) {
-            const home = join(journals, "browser-home"),
-                temporary = join(journals, "browser-tmp");
+            let browserRoot = journals;
+            if (launch.protectedTemporaryName !== undefined) {
+                if (!/^veriq-a-[a-zA-Z0-9]{6}$/.test(launch.protectedTemporaryName))
+                    throw new Error("TASK_DIRECTORY_UNCONFIRMED");
+                browserRoot = join(source.temporaryDirectory, launch.protectedTemporaryName);
+                const privateRoot = source.native.openPrivateDirectory(browserRoot, false);
+                entry.directories.push(privateRoot);
+                if (!privateRoot.read(".veriq-owner", 36).equals(work.read(".veriq-owner", 36)))
+                    throw new Error("TASK_DIRECTORY_UNCONFIRMED");
+            }
+            const home = join(browserRoot, "browser-home"),
+                temporary = join(browserRoot, "browser-tmp");
             for (const path of [home, temporary])
                 entry.directories.push(source.native.openPrivateDirectory(path, true));
             entry.server = await chromium.launchServer({
@@ -294,6 +304,7 @@ export class DarwinProcesses {
                 port: 0,
                 chromiumSandbox: true,
                 headless: launch.headless ?? true,
+                ...(launch.protectedTemporaryName ? { artifactsDir: temporary } : {}),
                 ...(launch.downloadsPath ? { downloadsPath: launch.downloadsPath } : {}),
                 timeout: Math.min(30000, source.stopTimeoutMs),
                 env: { PATH: "/usr/bin:/bin", LANG: "en_US.UTF-8", HOME: home, TMPDIR: temporary },

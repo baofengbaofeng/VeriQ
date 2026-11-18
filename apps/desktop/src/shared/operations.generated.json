@@ -418,15 +418,6 @@
         "idempotency": false,
         "kind": "json"
     },
-    "createBundle": {
-        "path": "/api/v1/workspaces/{workspaceId}/bundles",
-        "method": "POST",
-        "ids": ["workspaceId"],
-        "queries": {},
-        "request": "BundleCreate",
-        "idempotency": true,
-        "kind": "json"
-    },
     "listBundles": {
         "path": "/api/v1/workspaces/{workspaceId}/bundles",
         "method": "GET",
@@ -448,15 +439,6 @@
     },
     "getBundle": {
         "path": "/api/v1/workspaces/{workspaceId}/bundles/{bundleId}",
-        "method": "GET",
-        "ids": ["workspaceId", "bundleId"],
-        "queries": {},
-        "request": null,
-        "idempotency": false,
-        "kind": "json"
-    },
-    "getBundleManifest": {
-        "path": "/api/v1/workspaces/{workspaceId}/bundles/{bundleId}/manifest",
         "method": "GET",
         "ids": ["workspaceId", "bundleId"],
         "queries": {},

@@ -219,7 +219,7 @@ Job 状态为QUEUED/LEASED/RUNNING/CANCEL_REQUESTED/FINISHED；CaseExecution 状
 
 结果归约固定为ERROR > INCOMPLETE > FAILED > CANCELLED > UNSTABLE > SKIPPED > PASSED。Run额外支持SKIPPED用于计划重叠策略；Attempt不使用UNSTABLE，只有Job/CaseExecution/Run汇总重试历史后生成。业务通过但清理失败=ERROR/CLEANUP_FAILED；失联=ERROR/WORKER_LOST；关键证据不全=INCOMPLETE；明确取消且最小取消记录齐全=CANCELLED；取消同时证据缺失=INCOMPLETE；零用例=INCOMPLETE/NO_CASES_SELECTED；已知BLOCK后的依赖跳过如实登记，不另冒充丢事件。预期完成且全部必需内容通过才PASSED。原始业务/清理/证据结果均保留，不能只存最高优先级字符串。
 
-默认最多10个未结束Run，在线全局4个浏览器上下文，单Workspace2个，离线本机1个。容量与环境/账号/数据锁共同限制。默认Run重叠策略QUEUE，支持SKIP/REJECT，跳过不代表通过。
+默认最多10个未结束Run，联网全局4个浏览器上下文，单Workspace2个。容量与环境/账号/数据锁共同限制。默认Run重叠策略QUEUE，支持SKIP/REJECT，跳过不代表通过。
 
 MySQL短事务按固定顺序锁global/workspace/runtime/environment容量和资源，再用FOR UPDATE SKIP LOCKED领取；分配Attempt、令牌与容量原子提交。禁止count后无锁启动。心跳10秒、租约60秒，使用服务端时间。每次领取递增fencingToken；心跳、事件、上传与finish检查当前有效租约，旧结果不得覆盖新Attempt。
 
@@ -257,7 +257,7 @@ CLI 提供 login/logout、workspace list/use、runtime start/status/stop、docto
 
 ## 14. 离线包、凭证与结果来源（历史规格）
 
-本节用于核对已有离线实现和历史记录。MVP 执行与验收遵循[联网范围修订](veriq-datasets.md)。
+本节用于核对已有离线实现和历史记录。发行入口提供联网领取与完成回报，保留现有离线包元数据、既有报告读取和历史 Schema。MVP 执行与验收遵循[联网范围修订](veriq-datasets.md)。
 
 包包含manifest、资源依赖闭包、非敏感数据、fixture定义、环境公开配置、引擎清单/锁文件、入口、实际生成TS及结果目录。平台签manifest精确字节，manifest列文件SHA-256；验证后解压，限制路径/链接/体积/文件数。
 

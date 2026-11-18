@@ -23,14 +23,57 @@ def clean_task_archives(tmp_path):
 @pytest.fixture(autouse=True)
 def bundle_issuer(monkeypatch, tmp_path):
     from veriq_server.bundles.issuer import Issuer
-    from veriq_server.app import make_app
+    from veriq_server.app import handler_for, make_app
 
     issuer_path = tmp_path / "issuer" / "keys.json"
     Issuer.initialize(issuer_path)
 
     def application(settings, db, *args, **kwargs):
         settings.bundle_issuer_path = str(issuer_path)
-        return make_app(settings, db, *args, **kwargs)
+        app = make_app(settings, db, *args, **kwargs)
+        # 历史协议样例显式在本夹具注册退役路由，正式应用没有配置开关可启用离线导出与导入。
+        legacy_routes = [
+            (
+                "/internal/v1/workspaces/([0-9a-fA-F-]{36})/bundles/([0-9a-fA-F-]{36})/download",
+                "native-bundle-download",
+            ),
+            ("/api/v1/workspaces/([0-9a-fA-F-]{36})/result-imports", "result-imports"),
+            (
+                "/api/v1/workspaces/([0-9a-fA-F-]{36})/result-import-uploads",
+                "result-import-uploads",
+            ),
+            (
+                "/api/v1/workspaces/([0-9a-fA-F-]{36})/result-import-uploads/([0-9a-fA-F-]{36})",
+                "result-import-uploads",
+            ),
+            ("/internal/v1/workspaces/([0-9a-fA-F-]{36})/result-imports", "native-result-imports"),
+            (
+                "/internal/v1/workspaces/([0-9a-fA-F-]{36})/result-import-uploads",
+                "native-result-import-uploads",
+            ),
+            (
+                "/internal/v1/workspaces/([0-9a-fA-F-]{36})/result-import-uploads/([0-9a-fA-F-]{36})",
+                "native-result-import-uploads",
+            ),
+            ("/api/v1/workspaces/([0-9a-fA-F-]{36})/bundles", "bundles"),
+            ("/api/v1/workspaces/([0-9a-fA-F-]{36})/bundles/([0-9a-fA-F-]{36})", "bundle"),
+            (
+                "/api/v1/workspaces/([0-9a-fA-F-]{36})/bundles/([0-9a-fA-F-]{36})/manifest",
+                "bundle-manifest",
+            ),
+            (
+                "/api/v1/workspaces/([0-9a-fA-F-]{36})/bundles/([0-9a-fA-F-]{36})/download",
+                "bundle-download",
+            ),
+        ]
+        app.add_handlers(
+            ".*",
+            [
+                (path, handler_for(action), {"config": settings, "db": db, "action": action})
+                for path, action in legacy_routes
+            ],
+        )
+        return app
 
     monkeypatch.setitem(site.__wrapped__.__globals__, "make_app", application)
 

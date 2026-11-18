@@ -8,6 +8,7 @@ import { ExecutionSupervisor } from "../src/execution/supervisor.ts";
 import { ProcessSupervisor } from "../src/execution/processes.ts";
 import { ProcessRecords } from "../src/execution/records.ts";
 import type { AgentClient } from "../src/agent/transport.ts";
+import { allocateScratch, retireScratch } from "../src/execution/storage.ts";
 import fs from "node:fs/promises";
 import { syncBuiltinESMExports } from "node:module";
 import { spawnSync } from "node:child_process";
@@ -239,3 +240,83 @@ for (const failure of ["write", "rename"]) {
         }
     });
 }
+
+for (const condition of ["owned", "replacement", "symlink", "unknown", "historical"]) {
+    test("scratch recovery verifies ownership and physical stop: " + condition, async () => {
+        const root = await mkdtemp(join(tmpdir(), "vq-data-recover-"));
+        const f = await fixture(root),
+            id = randomUUID(),
+            work = join(root, "work", id);
+        const tmp = await mkdtemp(join(tmpdir(), "veriq-a-"));
+        const outside = await mkdtemp(join(tmpdir(), "vq-data-other-"));
+        try {
+            await mkdir(work, { mode: 0o700, recursive: true });
+            const modules = join(work, "node_modules");
+            const allocation = await allocateScratch(work, tmp);
+            const record = {
+                ...f.record(id, condition === "unknown" ? "RUNNING" : "ALLOCATED"),
+                work,
+                ...(condition === "historical" ? {} : { allocation }),
+            };
+            const journal = join(f.directory, id + ".json");
+            await writeFile(journal, JSON.stringify(record), { mode: 0o600 });
+            await writeFile(join(tmp, "old-copy"), "synthetic old data");
+            await writeFile(join(outside, "keep"), "belongs to another task");
+            if (condition === "replacement" || condition === "symlink") {
+                await fs.rename(work, work + "-old");
+                if (condition === "replacement") await mkdir(work, { mode: 0o700 });
+                else await symlink(outside, work);
+            }
+            await f.supervisor.recover();
+            const persisted = JSON.parse(await readFile(journal, "utf8"));
+            assert.equal(
+                persisted.dataCleanup,
+                condition === "owned"
+                    ? "CLEANED"
+                    : condition === "unknown"
+                      ? "STOP_UNCONFIRMED"
+                      : "OWNERSHIP_UNCONFIRMED",
+            );
+            if (condition === "owned") {
+                await assert.rejects(lstat(tmp), { code: "ENOENT" });
+                await assert.rejects(lstat(modules), { code: "ENOENT" });
+                assert((await lstat(work)).isDirectory());
+            } else assert.equal(await readFile(join(tmp, "old-copy"), "utf8"), "synthetic old data");
+            assert.equal(await readFile(join(outside, "keep"), "utf8"), "belongs to another task");
+            assert(!JSON.stringify(persisted).includes("synthetic old data"));
+        } finally {
+            for (const dir of [tmp, outside, root]) await rm(dir, { recursive: true, force: true });
+        }
+    });
+}
+
+test("recovery verifies the original physical target of the operating system temporary alias", async () => {
+    const root = await mkdtemp(join(tmpdir(), "vq-tmp-alias-")),
+        id = randomUUID(),
+        work = join(root, "work", id),
+        alias = join(root, "os-tmp");
+    try {
+        await mkdir(work, { recursive: true });
+        for (const name of ["original", "replacement"]) await mkdir(join(root, name));
+        await symlink(join(root, "original"), alias, "junction");
+        const tmp = await mkdtemp(join(alias, "veriq-a-"));
+        const record = { work, allocation: await allocateScratch(work, tmp) };
+        const stop = {
+            attemptId: id,
+            processStopped: true,
+            processStopScope: "NO_PROCESS_SPAWNED" as const,
+            reason: "NO_PROCESS_SPAWNED",
+            stoppedAt: new Date().toISOString(),
+        };
+        await fs.unlink(alias);
+        await symlink(join(root, "replacement"), alias, "junction");
+        assert.equal(await retireScratch(root, alias, record, stop), "OWNERSHIP_UNCONFIRMED");
+        assert((await lstat(join(work, "node_modules"))).isDirectory());
+        await fs.unlink(alias);
+        await symlink(join(root, "original"), alias, "junction");
+        assert.equal(await retireScratch(root, alias, record, stop), "CLEANED");
+        await assert.rejects(lstat(tmp), { code: "ENOENT" });
+    } finally {
+        await rm(root, { recursive: true, force: true });
+    }
+});

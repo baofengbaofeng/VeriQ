@@ -6,7 +6,6 @@
 
 import { tx, useAppLocale } from "./locale";
 import { ExecutionPlansPage } from "./features/runs/ExecutionPlansPage";
-import { BundlePage } from "./features/bundles/BundlePage";
 import { AiPage } from "./features/ai/AiPage";
 import { ReportPage } from "./features/reports/ReportPage";
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -187,14 +186,6 @@ function App() {
                         element={
                             <WorkspaceProvider key={user?.id ?? "anonymous"}>
                                 <AiPage />
-                            </WorkspaceProvider>
-                        }
-                    />
-                    <Route
-                        path="/bundles"
-                        element={
-                            <WorkspaceProvider key={user?.id ?? "anonymous"}>
-                                <BundlePage />
                             </WorkspaceProvider>
                         }
                     />

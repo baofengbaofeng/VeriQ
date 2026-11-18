@@ -95,6 +95,7 @@ export type SdkEvent = { type: "STEP_FINISHED"; step: StepResult } | { type: "CA
  * 公开接口 ExecutionOptions 配置 executeCase 的上下文提供者、信号、事件回调与预算相关选项。
  */
 export interface ExecutionOptions {
+    datasetProtected?: boolean;
     /**
      * Trusted worker closes the complete business Context before retry observation is final.
      */
@@ -158,7 +159,7 @@ export async function executeCase(
         cleanupStatus: "NOT_REQUIRED",
         steps: [],
     };
-    const evidence = new EvidencePolicy();
+    const evidence = new EvidencePolicy(options.datasetProtected);
     const execution = structuredClone(options.execution);
     let ctx: StepContext | undefined,
         fixture: FixtureV1 | undefined,
@@ -265,6 +266,12 @@ export async function executeCase(
         retryObservation = new RetryObservation(options.page.context(), plan.document.kind === "WRITE");
         ctx = createStepContext({
             datasets: staticDatasetResolver(documents),
+            ...(options.datasetProtected && {
+                datasetVersions: {
+                    matrix: execution.datasetVersionId,
+                    aliases: execution.datasetBindings ?? {},
+                },
+            }),
             onBusinessRequest: (method) => retryObservation!.method(method),
             page: options.page,
             onEvent: async (event) => {
@@ -423,10 +430,11 @@ export function registerCase(plan: CompiledCase, source: AssetSnapshotV1 | Conne
             if (!live) throw new Error("DATASET_PROVIDER_REQUIRED");
             const result = await executeCase(plan, live, { ...options, page });
             if (!options.redact) throw new Error("REDACTION_PROVIDER_REQUIRED");
-            await info.attach("veriq-result", {
-                body: Buffer.from(JSON.stringify(options.redact(result as unknown as JsonValue))),
-                contentType: "application/json",
-            });
+            if (!options.datasetProtected)
+                await info.attach("veriq-result", {
+                    body: Buffer.from(JSON.stringify(options.redact(result as unknown as JsonValue))),
+                    contentType: "application/json",
+                });
             if (result.outcome !== "PASSED")
                 throw new Error(`VERIQ_${result.outcome}: ${result.errorCode ?? "CASE_FAILED"}`);
         });

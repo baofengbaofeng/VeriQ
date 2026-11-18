@@ -63,6 +63,7 @@ export interface DarwinControlledLaunch {
      */
     headless?: boolean;
     downloadsPath?: string;
+    protectedTemporaryName?: string;
     prepare(context: DarwinLaunchContext): void | Promise<void>;
 }
 

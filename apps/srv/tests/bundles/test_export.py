@@ -488,13 +488,18 @@ async def test_bundle_selection_and_download_require_current_workspace_authority
         assert response.status_code == 400
 
 
-async def test_offline_export_rejects_v2_hidden_by_legacy_suite_override(approved_metadata, site):
+async def test_offline_export_rejects_v2_hidden_by_legacy_suite_override(
+    approved_metadata, site, monkeypatch
+):
     """套件使用旧版矩阵覆盖用例默认数据集时，导出仍会包含默认版本，必须在准备签名归档之前拒绝该依赖。"""
+    from functools import partial
+    import test_publish
     from sqlalchemy import select
     from veriq_server.auth.authorization import WorkspaceScope
     from veriq_server.db import BundleExport
     from veriq_server.repositories.resource import ResourceRepository
 
+    monkeypatch.setattr(test_publish, "completed", partial(test_publish.completed, connected=True))
     c, db = site
     await setup(c)
     await login(c)

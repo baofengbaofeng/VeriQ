@@ -92,7 +92,7 @@ def handler_for(action: str) -> type[API]:
         return ImportAPI
     if action in {"issuer-trust", "native-bundle-download"}:
         return NativeBundleAPI
-    if action in {"bundles", "bundle", "bundle-manifest", "bundle-download"}:
+    if action in {"bundles", "bundle-history", "bundle", "bundle-manifest", "bundle-download"}:
         return BundleAPI
     if action.startswith("ai-"):
         return AiAPI
@@ -229,35 +229,8 @@ def make_app(settings: Settings, db: Database, delivery: Delivery | None = None)
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})/runs/([0-9a-fA-F-]{36})/ci-report", "ci-report"),
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})/runs/([0-9a-fA-F-]{36})/junit", "ci-junit"),
         ("/internal/v1/issuer", "issuer-trust"),
-        (
-            "/internal/v1/workspaces/([0-9a-fA-F-]{36})/bundles/([0-9a-fA-F-]{36})/download",
-            "native-bundle-download",
-        ),
-        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/result-imports", "result-imports"),
-        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/result-import-uploads", "result-import-uploads"),
-        (
-            "/api/v1/workspaces/([0-9a-fA-F-]{36})/result-import-uploads/([0-9a-fA-F-]{36})",
-            "result-import-uploads",
-        ),
-        ("/internal/v1/workspaces/([0-9a-fA-F-]{36})/result-imports", "native-result-imports"),
-        (
-            "/internal/v1/workspaces/([0-9a-fA-F-]{36})/result-import-uploads",
-            "native-result-import-uploads",
-        ),
-        (
-            "/internal/v1/workspaces/([0-9a-fA-F-]{36})/result-import-uploads/([0-9a-fA-F-]{36})",
-            "native-result-import-uploads",
-        ),
-        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/bundles", "bundles"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/bundles", "bundle-history"),
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})/bundles/([0-9a-fA-F-]{36})", "bundle"),
-        (
-            "/api/v1/workspaces/([0-9a-fA-F-]{36})/bundles/([0-9a-fA-F-]{36})/manifest",
-            "bundle-manifest",
-        ),
-        (
-            "/api/v1/workspaces/([0-9a-fA-F-]{36})/bundles/([0-9a-fA-F-]{36})/download",
-            "bundle-download",
-        ),
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})/ai/providers", "ai-providers"),
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})/ai/providers/([0-9a-fA-F-]{36})", "ai-provider"),
         (

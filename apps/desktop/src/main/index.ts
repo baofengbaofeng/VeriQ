@@ -22,7 +22,6 @@ import { openNativeImage } from "./image-window";
 import { withArtifactExport } from "./artifact-export";
 import { bundledAssetPath } from "./asset-path";
 import { parseLocalRetentionCommand } from "../shared/retention-policy";
-import { routingOverride } from "../shared/routing";
 import { assertAgentReconfigurationAllowed } from "../shared/credential-status";
 import type { CloudOperation } from "../shared/operations.generated";
 import type { DesktopState } from "../shared/bridge";
@@ -356,16 +355,13 @@ async function local(input: unknown) {
         "device",
         "unbind",
         "trust",
-        "download",
         "snapshot",
         "source",
         "credentials",
         "setCredential",
         "removeCredential",
-        "run",
         "cancel",
         "report",
-        "upload",
         "onlineStart",
         "onlineStop",
         "migrateCredentials",
@@ -399,18 +395,6 @@ async function local(input: unknown) {
                     ` days, unused packages ${policy.bundleDays} days, batch ${policy.batchSize}` +
                     `. Pending uploads and unconfirmed ownership remain protected. Closing UI does not guarantee ca` +
                     `ncellation.`,
-            ))
-        )
-            throw new Error("USER_CANCELLED");
-    }
-    if (command.operation === "run" && command.overrides !== undefined) {
-        command.overrides = routingOverride(command.overrides);
-        if (
-            Object.keys(command.overrides as object).length &&
-            !(await confirm(
-                "本次执行将向以下本机环境路由发送业务请求及该身份的凭证，并标记为非原始环境。" +
-                    " / Authorize this run's business routing and credentials?\n" +
-                    JSON.stringify(command.overrides, null, 2),
             ))
         )
             throw new Error("USER_CANCELLED");

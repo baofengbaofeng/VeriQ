@@ -42,7 +42,7 @@ async def queue(c, path):
     return p, r.json()["data"]
 
 
-async def completed(db, job_id):
+async def completed(db, job_id, *, connected=False):
     async with db.sessions.begin() as s:
         job = await s.get(Job, job_id)
         source = await s.get(Artifact, (job.workspace_id, job.snapshot_hash))
@@ -81,18 +81,23 @@ async def completed(db, job_id):
             from veriq_server.repositories.resource import ResourceRepository
 
             repo = ResourceRepository(s, WorkspaceScope(job.workspace_id))
-            manifest = json.loads((await repo.artifact(job.manifest_hash)).content)
-            manifest["snapshotSha256"] = job.snapshot_hash
-            job.manifest_hash = await repo.store(canonical_bytes(manifest))
-            job.required_capabilities = {
-                k: v for k, v in job.required_capabilities.items() if k != "connectedDatasets"
-            }
-            # 发布夹具保留历史编译格式的精确源成员，联网准入需要重新验证这个已发布版本，不能借用未来的草稿。
             retained = (
                 {k: v for k, v in snapshot.items() if k != "validationTarget"}
                 if snapshot["entryCaseVersionIds"]
                 else snapshot
             )
+            if connected:
+                from veriq_server.services.connected_datasets import project_source
+
+                retained = project_source(retained)
+            else:
+                # 默认模拟历史编译回执；显式联网夹具使用任务的投影清单与对应的精确源成员。
+                manifest = json.loads((await repo.artifact(job.manifest_hash)).content)
+                manifest["snapshotSha256"] = job.snapshot_hash
+                job.manifest_hash = await repo.store(canonical_bytes(manifest))
+                job.required_capabilities = {
+                    k: v for k, v in job.required_capabilities.items() if k != "connectedDatasets"
+                }
             source_bytes = canonical_bytes(retained)
             source_digest = await repo.store(source_bytes)
             bundle["files"].append(
