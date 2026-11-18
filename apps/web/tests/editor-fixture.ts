@@ -34,6 +34,7 @@ export async function editorScope(page: Page, key: string): Promise<EditorScope>
 }
 export async function createResource(page: Page, kind: ResourceKind, key: string): Promise<S["ResourceDTO"]> {
     await closeResourceEditor(page);
+    await page.getByRole("button", { name: "New resource", exact: true }).click();
     const form = resourceCreateForm(page);
     await form.getByRole("combobox", { name: "Kind", exact: true }).selectOption(kind);
     await form.getByLabel("Key", { exact: true }).fill(key);

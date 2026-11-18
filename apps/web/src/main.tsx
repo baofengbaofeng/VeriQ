@@ -26,6 +26,7 @@ import { EnvironmentPage } from "./features/environments/EnvironmentPage";
 import { AccessibilityNavigation, AppLocaleProvider, LanguageControl } from "./locale-ui";
 import { AppShell } from "./layout";
 import "./style.css";
+import "./admin.css";
 function App() {
     useAppLocale();
     const [user, setUser] = useState<User | null>(null),

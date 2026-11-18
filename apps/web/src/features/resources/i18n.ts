@@ -7,6 +7,17 @@ import i18next, { type i18n } from "i18next";
 import { initReactI18next } from "react-i18next";
 import { initialLanguage } from "../../locales/preference";
 const zh = {
+    kinds: {
+        CASE: "用例",
+        ELEMENT_CATALOG: "元素目录",
+        ASSERTION_TEMPLATE: "断言模板",
+        DATASET: "数据集",
+        FLOW: "流程",
+        FIXTURE: "Fixture",
+        SUITE: "套件",
+        ENVIRONMENT: "环境",
+    },
+    statuses: { DRAFT: "草稿", PUBLISHED: "已发布", ARCHIVED: "已归档" },
     resources: "资源",
     columnKey: "标识",
     columnName: "名称",
@@ -47,6 +58,17 @@ const zh = {
     language: "语言",
 };
 const en: typeof zh = {
+    kinds: {
+        CASE: "Case",
+        ELEMENT_CATALOG: "Element catalog",
+        ASSERTION_TEMPLATE: "Assertion template",
+        DATASET: "Dataset",
+        FLOW: "Flow",
+        FIXTURE: "Fixture",
+        SUITE: "Suite",
+        ENVIRONMENT: "Environment",
+    },
+    statuses: { DRAFT: "Draft", PUBLISHED: "Published", ARCHIVED: "Archived" },
     resources: "Resources",
     columnKey: "Key",
     columnName: "Name",
