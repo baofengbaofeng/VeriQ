@@ -176,3 +176,75 @@ it.each([
     expect(r.outcome).toBe(outcome);
     expect(r.steps[0]?.assertions[0]).toMatchObject({ status: outcome, expected: null, actual: { present: false } });
 });
+it.each([false, true])(
+    "preserves a flow query ERROR when its next child is cancelled (wrapper=%s)",
+    async (wrapper) => {
+        const bindings = { reference: id(5) };
+        const call = { id: "flow", action: "callFlow" as const, versionId: id(3) };
+        const source = snapshot(
+            [wrapper ? { ...call, versionId: id(4) } : call],
+            [
+                ...(wrapper ? [asset(4, "FLOW", { schemaVersion: "1.0", steps: [call] })] : []),
+                asset(3, "FLOW", {
+                    schemaVersion: "1.0",
+                    steps: [
+                        {
+                            id: "lookup",
+                            action: "goto",
+                            path: "/",
+                            failurePolicy: "CONTINUE",
+                            beforeAssertions: [
+                                {
+                                    id: "missing",
+                                    type: "url",
+                                    source: "page",
+                                    operator: "contains",
+                                    severity: "WARN",
+                                    expectedSource: "policy",
+                                    datasetExpected: { alias: "reference", op: "field", key: "absent", field: "path" },
+                                },
+                            ],
+                        },
+                        { id: "cancel", action: "goto", path: "/" },
+                    ],
+                }),
+                asset(5, "DATASET", {
+                    schemaVersion: "1.0",
+                    columns: { path: "string" },
+                    rows: [{ key: "row", values: { path: "/" } }],
+                }),
+            ],
+            { datasetBindings: bindings },
+        );
+        const analysis = analyze(source);
+        expect(analysis.issues).toEqual([]);
+        const plan = analysis.cases[0]!;
+        const flow = wrapper ? plan.steps[0]!.children![0]! : plan.steps[0]!;
+        const cancelId = flow.children![1]!.step.id;
+        const controller = new AbortController();
+        const ctx = await f.page.context().browser()!.newContext();
+        try {
+            const result = await sdk.executeCase(plan, source, {
+                page: await ctx.newPage(),
+                execution: { ...execution(source), datasetBindings: bindings },
+                signal: controller.signal,
+                lifecycle: { authenticate: async () => ({ identityId: "test-identity" }) },
+                redact: (v) => v,
+                onEvent: async (event) => {
+                    if (event.type === "STEP_STARTED" && event.stepId === cancelId) controller.abort();
+                },
+            });
+            const outer = result.steps[0]!;
+            const children = wrapper ? outer.children[0]!.children : outer.children;
+            expect(children.map((s) => s.status)).toEqual(["ERROR", "CANCELLED"]);
+            expect(outer).toMatchObject({ status: "ERROR", cancelled: true });
+            expect(result).toMatchObject({
+                businessOutcome: "ERROR",
+                outcome: "ERROR",
+                errorCode: "DATASET_ROW_MISSING",
+            });
+        } finally {
+            await ctx.close();
+        }
+    },
+);

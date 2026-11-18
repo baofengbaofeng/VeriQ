@@ -127,11 +127,13 @@ def reduce_test(
                 return assertion is not None and rank(blocker, expected) < rank(step, assertion)
             if ancestor(blocker["id"], step["id"]):
                 return bool(expected["stage"] == "BEFORE")
-            return True
+        # 跨步骤的阻塞必须来自已经结束且要求停止的同级步骤；其退出只影响当前调用中的后继步骤及这些步骤的后代。
+        scope = blocker.get("parentId")
         actual = finished.get(blocker["id"])
         return bool(
             blocker["order"] < step["order"]
             and not ancestor(blocker["id"], step["id"])
+            and (scope is None or ancestor(scope, step["id"]))
             and blocker["failurePolicy"] != "CONTINUE"
             and actual
             and actual["payload"]["status"] in {"FAILED", "ERROR"}

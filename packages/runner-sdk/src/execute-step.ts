@@ -211,12 +211,10 @@ export async function executeStep(plan: ResolvedStep, outer: StepContext): Promi
                 for (const child of plan.children) {
                     const r = await executeStep(child, childCtx);
                     result.children.push(r);
-                    if (r.cancelled) {
-                        if (r.status === "FAILED") result.status = "FAILED";
-                        throw new ExecutionCancelled();
-                    }
                     if (r.status !== "PASSED") {
-                        if (result.status !== "ERROR") result.status = r.status;
+                        if (result.status !== "ERROR" && r.status !== "CANCELLED") result.status = r.status;
+                        if (r.status === "ERROR" && r.errorCode) result.errorCode ??= r.errorCode;
+                        if (r.cancelled) throw new ExecutionCancelled();
                         if (child.step.failurePolicy !== "CONTINUE") {
                             for (const remaining of plan.children.slice(plan.children.indexOf(child) + 1))
                                 await skipStep(remaining, ctx, child.step.id);
@@ -279,7 +277,7 @@ export async function executeStep(plan: ResolvedStep, outer: StepContext): Promi
             result.assertions.some((a) => a.status === "FAILED") ||
             result.children.some((child) => ["FAILED", "ERROR"].includes(child.status));
         result.status = result.status === "ERROR" ? "ERROR" : cancelled && !failed ? "CANCELLED" : "FAILED";
-        result.errorCode =
+        result.errorCode ??=
             cancelled && !failed
                 ? "CANCELLED"
                 : e instanceof Error && /^[A-Z][A-Z_]+$/.test(e.message)

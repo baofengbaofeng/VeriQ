@@ -298,21 +298,21 @@ export async function executeCase(
             await collect(r);
             result.steps.push(r);
             await emit({ type: "STEP_FINISHED", step: r });
-            if (r.cancelled) {
-                if (result.businessOutcome !== "FAILED" && result.businessOutcome !== "ERROR")
-                    result.businessOutcome = r.status === "CANCELLED" ? "CANCELLED" : "FAILED";
-                break;
+            if (r.status === "ERROR") {
+                result.businessOutcome = "ERROR";
+                result.errorCode ??= r.errorCode ?? "DATASET_READ_ERROR";
+            } else if (
+                r.status !== "PASSED" &&
+                result.businessOutcome !== "ERROR" &&
+                result.businessOutcome !== "FAILED"
+            ) {
+                result.businessOutcome = r.status === "CANCELLED" ? "CANCELLED" : "FAILED";
             }
-            if (r.status !== "PASSED") {
-                if (r.status === "ERROR") {
-                    result.businessOutcome = "ERROR";
-                    result.errorCode = r.errorCode ?? "DATASET_READ_ERROR";
-                } else if (result.businessOutcome !== "ERROR") result.businessOutcome = "FAILED";
-                if (step.step.failurePolicy !== "CONTINUE") {
-                    for (const remaining of plan.steps.slice(plan.steps.indexOf(step) + 1))
-                        await skipStep(remaining, ctx, step.step.id);
-                    break;
-                }
+            if (r.cancelled) break;
+            if (r.status !== "PASSED" && step.step.failurePolicy !== "CONTINUE") {
+                for (const remaining of plan.steps.slice(plan.steps.indexOf(step) + 1))
+                    await skipStep(remaining, ctx, step.step.id);
+                break;
             }
         }
         const allSteps = (steps: StepResult[]): StepResult[] => steps.flatMap((s) => [s, ...allSteps(s.children)]);
