@@ -33,6 +33,10 @@ _PYTHON_LAYOUT = {
     tokenize.DEDENT,
     tokenize.ENDMARKER,
 }
+_PYTHON_TYPE_IGNORE_MARKERS = {
+    "[no-any-return]": "# type: ignore[no-any-return]",
+    "[arg-type]": "# type: ignore[arg-type]",
+}
 
 
 class _CommentBlock(NamedTuple):
@@ -102,22 +106,45 @@ def _add_docstring_body(rows: list[str], offset: int, spelling: str) -> None:
         rows[number] += row
 
 
+def _python_type_ignore_tags(text: str) -> dict[int, str]:
+    """
+    提取辅助类型注释语法确认的已知单码标签，解析拒绝某条类型注释时整份源码仍沿用普通说明计量。
+    """
+    try:
+        tree = ast.parse(text, type_comments=True)
+    except SyntaxError:
+        return {}
+    return {
+        item.lineno: item.tag
+        for item in tree.type_ignores
+        if isinstance(item, ast.TypeIgnore) and item.tag in _PYTHON_TYPE_IGNORE_MARKERS
+    }
+
+
 def _python_source(text: str) -> tuple[list[_CommentBlock], set[int]]:
     """
     文档串按完整语法区间扣除对应代码词元，仍单独提取区间内的井号说明，并保留文档串前后的真实同行代码。
+
+    仅已进入代码计数的同行名称、数字或字符串词元可承载辅助语法确认的固定类型检查标记。
     """
     source = io.StringIO(text, newline=None)
-    normalized = source.getvalue()
-    rows = normalized.split("\n")
-    spans = _python_docstrings(normalized, rows)
+    text = source.getvalue()
+    rows = text.split("\n")
+    spans = _python_docstrings(text, rows)
+    tags = _python_type_ignore_tags(text)
     blocks: list[_CommentBlock] = []
     code: set[int] = set()
+    host_line = 0
     doc_end = (0, 0)
     doc_start = 0
     doc_body: list[str] = []
     for token in tokenize.generate_tokens(source.readline):
         start, end = token.start, token.end
         if token.type == tokenize.COMMENT:
+            if start[0] == host_line and token.string == _PYTHON_TYPE_IGNORE_MARKERS.get(
+                tags.get(start[0], "")
+            ):
+                continue
             blocks.append(_CommentBlock(start[0], end[0], [token.string[1:]], True))
         elif token.type not in _PYTHON_LAYOUT:
             span = spans.pop(start, None)
@@ -130,6 +157,12 @@ def _python_source(text: str) -> tuple[list[_CommentBlock], set[int]]:
                     _add_docstring_body(doc_body, start[0] - doc_start, token.string)
             elif token.exact_type != tokenize.SEMI or start[0] != doc_end[0]:
                 code.update(range(start[0], end[0] + 1))
+                if start[0] == end[0] and token.type in (
+                    tokenize.NAME,
+                    tokenize.NUMBER,
+                    tokenize.STRING,
+                ):
+                    host_line = start[0]
     if spans:
         raise ValueError("Python docstring token starts do not match AST positions")
     return blocks, code & _nonempty_rows(rows)

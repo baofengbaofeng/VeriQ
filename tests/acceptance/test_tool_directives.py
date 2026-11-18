@@ -333,16 +333,16 @@ def test_vite_transform_consumes_exact_dynamic_import_directive(tmp_path: pathli
         "chinese": "/* 普通中文 @vite-ignore */ modulePath",
         "typo": "/* @vite-ignroe */ modulePath",
     }
-    paths = []
+    paths: dict[str, str] = {}
     with tempfile.TemporaryDirectory(dir=tmp_path) as directory:
         root = pathlib.Path(directory)
         (root / "env").mkdir()
         for extension, annotation in (("js", ""), ("ts", ": string")):
             for case, argument in cases.items():
                 path = f"{case}.{extension}"
-                paths.append(path)
                 source = f"export const load = (modulePath{annotation}) => import({argument});"
                 comment_audit_support.write_source(root, path, source)
+                paths[path] = (root / path).resolve().as_posix()
         result = subprocess.run(
             [
                 "node",
@@ -375,4 +375,4 @@ def test_vite_transform_consumes_exact_dynamic_import_directive(tmp_path: pathli
         else:
             (warning,) = transformed["warnings"]
             assert "The above dynamic import cannot be analyzed by Vite." in warning
-            assert str(root / path) in warning
+            assert paths[path] in warning

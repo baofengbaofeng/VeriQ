@@ -37,7 +37,7 @@ def _schema() -> dict[str, Any]:
     resource = files("veriq_server").joinpath("_schemas/platform-v1.schema.json")
     if resource.is_file():
         return json.loads(resource.read_text(encoding="utf-8"))  # type: ignore[no-any-return]
-    # Hatch 可编辑安装暴露 src；wheel 则内嵌规范目录。
+    # 已安装包内的规范资源优先，只有资源缺失时才回退至检出树的契约目录，供可编辑安装读取同一份规范。
     path = (
         Path(__file__).resolve().parents[4] / "packages/contracts/schemas/platform-v1.schema.json"
     )
