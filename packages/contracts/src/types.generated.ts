@@ -2634,6 +2634,8 @@ export interface ApprovedEngineInventoryV1 {
      * @maxItems 1000
      */
     files: FileEntry[];
+    compilerConnectedDatasets?: "2.0";
+    runnerSdkConnectedDatasets?: "2.0";
     /**
      * @maxItems 1000
      */

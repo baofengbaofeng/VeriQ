@@ -5581,6 +5581,8 @@
                                 },
                                 "maxItems": 1000
                             },
+                            "compilerConnectedDatasets": { "const": "2.0" },
+                            "runnerSdkConnectedDatasets": { "const": "2.0" },
                             "dependencies": {
                                 "type": "array",
                                 "items": {

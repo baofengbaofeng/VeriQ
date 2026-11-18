@@ -229,6 +229,35 @@ async def test_suite_matrix_preserves_dataset_row_provenance_and_frozen_variable
             and migration.required_capabilities["connectedDatasets"] == "2.0"
         )
         assert all("synthetic-business-secret" not in json.dumps(s) for s in snapshots)
+
+    async def current_migration():
+        retry = await c.post(endpoint, json=data, headers={"Idempotency-Key": str(uuid4())})
+        assert retry.status_code == 202, retry.text
+        async with db.sessions() as session:
+            jobs = (
+                await session.execute(select(Job).where(Job.run_id == retry.json()["data"]["id"]))
+            ).scalars()
+            ids = {j.required_capabilities["validationJobId"] for j in jobs}
+            assert len(ids) == 1
+        cancelled = await c.post(
+            endpoint + "/" + retry.json()["data"]["id"] + "/cancel",
+            json={"reason": "Release isolated test capacity"},
+        )
+        assert cancelled.json()["data"]["outcome"] == "CANCELLED"
+        return ids.pop()
+
+    previous = migration.id
+    assert await current_migration() == previous
+    for outcome in ("ERROR", "CANCELLED"):
+        async with db.sessions.begin() as session:
+            old = await session.get(Job, previous)
+            old.state, old.outcome = "FINISHED", outcome
+        replacement = await current_migration()
+        assert replacement != previous
+        assert await current_migration() == replacement
+        async with db.sessions() as session:
+            assert (await session.get(Job, previous)).outcome == outcome
+        previous = replacement
     empty = {k: v for k, v in data.items() if k != "suiteVersionId"}
     empty["caseVersionIds"] = []
     zero = await c.post(endpoint, json=empty, headers={"Idempotency-Key": str(uuid4())})
@@ -319,3 +348,106 @@ async def test_debug_candidate_waits_for_validation_without_fabricating_publishe
     recovered = await c.post("/internal/v1/jobs/claim", json=request, headers=auth(d))
     assert recovered.status_code == 200, recovered.text
     assert recovered.json()["data"]["attemptId"] == claim.json()["data"]["attemptId"]
+
+
+async def test_claim_skips_corrupt_historical_inputs_and_aggregates_failed_run(site, monkeypatch):
+    from test_lease_mysql import auth, claim_body, queued_browser_jobs
+    from veriq_server.db import Run, ValidationReceipt
+    from veriq_server.repositories.resource import ResourceRepository
+    from veriq_server.auth.authorization import WorkspaceScope
+    from veriq_server.contracts import canonical_bytes
+    from veriq_server.service import Problem
+
+    c, db = site
+    await setup(c)
+    await login(c)
+    ws = await workspace(c)
+    runtime = await device(c, ws)
+    dataset_path = await create(
+        c,
+        ws,
+        "frozen",
+        {
+            "kind": "DATASET",
+            "document": {
+                "schemaVersion": "1.0",
+                "columns": {"name": "string"},
+                "rows": [{"key": "k", "values": {"name": "synthetic"}}],
+            },
+        },
+    )
+    _, receipt_id, source = await publish(c, db, dataset_path)
+    broken_ids = [(await queued_browser_jobs(c, db, ws, 1))[0] for _ in range(4)]
+    (ready,) = await queued_browser_jobs(c, db, ws, 1)
+    runs, cases, frozen_hashes = [], [], []
+    async with db.sessions.begin() as session:
+        repo = ResourceRepository(session, WorkspaceScope(ws))
+        for i, jid in enumerate(broken_ids):
+            job = await session.get(Job, jid)
+            case = await session.get(CaseExecution, job.case_execution_id)
+            runs.append(job.run_id)
+            cases.append(case.id)
+            if i == 0:
+                original = await session.get(Artifact, (ws, case.source_snapshot_hash))
+                original.content = b"synthetic-corruption"
+            elif i == 1:
+                receipt = await session.get(ValidationReceipt, receipt_id)
+                job.snapshot_hash = await repo.store(
+                    canonical_bytes({"assetSourceHash": source["sourceHash"]})
+                )
+                job.required_capabilities = {
+                    **job.required_capabilities,
+                    "connectedDatasets": "2.0",
+                    "validationJobId": receipt.job_id,
+                }
+                bundle = json.loads((await repo.artifact(receipt.compiled_bundle_sha256)).content)
+                bundle["files"] = [
+                    f for f in bundle["files"] if f["path"] != "source/asset-snapshot.json"
+                ]
+                receipt.compiled_bundle_sha256 = await repo.store(canonical_bytes(bundle))
+            else:
+                from pathlib import Path
+
+                examples = json.loads(
+                    Path("packages/contracts/fixtures/compatibility.json").read_bytes()
+                )
+                frozen = next(x["value"] for x in examples if x["name"] == "execution-snapshot")
+                frozen.update(
+                    assetSourceHash=source["sourceHash"], workspaceId=ws, caseExecutionId=case.id
+                )
+                if i == 3:
+                    frozen["datasetVersionId"] = source["validationTarget"]["versionId"]
+                case.source_snapshot_hash = await repo.store(canonical_bytes(source))
+                job.snapshot_hash = await repo.store(canonical_bytes(frozen))
+                job.manifest_hash = await repo.store(
+                    canonical_bytes({"compiledBundleSha256": "a" * 64})
+                )
+                case.provenance = {"validationJobId": str(uuid4())}
+            frozen_hashes.append(job.snapshot_hash)
+    request = claim_body(runtime)
+    request["capabilities"] = {**request["capabilities"], "connectedDatasets": "2.0"}
+
+    async def unavailable(*_):
+        raise Problem(503, "ARTIFACT_STORE_UNAVAILABLE", "Storage temporarily unavailable")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(ResourceRepository, "artifact", unavailable)
+        temporary = await c.post("/internal/v1/jobs/claim", headers=auth(runtime), json=request)
+        assert temporary.status_code == 503
+    async with db.sessions() as session:
+        assert (await session.get(Job, broken_ids[0])).state == "QUEUED"
+        assert (await session.get(Job, ready)).state == "QUEUED"
+    response = await c.post("/internal/v1/jobs/claim", headers=auth(runtime), json=request)
+    assert response.status_code == 200, response.text
+    assert response.json()["data"]["jobId"] == ready
+    async with db.sessions() as session:
+        for jid, case_id, run_id, original_hash in zip(broken_ids, cases, runs, frozen_hashes):
+            assert (await session.get(Job, jid)).snapshot_hash == original_hash
+            run = await session.get(Run, run_id)
+            for record in [
+                await session.get(Job, jid),
+                await session.get(CaseExecution, case_id),
+                run,
+            ]:
+                assert (record.state, record.outcome) == ("FINISHED", "ERROR")
+            assert run.reason_code == "COMPILED_PROVENANCE_REQUIRED"

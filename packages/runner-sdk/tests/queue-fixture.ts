@@ -39,6 +39,8 @@ const fixed = Object.entries(files)
 const engine = {
     engineVersion: distribution.engineVersion,
     compilerVersion: COMPILER_VERSION,
+    compilerConnectedDatasets: JSON.parse(readFileSync("../compiler/package.json", "utf8")).veriqConnectedDatasets,
+    runnerSdkConnectedDatasets: JSON.parse(readFileSync("package.json", "utf8")).veriqConnectedDatasets,
     runnerSdkVersion: distribution.runnerSdkVersion,
     dependencies: distribution.dependencies,
     files: [...fixed, { path: "engine/compiler.tgz", sha256: hash(bytes), sizeBytes: bytes.length }],

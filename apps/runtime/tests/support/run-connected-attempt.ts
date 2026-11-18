@@ -5,6 +5,8 @@ import { join } from "node:path";
 import { DeviceStore, RuntimeClient } from "../../src/enrollment.ts";
 import { DeviceSession } from "../../src/agent/credentials.ts";
 import { AgentClient } from "../../src/agent/transport.ts";
+import { doctor } from "../../src/doctor.ts";
+import { loadRelease } from "../../src/execution/release.ts";
 import { claimLoop } from "../../src/agent/claim-loop.ts";
 import { ExecutionSupervisor } from "../../src/execution/supervisor.ts";
 
@@ -18,18 +20,15 @@ try {
     const client = new AgentClient(session);
     const root = join(profile, "agent");
     const supervisor = new ExecutionSupervisor({ client, root, releaseDirectory, browserExecutable });
+    const { entry } = await loadRelease(releaseDirectory, "0.1.0");
+    const { capabilities } = await doctor({ executablePath: browserExecutable, distribution: entry });
+    if (!capabilities) throw new Error("PACKAGE_DIAGNOSTICS_FAILED");
     await claimLoop({
         client,
         root,
         supervisor,
         runnerId: config.runnerId,
-        capabilities: {
-            engineVersion: "0.1.0",
-            os: "linux",
-            arch: "x64",
-            browsers: ["chromium"],
-            connectedDatasets: "2.0",
-        },
+        capabilities,
         signal: AbortSignal.timeout(120000),
         once: true,
     });

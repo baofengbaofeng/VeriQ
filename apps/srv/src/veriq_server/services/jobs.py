@@ -5,7 +5,6 @@ Runtime 仍有效；database_time 使用服务器 UTC。claim 失败返回 None 
 """
 
 import secrets
-import json
 from dataclasses import dataclass, field
 from collections.abc import AsyncIterator
 from datetime import timedelta, datetime
@@ -201,6 +200,98 @@ class JobService:
             if len(page) < 100:
                 return
 
+    async def fail_candidate(self, job: Job, run: Run | None, *, invalid_source: bool) -> None:
+        """永久损坏的候选项在未启动进程时直接终止，关联用例走统一聚合，审计记录只写固定错误类别和任务编号。"""
+        job.state, job.outcome, job.wait_reason = "FINISHED", "ERROR", None
+        if invalid_source:
+            audit(
+                self.session,
+                "job.compiled_provenance_failed",
+                None,
+                job.id,
+                workspace_id=job.workspace_id,
+            )
+        if job.case_execution_id and run:
+            case = await self.session.get(CaseExecution, job.case_execution_id)
+            if case and case.workspace_id == job.workspace_id and case.run_id == run.id:
+                case.state, case.outcome = "FINISHED", "ERROR"
+            if invalid_source:
+                run.reason_code = "COMPILED_PROVENANCE_REQUIRED"
+            from .completion import CompletionService
+
+            await CompletionService(self.session, self.settings).aggregate_run(run.id)
+
+    async def prepare_candidate(self, job: Job, run: Run | None, compatible: bool) -> bool:
+        """在单项保存点内核验历史源、验证依赖与已发布回执；正常等待保留候选状态，只有来源不可恢复才终止该项。"""
+        repo = ResourceRepository(self.session, WorkspaceScope(job.workspace_id))
+        from .connected_datasets import frozen_object, upgrade_queued, revalidate_bundle
+
+        if await upgrade_queued(repo, job) and not compatible:
+            job.wait_reason = "NO_CAPABILITY"
+            return False
+        if dependency := job.required_capabilities.get("validationJobId"):
+            compiled_receipt = (
+                await self.session.execute(
+                    select(ValidationReceipt).where(
+                        ValidationReceipt.workspace_id == job.workspace_id,
+                        ValidationReceipt.job_id == dependency,
+                    )
+                )
+            ).scalar_one_or_none()
+            if not compiled_receipt:
+                failed_dependency = await self.session.get(Job, dependency)
+                if not failed_dependency or failed_dependency.workspace_id != job.workspace_id:
+                    raise Problem(409, "COMPILED_PROVENANCE_REQUIRED", "Validation job not found")
+                if failed_dependency.state == "FINISHED":
+                    await self.fail_candidate(job, run, invalid_source=False)
+                else:
+                    job.wait_reason = "NO_CAPABILITY"
+                return False
+            frozen = await frozen_object(repo, job.snapshot_hash)
+            dependency_job = await self.session.get(Job, dependency)
+            if (
+                compiled_receipt.compiler_trust != "MANAGED"
+                or compiled_receipt.source_hash != frozen.get("assetSourceHash")
+                or not dependency_job
+                or dependency_job.state != "FINISHED"
+                or dependency_job.active_attempt_id != compiled_receipt.attempt_id
+            ):
+                raise Problem(
+                    409,
+                    "COMPILED_PROVENANCE_REQUIRED",
+                    "Draft validation receipt does not match frozen candidate",
+                )
+            manifest = await frozen_object(repo, job.manifest_hash)
+            if job.required_capabilities.get(
+                "connectedDatasets"
+            ) and not dependency_job.required_capabilities.get("connectedDatasets"):
+                source = await frozen_object(repo, dependency_job.snapshot_hash, "AssetSnapshotV1")
+                bundle = await frozen_object(
+                    repo, compiled_receipt.compiled_bundle_sha256, "CompiledAssetBundle"
+                )
+                current, _ = await revalidate_bundle(
+                    repo,
+                    dependency_job,
+                    source,
+                    bundle,
+                    compiled_receipt,
+                    requester=job.created_by,
+                    service_token=job.requester_service_token_id,
+                    plan_id=run.plan_id if run else None,
+                )
+                job.required_capabilities = {
+                    **job.required_capabilities,
+                    "validationJobId": current.id,
+                }
+                return False
+            manifest.pop("pendingValidationJobId", None)
+            manifest["compiledBundleSha256"] = compiled_receipt.compiled_bundle_sha256
+            job.manifest_hash = await repo.store(canonical_bytes(manifest))
+            job.required_capabilities = {
+                k: v for k, v in job.required_capabilities.items() if k != "validationJobId"
+            }
+        return True
+
     async def claim(self, identity: RuntimeIdentity, req: ClaimRequest) -> ClaimDTO | None:
         """领取在安装锁和任务锁保护下预留容量、递增栅栏并建立租约，计划任务还必须等待前驱逻辑结束和物理占用释放；
         任何授权或容量条件不满足都不启动执行，未知进程不能凭时间超期重用容量。
@@ -315,80 +406,24 @@ class JobService:
                 ):
                     job.wait_reason = "QUARANTINED"
                     continue
-            repo = ResourceRepository(self.session, WorkspaceScope(job.workspace_id))
-            from .connected_datasets import upgrade_queued, revalidate_bundle
-
-            if await upgrade_queued(repo, job) and not compatible:
-                job.wait_reason = "NO_CAPABILITY"
+            # 单项旧任务可能在升级快照后才发现回执失配，保存点回滚这一项的改写，保留本轮认领及后续候选的事务。
+            candidate_id = job.id
+            try:
+                async with self.session.begin_nested():
+                    ready = await self.prepare_candidate(job, run, compatible)
+            except Problem as error:
+                if error.code not in {
+                    "COMPILED_PROVENANCE_REQUIRED",
+                    "INVALID_ARTIFACT",
+                    "JOB_NOT_FOUND",
+                }:
+                    raise
+                job = await self.session.get(Job, candidate_id)
+                assert job is not None
+                await self.fail_candidate(job, run, invalid_source=True)
                 continue
-            if dependency := job.required_capabilities.get("validationJobId"):
-                compiled_receipt = (
-                    await self.session.execute(
-                        select(ValidationReceipt).where(
-                            ValidationReceipt.workspace_id == job.workspace_id,
-                            ValidationReceipt.job_id == dependency,
-                        )
-                    )
-                ).scalar_one_or_none()
-                if not compiled_receipt:
-                    failed_dependency = await self.session.get(Job, dependency)
-                    if failed_dependency and failed_dependency.state == "FINISHED":
-                        job.state, job.outcome = "FINISHED", "ERROR"
-                        execution = await self.session.get(CaseExecution, job.case_execution_id)
-                        assert execution and job.run_id
-                        execution.state, execution.outcome = "FINISHED", "ERROR"
-                        from .completion import CompletionService
-
-                        await CompletionService(self.session, self.settings).aggregate_run(
-                            job.run_id
-                        )
-                    else:
-                        job.wait_reason = "NO_CAPABILITY"
-                    continue
-                repo = ResourceRepository(self.session, WorkspaceScope(job.workspace_id))
-                frozen = json.loads((await repo.artifact(job.snapshot_hash)).content)
-                dependency_job = await self.session.get(Job, dependency)
-                if (
-                    compiled_receipt.compiler_trust != "MANAGED"
-                    or compiled_receipt.source_hash != frozen["assetSourceHash"]
-                    or not dependency_job
-                    or dependency_job.state != "FINISHED"
-                    or dependency_job.active_attempt_id != compiled_receipt.attempt_id
-                ):
-                    raise Problem(
-                        409,
-                        "COMPILED_PROVENANCE_REQUIRED",
-                        "Draft validation receipt does not match frozen candidate",
-                    )
-                manifest = json.loads((await repo.artifact(job.manifest_hash)).content)
-                if job.required_capabilities.get(
-                    "connectedDatasets"
-                ) and not dependency_job.required_capabilities.get("connectedDatasets"):
-                    source = json.loads((await repo.artifact(dependency_job.snapshot_hash)).content)
-                    bundle = json.loads(
-                        (await repo.artifact(compiled_receipt.compiled_bundle_sha256)).content
-                    )
-                    current, _ = await revalidate_bundle(
-                        repo,
-                        dependency_job,
-                        source,
-                        bundle,
-                        compiled_receipt,
-                        requester=job.created_by,
-                        service_token=job.requester_service_token_id,
-                        plan_id=run.plan_id if run else None,
-                    )
-                    job.required_capabilities = {
-                        **job.required_capabilities,
-                        "validationJobId": current.id,
-                    }
-                    continue
-                manifest.pop("pendingValidationJobId", None)
-                manifest["compiledBundleSha256"] = compiled_receipt.compiled_bundle_sha256
-                job.manifest_hash = await repo.store(canonical_bytes(manifest))
-                job.required_capabilities = {
-                    k: v for k, v in job.required_capabilities.items() if k != "validationJobId"
-                }
+            if not ready:
+                continue
             if job.requested_runtime_id and job.requested_runtime_id != runtime.id:
                 continue
             if job.requested_location and job.requested_location != runtime.location:

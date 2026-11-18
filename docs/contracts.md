@@ -600,7 +600,8 @@ CASE 的可选 `datasetBindings` 将别名固定到当前工作区已发布的 D
 
 ## 联网静态数据传输
 
-含数据集的在线验证或测试任务领取时要求客户端声明 `connectedDatasets: "2.0"`。
+经核验的发行库存分别记录编译器和 Runner SDK 声明的联网协议。只有两个组件均声明 2.0 才对外报告该能力。
+旧库存缺少声明的组件仍可执行兼容的无数据任务。含数据集的在线验证或测试任务领取时要求客户端声明 `connectedDatasets: "2.0"`。
 `ConnectedSourceSnapshotV2` 保留原始源摘要、原始规范字节摘要以及依赖的顺序。
 每项数据集只携带资源和版本身份、字段声明、资产摘要和文档摘要。
 `ConnectedExecutionSnapshotV2.selectedRow` 保存版本、行键及执行行的规范摘要。

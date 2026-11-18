@@ -560,6 +560,17 @@ async def test_legacy_published_dataset_revalidation_uses_frozen_original(site, 
                 test_job.wait_reason,
                 test_job.outcome,
             )
+        # 相同执行主体随后再次运行同一发布版本，应复用已经成功的独立验证，不能改写回执或重复创建验证任务。
+        async with client(c, "current-executor@example.com") as executor:
+            rerun = await executor.post(
+                endpoint, headers={"Idempotency-Key": str(uuid4())}, json=selection
+            )
+            assert rerun.status_code == 202, rerun.text
+        async with db.sessions() as session:
+            queued = (
+                await session.execute(select(Job).where(Job.run_id == rerun.json()["data"]["id"]))
+            ).scalar_one()
+            assert queued.required_capabilities["validationJobId"] == migration_id
         workdirs = list((profile / "agent/work").iterdir())
         assert len(workdirs) == 2
         for directory in workdirs:

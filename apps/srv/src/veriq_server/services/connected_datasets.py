@@ -5,13 +5,25 @@ from hashlib import sha256
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
-from ..contracts import asset_source_hash, canonical_bytes
+from ..contracts import asset_source_hash, canonical_bytes, validate_schema
 from ..db import CaseExecution, Job, ValidationReceipt
 from ..repositories.resource import ResourceRepository
 from ..service import Problem, now
 from .snapshots import execution_data_row
+
+
+async def frozen_object(repo: ResourceRepository, digest: str, schema: str | None = None) -> dict:
+    """仅将已读取静态字节的解码或结构失败归为永久溯源错误，数据库连接与事务错误继续沿原始重试路径上报。"""
+    artifact = await repo.artifact(digest)
+    try:
+        value = json.loads(artifact.content)
+    except (ValueError, UnicodeDecodeError, RecursionError):
+        raise Problem(409, "COMPILED_PROVENANCE_REQUIRED", "Invalid frozen document") from None
+    if not isinstance(value, dict) or (schema and validate_schema(schema, value)):
+        raise Problem(409, "COMPILED_PROVENANCE_REQUIRED", "Invalid frozen document")
+    return value
 
 
 def checksum(value: Any) -> str:
@@ -46,6 +58,10 @@ def project_execution(execution: dict, source: dict) -> dict:
         return execution
     projected = {**execution, "schemaVersion": "2.0"}
     if row := projected.pop("dataRow", None):
+        if not projected.get("datasetVersionId"):
+            raise Problem(
+                409, "COMPILED_PROVENANCE_REQUIRED", "Original row has no assigned version"
+            )
         projected["selectedRow"] = {
             "versionId": execution["datasetVersionId"],
             "rowKey": row["key"],
@@ -90,17 +106,36 @@ async def revalidate_bundle(
             "planId": plan_id,
         }
     )
+    # 已有版本使用单一幂等键；同一组后续重验证另取代次键。保留失败任务和旧依赖的关联，使既有运行终态可追查。
+    group = key
     existing = (
         await repo.session.execute(
-            select(Job).where(
-                Job.workspace_id == repo.scope.workspace_id, Job.validation_key == key
+            select(Job)
+            .where(
+                Job.workspace_id == repo.scope.workspace_id,
+                Job.subject_id == validation.subject_id,
+                or_(
+                    Job.validation_key == group,
+                    Job.required_capabilities["revalidationGroup"].as_string() == group,
+                ),
             )
+            .order_by(
+                Job.required_capabilities["revalidationGeneration"].as_integer().desc(),
+                Job.id.desc(),
+            )
+            .limit(1)
         )
     ).scalar_one_or_none()
+    generation = 0
     if existing:
-        return existing, None
+        if existing.state != "CANCEL_REQUESTED" and (
+            existing.state != "FINISHED" or existing.outcome == "PASSED"
+        ):
+            return existing, None
+        generation = existing.required_capabilities.get("revalidationGeneration", 0) + 1
+        key = checksum({"group": group, "generation": generation})
     jid = str(uuid4())
-    manifest = json.loads((await repo.artifact(validation.manifest_hash)).content)
+    manifest = await frozen_object(repo, validation.manifest_hash, "JobManifestV1")
     manifest.update(
         jobId=jid, snapshotSha256=await repo.store(canonical_bytes(project_source(source)))
     )
@@ -118,6 +153,8 @@ async def revalidate_bundle(
             "compileAssets": True,
             "connectedDatasets": "2.0",
             "publishedValidationJobId": validation.id,
+            "revalidationGroup": group,
+            "revalidationGeneration": generation,
             **({"revalidationPlanId": plan_id} if service_token else {}),
         },
         requester_service_token_id=service_token,
@@ -200,8 +237,20 @@ async def legacy_source(repo: ResourceRepository, job: Job) -> dict | None:
         if not case or case.workspace_id != repo.scope.workspace_id:
             raise Problem(409, "COMPILED_PROVENANCE_REQUIRED", "Missing original case")
         digest = case.source_snapshot_hash
-    source = json.loads((await repo.artifact(digest)).content)
-    return source if any(a["kind"] == "DATASET" for a in source.get("assets", [])) else None
+    source = await frozen_object(repo, digest)
+    assets = source.get("assets", [])
+    if not isinstance(assets, list) or any(
+        not isinstance(asset, dict) or not asset.get("kind") for asset in assets
+    ):
+        raise Problem(409, "COMPILED_PROVENANCE_REQUIRED", "Invalid historical assets")
+    if not any(asset["kind"] == "DATASET" for asset in assets):
+        return None
+    if (
+        validate_schema("AssetSnapshotV1", source)
+        or asset_source_hash(source) != source["sourceHash"]
+    ):
+        raise Problem(409, "COMPILED_PROVENANCE_REQUIRED", "Invalid historical source")
+    return source
 
 
 async def upgrade_queued(repo: ResourceRepository, job: Job) -> bool:
@@ -209,12 +258,12 @@ async def upgrade_queued(repo: ResourceRepository, job: Job) -> bool:
     source = await legacy_source(repo, job)
     if not source:
         return False
-    manifest = json.loads((await repo.artifact(job.manifest_hash)).content)
+    manifest = await frozen_object(repo, job.manifest_hash)
     caps = {**job.required_capabilities, "connectedDatasets": "2.0"}
     if job.kind == "VALIDATE":
         manifest["snapshotSha256"] = await repo.store(canonical_bytes(project_source(source)))
     else:
-        subject = json.loads((await repo.artifact(job.snapshot_hash)).content)
+        subject = await frozen_object(repo, job.snapshot_hash, "ExecutionSnapshotV1")
         if (
             source.get("sourceHash") != subject["assetSourceHash"]
             or asset_source_hash(source) != source["sourceHash"]
@@ -225,7 +274,14 @@ async def upgrade_queued(repo: ResourceRepository, job: Job) -> bool:
         manifest["executionSnapshotSha256"] = manifest["snapshotSha256"] = job.snapshot_hash
         if manifest.pop("compiledBundleSha256", None):
             case = await repo.session.get(CaseExecution, job.case_execution_id)
-            validation = await repo.job(case.provenance["validationJobId"])
+            validation_id = (
+                case.provenance.get("validationJobId")
+                if isinstance(case.provenance, dict)
+                else None
+            )
+            if not isinstance(validation_id, str):
+                raise Problem(409, "COMPILED_PROVENANCE_REQUIRED", "Original validation missing")
+            validation = await repo.job(validation_id)
             if validation.snapshot_hash != case.source_snapshot_hash:
                 raise Problem(
                     409, "COMPILED_PROVENANCE_REQUIRED", "Validation differs from original case"
