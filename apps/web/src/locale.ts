@@ -7,6 +7,7 @@ import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { editorI18n } from "./features/resources/i18n";
 import { aiI18n } from "./features/ai/i18n";
+import { agentMessages } from "./features/agent/i18n";
 import { commonMessages } from "./locales/common";
 import { accountsMessages } from "./locales/accounts";
 import { workspacesMessages } from "./locales/workspaces";
@@ -21,6 +22,7 @@ export type { AppLanguage } from "./locales/preference";
 const preferenceKey = "veriq.language";
 const messages = {
     ...commonMessages,
+    ...agentMessages,
     ...accountsMessages,
     ...workspacesMessages,
     ...runtimesMessages,

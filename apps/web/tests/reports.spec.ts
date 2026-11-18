@@ -100,8 +100,18 @@ test("reports discover URL workspace on a later genuine page and retain manual c
     const target = second.items[0];
     const fallback = first.items[0];
     if (!target || !fallback) throw new Error("Expected two populated workspace pages");
-    await page.goto(`/reports?workspaceId=${target.id}`);
     const selector = page.getByLabel("Report Workspace");
+    // 从会话打开指定 Run 时需要直接验证第二页的工作区，未知 Run 本身仍由真实报告接口拒绝，不能退回别的工作区。
+    const missingRun = randomUUID();
+    const runPath = `/workspaces/${target.id}/runs/${missingRun}`;
+    const lookup = page.waitForResponse(
+        (response) =>
+            response.url().endsWith(runPath + "/report") || response.url().endsWith(runPath + "/events/stream"),
+    );
+    await page.goto(`/reports?workspaceId=${target.id}&runId=${missingRun}`);
+    await expect(selector).toHaveValue(target.id);
+    expect((await lookup).status()).toBe(404);
+    await page.goto(`/reports?workspaceId=${target.id}`);
     await expect(selector).toHaveValue(fallback.id);
     await page.getByRole("button", { name: "More Workspaces", exact: true }).click();
     await expect(selector).toHaveValue(target.id);

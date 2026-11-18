@@ -74,7 +74,7 @@ async def published(static_package, production_settings):
     "path",
     (
         "/ /login /setup /reset /reset/confirm /account /admin/users /workspaces "
-        "/runtimes /resources /environments /ai /bundles /reports /execution-plans /invitations/accept"
+        "/runtimes /resources /environments /ai /agent /bundles /reports /execution-plans /invitations/accept"
     ).split(),
 )
 async def test_registered_spa_refresh_and_head(published, static_package, path):

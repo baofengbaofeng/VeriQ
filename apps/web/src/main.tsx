@@ -6,6 +6,7 @@
 
 import { tx, useAppLocale } from "./locale";
 import { ExecutionPlansPage } from "./features/runs/ExecutionPlansPage";
+import { AgentPage } from "./features/agent/AgentPage";
 import { AiPage } from "./features/ai/AiPage";
 import { ReportPage } from "./features/reports/ReportPage";
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -179,6 +180,14 @@ function App() {
                         element={
                             <WorkspaceProvider key={user?.id ?? "anonymous"}>
                                 <EnvironmentPage />
+                            </WorkspaceProvider>
+                        }
+                    />
+                    <Route
+                        path="/agent"
+                        element={
+                            <WorkspaceProvider key={user?.id ?? "anonymous"}>
+                                <AgentPage />
                             </WorkspaceProvider>
                         }
                     />

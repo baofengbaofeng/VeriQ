@@ -39,6 +39,7 @@ SPA_PATHS = (
     "/resources",
     "/environments",
     "/ai",
+    "/agent",
     "/reports",
     "/execution-plans",
     "/invitations/accept",

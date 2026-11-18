@@ -311,6 +311,9 @@ function PlanWorkspace({ workspace, requestedPlanId }: { workspace: Workspace; r
                     </p>
                     {canEdit && !p.archived && (
                         <>
+                            <Link to={`/agent?workspaceId=${workspace.id}&planId=${p.id}`}>
+                                {tx("Discuss with Test Agent")}
+                            </Link>
                             <button type="button" disabled={busy} onClick={() => edit(p)}>
                                 {tx("编辑 / Edit")}
                             </button>

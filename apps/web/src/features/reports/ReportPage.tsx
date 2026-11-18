@@ -47,20 +47,32 @@ export function ReportPage() {
     const [params] = useSearchParams();
     const requestedWorkspace = params.get("workspaceId");
     const requestedRun = params.get("runId") ?? "";
-    const items = workspaces.data?.pages.flatMap((p) => p.items) ?? [];
-    const firstWorkspaceId = items[0]?.id;
-    const availableRequestedId = items.find((w) => w.id === requestedWorkspace)?.id;
-    // URL 的目标只有在已加载分页中真正可见时才取得选择权，后续用户手动切换不会重新触发这一效果；稍后分页发现目标时仍应
-    // 准确选择它，而非依赖首项变化。
+    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const listed = workspaces.data?.pages.flatMap((p) => p.items) ?? [];
+    const listedTarget = listed.find((w) => w.id === requestedWorkspace);
+    const deepLink = !!requestedWorkspace && uuid.test(requestedWorkspace) && uuid.test(requestedRun);
+    // 携带具体 Run 的入口应直接找到工作区，即使其不在首屏。服务端员工接口专门核验链接目标的当前成员资格。
+    const target = useQuery({
+        queryKey: ["report-workspace-target", user?.id, requestedWorkspace],
+        queryFn: ({ signal }) => api.workspace(requestedWorkspace ?? "", signal),
+        enabled: !!user && deepLink && !listedTarget,
+    });
+    const items = target.data && !listedTarget ? [...listed, target.data] : listed;
+    const firstWorkspaceId = listed[0]?.id;
+    const availableRequestedId = listedTarget?.id ?? target.data?.id;
+    const findingTarget = deepLink && !availableRequestedId && target.isPending;
+    // 普通 Workspace 链接仍沿用列表分页选择；具体 Run 链接则在目标授权返回前保持空白，避免打开不相关的历史。
+
     useEffect(() => {
         if (availableRequestedId) select(availableRequestedId);
     }, [availableRequestedId, select]);
     useEffect(() => {
-        if (!selected && !availableRequestedId && firstWorkspaceId) select(firstWorkspaceId);
-    }, [selected, availableRequestedId, firstWorkspaceId, select]);
+        if (!selected && !availableRequestedId && firstWorkspaceId && !findingTarget) select(firstWorkspaceId);
+    }, [selected, availableRequestedId, firstWorkspaceId, findingTarget, select]);
     const adapter = useMemo(() => new CloudReportAdapter(selected), [selected]);
     if (!user) return <Navigate to="/login" />;
     const workspace = items.find((w) => w.id === selected);
+    const initialRunId = selected === requestedWorkspace ? requestedRun : "";
     return (
         <Panel title={t("reports")}>
             <label>
@@ -73,7 +85,8 @@ export function ReportPage() {
                     ))}
                 </select>
             </label>
-            {workspaces.isPending && <p role="status">{t("loading")}</p>}
+            {(workspaces.isPending || findingTarget) && <p role="status">{t("loading")}</p>}
+            {target.error && <p role="alert">{target.error.message}</p>}
             {workspaces.isSuccess && !items.length && (
                 <p>{tx("请先创建或加入工作区 / Create or join a Workspace first.")}</p>
             )}
@@ -96,8 +109,8 @@ export function ReportPage() {
             )}
             {workspace && (
                 <ReportWorkspaceView
-                    initialRunId={selected === requestedWorkspace ? requestedRun : ""}
-                    key={user.id + selected}
+                    initialRunId={initialRunId}
+                    key={`${user.id}/${selected}/${initialRunId}`}
                     adapter={adapter}
                     signal={signal}
                     rawEvidenceAllowed={["OWNER", "ADMIN"].includes(workspace.role)}

@@ -268,3 +268,28 @@ test("desktop dataset creates and updates admit 2 MiB of content and reject exce
         /IPC_PAYLOAD_LIMIT/,
     );
 });
+
+/**
+ * 对话查询和提交跨过实际主进程策略解析；未知正文、假工作区和擅自附加确认正文都必须在构造任何网络请求前被拒绝。
+ */
+test("conversation history and confirmation follow the typed Workspace policy", () => {
+    const workspaceId = "00000000-0000-4000-8000-000000000001";
+    const sessionId = "00000000-0000-4000-8000-000000000002";
+    const turnId = "00000000-0000-4000-8000-000000000003";
+    const path = `/api/v1/workspaces/${workspaceId}/agent/sessions`;
+    assert.deepEqual(
+        resolveOperation(
+            { operation: "listAgentSessions", params: { workspaceId }, query: { archived: true } },
+            workspaceId,
+        ),
+        { path: path + "?archived=true", method: "GET", kind: "json" },
+    );
+    const confirm = { operation: "confirmAgentTurn", params: { workspaceId, sessionId, turnId } };
+    assert.deepEqual(resolveOperation(confirm, workspaceId), {
+        path: path + `/${sessionId}/turns/${turnId}/confirm`,
+        method: "POST",
+        kind: "json",
+    });
+    assert.throws(() => resolveOperation(confirm, sessionId), /WORKSPACE_SCOPE_MISMATCH/);
+    assert.throws(() => resolveOperation({ ...confirm, data: {} }, workspaceId), /IPC_PAYLOAD_INVALID/);
+});

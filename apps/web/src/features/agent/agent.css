@@ -1,0 +1,189 @@
+.vq-agent {
+    --agent-border: var(--vq-border, #dce3eb);
+    --agent-soft: var(--vq-rail, #f4f6f9);
+    --agent-selected: var(--vq-brand-soft, #e8ecff);
+    --agent-accent: var(--vq-brand, #3645b8);
+    display: grid;
+    gap: 1rem;
+    margin-block-start: 1rem;
+}
+
+.vq-agent-model,
+.vq-agent-sessions,
+.vq-agent-thread {
+    min-width: 0;
+    padding: 1rem;
+    border: 1px solid var(--agent-border);
+    border-radius: 0.65rem;
+}
+
+.vq-agent-model,
+.vq-agent-card {
+    background: var(--agent-soft);
+}
+
+.vq-agent-columns {
+    display: grid;
+    grid-template-columns: minmax(12rem, 15rem) minmax(0, 1fr);
+    gap: 1rem;
+    align-items: start;
+}
+
+.vq-agent-toolbar,
+.vq-agent-model-state {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.65rem;
+}
+
+.vq-agent-toolbar h3,
+.vq-agent-card h4,
+.vq-agent-sessions h3 {
+    margin: 0;
+}
+
+.vq-agent-settings,
+.vq-agent-sessions form,
+.vq-agent-composer {
+    display: grid;
+    gap: 0.65rem;
+    margin-block-start: 0.85rem;
+}
+
+.vq-agent-settings {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+}
+
+.vq-agent-settings label,
+.vq-agent-sessions label,
+.vq-agent-composer label {
+    display: grid;
+    gap: 0.25rem;
+    min-width: 0;
+}
+
+.vq-agent input,
+.vq-agent select,
+.vq-agent textarea {
+    width: 100%;
+    min-width: 0;
+}
+
+.vq-agent button:focus-visible,
+.vq-agent a:focus-visible {
+    outline: 2px solid var(--agent-accent);
+    outline-offset: 2px;
+}
+
+.vq-agent-sessions ul,
+.vq-agent-history {
+    padding: 0;
+    list-style: none;
+}
+
+.vq-agent-sessions li + li {
+    margin-block-start: 0.35rem;
+}
+
+.vq-agent-sessions li button {
+    width: 100%;
+    text-align: start;
+    overflow-wrap: anywhere;
+}
+
+.vq-agent-sessions [aria-pressed="true"] {
+    background: var(--agent-selected);
+    color: var(--vq-brand-dark, #26348e);
+}
+
+.vq-agent-history {
+    display: grid;
+    gap: 1rem;
+    margin-block: 0.85rem;
+}
+
+.vq-agent-history li {
+    display: grid;
+    justify-items: start;
+    gap: 0.5rem;
+    border-block-end: 1px solid var(--agent-border);
+    padding-block-end: 1rem;
+}
+
+.vq-agent-history li > p {
+    margin: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.vq-agent-user-text {
+    justify-self: end;
+    max-width: min(100%, 44rem);
+    padding: 0.6rem 0.85rem;
+    border-radius: 0.65rem;
+    background: var(--agent-selected);
+}
+
+.vq-agent-reply {
+    max-width: min(100%, 54rem);
+    padding-block: 0.25rem;
+}
+
+.vq-agent-card {
+    width: 100%;
+    margin: 0;
+    padding: 0.85rem;
+    border: 1px solid var(--agent-border);
+    border-radius: 0.65rem;
+    overflow-wrap: anywhere;
+}
+
+.vq-agent-card p {
+    margin-block: 0.45rem;
+}
+
+.vq-agent-field {
+    display: grid;
+    grid-template-columns: minmax(7rem, 1fr) minmax(0, 2fr);
+    gap: 0.55rem;
+    padding-block: 0.25rem;
+}
+
+.vq-agent-field dd {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.9rem;
+    margin: 0;
+}
+
+.vq-agent-field del {
+    color: #924538;
+}
+
+.vq-agent-field ins {
+    color: #176644;
+}
+
+.vq-agent-run {
+    margin-block-start: 0.65rem;
+}
+
+.vq-agent-run a {
+    display: inline-block;
+    margin-inline-end: 0.75rem;
+}
+
+.vq-agent-composer > button {
+    justify-self: start;
+}
+
+.vq-agent-empty {
+    padding: 1rem;
+}
+
+@media (max-width: 740px) {
+    .vq-agent-columns {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

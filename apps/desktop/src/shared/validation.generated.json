@@ -7410,6 +7410,540 @@
                 }
             ]
         },
+        "AgentSettingsWrite": {
+            "type": "object",
+            "properties": {
+                "defaultProviderId": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/Id"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "agentProviderId": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/Id"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                }
+            },
+            "required": ["defaultProviderId", "agentProviderId"],
+            "additionalProperties": false
+        },
+        "AgentSettingsDTO": {
+            "type": "object",
+            "properties": {
+                "defaultProviderId": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/Id"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "agentProviderId": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/Id"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "resolvedProviderId": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/Id"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "providerStatus": {
+                    "type": "string",
+                    "enum": ["READY", "UNCONFIGURED", "UNAVAILABLE"]
+                },
+                "errorCode": {
+                    "type": "string",
+                    "enum": ["AI_PROVIDER_NOT_FOUND", "AI_PROVIDER_DISABLED", "AI_ENDPOINT_FORBIDDEN"]
+                }
+            },
+            "required": ["defaultProviderId", "agentProviderId", "resolvedProviderId", "providerStatus"],
+            "additionalProperties": false
+        },
+        "AgentSessionCreate": {
+            "type": "object",
+            "properties": {
+                "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160,
+                    "pattern": "^(?![\\s\\S]*[\\ud800-\\udfff])[\\u0009-\\u000d\\u001c-\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]*[^\\u0009-\\u000d\\u001c-\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]"
+                }
+            },
+            "required": [],
+            "additionalProperties": false
+        },
+        "AgentSessionDTO": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "$ref": "#/$defs/Id"
+                },
+                "workspaceId": {
+                    "$ref": "#/$defs/Id"
+                },
+                "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                },
+                "createdAt": {
+                    "$ref": "#/$defs/Timestamp"
+                },
+                "archived": {
+                    "type": "boolean"
+                }
+            },
+            "required": ["id", "workspaceId", "title", "createdAt", "archived"],
+            "additionalProperties": false
+        },
+        "AgentTurnSubmit": {
+            "type": "object",
+            "properties": {
+                "requestId": {
+                    "$ref": "#/$defs/Id"
+                },
+                "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 8000,
+                    "pattern": "^(?![\\s\\S]*[\\ud800-\\udfff])[\\u0009-\\u000d\\u001c-\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]*[^\\u0009-\\u000d\\u001c-\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]"
+                }
+            },
+            "required": ["requestId", "text"],
+            "additionalProperties": false
+        },
+        "AgentPlanPreview": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                },
+                "suiteVersionId": {
+                    "$ref": "#/$defs/Id"
+                },
+                "environmentVersionId": {
+                    "$ref": "#/$defs/Id"
+                },
+                "browsers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/Browser"
+                    },
+                    "minItems": 1,
+                    "maxItems": 3,
+                    "uniqueItems": true
+                },
+                "runtimeIds": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/Id"
+                    },
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "uniqueItems": true
+                },
+                "roleKeys": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 80
+                    },
+                    "minItems": 1,
+                    "maxItems": 32,
+                    "uniqueItems": true
+                },
+                "overlapPolicy": {
+                    "type": "string",
+                    "enum": ["QUEUE", "SKIP", "REJECT"]
+                },
+                "maxCaseRetries": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1
+                },
+                "revision": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 2147483646
+                }
+            },
+            "required": [
+                "name",
+                "suiteVersionId",
+                "environmentVersionId",
+                "browsers",
+                "runtimeIds",
+                "roleKeys",
+                "overlapPolicy",
+                "maxCaseRetries"
+            ],
+            "additionalProperties": false
+        },
+        "AgentRunSelection": {
+            "oneOf": [
+                {
+                    "type": "object",
+                    "properties": {
+                        "caseVersionIds": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/$defs/Id"
+                            },
+                            "minItems": 1,
+                            "maxItems": 100,
+                            "uniqueItems": true
+                        },
+                        "environmentVersionId": {
+                            "$ref": "#/$defs/Id"
+                        },
+                        "browsers": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/$defs/Browser"
+                            },
+                            "minItems": 1,
+                            "maxItems": 3,
+                            "uniqueItems": true
+                        },
+                        "runtimeIds": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/$defs/Id"
+                            },
+                            "minItems": 1,
+                            "maxItems": 20,
+                            "uniqueItems": true
+                        },
+                        "roleKeys": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 80
+                            },
+                            "minItems": 1,
+                            "maxItems": 32,
+                            "uniqueItems": true
+                        },
+                        "maxRetries": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1
+                        }
+                    },
+                    "required": ["caseVersionIds", "environmentVersionId", "browsers", "runtimeIds", "roleKeys"],
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "suiteVersionId": {
+                            "$ref": "#/$defs/Id"
+                        },
+                        "environmentVersionId": {
+                            "$ref": "#/$defs/Id"
+                        },
+                        "browsers": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/$defs/Browser"
+                            },
+                            "minItems": 1,
+                            "maxItems": 3,
+                            "uniqueItems": true
+                        },
+                        "runtimeIds": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/$defs/Id"
+                            },
+                            "minItems": 1,
+                            "maxItems": 20,
+                            "uniqueItems": true
+                        },
+                        "roleKeys": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 80
+                            },
+                            "minItems": 1,
+                            "maxItems": 32,
+                            "uniqueItems": true
+                        },
+                        "maxRetries": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 1
+                        }
+                    },
+                    "required": ["suiteVersionId", "environmentVersionId", "browsers", "runtimeIds", "roleKeys"],
+                    "additionalProperties": false
+                }
+            ]
+        },
+        "AgentProposal": {
+            "oneOf": [
+                {
+                    "type": "object",
+                    "properties": {
+                        "type": {
+                            "type": "string",
+                            "const": "SAVE_PLAN"
+                        },
+                        "planId": {
+                            "$ref": "#/$defs/Id"
+                        },
+                        "plan": {
+                            "$ref": "#/$defs/AgentPlanPreview"
+                        },
+                        "previousPlan": {
+                            "$ref": "#/$defs/AgentPlanPreview"
+                        }
+                    },
+                    "required": ["type", "plan"],
+                    "additionalProperties": false,
+                    "dependentRequired": {
+                        "previousPlan": ["planId"]
+                    },
+                    "if": {
+                        "type": "object",
+                        "properties": {
+                            "planId": true
+                        },
+                        "required": ["planId"]
+                    },
+                    "then": {
+                        "type": "object",
+                        "properties": {
+                            "plan": {
+                                "type": "object",
+                                "properties": {
+                                    "revision": true
+                                },
+                                "required": ["revision"]
+                            }
+                        }
+                    },
+                    "else": {
+                        "type": "object",
+                        "properties": {
+                            "plan": {
+                                "type": "object",
+                                "properties": {
+                                    "revision": false
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "type": {
+                            "type": "string",
+                            "const": "TRIGGER_PLAN"
+                        },
+                        "planId": {
+                            "$ref": "#/$defs/Id"
+                        },
+                        "planRevision": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 2147483646
+                        },
+                        "triggerInput": {
+                            "type": "object",
+                            "properties": {
+                                "buildSha": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 160
+                                },
+                                "reason": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 500
+                                }
+                            },
+                            "required": [],
+                            "additionalProperties": false
+                        }
+                    },
+                    "required": ["type", "planId", "planRevision"],
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "type": {
+                            "type": "string",
+                            "const": "RUN_ONCE"
+                        },
+                        "selection": {
+                            "$ref": "#/$defs/AgentRunSelection"
+                        },
+                        "planId": {
+                            "$ref": "#/$defs/Id"
+                        },
+                        "planRevision": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 2147483646
+                        }
+                    },
+                    "required": ["type", "selection"],
+                    "additionalProperties": false,
+                    "dependentRequired": {
+                        "planId": ["planRevision"],
+                        "planRevision": ["planId"]
+                    }
+                }
+            ]
+        },
+        "AgentReceipt": {
+            "oneOf": [
+                {
+                    "type": "object",
+                    "properties": {
+                        "type": {
+                            "type": "string",
+                            "const": "SAVE_PLAN"
+                        },
+                        "planId": {
+                            "$ref": "#/$defs/Id"
+                        },
+                        "planRevision": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 2147483646
+                        }
+                    },
+                    "required": ["type", "planId", "planRevision"],
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "type": {
+                            "type": "string",
+                            "const": "TRIGGER_PLAN"
+                        },
+                        "planId": {
+                            "$ref": "#/$defs/Id"
+                        },
+                        "planRevision": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 2147483646
+                        },
+                        "runId": {
+                            "$ref": "#/$defs/Id"
+                        },
+                        "decision": {
+                            "type": "string",
+                            "enum": ["ENQUEUED", "REUSED", "SKIPPED"]
+                        }
+                    },
+                    "required": ["type", "planId", "planRevision", "runId", "decision"],
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "type": {
+                            "type": "string",
+                            "const": "RUN_ONCE"
+                        },
+                        "runId": {
+                            "$ref": "#/$defs/Id"
+                        }
+                    },
+                    "required": ["type", "runId"],
+                    "additionalProperties": false
+                }
+            ]
+        },
+        "AgentTurnDTO": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "$ref": "#/$defs/Id"
+                },
+                "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 8000
+                },
+                "status": {
+                    "type": "string",
+                    "enum": ["RUNNING", "COMPLETED", "FAILED"]
+                },
+                "createdAt": {
+                    "$ref": "#/$defs/Timestamp"
+                },
+                "reply": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 12000
+                },
+                "errorCode": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                },
+                "providerId": {
+                    "$ref": "#/$defs/Id"
+                },
+                "providerRevision": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 2147483646
+                },
+                "relatedRunId": {
+                    "$ref": "#/$defs/Id"
+                },
+                "proposal": {
+                    "$ref": "#/$defs/AgentProposal"
+                },
+                "receipt": {
+                    "$ref": "#/$defs/AgentReceipt"
+                }
+            },
+            "required": ["id", "text", "status", "createdAt"],
+            "additionalProperties": false,
+            "dependentRequired": {
+                "providerId": ["providerRevision"],
+                "providerRevision": ["providerId"]
+            }
+        },
         "api_Id": {
             "$ref": "#/$defs/Id"
         },
@@ -8369,6 +8903,131 @@
                 }
             },
             "required": ["trustStatus", "allowCredentialDelivery"],
+            "additionalProperties": false
+        },
+        "api_AgentSettingsWrite": {
+            "$ref": "#/$defs/AgentSettingsWrite"
+        },
+        "api_AgentSettingsDTO": {
+            "$ref": "#/$defs/AgentSettingsDTO"
+        },
+        "api_AgentSessionCreate": {
+            "$ref": "#/$defs/AgentSessionCreate"
+        },
+        "api_AgentSessionDTO": {
+            "$ref": "#/$defs/AgentSessionDTO"
+        },
+        "api_AgentTurnSubmit": {
+            "$ref": "#/$defs/AgentTurnSubmit"
+        },
+        "api_AgentPlanPreview": {
+            "$ref": "#/$defs/AgentPlanPreview"
+        },
+        "api_AgentRunSelection": {
+            "$ref": "#/$defs/AgentRunSelection"
+        },
+        "api_AgentProposal": {
+            "$ref": "#/$defs/AgentProposal"
+        },
+        "api_AgentReceipt": {
+            "$ref": "#/$defs/AgentReceipt"
+        },
+        "api_AgentTurnDTO": {
+            "$ref": "#/$defs/AgentTurnDTO"
+        },
+        "api_AgentSettingsDTOEnvelope": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/$defs/api_AgentSettingsDTO"
+                },
+                "requestId": {
+                    "$ref": "#/$defs/api_Id"
+                }
+            },
+            "required": ["data", "requestId"],
+            "additionalProperties": false
+        },
+        "api_AgentSessionDTOEnvelope": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/$defs/api_AgentSessionDTO"
+                },
+                "requestId": {
+                    "$ref": "#/$defs/api_Id"
+                }
+            },
+            "required": ["data", "requestId"],
+            "additionalProperties": false
+        },
+        "api_AgentTurnDTOEnvelope": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/$defs/api_AgentTurnDTO"
+                },
+                "requestId": {
+                    "$ref": "#/$defs/api_Id"
+                }
+            },
+            "required": ["data", "requestId"],
+            "additionalProperties": false
+        },
+        "api_AgentSessionDTOPageEnvelope": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "object",
+                    "properties": {
+                        "items": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/$defs/api_AgentSessionDTO"
+                            },
+                            "maxItems": 100
+                        },
+                        "nextCursor": {
+                            "type": ["string", "null"],
+                            "maxLength": 4096
+                        }
+                    },
+                    "required": ["items", "nextCursor"],
+                    "additionalProperties": false
+                },
+                "requestId": {
+                    "$ref": "#/$defs/api_Id"
+                }
+            },
+            "required": ["data", "requestId"],
+            "additionalProperties": false
+        },
+        "api_AgentTurnDTOPageEnvelope": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "object",
+                    "properties": {
+                        "items": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/$defs/api_AgentTurnDTO"
+                            },
+                            "maxItems": 100
+                        },
+                        "nextCursor": {
+                            "type": ["string", "null"],
+                            "maxLength": 4096
+                        }
+                    },
+                    "required": ["items", "nextCursor"],
+                    "additionalProperties": false
+                },
+                "requestId": {
+                    "$ref": "#/$defs/api_Id"
+                }
+            },
+            "required": ["data", "requestId"],
             "additionalProperties": false
         },
         "api_ExecutionPlanWrite": {

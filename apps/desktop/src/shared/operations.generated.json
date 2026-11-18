@@ -235,6 +235,113 @@
         "idempotency": false,
         "kind": "json"
     },
+    "getAgentSettings": {
+        "path": "/api/v1/workspaces/{workspaceId}/agent/settings",
+        "method": "GET",
+        "ids": ["workspaceId"],
+        "queries": {},
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "updateAgentSettings": {
+        "path": "/api/v1/workspaces/{workspaceId}/agent/settings",
+        "method": "PUT",
+        "ids": ["workspaceId"],
+        "queries": {},
+        "request": "AgentSettingsWrite",
+        "idempotency": false,
+        "kind": "json"
+    },
+    "listAgentSessions": {
+        "path": "/api/v1/workspaces/{workspaceId}/agent/sessions",
+        "method": "GET",
+        "ids": ["workspaceId"],
+        "queries": {
+            "cursor": {
+                "type": "string",
+                "maxLength": 4096
+            },
+            "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100,
+                "default": 25
+            },
+            "archived": {
+                "type": "boolean",
+                "default": false
+            }
+        },
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "createAgentSession": {
+        "path": "/api/v1/workspaces/{workspaceId}/agent/sessions",
+        "method": "POST",
+        "ids": ["workspaceId"],
+        "queries": {},
+        "request": "AgentSessionCreate",
+        "idempotency": false,
+        "kind": "json"
+    },
+    "getAgentSession": {
+        "path": "/api/v1/workspaces/{workspaceId}/agent/sessions/{sessionId}",
+        "method": "GET",
+        "ids": ["workspaceId", "sessionId"],
+        "queries": {},
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "archiveAgentSession": {
+        "path": "/api/v1/workspaces/{workspaceId}/agent/sessions/{sessionId}",
+        "method": "DELETE",
+        "ids": ["workspaceId", "sessionId"],
+        "queries": {},
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "listAgentTurns": {
+        "path": "/api/v1/workspaces/{workspaceId}/agent/sessions/{sessionId}/turns",
+        "method": "GET",
+        "ids": ["workspaceId", "sessionId"],
+        "queries": {
+            "cursor": {
+                "type": "string",
+                "maxLength": 4096
+            },
+            "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100,
+                "default": 25
+            }
+        },
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "submitAgentTurn": {
+        "path": "/api/v1/workspaces/{workspaceId}/agent/sessions/{sessionId}/turns",
+        "method": "POST",
+        "ids": ["workspaceId", "sessionId"],
+        "queries": {},
+        "request": "AgentTurnSubmit",
+        "idempotency": false,
+        "kind": "json"
+    },
+    "confirmAgentTurn": {
+        "path": "/api/v1/workspaces/{workspaceId}/agent/sessions/{sessionId}/turns/{turnId}/confirm",
+        "method": "POST",
+        "ids": ["workspaceId", "sessionId", "turnId"],
+        "queries": {},
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
     "listProviders": {
         "path": "/api/v1/workspaces/{workspaceId}/ai/providers",
         "method": "GET",

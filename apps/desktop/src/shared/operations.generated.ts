@@ -133,6 +133,71 @@ export type CloudOperation =
           query?: Record<string, string | number | boolean>;
       }
     | {
+          operation: "getAgentSettings";
+          params: {
+              workspaceId: string;
+          };
+      }
+    | {
+          operation: "updateAgentSettings";
+          params: {
+              workspaceId: string;
+          };
+          data: S["AgentSettingsWrite"];
+      }
+    | {
+          operation: "listAgentSessions";
+          params: {
+              workspaceId: string;
+          };
+          query?: Record<string, string | number | boolean>;
+      }
+    | {
+          operation: "createAgentSession";
+          params: {
+              workspaceId: string;
+          };
+          data: S["AgentSessionCreate"];
+      }
+    | {
+          operation: "getAgentSession";
+          params: {
+              workspaceId: string;
+              sessionId: string;
+          };
+      }
+    | {
+          operation: "archiveAgentSession";
+          params: {
+              workspaceId: string;
+              sessionId: string;
+          };
+      }
+    | {
+          operation: "listAgentTurns";
+          params: {
+              workspaceId: string;
+              sessionId: string;
+          };
+          query?: Record<string, string | number | boolean>;
+      }
+    | {
+          operation: "submitAgentTurn";
+          params: {
+              workspaceId: string;
+              sessionId: string;
+          };
+          data: S["AgentTurnSubmit"];
+      }
+    | {
+          operation: "confirmAgentTurn";
+          params: {
+              workspaceId: string;
+              sessionId: string;
+              turnId: string;
+          };
+      }
+    | {
           operation: "listProviders";
           params: {
               workspaceId: string;

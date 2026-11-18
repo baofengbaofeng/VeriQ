@@ -123,3 +123,25 @@ test("logout sends canonical empty JSON and always clears the ordinary session",
     assert.equal(requests, 2);
     assert.equal(cleared, 2);
 });
+
+/**
+ * 历史路由经真实宿主及策略绑定当前所选工作区，另一工作区的同形请求必须在触碰网络前被拒绝，响应仍使用原有数据封套。
+ */
+test("employee cloud transport reads conversation history only through the selected workspace", async () => {
+    const { host, pending } = fixture();
+    const request = { operation: "listAgentTurns" as const, params: { workspaceId, sessionId: runId } };
+    const read = host.cloud(request);
+    const rejected = assert.rejects(
+        host.cloud({ ...request, params: { ...request.params, workspaceId: runId } }),
+        /WORKSPACE_SCOPE_MISMATCH/,
+    );
+    try {
+        assert.equal(pending.length, 1);
+        pending[0]!(Response.json({ data: { items: [], nextCursor: null } }));
+        assert.deepEqual(await read, { items: [], nextCursor: null });
+        await rejected;
+    } finally {
+        // 在白名单尚未接入的 RED 路径上消费对原始请求的拒绝，保持测试失败归因于预期的宿主策略。
+        await Promise.allSettled([read, rejected]);
+    }
+});

@@ -37,6 +37,7 @@ const authoring: MenuGroup = {
         { path: "/resources", label: "Resources" },
         { path: "/environments", label: "Environments" },
         { path: "/ai", label: "AI" },
+        { path: "/agent", label: "Test Agent" },
     ],
 };
 const execution: MenuGroup = {

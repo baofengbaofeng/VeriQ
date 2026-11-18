@@ -10,14 +10,8 @@ from test_lease_mysql import device
 from test_runs_mysql import published, environment
 
 
-async def plan_fixture(site, policy="QUEUE"):
-    """构造有身份环境、真实发布版本与已登记设备的最小计划请求，使缺失路由或行为直接表现为断言失败，
-    并避免使用虚构资源编号触发无关的引用校验错误。
-    """
-    c, db = site
-    await setup(c)
-    await login(c)
-    ws = await workspace(c)
+async def plan_assets(c, db, ws):
+    """在现有工作区准备合法的发布版本和已登记测试设备，供计划业务和浏览器测试共享同一份领域输入。"""
     runtime = await device(c, ws)
     env = await environment(c, db, ws)
     catalog = await published(
@@ -58,6 +52,18 @@ async def plan_fixture(site, policy="QUEUE"):
             "cases": [{"versionId": case}],
         },
     )
+    return runtime, env, suite
+
+
+async def plan_fixture(site, policy="QUEUE"):
+    """构造有身份环境、真实发布版本与已登记设备的最小计划请求，使缺失路由或行为直接表现为断言失败，
+    并避免使用虚构资源编号触发无关的引用校验错误。
+    """
+    c, db = site
+    await setup(c)
+    await login(c)
+    ws = await workspace(c)
+    runtime, env, suite = await plan_assets(c, db, ws)
     response = await c.post(
         f"/api/v1/workspaces/{ws}/execution-plans",
         json={

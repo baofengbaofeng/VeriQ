@@ -5,6 +5,7 @@ import {
     CloudReportAdapter,
     LocalReportAdapter,
     CloudAiAdapter,
+    CloudAgentAdapter,
     type LocalResourceSnapshot,
     type LocalReportSnapshot,
     type ReportAdapter,
@@ -12,6 +13,7 @@ import {
 import type { PlatformComponents } from "@veriq/contracts";
 import type { CloudOperation } from "../shared/operations.generated";
 import type { AgentState } from "../shared/bridge";
+import { openDesktopStream } from "./stream";
 import { nativeCloudReports } from "./cloud-reports";
 import catalog from "../shared/operations.generated.json";
 
@@ -75,34 +77,7 @@ export function installDesktopTransport(): void {
             if (!(value instanceof Uint8Array)) throw new Error("INVALID_SOURCE_BYTES");
             return new Response(new Uint8Array(value));
         },
-        stream: async (path, data, signal) => {
-            signal.throwIfAborted();
-            const id = await bridge.streamOpen(operation(path, "POST", data));
-            const close = () => {
-                void bridge.streamClose(id).catch(() => {});
-            };
-            signal.addEventListener("abort", close, { once: true });
-            const body = new ReadableStream<Uint8Array>({
-                async pull(controller) {
-                    try {
-                        signal.throwIfAborted();
-                        const part = await bridge.streamPull(id);
-                        if (part.done) {
-                            signal.removeEventListener("abort", close);
-                            controller.close();
-                        } else if (part.bytes) controller.enqueue(part.bytes);
-                    } catch (error) {
-                        close();
-                        controller.error(error);
-                    }
-                },
-                cancel() {
-                    signal.removeEventListener("abort", close);
-                    close();
-                },
-            });
-            return new Response(body, { headers: { "Content-Type": "text/event-stream" } });
-        },
+        stream: (path, data, signal) => openDesktopStream(bridge, operation(path, "POST", data), signal),
     });
 }
 
@@ -114,7 +89,12 @@ export function cloudAdapters(workspaceId: string) {
     const resources = new CloudResourceAdapter(workspaceId);
     const reports = new CloudReportAdapter(workspaceId);
     const reportAdapter = nativeCloudReports(workspaceId, reports, (input) => bridge.artifact(input));
-    return { resources, reports: reportAdapter, ai: new CloudAiAdapter(workspaceId) };
+    return {
+        resources,
+        reports: reportAdapter,
+        ai: new CloudAiAdapter(workspaceId),
+        conversation: new CloudAgentAdapter(workspaceId),
+    };
 }
 
 /**

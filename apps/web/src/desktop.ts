@@ -19,6 +19,8 @@ export {
 } from "./features/reports/adapters";
 export { BundleWorkspaceView } from "./features/bundles/BundlePage";
 export { CloudBundleAdapter, type BundleAdapter } from "./features/bundles/adapters";
+export { AgentWorkspaceView } from "./features/agent/AgentWorkspaceView";
+export { CloudAgentAdapter } from "./features/agent/adapters";
 export { AiWorkspaceView } from "./features/ai/AiPage";
 export { CloudAiAdapter } from "./features/ai/adapters";
 export { editorI18n } from "./features/resources/i18n";

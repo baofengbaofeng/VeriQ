@@ -4,6 +4,7 @@ import {
     ResourceWorkspaceView,
     ReportWorkspaceView,
     AiWorkspaceView,
+    AgentWorkspaceView,
     appI18n,
     setAppLanguage,
     type Workspace,
@@ -16,7 +17,8 @@ import { credentialGuidance } from "../shared/credential-status";
 import { cloudAdapters, DesktopLocalReports } from "./adapters";
 
 type S = PlatformComponents["schemas"];
-type Tab = "overview" | "resources" | "reports" | "ai" | "settings";
+const tabs = ["overview", "resources", "reports", "ai", "conversation", "settings"] as const;
+type Tab = (typeof tabs)[number];
 const bridge = window.veriq;
 const labels = {
     zh: {
@@ -24,6 +26,7 @@ const labels = {
         resources: "云端资源",
         reports: "报告与历史",
         ai: "AI 辅助",
+        conversation: "测试 Agent",
         settings: "设置与诊断",
         loading: "正在读取…",
         signIn: "登录",
@@ -46,6 +49,7 @@ const labels = {
         resources: "Cloud resources",
         reports: "Reports & history",
         ai: "AI assistance",
+        conversation: "Test Agent",
         settings: "Settings & diagnostics",
         loading: "Loading…",
         signIn: "Sign in",
@@ -86,6 +90,7 @@ export function App() {
     const [localWorkspace, setLocalWorkspace] = useState("");
     const [runId, setRun] = useState(""),
         [reportLocal, setReportLocal] = useState(false);
+    const [cloudRun, setCloudRun] = useState<{ owner: string; id: string }>();
     const [deviceName, setDeviceName] = useState("VeriQ Desktop");
     const [enrollment, setEnrollment] = useState<Omit<S["EnrollmentDTO"], "deviceCode">>();
     const [shared, setShared] = useState(false),
@@ -95,15 +100,19 @@ export function App() {
     const [diagnostics, setDiagnostics] = useState<unknown>();
     const queries = useQueryClient();
     const workspaceId = workspace?.id;
+    // 在线对话和报告入口以真实会话身份及平台源为键，同一个 UUID 在另一登录或源下不能复用私有查询结果或运行选择。
+    const userId = state?.user?.user.id;
+    const conversationOwner = userId ? `${state?.origin}/${userId}` : "";
+    const cloudScope = `${conversationOwner}/${workspaceId ?? ""}`;
+    const initialCloudRun = cloudRun?.owner === cloudScope ? cloudRun.id : "";
     const adapters = useMemo(() => (workspaceId ? cloudAdapters(workspaceId) : undefined), [workspaceId]);
     const localReports = useMemo(
         () => (localWorkspace ? new DesktopLocalReports(localWorkspace) : undefined),
         [localWorkspace],
     );
-    // 此控制器身份有意随 workspace?.id / localWorkspace / reportLocal 三项授权视图作用域改变，
-    // 虽回调未读取这些值，删除依赖会让旧报告订阅越过工作区或本机云端切换继续存活。
-    // biome-ignore lint/correctness/useExhaustiveDependencies: 依赖随授权视图作用域改变属有意设计，防止订阅跨工作区存活
-    const scope = useMemo(() => new AbortController(), [workspace?.id, localWorkspace, reportLocal]);
+    // 控制器随平台、员工、工作区和本机云端视图更改。清理允许旧订阅退出而不影响服务器执行。
+    // biome-ignore lint/correctness/useExhaustiveDependencies: 依赖随授权视图作用域变化
+    const scope = useMemo(() => new AbortController(), [cloudScope, localWorkspace, reportLocal]);
     const agent = state?.agent;
 
     const refresh = useCallback(async () => {
@@ -175,6 +184,7 @@ export function App() {
         setWorkspace(selected);
         queries.clear();
         setRun("");
+        setCloudRun(undefined);
     }
     const roles = workspace?.role;
 
@@ -189,7 +199,7 @@ export function App() {
                     </div>
                 </div>
                 <nav aria-label="主导航 / Navigation">
-                    {(["overview", "resources", "reports", "ai", "settings"] as Tab[]).map((key) => (
+                    {tabs.map((key) => (
                         <button
                             type="button"
                             key={key}
@@ -317,6 +327,7 @@ export function App() {
                                             void action(async () => {
                                                 await bridge.logout();
                                                 setWorkspace(undefined);
+                                                setCloudRun(undefined);
                                                 setWorkspaces([]);
                                                 queries.clear();
                                             })
@@ -615,8 +626,10 @@ export function App() {
                                     rawEvidenceAllowed
                                 />
                             )}
-                            {!reportLocal && adapters && (
+                            {!reportLocal && conversationOwner && adapters && (
                                 <ReportWorkspaceView
+                                    key={`${cloudScope}/${initialCloudRun}`}
+                                    initialRunId={initialCloudRun}
                                     adapter={adapters.reports}
                                     signal={scope.signal}
                                     rawEvidenceAllowed={roles === "OWNER" || roles === "ADMIN"}
@@ -624,6 +637,39 @@ export function App() {
                             )}
                         </>
                     )}
+                    {tab === "conversation" &&
+                        (workspace && conversationOwner && adapters ? (
+                            <section className="panel">
+                                <h2>{t.conversation}</h2>
+                                <AgentWorkspaceView
+                                    key={cloudScope}
+                                    workspace={workspace}
+                                    owner={conversationOwner}
+                                    adapter={adapters.conversation}
+                                    providers={adapters.ai}
+                                    reports={adapters.reports}
+                                    parentSignal={scope.signal}
+                                    navigate={(id) => (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setCloudRun({ owner: cloudScope, id });
+                                                setReportLocal(false);
+                                                setTab("reports");
+                                            }}
+                                        >
+                                            {language === "zh" ? "打开完整报告" : "Open full report"}
+                                        </button>
+                                    )}
+                                />
+                            </section>
+                        ) : (
+                            <p className="panel" role="status">
+                                {language === "zh"
+                                    ? "请连接平台、登录并选择工作区，再使用测试 Agent。"
+                                    : "Connect to VeriQ, sign in, and select a Workspace to use Test Agent."}
+                            </p>
+                        ))}
                     {tab === "ai" &&
                         (workspace && adapters ? (
                             <AiWorkspaceView
