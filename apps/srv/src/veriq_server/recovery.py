@@ -4,14 +4,15 @@ VeriQ 停机备份以 MySQL 全局读锁固定所有表的同一状态，同时�
 """
 
 from contextlib import asynccontextmanager
-from collections.abc import AsyncIterator
-from typing import Any
+from collections.abc import AsyncIterator, Callable
+from typing import TYPE_CHECKING, cast
 from hashlib import sha256
 import json
 import os
 from pathlib import Path
 
 from alembic.migration import MigrationContext
+import sqlalchemy
 from sqlalchemy import MetaData, select, text, func, and_, exists
 from sqlalchemy.ext.asyncio import AsyncConnection
 
@@ -30,6 +31,9 @@ from .snapshot_io import (
     inventory,
     copy_tree,
 )
+
+if TYPE_CHECKING:
+    import mypy_boto3_s3.client
 
 
 @asynccontextmanager
@@ -96,7 +100,7 @@ async def require_quiescent(connection: AsyncConnection, metadata: MetaData) -> 
     停机声明之外再检查数据库中的在途任务、隔离容量、未完成发布和导出；这些状态可能仍有外部进程写入，因此无法仅靠暂停
     HTTP 服务证明制品已经稳定，遇到任何一个就拒绝备份。
     """
-    checks = {
+    checks: dict[str, Callable[[sqlalchemy.Table], sqlalchemy.ColumnElement[bool]]] = {
         "veriq_attempts": lambda t: (t.c.phase != "FINISHED") | (t.c.capacity_state != "RELEASED"),
         "veriq_resource_leases": lambda t: t.c.state != "RELEASED",
         "veriq_artifact_publications": lambda t: t.c.state == "PENDING",
@@ -121,10 +125,12 @@ def key_fingerprints(settings: Settings) -> dict[str, str]:
     }
 
 
-def s3_client(settings: Settings) -> Any:
+def s3_client(settings: Settings) -> "mypy_boto3_s3.client.S3Client":
     """
     仅在备份中确实存在 S3 记录或恢复明确允许桶清单检查时创建真实客户端，操作使用既有 boto3 依赖与有界网络超时，
     不改变业务存储适配器或探测策略的权限默认值。
+
+    工厂返回前已检查同一个配置对象的桶名，后续请求的类型转换只表达该检查建立的字符串约束。
     """
     import boto3
     from botocore.config import Config
@@ -234,14 +240,16 @@ async def backup(
         ).mappings()
         from .services.artifact import key, verify, MAX_FILE
 
-        client = None
+        client: mypy_boto3_s3.client.S3Client | None = None
         try:
             for row in rows:
                 if client is None:
                     client = await asyncio.to_thread(s3_client, settings)
                 object_key = key(row["workspace_id"], row["sha256"], row["storage_incarnation"])
                 response = await asyncio.to_thread(
-                    client.get_object, Bucket=settings.artifact_s3_bucket, Key=object_key
+                    client.get_object,
+                    Bucket=cast(str, settings.artifact_s3_bucket),
+                    Key=object_key,
                 )
                 try:
                     raw = await asyncio.to_thread(
@@ -398,14 +406,16 @@ async def restore(
             ):
                 raise ValueError("RESTORE_EXTERNAL_MATERIAL_CONFLICT")
             material_targets[path] = raw
-    client = None
+    client: mypy_boto3_s3.client.S3Client | None = None
     try:
         if manifest["s3Objects"] or manifest["s3Tombstones"]:
             if not allow_s3_inventory:
                 raise ValueError("RESTORE_S3_LIST_PERMISSION_CONFIRMATION_REQUIRED")
             client = await asyncio.to_thread(s3_client, settings)
             listing = await asyncio.to_thread(
-                client.list_objects_v2, Bucket=settings.artifact_s3_bucket, MaxKeys=1
+                client.list_objects_v2,
+                Bucket=cast(str, settings.artifact_s3_bucket),
+                MaxKeys=1,
             )
             if listing.get("KeyCount", 0) or listing.get("Contents") or listing.get("IsTruncated"):
                 raise ValueError("RESTORE_S3_TARGET_NOT_EMPTY")
@@ -440,7 +450,7 @@ async def restore(
                 for object_key in manifest["s3Tombstones"]:
                     await asyncio.to_thread(
                         client.put_object,
-                        Bucket=settings.artifact_s3_bucket,
+                        Bucket=cast(str, settings.artifact_s3_bucket),
                         Key=object_key,
                         Body=b"",
                     )
@@ -448,7 +458,7 @@ async def restore(
                     raw = safe_snapshot_file(source, item["file"]).read_bytes()
                     await asyncio.to_thread(
                         client.put_object,
-                        Bucket=settings.artifact_s3_bucket,
+                        Bucket=cast(str, settings.artifact_s3_bucket),
                         Key=item["key"],
                         Body=raw,
                     )
