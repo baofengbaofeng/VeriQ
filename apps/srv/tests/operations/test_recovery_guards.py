@@ -221,11 +221,11 @@ def _recovery_case(tmp_path: pathlib.Path, static_package: pathlib.Path) -> _Rec
 
 def _tree_state(root: pathlib.Path) -> dict[str, tuple[int, str]]:
     """
-    以不跟踪链接的方式记录测试根的目录、模式及文件摘要，用于检查拒绝未复制制品、改写外置材料或创建标记。
+    用根目录与后代的模式及内容摘要比较拒绝前后的文件树，检测目标就是沙箱根目录时发生的模式改动。
 
     目录只记录模式，链接只记录链接文本的摘要，文件内容不会出现在断言差异中。
     """
-    state = {}
+    state = {".": (root.lstat().st_mode, "")}
     for path in root.rglob("*"):
         mode = path.lstat().st_mode
         identity = ""
@@ -642,6 +642,9 @@ def test_snapshot_codec_preserves_exact_values(value: object, wire: dict[str, ob
     if isinstance(value, decimal.Decimal):
         assert isinstance(decoded, decimal.Decimal)
         assert decoded.as_tuple() == value.as_tuple()
+    if isinstance(value, datetime.datetime):
+        assert isinstance(decoded, datetime.datetime)
+        assert decoded.utcoffset() == datetime.timedelta(0)
 
 
 def test_snapshot_codec_rejects_unknown_tag() -> None:
