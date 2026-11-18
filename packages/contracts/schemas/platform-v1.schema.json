@@ -7475,7 +7475,7 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 160,
-                    "pattern": "^(?![\\s\\S]*[\\ud800-\\udfff])[\\s\\S]*\\S[\\s\\S]*$"
+                    "pattern": "^(?![\\s\\S]*[\\ud800-\\udfff])[\\u0009-\\u000d\\u001c-\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]*[^\\u0009-\\u000d\\u001c-\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]"
                 }
             },
             "required": [],
@@ -7515,7 +7515,7 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 8000,
-                    "pattern": "^(?![\\s\\S]*[\\ud800-\\udfff])[\\s\\S]*\\S[\\s\\S]*$"
+                    "pattern": "^(?![\\s\\S]*[\\ud800-\\udfff])[\\u0009-\\u000d\\u001c-\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]*[^\\u0009-\\u000d\\u001c-\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]"
                 }
             },
             "required": ["requestId", "text"],
@@ -7718,6 +7718,30 @@
                     "additionalProperties": false,
                     "dependentRequired": {
                         "previousPlan": ["planId"]
+                    },
+                    "if": {
+                        "type": "object",
+                        "properties": { "planId": true },
+                        "required": ["planId"]
+                    },
+                    "then": {
+                        "type": "object",
+                        "properties": {
+                            "plan": {
+                                "type": "object",
+                                "properties": { "revision": true },
+                                "required": ["revision"]
+                            }
+                        }
+                    },
+                    "else": {
+                        "type": "object",
+                        "properties": {
+                            "plan": {
+                                "type": "object",
+                                "properties": { "revision": false }
+                            }
+                        }
                     }
                 },
                 {

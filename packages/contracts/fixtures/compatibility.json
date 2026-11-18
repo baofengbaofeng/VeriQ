@@ -6202,5 +6202,115 @@
             "providerId": "11111111-1111-4111-8111-111111111111"
         },
         "valid": false
+    },
+    {
+        "name": "agent-save-plan-create",
+        "schema": "AgentProposal",
+        "value": {
+            "type": "SAVE_PLAN",
+            "plan": {
+                "name": "Login plan",
+                "suiteVersionId": "11111111-1111-4111-8111-111111111111",
+                "environmentVersionId": "11111111-1111-4111-8111-111111111111",
+                "browsers": ["chromium"],
+                "runtimeIds": ["11111111-1111-4111-8111-111111111111"],
+                "roleKeys": ["reader"],
+                "overlapPolicy": "QUEUE",
+                "maxCaseRetries": 0
+            }
+        },
+        "valid": true
+    },
+    {
+        "name": "agent-save-plan-update",
+        "schema": "AgentProposal",
+        "value": {
+            "type": "SAVE_PLAN",
+            "planId": "22222222-2222-4222-8222-222222222222",
+            "plan": {
+                "name": "Login plan",
+                "suiteVersionId": "11111111-1111-4111-8111-111111111111",
+                "environmentVersionId": "11111111-1111-4111-8111-111111111111",
+                "browsers": ["chromium"],
+                "runtimeIds": ["11111111-1111-4111-8111-111111111111"],
+                "roleKeys": ["reader"],
+                "overlapPolicy": "QUEUE",
+                "maxCaseRetries": 0,
+                "revision": 3
+            }
+        },
+        "valid": true
+    },
+    {
+        "name": "agent-save-plan-update-requires-revision",
+        "schema": "AgentProposal",
+        "value": {
+            "type": "SAVE_PLAN",
+            "planId": "22222222-2222-4222-8222-222222222222",
+            "plan": {
+                "name": "Login plan",
+                "suiteVersionId": "11111111-1111-4111-8111-111111111111",
+                "environmentVersionId": "11111111-1111-4111-8111-111111111111",
+                "browsers": ["chromium"],
+                "runtimeIds": ["11111111-1111-4111-8111-111111111111"],
+                "roleKeys": ["reader"],
+                "overlapPolicy": "QUEUE",
+                "maxCaseRetries": 0
+            }
+        },
+        "valid": false
+    },
+    {
+        "name": "agent-save-plan-create-rejects-revision",
+        "schema": "AgentProposal",
+        "value": {
+            "type": "SAVE_PLAN",
+            "plan": {
+                "name": "Login plan",
+                "suiteVersionId": "11111111-1111-4111-8111-111111111111",
+                "environmentVersionId": "11111111-1111-4111-8111-111111111111",
+                "browsers": ["chromium"],
+                "runtimeIds": ["11111111-1111-4111-8111-111111111111"],
+                "roleKeys": ["reader"],
+                "overlapPolicy": "QUEUE",
+                "maxCaseRetries": 0,
+                "revision": 3
+            }
+        },
+        "valid": false
+    },
+    {
+        "name": "agent-session-title-blank-u0085",
+        "schema": "AgentSessionCreate",
+        "value": {
+            "title": "\u0085"
+        },
+        "valid": false
+    },
+    {
+        "name": "agent-turn-text-blank-u0085",
+        "schema": "AgentTurnSubmit",
+        "value": {
+            "requestId": "11111111-1111-4111-8111-111111111111",
+            "text": "\u0085"
+        },
+        "valid": false
+    },
+    {
+        "name": "agent-session-title-blank-ufeff",
+        "schema": "AgentSessionCreate",
+        "value": {
+            "title": "\ufeff"
+        },
+        "valid": false
+    },
+    {
+        "name": "agent-turn-text-blank-ufeff",
+        "schema": "AgentTurnSubmit",
+        "value": {
+            "requestId": "11111111-1111-4111-8111-111111111111",
+            "text": "\ufeff"
+        },
+        "valid": false
     }
 ]
