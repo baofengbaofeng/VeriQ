@@ -1,7 +1,7 @@
-"""AI 草稿服务：管理 Workspace 内提供方、预算、上下文预览与生成草稿，模型输出永不自动发布为资源版本，
-本文件注释描述专属不变量。sanitize 去除受保护字段；测试可在无真实模型凭据下覆盖失败路径。review
+"""
+管理 Workspace 内的模型提供方、脱敏上下文预览与调用预算，记录生成和人工审核的状态。
 
-仅在人工确认后进入可编辑草稿，取消与预算超限返回稳定错误码。
+生成前持久化费用预留，模型返回后重新检查当前权限。接受 CASE 候选只写资源草稿，发布仍走正常资源流程。
 """
 
 from contextlib import asynccontextmanager
@@ -402,7 +402,7 @@ class AiService:
                 "FIXTURE",
             }:
                 raise Problem(422, "AI_SOURCE_KIND", "Selected version kind is not permitted")
-            # Fixture identities/transport configuration never leave the server.
+            # FIXTURE 的 document 只保留 inputSchema，kind 与外层 versionId 仍进入上下文，执行身份和传输配置留在服务端。
             if resource.kind == "FIXTURE":
                 value = {
                     "kind": "FIXTURE",
@@ -426,7 +426,7 @@ class AiService:
                 raise Problem(422, "AI_RUN_REQUIRED", "Choose a Run for sanitized failure analysis")
             report = ReportService(s, user, self.settings)
             run = await report.get(scope, req["runId"])
-            # Only normal scoped projections; never artifacts, raw logs or secret-resolution APIs.
+            # 失败分析仅取当前 Workspace 的报告投影与限量事件，模型上下文排除原始日志、制品和凭据解析结果。
             context["report"] = run
             events = []
             for attempt in (await report.attempts(scope, req["runId"]))[:10]:
@@ -469,7 +469,7 @@ class AiService:
             "reservedUsd": reserve / 1000000,
             "provenance": provenance,
         }
-        # Internal-only fields are kept separately from the preview DTO.
+        # 原始候选的脱敏副本和绑定的草稿修订号供生成记录及审核使用，预览响应会滤掉这两个内部字段。
         if original is not None:
             result["_original"] = sanitize(original, {key})
             result["_revision"] = revision
@@ -545,7 +545,7 @@ class AiService:
                 allowed_endpoint(p.config["baseURL"], self.settings)
                 endpoint_authorized = True
             except Problem:
-                pass  # The operator may revoke an endpoint independently of its provider row.
+                pass  # 运维可独立撤销白名单中的端点，即使 Provider 记录仍然启用，历史也要扣留输出。
         if (
             p
             and not p.deleted
@@ -620,7 +620,7 @@ class AiService:
                     raise Problem(
                         409, "IDEMPOTENCY_CONFLICT", "Request id already represents different input"
                     )
-                # Rebuild current scoped references before replay, without another model request.
+                # 幂等重放前仍按当前 Workspace 重新解析引用与上下文，校验通过后返回已有记录，避免再次调用模型。
                 await self.context(s, user, scope, req, p)
                 return await self.dto(s, scope, existing)
             preview, context = await self.context(s, user, scope, req, p)
@@ -679,11 +679,11 @@ class AiService:
                 ProviderGateway(config, key).generate(context), timeout=35
             )
         except asyncio.CancelledError:
-            # Durable RUNNING reservation remains unknown even if the worker is cancelled.
+            # 调用前已提交 RUNNING 记录，协程取消时保留预留额和未知费用状态，因为尚无可核实的用量。
             raise
         except Exception:
             error = "AI_PROVIDER_ERROR"
-        # Network has completed; a fresh transaction checks current session/permissions.
+        # 模型请求在预留事务提交后执行，结果写入前另开事务重新验证会话、Workspace 权限及 Provider 修订。
         async with self.transaction(
             scope, Permission.MANAGE_WORKSPACE if connection else Permission.EDIT, True
         ) as (s, user):
@@ -726,8 +726,8 @@ class AiService:
             if reply and not error:
                 diagnostics = []
                 output = None
-                # Untrusted-content failures must not roll back verified usage or leave the durable call RUNNING.
-                # Operational/auth errors stay outside.
+                # 模型输出的格式、结构或引用校验失败时记为生成诊断，使已核实的用量随失败结果一并保存。
+                # 数据库和授权检查仍在这段内容校验之外。
                 try:
                     canonical_bytes(reply.output)
                     output = sanitize(reply.output, {key})

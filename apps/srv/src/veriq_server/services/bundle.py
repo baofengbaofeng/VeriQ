@@ -1,7 +1,7 @@
-"""离线包导出：幂等预订、准备清单、组装签名归档，下载受 Workspace 授权与导出槽位并发限制，本文件注释描述专属不变量。
-safe_path 防止路径穿越；publish 在签发后落 Bundle 元数据，replay 重放同一
+"""
+为 Workspace 导出选定版本的依赖闭包，签名并保存离线归档，按幂等键重放已完成的导出。
 
-Idempotency-Key。
+压缩在配置守卫和数据库事务之外执行，发布时重新核对下载权限、签发者与相应的引擎配置。
 """
 
 import asyncio
@@ -104,8 +104,8 @@ class BundleService:
             canonical_bytes({"actorId": self.actor.id, "request": req})
         ).hexdigest()
         reservation_id: str | None = None
-        # identity() may have started a read transaction; no configuration guard is ever acquired with a database
-        # transaction still open.
+        # 入口身份查询可能已开启读事务，先提交再进入配置守卫，以维持配置锁先于安装级数据库锁的顺序。
+        # 签发者轮换与批准引擎库存的晋升也使用这些配置锁。
         await self.session.commit()
         try:
             async with authority_guard(self.settings, "draftValidationJobId" in req) as authority:
@@ -186,8 +186,8 @@ class BundleService:
         except BaseException:
             await self.session.rollback()
             if reservation_id:
-                # An uncertain commit must never overwrite COMPLETE. If this cleanup itself cannot commit, IN_PROGRESS
-                # remains safely unreplayable.
+                # 提交结果不明时预订可能已经完成，重新加锁读取后，只把仍为 IN_PROGRESS 的预订标为失败。
+                # 清理提交也失败时，仍在处理中的预订无法被重放或自动接管。
                 async with self.session.begin():
                     await lock_installation(self.session)
                     reservation = await self.session.get(
@@ -341,7 +341,7 @@ class BundleService:
             source_size += len(canonical_bytes(asset))
             if source_size > 16 * 1024 * 1024:
                 raise Problem(413, "SNAPSHOT_TOO_LARGE", "Dependency closure exceeds 16 MiB")
-            # The existing source endpoint enforces original receipt/job/version provenance.
+            # 先复用已发布源码的校验，核对版本与原校验回执、校验任务及编译描述符的绑定，再装入原始快照。
             metadata, _ = await compiled_source(repo, resource.id, version.id, None)
             receipt = await repo.receipt(version.receipt_id)
             assert receipt is not None
@@ -430,7 +430,7 @@ class BundleService:
                 "engine/inventory.json",
                 canonical_bytes({"schemaVersion": "1.0", "engines": [engine]}),
             )
-            # Platform-specific release archives remain separately installed. Preserve lock metadata.
+            # 随包的引擎元数据含批准库存、包声明、锁文件与 dependencies.json，平台专用发行归档由本地 Runtime 另行提供。
             for entry in engine["files"]:
                 if entry["path"] in {"package.json", "package-lock.json", "dependencies.json"}:
                     raw = (await repo.artifact(entry["sha256"])).content
@@ -456,7 +456,8 @@ class BundleService:
         snapshot_raw = canonical_bytes(snapshot)
         add("snapshot.json", snapshot_raw)
         add("selection.json", canonical_bytes(req))
-        # A local snapshot's default version must be one actually included in this export.
+        # 离线默认版本只在本次随包导出的版本中取最高版本号，避免默认版本指向归档中缺失的内容。
+        # 没有随包导出的版本时，移除默认版本字段。
         for metadata in resources.values():
             available = [version for version in versions if version["resourceId"] == metadata["id"]]
             metadata.pop("latestVersionId", None)

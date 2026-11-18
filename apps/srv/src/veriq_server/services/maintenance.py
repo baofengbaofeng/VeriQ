@@ -1,5 +1,7 @@
-"""维护触发服务：幂等 key 执行租约收割、夹具清理调和、容量调和与产物过期，供内部维护 HTTP 调用，
-本文件注释描述专属不变量。无内置 Cron；外部调度命中这些端点。过期未知进程隔离容量直至 stop 调和。
+"""
+为外部调度执行租约收割、夹具清理入队、容量核对与保留期维护，并按幂等键保存批次回执。
+
+回收已激活执行的过期租约时隔离容量，设备补报停止事实后再按核验结果处理。
 """
 
 from datetime import datetime, timedelta
@@ -184,7 +186,7 @@ class MaintenanceService:
                 for partial in partials:
                     partial.content = b""
                 count += 1
-            # 24-hour receipt window is explicit. Old UUIDs must never be reused by clients.
+            # 只清理超过 24 小时且没有关联 Attempt 的空领取回执，客户端仍须为新领取使用新的请求 UUID。
             receipts = (
                 (
                     await self.session.execute(
@@ -253,7 +255,7 @@ class MaintenanceService:
                 if existing:
                     continue
                 snapshot = json.loads((await repo.artifact(snapshot_hash)).content)
-                # A retry has its own namespace; recover the original immutable namespace.
+                # 每次重试使用独立的夹具命名空间，补偿清理必须从原 Attempt 的不可变快照恢复实际使用的命名空间。
                 execution_snapshot = json.loads(
                     (await repo.artifact(attempt.snapshot_hash)).content
                 )
@@ -282,7 +284,7 @@ class MaintenanceService:
                 snapshot["caseExecutionId"] = execution_snapshot["caseExecutionId"]
                 snapshot["attemptNo"] = execution_snapshot["attemptNo"]
                 snapshot["secretVersions"] = pins
-                # Compensation needs only the original fixture service identity, never business pins.
+                # 补偿沿用原夹具的服务身份、凭据版本和适配器，避免把原执行中的业务凭据钉选带入清理任务。
                 snapshot["environment"] = {
                     key: value
                     for key, value in execution_snapshot["environment"].items()
@@ -341,7 +343,7 @@ class MaintenanceService:
             from .publication import recover, retire, offline_pins, expire_offline
 
             await recover(self.session, workspace_id, limit)
-            # Preserve legacy online cursors, then transition once to offline aliases.
+            # 无阶段前缀的旧游标继续扫描在线上传，在线扫描没有后续页时才转入离线阶段，续页使用 offline: 前缀。
             offline_cursor = cursor[8:] if cursor.startswith("offline:") else None
 
             rows = (
@@ -423,8 +425,8 @@ class MaintenanceService:
                     self.session, workspace_id, upload.sha256
                 ):
                     continue
-                # Exact source/assignment roots stay pinned. Compiler/engine closure members are pinned by their
-                # retained non-raw uploads in the reference check above.
+                # 包归档、执行快照和编译回执可独立引用同一摘要，原始上传到期后，退役仍须核对这些保留记录。
+                # 编译器和引擎闭包成员由上面的未过期非原始上传引用检查保留。
                 digest = upload.sha256
                 from ..db import Bundle
 
@@ -482,7 +484,7 @@ class MaintenanceService:
                         artifact.storage_incarnation,
                     )
             if not more:
-                # The request budget counts scanned online rows as well as expired offline rows.
+                # 在线扫描过的行即使未过期也消耗分页额度，离线过期处理只能使用本次请求剩下的那部分额度。
                 remaining = limit - len(rows)
                 offline_count, offline_last, offline_more = await expire_offline(
                     self.session, workspace_id, remaining, offline_cursor or ""
