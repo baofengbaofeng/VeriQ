@@ -19,10 +19,11 @@ async def frozen_object(repo: ResourceRepository, digest: str, schema: str | Non
     artifact = await repo.artifact(digest)
     try:
         value = json.loads(artifact.content)
-    except (ValueError, UnicodeDecodeError, RecursionError):
+        canonical_bytes(value)
+        if not isinstance(value, dict) or (schema and validate_schema(schema, value)):
+            raise Problem(409, "COMPILED_PROVENANCE_REQUIRED", "Invalid frozen document")
+    except (ValueError, RecursionError):
         raise Problem(409, "COMPILED_PROVENANCE_REQUIRED", "Invalid frozen document") from None
-    if not isinstance(value, dict) or (schema and validate_schema(schema, value)):
-        raise Problem(409, "COMPILED_PROVENANCE_REQUIRED", "Invalid frozen document")
     return value
 
 
@@ -253,40 +254,114 @@ async def legacy_source(repo: ResourceRepository, job: Job) -> dict | None:
     return source
 
 
+async def historical_test_validation(
+    repo: ResourceRepository, job: Job, source: dict, subject: dict, manifest: dict, expected: dict
+) -> str:
+    """历史测试清单只能是已编译或等待原验证的两种形状；逐项绑定用例、运行、原快照与回执，再允许写入新投影。"""
+    invalid = Problem(409, "COMPILED_PROVENANCE_REQUIRED", "Invalid historical test assignment")
+    case = await repo.session.get(CaseExecution, job.case_execution_id)
+    if (
+        not case
+        or case.workspace_id != job.workspace_id
+        or case.run_id != job.run_id
+        or case.id != job.subject_id
+        or subject["workspaceId"] != job.workspace_id
+        or subject["runId"] != case.run_id
+        or subject["caseExecutionId"] != case.id
+        or subject["caseVersionId"] != case.case_version_id
+        or case.case_version_id not in source["entryCaseVersionIds"]
+        or subject["assetSourceHash"] != source["sourceHash"]
+        or not isinstance(case.provenance, dict)
+    ):
+        raise invalid
+    validation_id = case.provenance.get("validationJobId")
+    if validate_schema("Id", validation_id):
+        raise invalid
+    expected = {
+        **expected,
+        "caseExecutionId": case.id,
+        "caseVersionId": case.case_version_id,
+        "executionSnapshotSha256": job.snapshot_hash,
+    }
+    pending = job.required_capabilities.get("validationJobId")
+    if pending is not None:
+        if pending != validation_id or manifest != {**expected, "pendingValidationJobId": pending}:
+            raise invalid
+    elif validate_schema("TestJobManifestV1", manifest) or any(
+        manifest.get(k) != v for k, v in expected.items()
+    ):
+        raise invalid
+    validation = await repo.job(validation_id)
+    if validation.kind != "VALIDATE" or validation.snapshot_hash != case.source_snapshot_hash:
+        raise invalid
+    if pending is None:
+        receipt = (
+            await repo.session.execute(
+                select(ValidationReceipt).where(
+                    ValidationReceipt.workspace_id == job.workspace_id,
+                    ValidationReceipt.job_id == validation_id,
+                )
+            )
+        ).scalar_one_or_none()
+        if (
+            not receipt
+            or validation.state != "FINISHED"
+            or receipt.compiler_trust != "MANAGED"
+            or receipt.source_hash != source["sourceHash"]
+            or receipt.attempt_id != validation.active_attempt_id
+            or receipt.engine_version != source["engineVersion"]
+            or receipt.compiled_bundle_sha256 != manifest["compiledBundleSha256"]
+        ):
+            raise invalid
+    return validation_id
+
+
 async def upgrade_queued(repo: ResourceRepository, job: Job) -> bool:
     """已排队的历史任务只在任何新租约产生之前更换传输投影；原始验证源和既有尝试的不可变清单始终保留。"""
     source = await legacy_source(repo, job)
     if not source:
         return False
     manifest = await frozen_object(repo, job.manifest_hash)
+    expected = {
+        "schemaVersion": "1.0",
+        "kind": job.kind,
+        "workspaceId": job.workspace_id,
+        "jobId": job.id,
+        "engineVersion": job.required_capabilities.get("engineVersion"),
+        "snapshotSha256": job.snapshot_hash,
+    }
+    if (
+        source["workspaceId"] != expected["workspaceId"]
+        or source["engineVersion"] != expected["engineVersion"]
+    ):
+        raise Problem(409, "COMPILED_PROVENANCE_REQUIRED", "Historical source identity differs")
     caps = {**job.required_capabilities, "connectedDatasets": "2.0"}
     if job.kind == "VALIDATE":
+        target = source.get("validationTarget", {})
+        expected.update(
+            resourceId=job.subject_id,
+            revision=target.get("revision"),
+            sourceHash=source["sourceHash"],
+        )
+        if (
+            validate_schema("ValidateJobManifestV1", manifest)
+            or manifest != expected
+            or target.get("resourceId") != job.subject_id
+        ):
+            raise Problem(
+                409, "COMPILED_PROVENANCE_REQUIRED", "Invalid historical validation assignment"
+            )
         manifest["snapshotSha256"] = await repo.store(canonical_bytes(project_source(source)))
     else:
         subject = await frozen_object(repo, job.snapshot_hash, "ExecutionSnapshotV1")
-        if (
-            source.get("sourceHash") != subject["assetSourceHash"]
-            or asset_source_hash(source) != source["sourceHash"]
-        ):
-            raise Problem(409, "COMPILED_PROVENANCE_REQUIRED", "Assigned source identity differs")
+        validation_id = await historical_test_validation(
+            repo, job, source, subject, manifest, expected
+        )
         projected = project_execution(subject, source)
         job.snapshot_hash = await repo.store(canonical_bytes(projected))
         manifest["executionSnapshotSha256"] = manifest["snapshotSha256"] = job.snapshot_hash
-        if manifest.pop("compiledBundleSha256", None):
-            case = await repo.session.get(CaseExecution, job.case_execution_id)
-            validation_id = (
-                case.provenance.get("validationJobId")
-                if isinstance(case.provenance, dict)
-                else None
-            )
-            if not isinstance(validation_id, str):
-                raise Problem(409, "COMPILED_PROVENANCE_REQUIRED", "Original validation missing")
-            validation = await repo.job(validation_id)
-            if validation.snapshot_hash != case.source_snapshot_hash:
-                raise Problem(
-                    409, "COMPILED_PROVENANCE_REQUIRED", "Validation differs from original case"
-                )
-            manifest["pendingValidationJobId"] = caps["validationJobId"] = validation.id
+        manifest.pop("compiledBundleSha256", None)
+        manifest["pendingValidationJobId"] = caps["validationJobId"] = validation_id
     job.manifest_hash = await repo.store(canonical_bytes(manifest))
     job.required_capabilities = caps
     return True

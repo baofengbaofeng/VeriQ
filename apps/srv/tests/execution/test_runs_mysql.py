@@ -1,5 +1,8 @@
 import json
+from pathlib import Path
 from uuid import uuid4
+
+import pytest
 from sqlalchemy import select
 from test_auth import setup, login
 from test_workspace import workspace
@@ -363,25 +366,13 @@ async def test_claim_skips_corrupt_historical_inputs_and_aggregates_failed_run(s
     await login(c)
     ws = await workspace(c)
     runtime = await device(c, ws)
-    dataset_path = await create(
-        c,
-        ws,
-        "frozen",
-        {
-            "kind": "DATASET",
-            "document": {
-                "schemaVersion": "1.0",
-                "columns": {"name": "string"},
-                "rows": [{"key": "k", "values": {"name": "synthetic"}}],
-            },
-        },
-    )
-    _, receipt_id, source = await publish(c, db, dataset_path)
+    _, receipt_id, source = await historical_dataset_case(c, db, ws)
     broken_ids = [(await queued_browser_jobs(c, db, ws, 1))[0] for _ in range(4)]
     (ready,) = await queued_browser_jobs(c, db, ws, 1)
     runs, cases, frozen_hashes = [], [], []
     async with db.sessions.begin() as session:
         repo = ResourceRepository(session, WorkspaceScope(ws))
+        receipt = await session.get(ValidationReceipt, receipt_id)
         for i, jid in enumerate(broken_ids):
             job = await session.get(Job, jid)
             case = await session.get(CaseExecution, job.case_execution_id)
@@ -391,7 +382,6 @@ async def test_claim_skips_corrupt_historical_inputs_and_aggregates_failed_run(s
                 original = await session.get(Artifact, (ws, case.source_snapshot_hash))
                 original.content = b"synthetic-corruption"
             elif i == 1:
-                receipt = await session.get(ValidationReceipt, receipt_id)
                 job.snapshot_hash = await repo.store(
                     canonical_bytes({"assetSourceHash": source["sourceHash"]})
                 )
@@ -406,23 +396,10 @@ async def test_claim_skips_corrupt_historical_inputs_and_aggregates_failed_run(s
                 ]
                 receipt.compiled_bundle_sha256 = await repo.store(canonical_bytes(bundle))
             else:
-                from pathlib import Path
-
-                examples = json.loads(
-                    Path("packages/contracts/fixtures/compatibility.json").read_bytes()
-                )
-                frozen = next(x["value"] for x in examples if x["name"] == "execution-snapshot")
-                frozen.update(
-                    assetSourceHash=source["sourceHash"], workspaceId=ws, caseExecutionId=case.id
-                )
-                if i == 3:
-                    frozen["datasetVersionId"] = source["validationTarget"]["versionId"]
-                case.source_snapshot_hash = await repo.store(canonical_bytes(source))
-                job.snapshot_hash = await repo.store(canonical_bytes(frozen))
-                job.manifest_hash = await repo.store(
-                    canonical_bytes({"compiledBundleSha256": "a" * 64})
-                )
-                case.provenance = {"validationJobId": str(uuid4())}
+                manifest = await historical_test_manifest(repo, job, case, source, pinned=i == 3)
+                manifest["compiledBundleSha256"] = receipt.compiled_bundle_sha256
+                job.manifest_hash = await repo.store(canonical_bytes(manifest))
+                case.provenance = {"validationJobId": receipt.job_id if i == 2 else str(uuid4())}
             frozen_hashes.append(job.snapshot_hash)
     request = claim_body(runtime)
     request["capabilities"] = {**request["capabilities"], "connectedDatasets": "2.0"}
@@ -451,3 +428,180 @@ async def test_claim_skips_corrupt_historical_inputs_and_aggregates_failed_run(s
             ]:
                 assert (record.state, record.outcome) == ("FINISHED", "ERROR")
             assert run.reason_code == "COMPILED_PROVENANCE_REQUIRED"
+
+
+async def historical_dataset_case(c, db, ws):
+    """通过正常发布流程生成包含静态行的真实用例版本，使历史分配的套件成员和原始验证回执都可以独立核对。"""
+    dataset = await published(
+        c,
+        db,
+        ws,
+        "rows",
+        "DATASET",
+        {
+            "schemaVersion": "1.0",
+            "columns": {"name": "string"},
+            "rows": [{"key": "k", "values": {"name": "synthetic"}}],
+        },
+    )
+    catalog = await published(
+        c,
+        db,
+        ws,
+        "catalog",
+        "ELEMENT_CATALOG",
+        {
+            "schemaVersion": "1.0",
+            "elements": [{"key": "e", "locator": {"by": "veriqId", "value": "e"}}],
+        },
+    )
+    path = await create(
+        c,
+        ws,
+        "frozen",
+        {
+            "kind": "CASE",
+            "document": {
+                "schemaVersion": "1.0",
+                "caseKey": "frozen",
+                "kind": "READ",
+                "title": "Frozen",
+                "roleKey": "reader",
+                "catalogVersionId": catalog,
+                "datasetVersionId": dataset,
+                "steps": [{"id": "s", "action": "goto", "path": "/"}],
+            },
+        },
+    )
+    return await publish(c, db, path)
+
+
+async def historical_test_manifest(repo, job, case, source, *, pinned=True):
+    """用仓库保留的旧版序列化样例还原执行分配，测试可以分别提供已编译摘要、在途验证依赖或故意损坏的清单。"""
+    from veriq_server.contracts import canonical_bytes
+
+    examples = json.loads(Path("packages/contracts/fixtures/compatibility.json").read_bytes())
+    frozen = next(x["value"] for x in examples if x["name"] == "execution-snapshot")
+    case.case_version_id = case.published_case_version_id = source["entryCaseVersionIds"][0]
+    case.candidate_version_id = None
+    asset = next(a for a in source["assets"] if a["kind"] == "DATASET")
+    frozen.update(
+        dataRow=asset["document"]["rows"][0],
+        assetSourceHash=source["sourceHash"],
+        workspaceId=job.workspace_id,
+        runId=job.run_id,
+        caseExecutionId=case.id,
+        caseVersionId=case.case_version_id,
+    )
+    if pinned:
+        frozen["datasetVersionId"] = asset["versionId"]
+    case.source_snapshot_hash = await repo.store(canonical_bytes(source))
+    job.snapshot_hash = await repo.store(canonical_bytes(frozen))
+    return {
+        "schemaVersion": "1.0",
+        "workspaceId": job.workspace_id,
+        "jobId": job.id,
+        "kind": "TEST",
+        "engineVersion": source["engineVersion"],
+        "caseExecutionId": case.id,
+        "caseVersionId": case.case_version_id,
+        "snapshotSha256": job.snapshot_hash,
+        "executionSnapshotSha256": job.snapshot_hash,
+    }
+
+
+@pytest.mark.parametrize("defect", ["empty", "overflow", "snapshot", "pending", "bundle"])
+async def test_historical_manifests_are_verified_before_projection(site, defect):
+    from test_lease_mysql import auth, claim_body, queued_browser_jobs
+    from veriq_server.db import ValidationReceipt
+    from test_publish import queue
+    from veriq_server.auth.authorization import WorkspaceScope
+    from veriq_server.contracts import canonical_bytes
+    from veriq_server.repositories.resource import ResourceRepository
+
+    c, db = site
+    await setup(c)
+    await login(c)
+    ws = await workspace(c)
+    runtime = await device(c, ws)
+    _, original_receipt, source = await historical_dataset_case(c, db, ws)
+    content = {
+        "kind": "DATASET",
+        "document": {
+            "schemaVersion": "1.0",
+            "columns": {"name": "string"},
+            "rows": [{"key": "k", "values": {"name": "synthetic"}}],
+        },
+    }
+    validations = []
+    for name in ("wrong-revision", "valid-validation"):
+        _, assignment = await queue(c, await create(c, ws, name, content))
+        validations.append(assignment["id"])
+    wrong_validation, valid_validation = validations
+    bad, pending, compiled, healthy = [
+        (await queued_browser_jobs(c, db, ws, 1))[0] for _ in range(4)
+    ]
+    async with db.sessions.begin() as session:
+        repo = ResourceRepository(session, WorkspaceScope(ws))
+        receipt = await session.get(ValidationReceipt, original_receipt)
+        dependency = receipt.job_id
+        for validation_id in validations:
+            validation = await session.get(Job, validation_id)
+            original = json.loads((await repo.artifact(validation.manifest_hash)).content)
+            original["snapshotSha256"] = validation.snapshot_hash
+            if validation_id == wrong_validation:
+                original["revision"] += 1
+            validation.manifest_hash = await repo.store(canonical_bytes(original))
+            validation.required_capabilities = {
+                "compileAssets": True,
+                "engineVersion": source["engineVersion"],
+            }
+        original_manifests = {}
+        for jid in [bad, pending, compiled]:
+            job = await session.get(Job, jid)
+            case = await session.get(CaseExecution, job.case_execution_id)
+            manifest = await historical_test_manifest(repo, job, case, source)
+            case.provenance = {"validationJobId": dependency}
+            if jid == pending or (jid == bad and defect == "pending"):
+                manifest["pendingValidationJobId"] = dependency
+                job.required_capabilities = {
+                    **job.required_capabilities,
+                    "validationJobId": dependency,
+                }
+            else:
+                manifest["compiledBundleSha256"] = receipt.compiled_bundle_sha256
+                if jid == bad and defect == "bundle":
+                    manifest["compiledBundleSha256"] = "a" * 64
+            if jid == bad and defect == "snapshot":
+                manifest["executionSnapshotSha256"] = "f" * 64
+            if jid == bad and defect == "pending":
+                manifest["pendingValidationJobId"] = str(uuid4())
+            raw = canonical_bytes(manifest)
+            if jid == bad and defect == "empty":
+                raw = b"{}"
+            if jid == bad and defect == "overflow":
+                raw = raw[:-1] + b',"number":1e999}'
+            job.manifest_hash = await repo.store(raw)
+            original_manifests[jid] = (job.manifest_hash, job.snapshot_hash)
+    response = await c.post(
+        "/internal/v1/jobs/claim", headers=auth(runtime), json=claim_body(runtime)
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["data"]["jobId"] == healthy
+    async with db.sessions() as session:
+        repo = ResourceRepository(session, WorkspaceScope(ws))
+        job = await session.get(Job, bad)
+        assert (job.state, job.outcome) == ("FINISHED", "ERROR")
+        assert (job.manifest_hash, job.snapshot_hash) == original_manifests[bad]
+        rejected = await session.get(Job, wrong_validation)
+        assert (rejected.state, rejected.outcome) == ("FINISHED", "ERROR")
+        for jid in [pending, compiled, valid_validation]:
+            job = await session.get(Job, jid)
+            assert job.state == "QUEUED" and job.required_capabilities["connectedDatasets"] == "2.0"
+            manifest = json.loads((await repo.artifact(job.manifest_hash)).content)
+            projected = json.loads((await repo.artifact(manifest["snapshotSha256"])).content)
+            assert projected["schemaVersion"] == "2.0"
+            if jid != valid_validation:
+                assert manifest["pendingValidationJobId"] == dependency
+                assert manifest["executionSnapshotSha256"] == job.snapshot_hash
+                assert "dataRow" not in projected
