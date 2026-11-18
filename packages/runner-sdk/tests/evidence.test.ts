@@ -224,3 +224,14 @@ test(
         }
     },
 );
+
+test("protected execution only emits reserved error codes", async () => {
+    const { EvidencePolicy } = await import("../src/evidence.js");
+    const event = { status: "FAILED", errorCode: "PRIVATE_BUSINESS_ECHO" };
+    expect(new EvidencePolicy(true).redactProtocol(event)).toEqual({ ...event, errorCode: "EXECUTION_ERROR" });
+    expect(new EvidencePolicy(true).redactProtocol({ ...event, errorCode: "ASSERTION_FAILED" })).toEqual({
+        ...event,
+        errorCode: "ASSERTION_FAILED",
+    });
+    expect(new EvidencePolicy().redactProtocol(event)).toEqual(event);
+});

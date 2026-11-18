@@ -3,7 +3,7 @@
  * 超限即触发确定性停机（storage/INVALID_STORAGE_LIMIT）。
  */
 
-import { lstat, readdir, realpath, rename, rm, open, mkdir, writeFile } from "node:fs/promises";
+import { lstat, readdir, realpath, rmdir, unlink, open, mkdir, readFile, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { readBoundedFile } from "../offline/config.ts";
@@ -128,7 +128,9 @@ export async function retireScratch(
         ].includes(stop.processStopScope ?? "")
     )
         return "STOP_UNCONFIRMED";
-    if (record.dataCleanup === "CLEANED" || record.dataCleanup === "REPORT_RETAINED") return record.dataCleanup;
+    if (record.dataCleanup === "REPORT_RETAINED") return record.dataCleanup;
+    // 旧平台的路径 API 无法把递归清理绑定到已打开的对象；保留文件和可重试状态。
+    if (process.platform !== "linux") return "OWNERSHIP_UNCONFIRMED";
     const a = record.allocation,
         work = join(root, "work", stop.attemptId);
     if (
@@ -150,7 +152,6 @@ export async function retireScratch(
         };
         const parent = async (path: string) => {
             if ((await realpath(path)) !== resolve(path)) throw new Error("TASK_PARENT_CHANGED");
-            if (process.platform !== "linux") return path;
             const held = await open(path, constants.O_DIRECTORY | constants.O_RDONLY | constants.O_NOFOLLOW);
             handles.push(held);
             const anchor = "/proc/self/fd/" + held.fd;
@@ -161,33 +162,93 @@ export async function retireScratch(
         await check(heldWork + "/.", a.work, true);
         const heldTmp = await parent(await realpath(temporaryRoot));
         await check(heldTmp + "/.", a.temporaryParent, false);
-        const pending: { path: string; retiring: string; id: DirectoryIdentity; marked: boolean }[] = [];
+        const targets = [];
         for (const [base, name, id, marked] of [
             [heldWork, "node_modules", a.modules, false],
             [heldTmp, a.temporaryName, a.temporary, true],
         ] as const) {
-            const path = join(base, name),
-                retiring = join(base, ".veriq-retiring-" + a.owner);
-            const exists = async (p: string) =>
-                lstat(p).then(
-                    () => true,
-                    (e) => {
-                        if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
-                        return false;
-                    },
-                );
-            const live = await exists(path),
-                moved = await exists(retiring);
-            if (live && moved) throw new Error("TASK_DIRECTORY_CHANGED");
-            if (!live && !moved) continue;
-            const current = live ? path : retiring;
-            await check(current, id, marked);
-            pending.push({ path: current, retiring, id, marked });
+            const path = join(base, name);
+            const child = await open(path, constants.O_DIRECTORY | constants.O_RDONLY | constants.O_NOFOLLOW);
+            handles.push(child);
+            const anchor = "/proc/self/fd/" + child.fd;
+            await check(anchor + "/.", id, marked);
+            const finished = (await readdir(anchor)).includes(".veriq-retired");
+            if (record.dataCleanup === "CLEANED" && !finished) throw new Error("TASK_DIRECTORY_CHANGED");
+            if (finished) {
+                if ((await readBoundedFile(join(anchor, ".veriq-retired"), 36, true)).toString() !== a.owner)
+                    throw new Error("TASK_DIRECTORY_CHANGED");
+                const entries = await readdir(anchor);
+                if (entries.some((entry) => entry !== ".veriq-retired" && !(marked && entry === ".veriq-owner")))
+                    throw new Error("TASK_DIRECTORY_CHANGED");
+            }
+            targets.push({ path, anchor, child, id, marked, finished });
         }
-        for (const item of pending) {
-            if (item.path !== item.retiring) await rename(item.path, item.retiring);
-            await check(item.retiring, item.id, item.marked);
-            await rm(item.retiring, { recursive: true });
+        // 顶层任务目录始终保留为已验证的空目录；Linux 没有按打开的目录句柄删除它自身的接口。
+        // 所有子目录逐层打开后通过自己的 fd 遍历，不经由可被替换的字符串路径进行递归删除。
+        const mountId = async (fd: number) => {
+            const info = await readFile("/proc/self/fdinfo/" + fd, "utf8");
+            const id = /^mnt_id:\s*(\d+)$/mu.exec(info)?.[1];
+            if (!id) throw new Error("TASK_MOUNT_UNCONFIRMED");
+            return id;
+        };
+        const empty = async (anchor: string, mount: string, marked: boolean, verifyRoot: () => Promise<void>) => {
+            for (const name of await readdir(anchor)) {
+                if (marked && name === ".veriq-owner") continue;
+                await verifyRoot();
+                const path = join(anchor, name),
+                    before = await lstat(path, { bigint: true });
+                if (before.isDirectory()) {
+                    const child = await open(path, constants.O_DIRECTORY | constants.O_RDONLY | constants.O_NOFOLLOW);
+                    try {
+                        const current = await child.stat({ bigint: true });
+                        if (
+                            current.ino !== before.ino ||
+                            current.dev !== before.dev ||
+                            (await mountId(child.fd)) !== mount
+                        )
+                            throw new Error("TASK_DIRECTORY_CHANGED");
+                        const verifyChild = async () => {
+                            await verifyRoot();
+                            const named = await lstat(path, { bigint: true });
+                            if (named.ino !== current.ino || named.dev !== current.dev)
+                                throw new Error("TASK_DIRECTORY_CHANGED");
+                        };
+                        await empty("/proc/self/fd/" + child.fd, mount, false, verifyChild);
+                        await verifyChild();
+                        await rmdir(path);
+                    } finally {
+                        await child.close();
+                    }
+                } else {
+                    await unlink(path);
+                }
+            }
+        };
+        for (const target of targets) {
+            const verifyRoot = () => check(target.path, target.id, target.marked);
+            if (target.finished) continue;
+            await empty(target.anchor, await mountId(target.child.fd), target.marked, verifyRoot);
+            await verifyRoot();
+            const remaining = await readdir(target.anchor);
+            if (remaining.some((name) => !target.marked || name !== ".veriq-owner"))
+                throw new Error("TASK_DIRECTORY_CHANGED");
+            const marker = await open(join(target.anchor, ".veriq-retired"), "wx", 0o600);
+            try {
+                await marker.writeFile(a.owner);
+                await marker.sync();
+            } finally {
+                await marker.close();
+            }
+            await target.child.sync();
+        }
+        for (const target of targets) {
+            await check(target.path, target.id, target.marked);
+            const remaining = await readdir(target.anchor);
+            if (
+                !remaining.includes(".veriq-retired") ||
+                remaining.some((name) => name !== ".veriq-retired" && !(target.marked && name === ".veriq-owner"))
+            )
+                throw new Error("TASK_DIRECTORY_CHANGED");
         }
         return "CLEANED";
     } catch {

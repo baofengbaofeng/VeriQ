@@ -1044,7 +1044,7 @@ export class ExecutionSupervisor {
                 stop,
             );
             await commit();
-            if (record.dataCleanup !== "CLEANED") throw new Error("TASK_DATA_CLEANUP_UNCONFIRMED");
+            if (record.dataCleanup === "STOP_UNCONFIRMED") throw new Error("TASK_DATA_CLEANUP_UNCONFIRMED");
             const evidence = files.map((f) => f.file),
                 requiredEvidence = files.filter((f) => ["TRACE", "LOG"].includes(f.kind)).map((f) => f.file.sha256);
             const common = {

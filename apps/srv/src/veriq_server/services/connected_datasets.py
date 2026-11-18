@@ -8,7 +8,7 @@ from uuid import uuid4
 from sqlalchemy import or_, select
 
 from ..contracts import asset_source_hash, canonical_bytes, validate_schema
-from ..db import CaseExecution, Job, ValidationReceipt
+from ..db import Attempt, CaseExecution, Job, ValidationReceipt
 from ..repositories.resource import ResourceRepository
 from ..service import Problem, now
 from .snapshots import execution_data_row
@@ -33,6 +33,99 @@ async def protected_test(repo: ResourceRepository, job: Job, snapshot_hash: str)
         return False
     subject = await frozen_object(repo, snapshot_hash)
     return bool(subject.get("datasetVersionId") or subject.get("datasetBindings"))
+
+
+async def protected_event_context(
+    repo: ResourceRepository, attempt: Attempt, job: Job
+) -> dict | None:
+    """只从已分配的冻结对象加载事件来源，同一批事件共享元数据。所需成员缺失时关闭对应的步骤事实。"""
+    if job.kind != "TEST":
+        return None
+    subject = await frozen_object(repo, attempt.snapshot_hash)
+    if not (subject.get("datasetVersionId") or subject.get("datasetBindings")):
+        return None
+    manifest = await frozen_object(repo, attempt.manifest_hash)
+    ctx = {"subject": subject, "manifest": manifest, "steps": {}, "sources": {}}
+    if not manifest.get("compiledBundleSha256"):
+        return ctx
+    bundle = await frozen_object(repo, manifest["compiledBundleSha256"])
+    files = {f["path"]: f["sha256"] for f in bundle.get("files", [])}
+    if not {"metadata/report-display.json", "source/asset-snapshot.json"} <= files.keys():
+        return ctx
+    display = await frozen_object(repo, files["metadata/report-display.json"], "ReportDisplayV1")
+    source = await frozen_object(repo, files["source/asset-snapshot.json"])
+    by_version = {a["versionId"]: a for a in source["assets"]}
+    for case in display["cases"]:
+        if case["caseVersionId"] != manifest["caseVersionId"]:
+            continue
+        for step in case["steps"]:
+            ctx["steps"][step["id"]] = step
+            for assertion in step["assertions"]:
+                # 编译器的来源路径包含真实 flow/template 调用边界；始终在同一已校验的源快照内跳转。
+                node = source
+                for part in assertion["sourcePath"].strip("/").split("/"):
+                    if part in {"flow", "template"}:
+                        doc = by_version[node["versionId"]]["document"]
+                        node = doc["steps" if part == "flow" else "assertions"]
+                    else:
+                        node = node[int(part)] if isinstance(node, list) else node[part]
+                label = assertion["expectedSource"]
+                version = None
+                if "datasetExpected" in node:
+                    version = subject.get("datasetBindings", {}).get(
+                        node["datasetExpected"]["alias"]
+                    )
+                elif "{{data." in json.dumps(node.get("expected"), ensure_ascii=False):
+                    version = subject.get("datasetVersionId")
+                ctx["sources"][step["id"], assertion["id"]] = (
+                    label + " (" + version + ")" if version else label,
+                    assertion["severity"],
+                )
+    return ctx
+
+
+def protected_event(ctx: dict, event: dict) -> bool:
+    """受保护事件只接收固定字段和已编译的出现位置，错误码同 SDK 写前归约保持封闭。"""
+    payload, kind = event["payload"], event["type"]
+    step_id, assertion_id = event.get("stepId"), event.get("assertionId")
+    if (
+        ("stepId" in event)
+        != (kind in {"STEP_STARTED", "STEP_FINISHED", "ASSERTION_RESULT", "OBSERVER_RESULT"})
+        or ("assertionId" in event) != (kind == "ASSERTION_RESULT")
+        or ("stepId" in event and step_id not in ctx["steps"])
+        or "message" in payload
+        or ("errorCode" in payload and validate_schema("ProtectedExecutionErrorCode", payload["errorCode"]))
+    ):
+        return False
+    blocked_step = payload.get("blockedByStepId", step_id)
+    if ("blockedByStepId" in payload and blocked_step not in ctx["steps"]) or (
+        "blockedByAssertionId" in payload
+        and (blocked_step, payload["blockedByAssertionId"]) not in ctx["sources"]
+    ):
+        return False
+    if kind == "ASSERTION_RESULT":
+        return (
+            ctx["sources"].get((step_id, assertion_id))
+            == (payload["expectedSource"], payload["severity"])
+            and payload["actual"] == {"present": False}
+            and payload["expected"] is None
+        )
+    if kind == "OBSERVER_RESULT":
+        return not payload["requests"] and any(
+            o["id"] == payload["observerId"] for o in ctx["steps"][step_id]["observers"]
+        )
+    if kind == "ATTEMPT_STARTED":
+        return payload == {
+            "engineVersion": ctx["manifest"]["engineVersion"],
+            "sourceHash": ctx["subject"]["assetSourceHash"],
+        }
+    return kind in {
+        "STEP_STARTED",
+        "STEP_FINISHED",
+        "PHASE_CHANGED",
+        "CLEANUP_RESULT",
+        "ATTEMPT_FINISHED",
+    }
 
 
 def checksum(value: Any) -> str:

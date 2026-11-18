@@ -3,7 +3,7 @@
  */
 
 import type { BrowserContext, Page } from "@playwright/test";
-import type { JsonValue } from "@veriq/contracts";
+import { validateSchema, type JsonValue } from "@veriq/contracts";
 import { mkdir, chmod } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -83,6 +83,8 @@ export class EvidencePolicy {
         if (this.datasetProtected) {
             const { message, ...safe } = value;
             value = safe;
+            if ("errorCode" in value && validateSchema("ProtectedExecutionErrorCode", value.errorCode).length)
+                value.errorCode = "EXECUTION_ERROR";
             for (const field of ["requests", "events"]) if (field in value) value[field] = [];
             if ("expected" in value) value.expected = null;
             if ("actual" in value) value.actual = { present: false };

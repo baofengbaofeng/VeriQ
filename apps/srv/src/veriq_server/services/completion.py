@@ -17,7 +17,7 @@ from ..db import Attempt, AttemptEvent, AttemptUpload, Job, ValidationReceipt, C
 from ..repositories.resource import ResourceRepository
 from ..service import Problem
 from ..settings import Settings
-from .connected_datasets import protected_test
+from .connected_datasets import protected_test, protected_event_context, protected_event
 from .capacity import CapacityService
 from .engines import ApprovedEngines
 from .jobs import require_requester, database_time
@@ -50,24 +50,13 @@ class CompletionService:
         attempt, job, _, _ = await LeaseService(self.session, self.settings).proof(
             attempt_id, proof
         )
-        protected = await protected_test(
-            ResourceRepository(self.session, WorkspaceScope(attempt.workspace_id)),
-            job,
-            attempt.snapshot_hash,
+        protected = await protected_event_context(
+            ResourceRepository(self.session, WorkspaceScope(attempt.workspace_id)), attempt, job
         )
         for event in events:
             if event["attemptId"] != attempt_id or validate_schema("ExecutionEventV1", event):
                 raise Problem(400, "INVALID_EVENT", "Event does not match assigned Attempt")
-            payload = event["payload"]
-            if protected and (
-                (
-                    event["type"] == "ASSERTION_RESULT"
-                    and (payload["expected"] is not None or payload["actual"] != {"present": False})
-                )
-                or (event["type"] == "OBSERVER_RESULT" and payload["requests"])
-                or (event["type"] == "STEP_FINISHED" and "message" in payload)
-                or event["type"] == "ARTIFACT_CREATED"
-            ):
+            if protected is not None and not protected_event(protected, event):
                 raise Problem(
                     409,
                     "DATASET_EVIDENCE_FORBIDDEN",

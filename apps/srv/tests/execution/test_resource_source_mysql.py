@@ -341,6 +341,29 @@ async def test_static_fetch_is_scoped_to_attempt_fence_and_version(site):
     }
     blocked = await c.post(base + "/events", json={**proof, "events": [unsafe]}, headers=auth(d))
     assert blocked.status_code == 409 and blocked.json()["code"] == "DATASET_EVIDENCE_FORBIDDEN"
+    from veriq_server.db import AttemptEvent
+
+    location = {k: v for k, v in unsafe.items() if k not in {"payload", "stepId", "assertionId"}}
+    private = "private_echo_marker"
+    for fact in [
+        {"type": "LOG", "payload": {"level": "ERROR", "message": private}},
+        {
+            **unsafe,
+            "payload": {
+                **unsafe["payload"],
+                "actual": {"present": False},
+                "expectedSource": private,
+            },
+        },
+        {"type": "STEP_STARTED", "stepId": private, "payload": {}},
+        {"type": "CLEANUP_RESULT", "payload": {"cleanupStatus": "FAILED", "errorCode": private}},
+    ]:
+        blocked = await c.post(
+            base + "/events", json={**proof, "events": [{**location, **fact}]}, headers=auth(d)
+        )
+        assert blocked.status_code == 409 and blocked.json()["code"] == "DATASET_EVIDENCE_FORBIDDEN"
+    async with db.sessions() as session:
+        assert await session.get(AttemptEvent, (claim["attemptId"], 1)) is None
     response = await c.post(path, json=selection, headers=headers)
     assert response.status_code == 200, response.text
     assert response.content == canonical_bytes(document)
@@ -775,6 +798,29 @@ async def test_legacy_published_dataset_revalidation_uses_frozen_original(site, 
                 await asyncio.to_thread(inspect_files, scratch)
                 await asyncio.to_thread(inspect_files, profile)
                 if end == "cancel":
+                    # 使用有效设备、当前围栏和同一真实编译断言，仅替换出处。两种伪造均须在写入前拒绝。
+                    async with db.sessions() as session:
+                        active = await session.get(Attempt, active_id)
+                        sequence = active.last_sequence + 1
+                    confirmed = assertions[-1]
+                    for name in [marker, assertions[0]["payload"]["expectedSource"]]:
+                        forged = {
+                            **confirmed,
+                            "attemptId": active_id,
+                            "sequence": sequence,
+                            "payload": {**confirmed["payload"], "expectedSource": name},
+                        }
+                        proof = {
+                            key: active_journal["claim"][key]
+                            for key in ["leaseToken", "fencingToken"]
+                        }
+                        rejected = await c.post(
+                            f"/internal/v1/attempts/{active_id}/events",
+                            json={**proof, "events": [forged]},
+                            headers=auth(json.loads((profile / "device.json").read_bytes())),
+                        )
+                        assert rejected.status_code == 409
+                        assert rejected.json()["code"] == "DATASET_EVIDENCE_FORBIDDEN"
                     response = await c.post(
                         endpoint + "/" + rid + "/cancel", json={"reason": "Privacy test"}
                     )
@@ -810,9 +856,11 @@ async def test_legacy_published_dataset_revalidation_uses_frozen_original(site, 
             journal = json.loads((profile / "agent/attempts" / (attempt.id + ".json")).read_bytes())
             assert journal["dataCleanup"] == "CLEANED"
             assert journal["stop"]["processStopScope"] == "FULL_DESCENDANT_TREE"
-            assert not (
-                Path(tempfile.gettempdir()) / journal["allocation"]["temporaryName"]
-            ).exists()
+            tombstone = Path(tempfile.gettempdir()) / journal["allocation"]["temporaryName"]
+            assert sorted(member.name for member in tombstone.iterdir()) == [
+                ".veriq-owner",
+                ".veriq-retired",
+            ]
         for file in profile.rglob("*"):
             if file.is_file() and not file.is_symlink():
                 assert marker.encode() not in file.read_bytes(), file
