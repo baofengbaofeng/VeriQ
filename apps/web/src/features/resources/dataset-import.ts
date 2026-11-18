@@ -1,4 +1,11 @@
-import { validateSchema, validateDataset, type DatasetV2, type DataRowV2, type DataFieldV2 } from "@veriq/contracts";
+import {
+    canonicalBytes,
+    validateSchema,
+    validateDataset,
+    type DatasetV2,
+    type DataRowV2,
+    type DataFieldV2,
+} from "@veriq/contracts";
 
 /**
  * 在读取本地文件和转换候选资源时分别执行字节预算检查，包含字段声明的文档也必须能够通过草稿提交。
@@ -15,6 +22,7 @@ export interface DatasetImportIssue {
 }
 type Result = { rows: DataRowV2[]; issues: DatasetImportIssue[] };
 type RecordLine = { line: number; cells: string[] };
+const decodeField = (token: string) => token.replaceAll("~1", "/").replaceAll("~0", "~");
 const bytes = (value: string) => new TextEncoder().encode(value).length;
 
 /**
@@ -22,6 +30,13 @@ const bytes = (value: string) => new TextEncoder().encode(value).length;
  * 每个记录记住起始行号，文件末尾已有换行时不会额外产生一条空记录。
  */
 function* csvRecords(text: string, issues: DatasetImportIssue[]): Generator<RecordLine> {
+    let headers: string[] | undefined;
+    const malformed = () =>
+        issues.push({
+            row: start,
+            field: headers?.[cells.length]?.replace(/^values\./u, "") || "CSV",
+            code: "INVALID_CSV",
+        });
     let cells: string[] = [],
         cell = "",
         quoted = false,
@@ -31,6 +46,7 @@ function* csvRecords(text: string, issues: DatasetImportIssue[]): Generator<Reco
     const finish = () => {
         cells.push(cell);
         const record = { line: start, cells };
+        headers ??= cells;
         cells = [];
         cell = "";
         closed = false;
@@ -61,11 +77,11 @@ function* csvRecords(text: string, issues: DatasetImportIssue[]): Generator<Reco
             start = ++line;
         } else if (c === '"' && !cell && !closed) quoted = true;
         else if (closed || c === '"') {
-            issues.push({ row: line, field: "CSV", code: "INVALID_CSV" });
+            malformed();
             return;
         } else cell += c;
     }
-    if (quoted) issues.push({ row: start, field: "CSV", code: "INVALID_CSV" });
+    if (quoted) malformed();
     else if (cell || cells.length || closed) yield finish();
 }
 
@@ -87,14 +103,19 @@ function csvRows(text: string, dataset: DatasetV2, issues: DatasetImportIssue[],
     if (issues.length) return [];
     const names = header?.cells ?? [];
     const metadata = dataset.shape === "TREE" ? ["key", "parentKey", "order"] : ["key"];
-    const seen = new Set<string>();
-    for (const field of names) {
+    const metaSeen = new Set<string>(),
+        fieldsSeen = new Set<string>();
+    const columns = names.map((name) => {
+        const meta = metadata.includes(name);
+        const field = meta ? name : name.replace(/^values\./u, "");
+        const seen = meta ? metaSeen : fieldsSeen;
         if (seen.has(field)) issues.push({ row: 1, field, code: "DUPLICATE_COLUMN" });
-        else if (!metadata.includes(field) && !Object.hasOwn(dataset.fields, field))
+        else if (!meta && !Object.hasOwn(dataset.fields, field))
             issues.push({ row: 1, field, code: "DATASET_UNKNOWN_FIELD" });
         seen.add(field);
-    }
-    for (const field of metadata) if (!seen.has(field)) issues.push({ row: 1, field, code: "MISSING_COLUMN" });
+        return { field, meta };
+    });
+    for (const field of metadata) if (!metaSeen.has(field)) issues.push({ row: 1, field, code: "MISSING_COLUMN" });
     if (issues.length) return [];
     const rows = [];
     let size = 0;
@@ -108,9 +129,9 @@ function csvRows(text: string, dataset: DatasetV2, issues: DatasetImportIssue[],
             continue;
         }
         for (const [i, raw] of cells.entries()) {
-            const field = names[i]!;
+            const { field, meta: isMetadata } = columns[i]!;
             try {
-                if (metadata.includes(field)) {
+                if (isMetadata) {
                     const value =
                         field === "order" ? JSON.parse(raw) : field === "parentKey" && raw === "" ? null : raw;
                     meta.set(field, value);
@@ -148,19 +169,30 @@ export function parseDatasetImport(format: "CSV" | "JSON", text: string, dataset
         if (!Array.isArray(rows)) return fail("EXPECTED_ROW_ARRAY");
         if (issues.length) return { rows: [], issues };
         const candidate = { ...dataset, source: { kind: "STATIC", rows } } as DatasetV2;
-        if (bytes(JSON.stringify({ kind: "DATASET", document: candidate })) > datasetImportLimit)
-            return fail("DATASET_SIZE_LIMIT");
+
         for (const [i, row] of rows.entries()) {
-            for (const issue of validateSchema(dataset.shape === "TREE" ? "TreeDataRowV2" : "DataRowV1", row)) {
-                issues.push({ row: lines[i] ?? i + 1, field: issue.path.split("/").pop() || "row", code: issue.code });
+            for (const issue of validateSchema(dataset.shape === "TREE" ? "TreeDataRowV2" : "DataRowV1", row, true)) {
+                issues.push({
+                    row: lines[i] ?? i + 1,
+                    field: decodeField(issue.path.split("/").pop() || "row"),
+                    code: issue.code,
+                });
             }
         }
         if (!issues.length) {
+            try {
+                if (canonicalBytes({ kind: "DATASET", document: candidate }).length > datasetImportLimit)
+                    return fail("DATASET_SIZE_LIMIT");
+            } catch (error) {
+                if (error instanceof RangeError || (error instanceof Error && error.message === "Invalid Unicode"))
+                    return fail("INVALID_JSON");
+                throw error;
+            }
             for (const issue of validateDataset(candidate)) {
                 const [, , , index, ...path] = issue.path.split("/");
                 issues.push({
                     row: lines[Number(index)] ?? Number(index) + 1,
-                    field: path.at(-1) ?? "row",
+                    field: decodeField(path.at(-1) ?? "row"),
                     code: issue.code,
                 });
             }

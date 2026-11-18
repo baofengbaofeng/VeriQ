@@ -3,6 +3,18 @@
  * 用和原始编译内容保持不变，不能被语言转换写回。
  */
 export const editorMessages: Record<string, readonly [string, string]> = {
+    "Use values.<field> for data columns sharing a metadata name or starting with values.": [
+        "与元数据同名或以 values. 开头的字段请在列名前加上 values.。",
+        "Use values.<field> for data columns sharing a metadata name or starting with values.",
+    ],
+    "First row page": ["数据行首页", "First row page"],
+    "First field page": ["字段首页", "First field page"],
+    "Previous row page": ["数据行上一页", "Previous row page"],
+    "Previous field page": ["字段上一页", "Previous field page"],
+    "Next row page": ["数据行下一页", "Next row page"],
+    "Next field page": ["字段下一页", "Next field page"],
+    "Last row page": ["数据行末页", "Last row page"],
+    "Last field page": ["字段末页", "Last field page"],
     "Dataset format": ["数据集格式", "Dataset format"],
     "Legacy table (V1)": ["旧版表格（V1）", "Legacy table (V1)"],
     "Static table (V2)": ["静态表格（V2）", "Static table (V2)"],

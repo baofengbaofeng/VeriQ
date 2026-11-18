@@ -82,3 +82,62 @@ test("tree checks preserve forward references, detect cycles and enforce depth",
     );
     assert.deepEqual(parseDatasetImport("CSV", "key,parentKey,order\na,b,1\nb,,0", tree).issues, []);
 });
+
+/**
+ * 行结构缺失属性与额外属性均应显示原始键，含斜线和波浪号的未声明值不向用户展示指针转义文本。
+ */
+test("JSON issues identify missing and extra keys and decode pointer tokens", () => {
+    const parse = (row: unknown) => parseDatasetImport("JSON", JSON.stringify([row]), dataset).issues;
+    assert.ok(parse({ values: {} }).some((i) => i.field === "key"));
+    assert.ok(parse({ key: "a", values: {}, "x/~odd": true }).some((i) => i.field === "x/~odd"));
+    assert.ok(parse({ key: "a", values: { ["__proto__"]: "", "x/~odd": true } }).some((i) => i.field === "x/~odd"));
+});
+
+/**
+ * 跨行文本上的闭引号错误、未闭引号都指向物理起始行及当前字段，不能误报引号所在的下一物理行。
+ */
+test("malformed CSV quotes identify record start and offending column", () => {
+    for (const ending of ['a,"one\ntwo"oops,1', 'a,"one\ntwo']) {
+        assert.deepEqual(parseDatasetImport("CSV", "key,__proto__,a.b\n" + ending, dataset).issues, [
+            { row: 2, field: "__proto__", code: "INVALID_CSV" },
+        ]);
+    }
+});
+
+/**
+ * 显式限定字段列以区分行元数据，重复检查使用解析后的业务键，因此两种等价拼写不能覆盖彼此。
+ */
+test("qualified CSV headers distinguish row metadata and literal dotted field names", () => {
+    const fields = Object.fromEntries(
+        ["key", "parentKey", "order", "values.foo", "a.b"].map((k) => [
+            k,
+            { type: "string" as const, required: true, nullable: false },
+        ]),
+    );
+    const tree: DatasetV2 = { schemaVersion: "2.0", shape: "TREE", fields, source: { kind: "STATIC", rows: [] } };
+    const header = "key,parentKey,order,values.key,values.parentKey,values.order,values.values.foo,a.b";
+    assert.deepEqual(parseDatasetImport("CSV", header + "\nr,,3,k,p,o,f,ab", tree), {
+        rows: [
+            {
+                key: "r",
+                parentKey: null,
+                order: 3,
+                values: { key: "k", parentKey: "p", order: "o", "values.foo": "f", "a.b": "ab" },
+            },
+        ],
+        issues: [],
+    });
+    assert.deepEqual(parseDatasetImport("CSV", header + ",values.a.b", tree).issues, [
+        { row: 1, field: "a.b", code: "DUPLICATE_COLUMN" },
+    ]);
+});
+
+/**
+ * 输入包含转义的孤立代理项时，原始文本仍可由 JSON 解析，预检必须与服务端规范化字节约束保持一致。
+ */
+test("JSON rejects unpaired UTF-16 instead of accepting a draft the server cannot save", () => {
+    const text = JSON.stringify([{ key: "a", values: { ["__proto__"]: "\ud800" } }]);
+    const result = parseDatasetImport("JSON", text, dataset);
+    assert.deepEqual(result.rows, []);
+    assert.ok(result.issues.length);
+});

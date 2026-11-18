@@ -401,12 +401,14 @@ export function JsonValueControl({
     label,
     allowBinding = false,
     bindings,
+    renderString,
 }: {
     value: JsonValue;
     onChange: (value: JsonValue) => void;
     label: string;
     allowBinding?: boolean;
     bindings?: string[];
+    renderString?: (label: string, value: string, change: (next: string) => void) => ReactNode;
 }) {
     useAppLocale();
     const [key, setKey] = useState("");
@@ -428,33 +430,36 @@ export function JsonValueControl({
                         ))}
                 </select>
             </label>
-            {type === "string" && (
-                <label>
-                    {label}
-                    <input aria-label={label} value={value as string} onChange={(e) => onChange(e.target.value)} />
-                    {allowBinding && (
-                        <small>{tx("支持完整占位符并保留类型 / Whole placeholders retain value types.")}</small>
-                    )}
-                    {allowBinding && bindings && (
-                        <select
-                            aria-label={tx("{{value0}} 插入绑定 / Insert binding", {
-                                value0: label,
-                            })}
-                            value=""
-                            onChange={(e) => {
-                                if (e.target.value) onChange(e.target.value);
-                            }}
-                        >
-                            <option value="">{tx("选择绑定 / Select binding")}</option>
-                            {bindings.map((binding) => (
-                                <option key={binding} value={binding}>
-                                    {binding}
-                                </option>
-                            ))}
-                        </select>
-                    )}
-                </label>
-            )}
+            {type === "string" &&
+                (renderString ? (
+                    renderString(label, value as string, onChange)
+                ) : (
+                    <label>
+                        {label}
+                        <input aria-label={label} value={value as string} onChange={(e) => onChange(e.target.value)} />
+                        {allowBinding && (
+                            <small>{tx("支持完整占位符并保留类型 / Whole placeholders retain value types.")}</small>
+                        )}
+                        {allowBinding && bindings && (
+                            <select
+                                aria-label={tx("{{value0}} 插入绑定 / Insert binding", {
+                                    value0: label,
+                                })}
+                                value=""
+                                onChange={(e) => {
+                                    if (e.target.value) onChange(e.target.value);
+                                }}
+                            >
+                                <option value="">{tx("选择绑定 / Select binding")}</option>
+                                {bindings.map((binding) => (
+                                    <option key={binding} value={binding}>
+                                        {binding}
+                                    </option>
+                                ))}
+                            </select>
+                        )}
+                    </label>
+                ))}
             {type === "number" && (
                 <label>
                     {label}
@@ -484,6 +489,7 @@ export function JsonValueControl({
                     onChange={onChange}
                     allowBinding={allowBinding}
                     bindings={bindings}
+                    renderString={renderString}
                 />
             )}
             {type === "object" && value !== null && !Array.isArray(value) && (
@@ -495,6 +501,7 @@ export function JsonValueControl({
                                 label={`${label}.${k}`}
                                 allowBinding={allowBinding}
                                 bindings={bindings}
+                                renderString={renderString}
                                 onChange={(next) => onChange({ ...objectValue, [k]: next })}
                             />
                             <Button
@@ -545,12 +552,14 @@ function JsonArrayControl({
     label,
     allowBinding,
     bindings,
+    renderString,
 }: {
     value: JsonValue[];
     onChange: (value: JsonValue) => void;
     label: string;
     allowBinding: boolean;
     bindings?: string[];
+    renderString?: (label: string, value: string, change: (next: string) => void) => ReactNode;
 }) {
     useAppLocale();
     const rows = usePrimitiveRows(value.length);
@@ -565,6 +574,7 @@ function JsonArrayControl({
                         label={`${label}[${index}]`}
                         allowBinding={allowBinding}
                         bindings={bindings}
+                        renderString={renderString}
                         onChange={(next) =>
                             onChange(value.map((entry, position) => (position === index ? next : entry)))
                         }

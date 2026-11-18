@@ -1418,8 +1418,12 @@ test("imports table and tree drafts with validation preview", async ({ page }) =
             await preview.click();
             await expect(page.getByText("2 · parentKey · DATASET_ORPHAN_NODE")).toBeVisible();
         }
-        const name = 'hello, "world"\nagain';
-        await input.fill(header + "\n" + row + '"hello, ""world""\nagain"' + (tree ? "\nroot,,0,root" : ""));
+        const name = 'hello, "world"\r\n  again\n\tlast';
+        const csv = header + "\n" + row + '"hello, ""world""\r\n  again\n\tlast"' + (tree ? "\nroot,,0,root" : "");
+        await page
+            .getByLabel("Import file")
+            .setInputFiles({ name: "rows.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+        await expect(input).toHaveValue(csv.replaceAll("\r\n", "\n"));
         await preview.click();
         await expect(apply).toBeEnabled();
         await expect(page.getByLabel("Row key", { exact: true }).first()).toHaveValue("row_1");
@@ -1436,6 +1440,17 @@ test("imports table and tree drafts with validation preview", async ({ page }) =
                 ],
             },
         });
+        const cell = page.getByRole("article").getByRole("textbox", { name: "name", exact: true }).first();
+        await expect(cell).toBeEditable();
+        await expect(cell).toHaveValue(name.replaceAll("\r\n", "\n"));
+        await cell.focus();
+        await cell.press("Control+End");
+        await cell.pressSequentially(" edited");
+        const edited = await saveDraft(page);
+        expect(
+            (edited.content.document as { source: { rows: { values: { name: string } }[] } }).source.rows[0]!.values
+                .name,
+        ).toBe(name + " edited");
         if (tree) {
             // 父键的重命名必须同步子行引用；随后编辑排序再保存，检查编辑器没有靠重排数组模拟同级顺序。
             const rootKey = page.getByLabel("Row key", { exact: true }).last();
@@ -1487,4 +1502,45 @@ test("imports table and tree drafts with validation preview", async ({ page }) =
             expect((saved.document as { source: { rows: unknown[] } }).source.rows).toEqual(imported);
         }
     }
+});
+
+/**
+ * 稀疏资源的声明数量与行数可独立增长，检查只渲染当前页并仍能定位到后续行及字段，真实保存保留未显示数据。
+ */
+test("pages sparse static dataset rows and fields", async ({ page }) => {
+    test.setTimeout(90_000);
+    const scope = await editorScope(page, "sparse-form");
+    const fields = Object.fromEntries(
+        Array.from({ length: 97 }, (_, i) => ["f_" + i, { type: "string", required: false, nullable: false }]),
+    );
+    const rows = Array.from({ length: 113 }, (_, i) => ({ key: "r_" + i, values: i === 112 ? { f_96: "tail" } : {} }));
+    const created = await page.request.post(`/api/v1/workspaces/${scope.workspaceId}/resources`, {
+        headers: scope.headers,
+        data: {
+            kind: "DATASET",
+            key: "sparse",
+            name: "sparse",
+            content: {
+                kind: "DATASET",
+                document: { schemaVersion: "2.0", shape: "TABLE", fields, source: { kind: "STATIC", rows } },
+            },
+        },
+    });
+    expect(created.status(), await created.text()).toBe(201);
+    await page.reload();
+    await page.getByLabel("Workspace").selectOption(scope.workspaceId);
+    await page.getByRole("button", { name: "sparse", exact: true }).click();
+    await expect(page.getByRole("article").getByRole("heading", { name: "sparse · DATASET" })).toBeVisible();
+    const article = page.getByRole("article");
+    expect(await article.getByLabel("Row key", { exact: true }).count()).toBeLessThanOrEqual(20);
+    expect(await article.getByLabel("Field name", { exact: true }).count()).toBeLessThanOrEqual(20);
+    await article.getByRole("button", { name: "Last row page" }).click();
+    await article.getByRole("button", { name: "Last field page" }).click();
+    await expect(article.getByLabel("Row key", { exact: true }).last()).toHaveValue("r_112");
+    const tail = article.getByRole("textbox", { name: "f_96", exact: true });
+    await tail.fill("edited tail");
+    const saved = await saveDraft(page);
+    expect(saved.content.document).toMatchObject({
+        source: { rows: rows.map((r, i) => (i === 112 ? { ...r, values: { f_96: "edited tail" } } : r)) },
+    });
 });

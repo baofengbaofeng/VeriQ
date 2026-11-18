@@ -18,6 +18,82 @@ const defaultField: DataFieldV2 = { type: "string", required: true, nullable: fa
 const without = <T,>(record: Record<string, T>, key: string) =>
     Object.fromEntries(Object.entries(record).filter(([k]) => k !== key));
 
+const pageSize = 10;
+
+/**
+ * 原生多行输入会把 CRLF 和 CR 一律显示为 LF；仅替换实际改变的区间，保留未编辑的前后文本中的原换行样式。
+ * 浏览器选择范围按 UTF-16 单元计数，原文位置同样按单元计算，避免将跨两个单元的字符误作单个偏移量。
+ */
+function editedString(previous: string, next: string) {
+    if (!previous.includes("\r")) return next;
+    const visible = previous.replace(/\r\n?/gu, "\n");
+    let start = 0,
+        oldEnd = visible.length,
+        newEnd = next.length;
+    while (start < oldEnd && start < newEnd && visible[start] === next[start]) start++;
+    while (oldEnd > start && newEnd > start && visible[oldEnd - 1] === next[newEnd - 1]) {
+        oldEnd--;
+        newEnd--;
+    }
+    function originalOffset(displayOffset: number) {
+        let offset = 0;
+        for (let i = 0; i < displayOffset; i++, offset++) {
+            if (previous[offset] === "\r" && previous[offset + 1] === "\n") offset++;
+        }
+        return offset;
+    }
+    return (
+        previous.slice(0, originalOffset(start)) + next.slice(start, newEnd) + previous.slice(originalOffset(oldEnd))
+    );
+}
+
+function multiline(label: string, value: string, change: (value: string) => void) {
+    return (
+        <label>
+            {label}
+            <textarea
+                aria-label={label}
+                value={value}
+                onChange={(event) => change(editedString(value, event.target.value))}
+            />
+        </label>
+    );
+}
+
+/**
+ * 将字段和行分开分页，单次渲染至多十行十列；所有修改仍作用于完整文档，切页不会替换未显示的数据。
+ * 用户删除末页最后一个元素时自动显示有效页，新增元素则可直接跳转到其所在页继续编辑。
+ */
+function useDatasetPage(count: number) {
+    const [requested, set] = useState(0);
+    const last = Math.max(0, Math.ceil(count / pageSize) - 1),
+        page = Math.min(requested, last);
+    return { page, last, set, start: page * pageSize };
+}
+function PageButtons({ scope, pages }: { scope: "rows" | "fields"; pages: ReturnType<typeof useDatasetPage> }) {
+    if (!pages.last) return null;
+    const row = scope === "rows";
+    return (
+        <div className="vq-actions">
+            <Button tone="secondary" disabled={pages.page === 0} onClick={() => pages.set(0)}>
+                {tx(row ? "First row page" : "First field page")}
+            </Button>
+            <Button tone="secondary" disabled={pages.page === 0} onClick={() => pages.set(pages.page - 1)}>
+                {tx(row ? "Previous row page" : "Previous field page")}
+            </Button>
+            <span>
+                {pages.page + 1} / {pages.last + 1}
+            </span>
+            <Button tone="secondary" disabled={pages.page === pages.last} onClick={() => pages.set(pages.page + 1)}>
+                {tx(row ? "Next row page" : "Next field page")}
+            </Button>
+            <Button tone="secondary" disabled={pages.page === pages.last} onClick={() => pages.set(pages.last)}>
+                {tx(row ? "Last row page" : "Last field page")}
+            </Button>
+        </div>
+    );
+}
+
 /**
  * 创建静态数据集时附上一个可立即保存的字段和一行数据，树行另有显式的根标记及同级排序值。
  */
@@ -40,6 +116,9 @@ export function DatasetFields({ dataset }: { dataset: DatasetV2 }) {
     const update = (fields: DatasetV2["fields"], rows: DataRowV2[]) =>
         set("content.document", formJson({ ...dataset, fields, source: { kind: "STATIC", rows } }));
     const rows = dataset.source.rows;
+    const entries = Object.entries(dataset.fields),
+        pages = useDatasetPage(entries.length);
+    const visibleFields = entries.slice(pages.start, pages.start + pageSize);
     function rename(old: string, next: string) {
         if (old === next || validateSchema("Key", next).length || Object.hasOwn(dataset.fields, next)) return false;
         const replace = <T,>(record: Record<string, T>) =>
@@ -53,7 +132,8 @@ export function DatasetFields({ dataset }: { dataset: DatasetV2 }) {
     return (
         <>
             <Section title={tx("Dataset fields")}>
-                {Object.entries(dataset.fields).map(([key, field]) => {
+                <PageButtons scope="fields" pages={pages} />
+                {visibleFields.map(([key, field]) => {
                     const change = (patch: Partial<DataFieldV2>) =>
                         update({ ...dataset.fields, [key]: { ...field, ...patch } }, rows);
                     return (
@@ -108,6 +188,7 @@ export function DatasetFields({ dataset }: { dataset: DatasetV2 }) {
                         let i = 1;
                         while (Object.hasOwn(dataset.fields, "field_" + i)) i++;
                         const key = "field_" + i;
+                        pages.set(Math.floor(entries.length / pageSize));
                         update(
                             { ...dataset.fields, [key]: defaultField },
                             rows.map((row) => ({ ...row, values: { ...row.values, [key]: "" } })),
@@ -117,7 +198,12 @@ export function DatasetFields({ dataset }: { dataset: DatasetV2 }) {
                     {tx("Add field")}
                 </Button>
             </Section>
-            <DatasetRows key={generation} dataset={dataset} update={(next) => update(dataset.fields, next)} />
+            <DatasetRows
+                key={generation}
+                dataset={dataset}
+                visibleFields={visibleFields}
+                update={(next) => update(dataset.fields, next)}
+            />
             <ImportRows
                 dataset={dataset}
                 apply={(next) => {
@@ -133,10 +219,19 @@ export function DatasetFields({ dataset }: { dataset: DatasetV2 }) {
  * 业务键在失焦时提交并同步所有子节点的父引用，连续输入不改变 React 行身份；排序与父键互相独立。
  * 缺失字段使用独立设置操作，已有值则复用通用 JSON 编辑器，允许明确输入空值以及对象和数组。
  */
-function DatasetRows({ dataset, update }: { dataset: DatasetV2; update: (rows: DataRowV2[]) => void }) {
+function DatasetRows({
+    dataset,
+    update,
+    visibleFields,
+}: {
+    dataset: DatasetV2;
+    update: (rows: DataRowV2[]) => void;
+    visibleFields: [string, DataFieldV2][];
+}) {
     const rows = dataset.source.rows,
         ids = usePrimitiveRows(rows.length);
     const parents = useId();
+    const pages = useDatasetPage(rows.length);
     return (
         <Section title={tx("数据行 / Dataset rows")}>
             {dataset.shape === "TREE" && (
@@ -146,7 +241,9 @@ function DatasetRows({ dataset, update }: { dataset: DatasetV2; update: (rows: D
                     ))}
                 </datalist>
             )}
-            {rows.map((row, index) => {
+            <PageButtons scope="rows" pages={pages} />
+            {rows.slice(pages.start, pages.start + pageSize).map((row: DataRowV2, slot) => {
+                const index = pages.start + slot;
                 const patch = (change: Partial<DataRowV2>) =>
                     update(rows.map((item, i) => (i === index ? { ...item, ...change } : item)));
                 const values = (key: string, value: JsonValue) => patch({ values: { ...row.values, [key]: value } });
@@ -200,12 +297,13 @@ function DatasetRows({ dataset, update }: { dataset: DatasetV2; update: (rows: D
                                 </label>
                             </>
                         )}
-                        {Object.entries(dataset.fields).map(([key, field]) => (
+                        {visibleFields.map(([key, field]) => (
                             <Section title={key} key={key}>
                                 {Object.hasOwn(row.values, key) ? (
                                     <>
                                         <JsonValueControl
                                             label={key}
+                                            renderString={multiline}
                                             value={row.values[key]!}
                                             onChange={(v) => values(key, v)}
                                         />
@@ -245,6 +343,7 @@ function DatasetRows({ dataset, update }: { dataset: DatasetV2; update: (rows: D
                                 .map(([key, f]) => [key, initialValues[f.type]]),
                         ),
                     };
+                    pages.set(Math.floor(rows.length / pageSize));
                     ids.append();
                     update([...rows, dataset.shape === "TREE" ? { ...row, parentKey: null, order: rows.length } : row]);
                 }}
@@ -296,6 +395,9 @@ function ImportRows({ dataset, apply }: { dataset: DatasetV2; apply: (rows: Data
                               : "CSV columns: key and dataset fields.",
                       )}
             </p>
+            {format === "CSV" && (
+                <p>{tx("Use values.<field> for data columns sharing a metadata name or starting with values.")}</p>
+            )}
             <label>
                 {tx("Import file")}
                 <input
