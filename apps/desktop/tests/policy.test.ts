@@ -203,3 +203,68 @@ test("updateDraft accepts CASE HTTP source arguments with a bound value", () => 
         data,
     );
 });
+
+/**
+ * 用真实创建及草稿保存路由验证内容恰好达到字节上限时可通过，超出一个多字节字符的文档不能借用信封余量。
+ */
+test("desktop dataset creates and updates admit 2 MiB of content and reject excess UTF-8 bytes", () => {
+    const workspaceId = "00000000-0000-4000-8000-000000000001";
+    const resourceId = "00000000-0000-4000-8000-000000000002";
+    const values = { text: "" };
+    const content = {
+        kind: "DATASET",
+        document: {
+            schemaVersion: "2.0",
+            shape: "TABLE",
+            fields: { text: { type: "string", required: true, nullable: false } },
+            source: { kind: "STATIC", rows: [{ key: "one", values }] },
+        },
+    };
+    const available = 2 * 1024 * 1024 - Buffer.byteLength(JSON.stringify(content));
+    const text = "文".repeat(Math.floor(available / 3)) + "x".repeat(available % 3);
+    for (const request of [
+        {
+            operation: "createResource",
+            params: { workspaceId },
+            data: { kind: "DATASET", key: "one", name: "表", content },
+        },
+        { operation: "updateDraft", params: { workspaceId, resourceId }, data: { revision: 1, content } },
+    ]) {
+        values.text = "a".repeat(1_229_000);
+        assert.equal(resolveOperation(request, workspaceId).data, request.data);
+        values.text = text;
+        assert.equal(Buffer.byteLength(JSON.stringify(content)), 2 * 1024 * 1024);
+        assert.equal(resolveOperation(request, workspaceId).data, request.data);
+        values.text += "x";
+        assert.throws(() => resolveOperation(request, workspaceId), /IPC_PAYLOAD_LIMIT/);
+    }
+    const large = {
+        kind: "ASSERTION_TEMPLATE",
+        document: {
+            schemaVersion: "1.0",
+            assertions: [
+                {
+                    id: "a",
+                    type: "url",
+                    source: "page",
+                    severity: "BLOCK",
+                    expectedSource: "source",
+                    operator: "equals",
+                    expected: "a".repeat(1024 * 1024),
+                },
+            ],
+        },
+    };
+    assert.throws(
+        () =>
+            resolveOperation(
+                {
+                    operation: "updateDraft",
+                    params: { workspaceId, resourceId },
+                    data: { revision: 1, content: large },
+                },
+                workspaceId,
+            ),
+        /IPC_PAYLOAD_LIMIT/,
+    );
+});

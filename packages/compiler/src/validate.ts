@@ -7,6 +7,7 @@ import { Ajv2020 } from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import {
     assertionExpectedTypes,
+    datasetFieldTypes,
     type DatasetDocument,
     assetSourceBytes,
     canonicalBytes,
@@ -59,6 +60,7 @@ interface Scope {
     library?: boolean;
     localDefinitions?: Set<string>;
     externalObservers?: boolean;
+    observedFields?: Map<SymbolType, { source: string; pointer: string }>;
     assertionBudget?: {
         count: number;
     };
@@ -526,16 +528,25 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
                 fail("UNKNOWN_PAGE_KEY", path + "/pageKey");
             if ("target" in a) target(a.target, scope, path + "/target");
             if (a.type === "responseSchema") checkJsonSchema(a.expected, path + "/expected");
-            if ("expected" in a && a.type !== "responseSchema")
-                binding(
-                    a.expected,
-                    scope,
-                    path + "/expected",
-                    (a.type === "ui" && ["textEquals", "textContains", "valueEquals"].includes(a.operator)) ||
-                        a.type === "url"
-                        ? "string"
-                        : undefined,
-                );
+            if ("expected" in a && a.type !== "responseSchema") {
+                const field = a.type === "responseField" || a.type === "requestField" ? a : undefined;
+                const candidates = field?.operator === "in" && Array.isArray(a.expected) ? a.expected : undefined;
+                for (const [index, value] of (candidates ?? [a.expected]).entries()) {
+                    const at = path + "/expected" + (candidates ? "/" + index : "");
+                    const expected = binding(
+                        value,
+                        scope,
+                        at,
+                        (a.type === "ui" && ["textEquals", "textContains", "valueEquals"].includes(a.operator)) ||
+                            a.type === "url"
+                            ? "string"
+                            : undefined,
+                    );
+                    const observed = expected && scope.observedFields?.get(expected);
+                    if (field && observed?.source === field.source && observed.pointer === field.pointer)
+                        fail("SELF_REFERENTIAL_EXPECTED", at);
+                }
+            }
             if ("datasetExpected" in a) {
                 const q = a.datasetExpected;
                 const at = path + "/datasetExpected";
@@ -563,8 +574,7 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
                             fail("UNKNOWN_DATASET_FIELD", at + "/" + key);
                             return [];
                         }
-                        const spec = fields[field]!;
-                        return typeof spec === "string" ? [spec] : spec.nullable ? [spec.type, "null"] : [spec.type];
+                        return datasetFieldTypes(fields[field]!);
                     };
                     let output: ValueType[] = ["array"];
                     if (q.op === "filter") {
@@ -689,13 +699,23 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
             }
             /**
              * 流程内提取已通过共享变量表对后续分析可见，包装步骤的提取在子流程之后登记，并按必填声明标记是否可能缺值。
+             * 当前展开的步骤只将自身提取符号交给后置断言；模板完整传参沿用同一符号，字面值或内层覆盖会另建符号。
              */
+            const observedFields = new Map<SymbolType, { source: string; pointer: string }>();
             for (const [j, e] of (s.extract ?? []).entries()) {
                 source(e.source, obs, path + "/extract/" + j);
                 if (scope.vars.has(e.to)) fail("DUPLICATE_VARIABLE", path + "/extract/" + j, e.to);
-                scope.vars.set(e.to, { type: e.valueType, optional: !e.required });
+                const symbol = { type: e.valueType, optional: !e.required };
+                scope.vars.set(e.to, symbol);
+                observedFields.set(symbol, e);
             }
-            const after = assertions(s.afterAssertions ?? [], owner, scope, obs, path + "/afterAssertions");
+            const after = assertions(
+                s.afterAssertions ?? [],
+                owner,
+                { ...scope, observedFields },
+                obs,
+                path + "/afterAssertions",
+            );
             /**
              * 写用例关键步骤须有非警告响应字段业务断言，允许相等、集合归属或包含操作；状态码或界面断言不满足此处。
              */

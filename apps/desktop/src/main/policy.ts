@@ -1,3 +1,4 @@
+import type { PlatformComponents } from "@veriq/contracts";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import schema from "../shared/validation.generated.json" with { type: "json" };
@@ -112,7 +113,18 @@ export function resolveOperation(value: unknown, workspace: string | undefined):
     // 幂等键独立于请求头，以专门字段暴露给有限的导出操作。
     if (rule.request ? validateSchema(rule.request, input.data).length : input.data !== undefined)
         throw new Error("IPC_PAYLOAD_INVALID");
-    if (JSON.stringify(input).length > 1024 * 1024) throw new Error("IPC_PAYLOAD_LIMIT");
+    const body = input.data as PlatformComponents["schemas"]["ResourceCreate" | "DraftWrite"];
+    const datasetWrite =
+        (input.operation === "updateDraft" ||
+            (input.operation === "createResource" && "kind" in body && body.kind === "DATASET")) &&
+        body.content.kind === "DATASET";
+    const envelope = JSON.stringify(input);
+    if (datasetWrite) {
+        // 服务端另给资源信封四千零九十六字节余量，内容本身仍以紧凑字节数核对，不得借用信封容量。
+        const limit = 2 * 1024 * 1024;
+        if (Buffer.byteLength(envelope) > limit + 4096 || Buffer.byteLength(JSON.stringify(body.content)) > limit)
+            throw new Error("IPC_PAYLOAD_LIMIT");
+    } else if (envelope.length > 1024 * 1024) throw new Error("IPC_PAYLOAD_LIMIT");
     if (rule.idempotency) {
         if (
             typeof input.idempotencyKey !== "string" ||
@@ -140,10 +152,10 @@ export function resolveOperation(value: unknown, workspace: string | undefined):
  * 返回值投影只在对应 OpenAPI 模式完成实际校验后建立类型，尤其认证 DTO 不能在删去 CSRF 后再冒充完整 SessionDTO；调用方
  * 需要显式构造安全的公开会话形状。
  */
-export function parseSchema<Name extends string & keyof import("@veriq/contracts").PlatformComponents["schemas"]>(
+export function parseSchema<Name extends string & keyof PlatformComponents["schemas"]>(
     name: Name,
     value: unknown,
-): import("@veriq/contracts").PlatformComponents["schemas"][Name] {
+): PlatformComponents["schemas"][Name] {
     if (validateSchema(name, value).length) throw new Error("INVALID_HOST_RESPONSE");
-    return value as import("@veriq/contracts").PlatformComponents["schemas"][Name];
+    return value as PlatformComponents["schemas"][Name];
 }

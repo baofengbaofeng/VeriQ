@@ -869,17 +869,18 @@ export async function onlineBusiness(
                 contents.set(digest, value);
                 return digest;
             };
+            const executionHash = put(canonicalBytes(execution));
             const manifest = {
                 schemaVersion: "1.0",
                 workspaceId: id(99),
                 jobId: id(60),
-                snapshotSha256: put(canonicalBytes(source)),
+                snapshotSha256: executionHash,
                 engineVersion: "0.1.0",
                 kind: "TEST",
                 caseExecutionId: id(11),
                 caseVersionId: id(1),
                 compiledBundleSha256: put(canonicalBytes(output.bundle)),
-                executionSnapshotSha256: put(canonicalBytes(execution)),
+                executionSnapshotSha256: executionHash,
             };
             for (const bytes of Object.values(output.files)) put(bytes);
             const manifestHash = put(canonicalBytes(manifest));

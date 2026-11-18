@@ -615,10 +615,10 @@ it("separates response validation from extraction-dependent assertions in the ty
             afterAssertions: [
                 business,
                 {
-                    id: "same",
+                    id: "related",
                     type: "responseField",
                     source: "response:save",
-                    pointer: "/id",
+                    pointer: "/relatedId",
                     operator: "equals",
                     expected: "{{vars.id}}",
                     severity: "BLOCK",
@@ -1305,4 +1305,149 @@ it("rejects a nonstatic source as the execution matrix", () => {
         { datasetVersionId: id(3) },
     );
     expect(validate(source).length).toBeGreaterThan(0);
+});
+
+/**
+ * 模板实参按展开时的词法作用域取值。仅当同一步骤、观察方向和指针三者均相同，字段真值才直接来自被测值。
+ */
+it("requires an independent expected field through nested and shadowed template parameters", () => {
+    const call = (version: number, expected: string): AssertionV1 => ({
+        id: "call",
+        type: "template",
+        versionId: id(version),
+        parameters: { expected },
+        expectedSource: "API",
+        severity: "BLOCK",
+    });
+    const leaf = asset(4, "ASSERTION_TEMPLATE", {
+        schemaVersion: "1.0",
+        parameters: { expected: "string" },
+        assertions: [{ ...business, expected: "{{data.expected}}" }],
+    });
+    const observation: StepV1 = {
+        id: "read",
+        action: "reload",
+        observers: [
+            { id: "save", method: "GET", path: "/" },
+            { id: "other", method: "GET", path: "/two" },
+        ],
+        extract: [{ source: "response:save", pointer: "/code", to: "observed", required: true, valueType: "string" }],
+    };
+    const field = { ...business, expected: "{{vars.observed}}" } as const;
+    const error = { code: "SELF_REFERENTIAL_EXPECTED" };
+    const direct = analyze(snapshot([{ ...observation, afterAssertions: [field] }])).issues;
+    expect(direct).toEqual([
+        expect.objectContaining({ ...error, path: "/assets/0/document/steps/0/afterAssertions/0/expected" }),
+    ]);
+    for (const [outer, inner, rejected] of [
+        ["{{vars.observed}}", "{{data.expected}}", true],
+        ["independent", "{{vars.observed}}", true],
+        ["{{vars.observed}}", "independent", false],
+    ] as const) {
+        const middle = asset(3, "ASSERTION_TEMPLATE", {
+            schemaVersion: "1.0",
+            parameters: { expected: "string" },
+            assertions: [call(4, inner)],
+        });
+        const checked = analyze(snapshot([{ ...observation, afterAssertions: [call(3, outer)] }], [middle, leaf]));
+        expect(checked.issues).toEqual(rejected ? [expect.objectContaining(error)] : []);
+    }
+    const membership = asset(5, "ASSERTION_TEMPLATE", {
+        schemaVersion: "1.0",
+        parameters: { input: "object" },
+        assertions: [{ ...field, operator: "in", expected: ["fixed", "{{data.input.code}}"] }],
+    });
+    const checkCandidate = (code: string) =>
+        analyze(
+            snapshot(
+                [
+                    {
+                        ...observation,
+                        afterAssertions: [
+                            {
+                                id: "member",
+                                type: "template",
+                                versionId: id(5),
+                                parameters: { input: { code } },
+                                expectedSource: "policy",
+                                severity: "BLOCK",
+                            },
+                        ],
+                    },
+                ],
+                [membership],
+            ),
+        ).issues;
+    expect(checkCandidate("{{vars.observed}}")).toEqual([
+        expect.objectContaining({
+            ...error,
+            path: "/assets/0/document/steps/0/afterAssertions/0/template/0/expected/1",
+        }),
+    ]);
+    expect(checkCandidate("fixed")).toEqual([]);
+    const unknownChild = snapshot([
+        {
+            ...observation,
+            extract: [{ source: "response:save", pointer: "", to: "object", valueType: "object", required: true }],
+            afterAssertions: [{ ...field, expected: "{{vars.object.code}}" }],
+        },
+    ]);
+    expect(codes(unknownChild)).toContain("VARIABLE_USED_BEFORE_DEFINED");
+    const independent = snapshot([
+        {
+            ...observation,
+            afterAssertions: [
+                { ...field, id: "pointer", pointer: "/another" },
+                { ...field, id: "source", source: "response:other" },
+                { ...field, id: "request", type: "requestField", source: "request:save" },
+                { ...field, id: "literal", expected: "observed" },
+                { ...field, id: "nested", operator: "in", expected: [{ code: "{{vars.observed}}" }] },
+            ],
+        },
+        { ...observation, id: "again", extract: [], afterAssertions: [field] },
+    ]);
+    expect(validate(independent)).toEqual([]);
+});
+
+/**
+ * 观察到的行键可以选取独立数据集中的预期字段。编译后该查询仍在提取之后执行，数据集内容保有原来的类型。
+ */
+it("allows a same-observation key to select an independent expected dataset field", () => {
+    const { expected: _literal, ...assertion } = business;
+    const table = namedDataset(3, "string", ["expected"]);
+    const checked = analyze(
+        snapshot(
+            [
+                {
+                    id: "read",
+                    action: "reload",
+                    observers: [{ id: "save", method: "GET", path: "/" }],
+                    extract: [
+                        {
+                            source: "response:save",
+                            pointer: "/code",
+                            to: "observed",
+                            valueType: "string",
+                            required: true,
+                        },
+                    ],
+                    afterAssertions: [
+                        {
+                            ...assertion,
+                            datasetExpected: {
+                                op: "field",
+                                key: "{{vars.observed}}",
+                                alias: "codes",
+                                field: "name",
+                            },
+                        },
+                    ],
+                },
+            ],
+            [table],
+            { datasetBindings: { codes: id(3) } },
+        ),
+    );
+    expect(checked.issues).toEqual([]);
+    expect(checked.cases[0]!.steps[0]!.after).toHaveLength(1);
 });

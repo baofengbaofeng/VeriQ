@@ -3,7 +3,7 @@
  * 这里只检查静态数据及其元数据，不改变冻结行的顺序，不转换值，也不加载任何数据来源。
  */
 
-import type { DatasetDocument, TreeDataRowV2 } from "./types.generated.js";
+import type { DataFieldV2, DatasetDocument, TreeDataRowV2, ValueType } from "./types.generated.js";
 import { accepts, pointerKey, valueType } from "./bindings.js";
 
 /**
@@ -13,12 +13,22 @@ import { accepts, pointerKey, valueType } from "./bindings.js";
 const MAX_TREE_DEPTH = 100;
 
 /**
+ * 编译器与执行端共用字段可接受的类型集合，旧版直接使用列类型，新版仅按显式声明加入空值类型。
+ */
+export function datasetFieldTypes(field: ValueType | DataFieldV2): ValueType[] {
+    return typeof field === "string" ? [field] : field.nullable ? [field.type, "null"] : [field.type];
+}
+
+/**
  * 把验证过结构的数据集投影为带位置的编译诊断。可选字段允许缺失而保留显式空值的独立语义，行键以冻结版本为范围。
  * path 是外层快照中的文档指针；单独调用时默认返回相对数据集文档的指针。
  */
-export function validateDataset(document: DatasetDocument, path = "") {
+export function validateDataset(document: DatasetDocument, path = "", issueLimit = Infinity) {
+    if (!(issueLimit >= 1)) throw new RangeError("Expected a positive diagnostic limit");
     const issues: { code: string; path: string; message: string }[] = [];
-    const fail = (code: string, suffix: string, message = code) => issues.push({ code, path: path + suffix, message });
+    const fail = (code: string, suffix: string, message = code) => {
+        if (issues.length < issueLimit) issues.push({ code, path: path + suffix, message });
+    };
 
     /**
      * 已发布旧数据集继续执行原有全部列必填与类型规则，保留旧校验代码和重复键的数组级问题位置。
@@ -66,6 +76,7 @@ export function validateDataset(document: DatasetDocument, path = "") {
     const indexes = new Map<string, number>();
     const required = Object.keys(document.fields).filter((key) => document.fields[key]!.required);
     for (const [index, row] of rows.entries()) {
+        if (issues.length >= issueLimit) return issues;
         const rowPath = `/source/rows/${index}`;
         if (indexes.has(row.key)) fail("DATASET_DUPLICATE_ROW_KEY", rowPath + "/key");
         else indexes.set(row.key, index);
@@ -76,6 +87,7 @@ export function validateDataset(document: DatasetDocument, path = "") {
          */
         let presentRequired = 0;
         for (const [key, value] of Object.entries(row.values)) {
+            if (issues.length >= issueLimit) return issues;
             const valuePath = rowPath + "/values/" + pointerKey(key);
             const field = Object.hasOwn(document.fields, key) ? document.fields[key] : undefined;
             if (!field) {

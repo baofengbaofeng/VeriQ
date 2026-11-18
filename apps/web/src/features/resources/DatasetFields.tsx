@@ -458,11 +458,7 @@ function ImportRows({
                 (result.issues.length ? (
                     <ul role="alert">
                         {[
-                            ...new Set(
-                                result.issues
-                                    .slice(0, 100)
-                                    .map((issue) => [issue.row, issue.field, issue.code].join(" · ")),
-                            ),
+                            ...new Set(result.issues.map((issue) => [issue.row, issue.field, issue.code].join(" · "))),
                         ].map((message) => (
                             <li key={message}>{message}</li>
                         ))}

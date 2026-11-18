@@ -14,6 +14,7 @@ const propertyWords =
     "kind versionId resourceId sha256 key parentKey fields shape cases order";
 const properties = new Set(propertyWords.split(" "));
 const messages: Record<string, string> = {
+    SELF_REFERENTIAL_EXPECTED: "The expected value comes from the same observed field.",
     UNKNOWN_ELEMENT: "Element is not declared in the pinned catalog.",
     MISSING_REFERENCE: "Referenced version is missing from the dependency snapshot.",
     REFERENCE_KIND_MISMATCH: "Referenced version has an incompatible resource kind.",

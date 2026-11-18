@@ -141,3 +141,24 @@ test("JSON rejects unpaired UTF-16 instead of accepting a draft the server canno
     assert.deepEqual(result.rows, []);
     assert.ok(result.issues.length);
 });
+
+/**
+ * 结构错误、字段语义错误及宽表头都只保留界面能够显示的问题，任意未展示错误都不能使导入结果含有可应用的行。
+ */
+test("crowded imports keep the first hundred diagnostics and reject all rows", () => {
+    const semantic = Array.from({ length: 2400 }, (_, i) => ({ key: "r" + i, values: { unknown: true } }));
+    const extras = Object.fromEntries(Array.from({ length: 1200 }, (_, i) => ["extra" + i, 0]));
+    for (const [format, input, lastRow, lastField] of [
+        ["JSON", JSON.stringify(Array(2400).fill(null)), 100, "row"],
+        ["JSON", JSON.stringify(semantic), 50, "__proto__"],
+        ["JSON", JSON.stringify([{ key: "r", values: {}, ...extras }]), 1, "extra99"],
+        ["CSV", ["key", ...Array(1200).fill("bad")].join(","), 1, "bad"],
+    ] as const) {
+        const result = parseDatasetImport(format, input, dataset);
+        assert.deepEqual(result.rows, []);
+        assert.equal(result.issues.length, 100);
+        assert.equal(result.issues[0]?.row, 1);
+        assert.equal(result.issues.at(-1)?.row, lastRow);
+        assert.equal(result.issues.at(-1)?.field, lastField);
+    }
+});

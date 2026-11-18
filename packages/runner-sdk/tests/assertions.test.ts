@@ -569,3 +569,43 @@ it.each(["WARN", "BLOCK"] as const)("reports a pre-sampling deadline as ERROR fo
         ctx.dispose();
     }
 });
+
+/**
+ * 直接调用静态查询时按解析后的实参类型匹配声明，数字与整数维持兼容，显式空值仍只匹配允许为空的字段。
+ */
+it("checks resolved static filter operands before reporting an empty match", async () => {
+    const { staticDatasetResolver } = await import("../src/index.js");
+    const resolver = staticDatasetResolver(
+        new Map<string, import("@veriq/contracts").DatasetDocument>([
+            ["old", { schemaVersion: "1.0", columns: { n: "number" }, rows: [{ key: "r", values: { n: 2 } }] }],
+            [
+                "new",
+                {
+                    schemaVersion: "2.0",
+                    shape: "TABLE",
+                    fields: { n: { type: "integer", nullable: true, required: false } },
+                    source: {
+                        kind: "STATIC",
+                        rows: [
+                            { key: "a", values: {} },
+                            { key: "b", values: { n: null } },
+                        ],
+                    },
+                },
+            ],
+        ]),
+    );
+    const filter = (alias: string, operand: string | number | null) =>
+        resolver.read(
+            { alias, op: "filter", equals: "{{vars.operand}}", field: "n", select: "n" },
+            { vars: { operand } },
+            new AbortController().signal,
+        );
+    await expect(filter("old", "2")).rejects.toThrow("BINDING_TYPE_MISMATCH");
+    await expect(filter("old", null)).rejects.toThrow("BINDING_TYPE_MISMATCH");
+    await expect(filter("old", 2)).resolves.toEqual([2]);
+    await expect(filter("old", 0.5)).resolves.toEqual([]);
+    await expect(filter("new", 0.5)).rejects.toThrow("BINDING_TYPE_MISMATCH");
+    await expect(filter("new", 2)).resolves.toEqual([]);
+    await expect(filter("new", null)).resolves.toEqual([null]);
+});

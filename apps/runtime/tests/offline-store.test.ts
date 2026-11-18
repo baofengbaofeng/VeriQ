@@ -1,4 +1,3 @@
-import { spawnSync } from "node:child_process";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -104,22 +103,6 @@ test("initial local report commits atomically with ownership before any child is
         await rm(dir, { recursive: true, force: true });
     }
 });
-test("offline CLI exposes execute, cancel, history, report and explicit upload without credentials in argv", () => {
-    const { status, stdout } = requireSpawn(["--help"]);
-    assert.equal(status, 0);
-    assert.match(stdout, /run/);
-    assert.match(stdout, /results/);
-    const results = requireSpawn(["results", "--help"]);
-    assert.match(results.stdout, /history/);
-    assert.match(results.stdout, /report/);
-    assert.match(results.stdout, /upload/);
-    assert.match(results.stdout, /cancel/);
-});
-function requireSpawn(args: string[]) {
-    return spawnSync(process.execPath, ["--import", "tsx", "src/cli.ts", ...args], {
-        encoding: "utf8",
-    });
-}
 test("two OS processes compete for one durable local context", async () => {
     const { LocalStore } = await import("../src/offline/store.ts");
     const { spawn } = await import("node:child_process");

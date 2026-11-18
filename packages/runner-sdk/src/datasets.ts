@@ -3,9 +3,12 @@
  */
 import { isDeepStrictEqual } from "node:util";
 import {
+    accepts,
     canonicalBytes,
+    datasetFieldTypes,
     resolveBinding,
     validateSchema,
+    valueType,
     type HttpDatasetSample,
     type HttpDatasetResponse,
     type DatasetDocument,
@@ -61,6 +64,8 @@ function evaluate(doc: DatasetDocument, q: DatasetQuery, parameters: JsonObject)
         throw new Error("UNKNOWN_DATASET_FIELD");
     if (q.op === "filter") {
         const equals = resolve(q.equals);
+        if (!datasetFieldTypes(fields[q.field]!).some((type) => accepts(type, valueType(equals))))
+            throw new Error("BINDING_TYPE_MISMATCH");
         return rows
             .filter((r) => Object.hasOwn(r.values, q.field) && isDeepStrictEqual(r.values[q.field], equals))
             .map((r) => field(r.values, q.select));

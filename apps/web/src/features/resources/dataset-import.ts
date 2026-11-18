@@ -20,6 +20,9 @@ export interface DatasetImportIssue {
     field: string;
     code: string;
 }
+const issueLimit = 100;
+const rowMetadata = { TREE: ["key", "parentKey", "order"], TABLE: ["key"] };
+
 type Result = { rows: DataRowV2[]; issues: DatasetImportIssue[] };
 type RecordLine = { line: number; cells: string[] };
 const decodeField = (token: string) => token.replaceAll("~1", "/").replaceAll("~0", "~");
@@ -102,10 +105,11 @@ function csvRows(text: string, dataset: DatasetV2, issues: DatasetImportIssue[],
     const header = records.next().value as RecordLine | undefined;
     if (issues.length) return [];
     const names = header?.cells ?? [];
-    const metadata = dataset.shape === "TREE" ? ["key", "parentKey", "order"] : ["key"];
+    const metadata = rowMetadata[dataset.shape];
     const metaSeen = new Set<string>(),
         fieldsSeen = new Set<string>();
-    const columns = names.map((name) => {
+    const columns = [];
+    for (const name of names) {
         const meta = metadata.includes(name);
         const field = meta ? name : name.replace(/^values\./u, "");
         const seen = meta ? metaSeen : fieldsSeen;
@@ -113,19 +117,21 @@ function csvRows(text: string, dataset: DatasetV2, issues: DatasetImportIssue[],
         else if (!meta && !Object.hasOwn(dataset.fields, field))
             issues.push({ row: 1, field, code: "DATASET_UNKNOWN_FIELD" });
         seen.add(field);
-        return { field, meta };
-    });
-    for (const field of metadata) if (!metaSeen.has(field)) issues.push({ row: 1, field, code: "MISSING_COLUMN" });
+        if (issues.length >= issueLimit) return [];
+        columns.push({ field, meta });
+    }
+    for (const field of metadata)
+        if (!metaSeen.has(field) && issues.length < issueLimit) issues.push({ row: 1, field, code: "MISSING_COLUMN" });
     if (issues.length) return [];
     const rows = [];
     let size = 0;
     for (const { line, cells } of records) {
-        if (issues.length >= 100) break;
         lines.push(line);
         const values = new Map<string, unknown>();
         const meta = new Map<string, unknown>();
         if (cells.length !== names.length) {
             issues.push({ row: line, field: "CSV", code: "COLUMN_COUNT" });
+            if (issues.length >= issueLimit) return [];
             continue;
         }
         for (const [i, raw] of cells.entries()) {
@@ -142,6 +148,7 @@ function csvRows(text: string, dataset: DatasetV2, issues: DatasetImportIssue[],
             } catch (error) {
                 if (!(error instanceof SyntaxError)) throw error;
                 issues.push({ row: line, field, code: "DATASET_FIELD_TYPE_MISMATCH" });
+                if (issues.length >= issueLimit) return [];
             }
         }
         const row = { ...Object.fromEntries(meta), values: Object.fromEntries(values) };
@@ -170,13 +177,26 @@ export function parseDatasetImport(format: "CSV" | "JSON", text: string, dataset
         if (issues.length) return { rows: [], issues };
         const candidate = { ...dataset, source: { kind: "STATIC", rows } } as DatasetV2;
 
+        const allowed = new Set([...rowMetadata[dataset.shape], "values"]);
         for (const [i, row] of rows.entries()) {
+            const line = lines[i] ?? i + 1;
+            // 单行若已含足够多的额外属性，只记录实际存在的未知键，避免全错误模式在校验器内先生成整份诊断。
+            if (row && typeof row === "object" && !Array.isArray(row)) {
+                const keys = Object.keys(row);
+                if (keys.length >= allowed.size + issueLimit - issues.length) {
+                    for (const field of keys) {
+                        if (!allowed.has(field)) issues.push({ row: line, field, code: "SCHEMA_VIOLATION" });
+                        if (issues.length >= issueLimit) return { rows: [], issues };
+                    }
+                }
+            }
             for (const issue of validateSchema(dataset.shape === "TREE" ? "TreeDataRowV2" : "DataRowV1", row, true)) {
                 issues.push({
-                    row: lines[i] ?? i + 1,
+                    row: line,
                     field: decodeField(issue.path.split("/").pop() || "row"),
                     code: issue.code,
                 });
+                if (issues.length >= issueLimit) return { rows: [], issues };
             }
         }
         if (!issues.length) {
@@ -188,7 +208,7 @@ export function parseDatasetImport(format: "CSV" | "JSON", text: string, dataset
                     return fail("INVALID_JSON");
                 throw error;
             }
-            for (const issue of validateDataset(candidate)) {
+            for (const issue of validateDataset(candidate, "", issueLimit)) {
                 const [, , , index, ...path] = issue.path.split("/");
                 issues.push({
                     row: lines[Number(index)] ?? Number(index) + 1,

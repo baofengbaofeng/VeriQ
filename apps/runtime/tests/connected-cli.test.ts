@@ -8,8 +8,14 @@ import test from "node:test";
 test("MVP CLI exposes connected runtime and historical reports", () => {
     const help = (...args: string[]) =>
         execFileSync(process.execPath, ["--import", "tsx", "src/cli.ts", ...args, "--help"], { encoding: "utf8" });
-    assert.match(help(), /runtime/);
-    assert.doesNotMatch(help(), /^  (run|bundle)\b/m);
-    assert.match(help("results"), /history/);
-    assert.doesNotMatch(help("results"), /upload </);
+    const root = help();
+    assert.match(root, /^  runtime +Run and control the online Agent$/m);
+    assert.match(root, /^  results +Historical local reports/m);
+    assert.doesNotMatch(root, /^  (run|bundle|upload)\b/m);
+    const results = help("results");
+    assert.match(results, /^  history \[options\]$/m);
+    assert.match(results, /^  report \[options\] <runId>$/m);
+    assert.match(results, /^  cancel \[options\] <runId>$/m);
+    assert.match(results, /^  recover +Reconcile an interrupted local host/m);
+    assert.doesNotMatch(results, /^  (run|upload)\b/m);
 });

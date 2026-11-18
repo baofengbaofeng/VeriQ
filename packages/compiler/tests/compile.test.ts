@@ -141,10 +141,10 @@ describe("closure and dependency semantics", () => {
                         ],
                         afterAssertions: [
                             {
-                                id: "same",
+                                id: "related",
                                 type: "responseField",
                                 source: "response:read",
-                                pointer: "/id",
+                                pointer: "/relatedId",
                                 operator: "equals",
                                 expected: "{{vars.id}}",
                                 severity: "BLOCK",
