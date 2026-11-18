@@ -1,16 +1,18 @@
-"""VeriQ 停机备份以 MySQL 全局读锁固定所有表的同一状态，同时保存真实制品和生效密钥配置；恢复仅面向已经显式迁移的空目标，
+"""
+VeriQ 停机备份以 MySQL 全局读锁固定所有表的同一状态，同时保存真实制品和生效密钥配置；恢复仅面向已经显式迁移的空目标，
 版本、摘要、密钥和外键全部匹配才可解除失败标记。
 """
 
 from contextlib import asynccontextmanager
-from collections.abc import AsyncIterator
-from typing import Any
+from collections.abc import AsyncIterator, Callable
+from typing import TYPE_CHECKING, cast
 from hashlib import sha256
 import json
 import os
 from pathlib import Path
 
 from alembic.migration import MigrationContext
+import sqlalchemy
 from sqlalchemy import MetaData, select, text, func, and_, exists
 from sqlalchemy.ext.asyncio import AsyncConnection
 
@@ -30,10 +32,14 @@ from .snapshot_io import (
     copy_tree,
 )
 
+if TYPE_CHECKING:
+    import mypy_boto3_s3.client
+
 
 @asynccontextmanager
 async def maintenance_connection(db: Database, *, freeze: bool) -> AsyncIterator[AsyncConnection]:
-    """复用迁移命名锁阻止升级与恢复交错，备份额外持有全局读锁冻结真实数据库；命名锁失败或清理无法确认时直接失败，
+    """
+    复用迁移命名锁阻止升级与恢复交错，备份额外持有全局读锁冻结真实数据库；命名锁失败或清理无法确认时直接失败，
     不自动重连伪造旧物理会话已经释放锁的结论。
     """
     async with db.engine.connect() as connection:
@@ -68,7 +74,8 @@ async def maintenance_connection(db: Database, *, freeze: bool) -> AsyncIterator
 
 
 async def installed_tables(connection: AsyncConnection) -> MetaData:
-    """读取目标已安装的真实表及外键并要求与当前程序完整匹配，恢复不会执行 DDL 或忽略未知平台表；迁移头必须精确一致，
+    """
+    读取目标已安装的真实表及外键并要求与当前程序完整匹配，恢复不会执行 DDL 或忽略未知平台表；迁移头必须精确一致，
     避免把新数据库交给旧软件进行猜测式回滚。
     """
     version = str((await connection.execute(text("SELECT VERSION()"))).scalar_one())
@@ -89,10 +96,11 @@ async def installed_tables(connection: AsyncConnection) -> MetaData:
 
 
 async def require_quiescent(connection: AsyncConnection, metadata: MetaData) -> None:
-    """停机声明之外再检查数据库中的在途任务、隔离容量、未完成发布和导出；这些状态可能仍有外部进程写入，因此无法仅靠暂停
+    """
+    停机声明之外再检查数据库中的在途任务、隔离容量、未完成发布和导出；这些状态可能仍有外部进程写入，因此无法仅靠暂停
     HTTP 服务证明制品已经稳定，遇到任何一个就拒绝备份。
     """
-    checks = {
+    checks: dict[str, Callable[[sqlalchemy.Table], sqlalchemy.ColumnElement[bool]]] = {
         "veriq_attempts": lambda t: (t.c.phase != "FINISHED") | (t.c.capacity_state != "RELEASED"),
         "veriq_resource_leases": lambda t: t.c.state != "RELEASED",
         "veriq_artifact_publications": lambda t: t.c.state == "PENDING",
@@ -106,7 +114,8 @@ async def require_quiescent(connection: AsyncConnection, metadata: MetaData) -> 
 
 
 def key_fingerprints(settings: Settings) -> dict[str, str]:
-    """只为兼容比较计算生效密钥的摘要，完整配置仅写入私有备份载荷而不输出到日志；密钥标识与字节共同参与比较，
+    """
+    只为兼容比较计算生效密钥的摘要，完整配置仅写入私有备份载荷而不输出到日志；密钥标识与字节共同参与比较，
     防止同名密钥被错误替换后恢复出不可解密的数据库。
     """
     values = {**settings.previous_master_keys, settings.master_key_id: settings.master_key}
@@ -116,9 +125,12 @@ def key_fingerprints(settings: Settings) -> dict[str, str]:
     }
 
 
-def s3_client(settings: Settings) -> Any:
-    """仅在备份中确实存在 S3 记录或恢复明确允许桶清单检查时创建真实客户端，操作使用既有 boto3 依赖与有界网络超时，
+def s3_client(settings: Settings) -> "mypy_boto3_s3.client.S3Client":
+    """
+    仅在备份中确实存在 S3 记录或恢复明确允许桶清单检查时创建真实客户端，操作使用既有 boto3 依赖与有界网络超时，
     不改变业务存储适配器或探测策略的权限默认值。
+
+    工厂返回前已检查同一个配置对象的桶名，后续请求的类型转换只表达该检查建立的字符串约束。
     """
     import boto3
     from botocore.config import Config
@@ -141,7 +153,8 @@ async def backup(
     services_stopped: bool,
     configuration_path: Path,
 ) -> str:
-    """操作员确认所有写入服务停止后，在同一全局读锁窗口流式导出全部真实表与外置字节并保存生效配置、签发私钥和引擎库存，
+    """
+    操作员确认所有写入服务停止后，在同一全局读锁窗口流式导出全部真实表与外置字节并保存生效配置、签发私钥和引擎库存，
     只有所有载荷同步完成才写入完成清单并返回摘要。
     """
     if not services_stopped or not destination.is_absolute() or destination.exists():
@@ -227,14 +240,16 @@ async def backup(
         ).mappings()
         from .services.artifact import key, verify, MAX_FILE
 
-        client = None
+        client: mypy_boto3_s3.client.S3Client | None = None
         try:
             for row in rows:
                 if client is None:
                     client = await asyncio.to_thread(s3_client, settings)
                 object_key = key(row["workspace_id"], row["sha256"], row["storage_incarnation"])
                 response = await asyncio.to_thread(
-                    client.get_object, Bucket=settings.artifact_s3_bucket, Key=object_key
+                    client.get_object,
+                    Bucket=cast(str, settings.artifact_s3_bucket),
+                    Key=object_key,
                 )
                 try:
                     raw = await asyncio.to_thread(
@@ -304,7 +319,8 @@ async def restore(
     allow_s3_inventory: bool,
     configuration_path: Path,
 ) -> None:
-    """恢复必须携带独立清单摘要和三项显式停机及空目标确认，拒绝任何版本或密钥不兼容；外部制品写入失败时保留不完整标记，
+    """
+    恢复必须携带独立清单摘要和三项显式停机及空目标确认，拒绝任何版本或密钥不兼容；外部制品写入失败时保留不完整标记，
     禁止将部分恢复的目标自动报告为可用服务。
     """
     if (
@@ -348,7 +364,12 @@ async def restore(
     archived_settings = Settings.model_validate(
         json.loads(safe_snapshot_file(source, "configuration.json").read_text())
     )
-    if key_fingerprints(archived_settings) != manifest["keyFingerprints"]:
+    # 已确认的清单同时约束归档和目标的签名字节，避免私有配置与实际恢复使用的签名身份不一致。
+    if (
+        key_fingerprints(archived_settings) != manifest["keyFingerprints"]
+        or sha256(bytes.fromhex(archived_settings.signing_key.get_secret_value())).hexdigest()
+        != manifest["signingKeyFingerprint"]
+    ):
         raise ValueError("BACKUP_KEY_MATERIAL_MISMATCH")
     version_entry = manifest["tables"]["veriq_alembic_version"]
     with safe_snapshot_file(source, version_entry["file"]).open() as version_stream:
@@ -385,14 +406,16 @@ async def restore(
             ):
                 raise ValueError("RESTORE_EXTERNAL_MATERIAL_CONFLICT")
             material_targets[path] = raw
-    client = None
+    client: mypy_boto3_s3.client.S3Client | None = None
     try:
         if manifest["s3Objects"] or manifest["s3Tombstones"]:
             if not allow_s3_inventory:
                 raise ValueError("RESTORE_S3_LIST_PERMISSION_CONFIRMATION_REQUIRED")
             client = await asyncio.to_thread(s3_client, settings)
             listing = await asyncio.to_thread(
-                client.list_objects_v2, Bucket=settings.artifact_s3_bucket, MaxKeys=1
+                client.list_objects_v2,
+                Bucket=cast(str, settings.artifact_s3_bucket),
+                MaxKeys=1,
             )
             if listing.get("KeyCount", 0) or listing.get("Contents") or listing.get("IsTruncated"):
                 raise ValueError("RESTORE_S3_TARGET_NOT_EMPTY")
@@ -427,7 +450,7 @@ async def restore(
                 for object_key in manifest["s3Tombstones"]:
                     await asyncio.to_thread(
                         client.put_object,
-                        Bucket=settings.artifact_s3_bucket,
+                        Bucket=cast(str, settings.artifact_s3_bucket),
                         Key=object_key,
                         Body=b"",
                     )
@@ -435,7 +458,7 @@ async def restore(
                     raw = safe_snapshot_file(source, item["file"]).read_bytes()
                     await asyncio.to_thread(
                         client.put_object,
-                        Bucket=settings.artifact_s3_bucket,
+                        Bucket=cast(str, settings.artifact_s3_bucket),
                         Key=item["key"],
                         Body=raw,
                     )

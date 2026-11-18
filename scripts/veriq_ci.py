@@ -1,8 +1,11 @@
-"""外部 CI 通过受限执行令牌触发一个固定计划并轮询权威结果，密钥只从环境变量读取；脚本使用标准 HTTP 客户端和服务端安全
-JUnit，不解析业务证据或把 HTTP 接受状态当作门禁通过。
+"""
+外部 CI 通过受限执行令牌触发一个固定计划并轮询权威结果，密钥只从环境变量读取。
+脚本使用标准 HTTP 客户端和服务端安全 JUnit，不解析业务证据或把 HTTP 接受状态当作门禁通过。
 """
 
 import argparse
+from collections.abc import Sequence
+import http.client
 import json
 import os
 from pathlib import Path
@@ -10,6 +13,7 @@ from queue import Empty, Queue
 import sys
 from threading import Thread
 import time
+from typing import IO, Literal, TypedDict, cast, overload
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request, build_opener, HTTPRedirectHandler
@@ -17,25 +21,51 @@ from xml.etree.ElementTree import fromstring, ParseError
 
 
 class NoRedirect(HTTPRedirectHandler):
-    """禁止自动跟随重定向以防受限令牌被代理或错误平台地址转发到其他来源，CI 只访问操作者配置的明确服务根地址；
+    """
+    禁止自动跟随重定向以防受限令牌被代理或错误平台地址转发到其他来源，CI 只访问操作者配置的明确服务根地址。
     重定向属于配置错误并以非零退出，不携带凭证自动尝试新位置。
     """
 
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        """所有重定向都返回拒绝结果，让标准 HTTP 栈抛出可控错误而不是把 Authorization 带到另一个地址；
+    def redirect_request(
+        self,
+        req: Request,
+        fp: IO[bytes],
+        code: int,
+        msg: str,
+        headers: http.client.HTTPMessage,
+        newurl: str,
+    ) -> None:
+        """
+        所有重定向都返回拒绝结果，让标准 HTTP 栈抛出可控错误而不是把 Authorization 带到另一个地址。
         错误处理只打印状态码，不打印请求头、响应正文或可能包含敏感材料的服务 URL。
         """
-        return None
+        # 拒绝适用于所有重定向目标，回调无需读取原始请求、响应流、状态码、消息、响应头或新的地址。
+        del req, fp, code, msg, headers, newurl
+
+
+class _CIData(TypedDict, total=False):
+    """
+    该字典仅投影触发回执、运行状态和安全报告中脚本读取的五个字段，保留不同端点各自提供的键。
+    JSON 只按服务协议作类型转换，取键、UUID 解析和真值判断仍由现有调用方负责。
+    """
+
+    runId: str
+    state: str
+    outcome: str
+    gatePassed: bool
+    cases: list[object]
 
 
 class Client:
-    """薄 HTTP 客户端固定服务来源、每次请求超时和响应字节上限，Bearer 仅保存在内存；相同触发重试保留完全一致的正文和幂等
-    键，网络错误不会导致生成新的运行请求。
+    """
+    薄 HTTP 客户端固定服务来源、每次请求超时和响应字节上限，Bearer 仅保存在内存。
+    相同触发重试保留完全一致的正文和幂等键，网络错误不会导致生成新的运行请求。
     """
 
     def __init__(self, server: str, token: str, deadline: float):
-        """服务地址默认要求 HTTPS，仅允许回环地址使用 HTTP 供隔离开发验证，禁止内嵌凭证和查询参数；独立请求超时由剩余
-        CI 总预算限制，避免在服务不可用时无限等待或意外泄露令牌。
+        """
+        服务地址默认要求 HTTPS，仅允许回环地址使用 HTTP 供隔离开发验证，禁止内嵌凭证和查询参数。
+        独立请求超时由剩余 CI 总预算限制，避免在服务不可用时无限等待或意外泄露令牌。
         """
         parsed = urlsplit(server)
         if (
@@ -55,7 +85,8 @@ class Client:
         self.opener = build_opener(NoRedirect())
 
     def remaining(self) -> float:
-        """所有请求与最终门禁判断共享同一个单调时钟截止点，每次重新计算剩余预算而不是延长原始超时；
+        """
+        所有请求与最终门禁判断共享同一个单调时钟截止点，每次重新计算剩余预算而不是延长原始超时。
         读取或解析完成时再次核对，防止在最后一个响应越过期限后仍然把通过结果交给 CI。
         """
         remaining = self.deadline - time.monotonic()
@@ -63,11 +94,51 @@ class Client:
             raise TimeoutError
         return remaining
 
+    @overload
     def request(
-        self, path: str, method: str = "GET", body=None, key: str | None = None, *, binary=False
-    ):
-        """路径由本脚本根据已验证 UUID 构造，不接收响应中的任意远端跳转地址；JSON 请求与安全 XML 下载共享限定响应大小，
-        超出界限立即失败而不尝试把部分结果解释成完整成功报告。
+        self,
+        path: str,
+        method: str = "GET",
+        body: dict[str, str] | None = None,
+        key: str | None = None,
+        *,
+        binary: Literal[False] = False,
+    ) -> _CIData: ...
+
+    @overload
+    def request(
+        self,
+        path: str,
+        method: str = "GET",
+        body: dict[str, str] | None = None,
+        key: str | None = None,
+        *,
+        binary: Literal[True],
+    ) -> bytes: ...
+
+    @overload
+    def request(
+        self,
+        path: str,
+        method: str = "GET",
+        body: dict[str, str] | None = None,
+        key: str | None = None,
+        *,
+        binary: bool,
+    ) -> bytes | _CIData: ...
+
+    def request(
+        self,
+        path: str,
+        method: str = "GET",
+        body: dict[str, str] | None = None,
+        key: str | None = None,
+        *,
+        binary: bool = False,
+    ) -> bytes | _CIData:
+        """
+        请求路径由本脚本根据已验证 UUID 构造，不接收响应中的任意远端地址作为下一次请求目标。
+        JSON 请求与安全 XML 下载共享限定响应大小，超出界限立即失败而不尝试把部分结果解释成完整成功报告。
         """
         headers = {"Authorization": "Bearer " + self.token, "Content-Type": "application/json"}
         if key:
@@ -83,7 +154,8 @@ class Client:
         completed: Queue[tuple[bytes | None, Exception | None]] = Queue(maxsize=1)
 
         def receive() -> None:
-            """标准 HTTP 调用在线程内执行以让主线程对 DNS、响应头和慢速正文统一限时，避免单纯空闲超时被持续字节续期；
+            """
+            标准 HTTP 调用在线程内执行以让主线程对 DNS、响应头和慢速正文统一限时，避免单纯空闲超时被持续字节续期。
             线程只处理这一请求，异常原样交回，守护属性确保到期后不会阻止 CLI 退出。
             """
             try:
@@ -108,14 +180,15 @@ class Client:
         assert data is not None
         if len(data) > 4 * 1024 * 1024:
             raise ValueError("Response exceeds CI limit")
-        result = data if binary else json.loads(data)["data"]
+        result = data if binary else cast(_CIData, json.loads(data)["data"])
         self.remaining()
         return result
 
 
-def main(argv=None) -> int:
-    """触发、轮询和下载构成完整门禁流程，只有权威终态 PASSED 且当前和执行时门禁均通过才退出零；超时、取消、
-    未知结果和认证丢失均非零，尽力取消不会覆盖原始失败或假称进程已停止。
+def main(argv: Sequence[str] | None = None) -> int:
+    """
+    触发、轮询和下载构成完整门禁流程，只有权威终态 PASSED 且当前和执行时门禁均通过才退出零。
+    超时、取消、未知结果和认证丢失均非零，尽力取消不会覆盖原始失败或假称进程已停止。
     """
     from uuid import UUID
 
