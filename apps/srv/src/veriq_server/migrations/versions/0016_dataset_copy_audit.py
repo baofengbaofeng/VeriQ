@@ -17,8 +17,8 @@ def upgrade() -> None:
     )
 
 
-def downgrade() -> None:
-    """存在复制来源事实时拒绝删除列，以免回退过程静默切断已创建目标草稿和源发布版本的关联。"""
+def require_downgrade_safe() -> None:
+    """在删除任何新版本结构前先验证复制来源以及本次路径涉及的制品保留历史，两类事实都不能静默丢弃。"""
     if (
         op.get_bind()
         .execute(
@@ -39,4 +39,9 @@ def downgrade() -> None:
         if step.revision == down_revision:
             step.module.require_empty_artifact_history()
             break
+
+
+def downgrade() -> None:
+    """单独回退复制审计时执行相同预检，只有通过保护后才允许触发 MySQL 隐式提交的结构变更。"""
+    require_downgrade_safe()
     op.drop_column("veriq_audit_logs", "source_version_id")

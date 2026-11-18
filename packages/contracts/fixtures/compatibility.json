@@ -6048,5 +6048,159 @@
             "versionId": "00000000-0000-4000-8000-000000000001"
         },
         "valid": false
+    },
+    {
+        "name": "agent-inherited-settings",
+        "schema": "AgentSettingsDTO",
+        "value": {
+            "defaultProviderId": "11111111-1111-4111-8111-111111111111",
+            "agentProviderId": null,
+            "resolvedProviderId": "11111111-1111-4111-8111-111111111111",
+            "providerStatus": "READY"
+        },
+        "valid": true
+    },
+    {
+        "name": "agent-turn-submit-unicode",
+        "schema": "AgentTurnSubmit",
+        "value": {
+            "requestId": "11111111-1111-4111-8111-111111111111",
+            "text": "验证登录 🔎"
+        },
+        "valid": true
+    },
+    {
+        "name": "agent-turn-submit-blank",
+        "schema": "AgentTurnSubmit",
+        "value": {
+            "requestId": "11111111-1111-4111-8111-111111111111",
+            "text": " \n\t "
+        },
+        "valid": false
+    },
+    {
+        "name": "agent-run-once-preview",
+        "schema": "AgentProposal",
+        "value": {
+            "type": "RUN_ONCE",
+            "planId": "22222222-2222-4222-8222-222222222222",
+            "planRevision": 2,
+            "selection": {
+                "caseVersionIds": ["33333333-3333-4333-8333-333333333333"],
+                "environmentVersionId": "11111111-1111-4111-8111-111111111111",
+                "roleKeys": ["reader"],
+                "browsers": ["chromium"],
+                "runtimeIds": ["11111111-1111-4111-8111-111111111111"]
+            }
+        },
+        "valid": true
+    },
+    {
+        "name": "agent-run-once-requires-bound-plan-revision",
+        "schema": "AgentProposal",
+        "value": {
+            "type": "RUN_ONCE",
+            "planId": "22222222-2222-4222-8222-222222222222",
+            "selection": {
+                "caseVersionIds": ["33333333-3333-4333-8333-333333333333"],
+                "environmentVersionId": "11111111-1111-4111-8111-111111111111",
+                "roleKeys": ["reader"],
+                "browsers": ["chromium"],
+                "runtimeIds": ["11111111-1111-4111-8111-111111111111"]
+            }
+        },
+        "valid": false
+    },
+    {
+        "name": "agent-run-once-rejects-combined-selectors",
+        "schema": "AgentProposal",
+        "value": {
+            "type": "RUN_ONCE",
+            "planId": "22222222-2222-4222-8222-222222222222",
+            "planRevision": 2,
+            "selection": {
+                "caseVersionIds": ["33333333-3333-4333-8333-333333333333"],
+                "environmentVersionId": "11111111-1111-4111-8111-111111111111",
+                "roleKeys": ["reader"],
+                "browsers": ["chromium"],
+                "runtimeIds": ["11111111-1111-4111-8111-111111111111"],
+                "suiteVersionId": "22222222-2222-4222-8222-222222222222"
+            }
+        },
+        "valid": false
+    },
+    {
+        "name": "agent-run-once-rejects-private-variables",
+        "schema": "AgentProposal",
+        "value": {
+            "type": "RUN_ONCE",
+            "planId": "22222222-2222-4222-8222-222222222222",
+            "planRevision": 2,
+            "selection": {
+                "caseVersionIds": ["33333333-3333-4333-8333-333333333333"],
+                "environmentVersionId": "11111111-1111-4111-8111-111111111111",
+                "roleKeys": ["reader"],
+                "browsers": ["chromium"],
+                "runtimeIds": ["11111111-1111-4111-8111-111111111111"],
+                "variables": {}
+            }
+        },
+        "valid": false
+    },
+    {
+        "name": "agent-turn-recovers-authoritative-receipt",
+        "schema": "AgentTurnDTO",
+        "value": {
+            "id": "11111111-1111-4111-8111-111111111111",
+            "text": "Run the login plan.",
+            "createdAt": "2026-11-18T01:02:03.456789Z",
+            "status": "COMPLETED",
+            "receipt": {
+                "type": "TRIGGER_PLAN",
+                "planId": "22222222-2222-4222-8222-222222222222",
+                "planRevision": 2,
+                "runId": "33333333-3333-4333-8333-333333333333",
+                "decision": "SKIPPED"
+            }
+        },
+        "valid": true
+    },
+    {
+        "name": "agent-turn-rejects-private-attempt-id",
+        "schema": "AgentTurnDTO",
+        "value": {
+            "id": "11111111-1111-4111-8111-111111111111",
+            "text": "Run the login plan.",
+            "createdAt": "2026-11-18T01:02:03.456789Z",
+            "status": "COMPLETED",
+            "receipt": {
+                "type": "TRIGGER_PLAN",
+                "planId": "22222222-2222-4222-8222-222222222222",
+                "planRevision": 2,
+                "runId": "33333333-3333-4333-8333-333333333333",
+                "decision": "SKIPPED"
+            },
+            "attemptId": "11111111-1111-4111-8111-111111111111"
+        },
+        "valid": false
+    },
+    {
+        "name": "agent-turn-requires-paired-provider-revision",
+        "schema": "AgentTurnDTO",
+        "value": {
+            "id": "11111111-1111-4111-8111-111111111111",
+            "text": "Run the login plan.",
+            "createdAt": "2026-11-18T01:02:03.456789Z",
+            "status": "COMPLETED",
+            "receipt": {
+                "type": "TRIGGER_PLAN",
+                "planId": "22222222-2222-4222-8222-222222222222",
+                "planRevision": 2,
+                "runId": "33333333-3333-4333-8333-333333333333",
+                "decision": "SKIPPED"
+            },
+            "providerId": "11111111-1111-4111-8111-111111111111"
+        },
+        "valid": false
     }
 ]

@@ -13,6 +13,7 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
+    Text,
     UniqueConstraint,
     ForeignKeyConstraint,
     BigInteger,
@@ -1061,6 +1062,74 @@ class AiGeneration(Base):
     reserved_micros: Mapped[int] = mapped_column(BigInteger)
     cost_micros: Mapped[int | None] = mapped_column(BigInteger)
     data: Mapped[dict[str, Any]] = mapped_column(JSON)
+
+
+class AgentSettings(Base):
+    """每个工作区仅存两个可空的供应商引用，未设置专用引用时继承默认值，连接信息仍由供应商记录管理。
+
+    配置和供应商的修改由同一安装锁排序；软删除供应商保留引用，以区分失效选择和从未选择。
+    """
+
+    __tablename__ = "veriq_agent_settings"
+    workspace_id: Mapped[str] = mapped_column(
+        uuid_type, ForeignKey("veriq_workspaces.id"), primary_key=True
+    )
+    default_provider_id: Mapped[str | None] = mapped_column(
+        uuid_type, ForeignKey("veriq_ai_providers.id")
+    )
+    agent_provider_id: Mapped[str | None] = mapped_column(
+        uuid_type, ForeignKey("veriq_ai_providers.id")
+    )
+
+
+class AgentSession(Base):
+    """会话归属同时绑定工作区和创建员工，活跃与归档列表使用同一索引按时间及标识扫描，归档保留轮次记录。
+
+    员工离开工作区后保留历史归属，但后续读写仍需要有效工作区成员身份。
+    """
+
+    __tablename__ = "veriq_agent_sessions"
+    __table_args__ = (
+        Index("ix_agent_session_history", "workspace_id", "user_id", "archived", "created_at", "id"),
+    )
+    id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_workspaces.id"))
+    user_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_users.id"))
+    title: Mapped[str] = mapped_column(String(160))
+    created_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
+    archived: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class AgentTurn(Base):
+    """单轮文本和结构化提议只属于会话，重试身份、调用代际和冻结供应商修订作为独立事实持久化以防混淆。
+
+    服务应在同一事务保存业务结果和回执，否则未完成的轮次无权证明计划变更或运行存在。
+    请求标识仅在单个会话内唯一；分页历史无需遍历工作区的其它员工或普通生成记录。
+    """
+
+    __tablename__ = "veriq_agent_turns"
+    __table_args__ = (
+        UniqueConstraint("session_id", "request_id", name="uq_agent_turn_request"),
+        Index("ix_agent_turn_history", "session_id", "created_at", "id"),
+        CheckConstraint("status IN ('RUNNING', 'COMPLETED', 'FAILED')", name="ck_agent_turn_status"),
+        CheckConstraint(
+            "(provider_id IS NULL) = (provider_revision IS NULL)", name="ck_agent_turn_provider"
+        ),
+    )
+    id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    session_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_agent_sessions.id"))
+    request_id: Mapped[str] = mapped_column(uuid_type)
+    attempt_id: Mapped[str | None] = mapped_column(uuid_type)
+    provider_id: Mapped[str | None] = mapped_column(uuid_type, ForeignKey("veriq_ai_providers.id"))
+    provider_revision: Mapped[int | None] = mapped_column(Integer)
+    related_run_id: Mapped[str | None] = mapped_column(uuid_type, ForeignKey("veriq_runs.id"))
+    created_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
+    text: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(12, collation="ascii_bin"))
+    reply: Mapped[str | None] = mapped_column(Text)
+    error_code: Mapped[str | None] = mapped_column(String(80, collation="ascii_bin"))
+    proposal: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True))
+    receipt: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True))
 
 
 class Bundle(Base):

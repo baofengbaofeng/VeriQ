@@ -32,6 +32,7 @@ from .handlers.run import RunAPI, AttemptAuditAPI
 from .handlers.trigger import ExecutionPlanAPI, TriggerAPI, CIReportAPI
 from .handlers.report import ReportAPI
 from .handlers.ai import AiAPI
+from .handlers.agent import AgentAPI
 from .handlers.bundle import BundleAPI, NativeBundleAPI
 from .handlers.import_result import (
     ImportAPI,
@@ -94,6 +95,8 @@ def handler_for(action: str) -> type[API]:
         return NativeBundleAPI
     if action in {"bundles", "bundle-history", "bundle", "bundle-manifest", "bundle-download"}:
         return BundleAPI
+    if action.startswith("agent-"):
+        return AgentAPI
     if action.startswith("ai-"):
         return AiAPI
     if action == "dataset-http":
@@ -236,6 +239,21 @@ def make_app(settings: Settings, db: Database, delivery: Delivery | None = None)
         ("/internal/v1/issuer", "issuer-trust"),
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})/bundles", "bundle-history"),
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})/bundles/([0-9a-fA-F-]{36})", "bundle"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/agent/settings", "agent-settings"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/agent/sessions", "agent-sessions"),
+        (
+            "/api/v1/workspaces/([0-9a-fA-F-]{36})/agent/sessions/([0-9a-fA-F-]{36})",
+            "agent-session",
+        ),
+        (
+            "/api/v1/workspaces/([0-9a-fA-F-]{36})/agent/sessions/([0-9a-fA-F-]{36})/turns",
+            "agent-turns",
+        ),
+        (
+            "/api/v1/workspaces/([0-9a-fA-F-]{36})/agent/sessions/([0-9a-fA-F-]{36})"
+            "/turns/([0-9a-fA-F-]{36})/confirm",
+            "agent-confirm",
+        ),
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})/ai/providers", "ai-providers"),
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})/ai/providers/([0-9a-fA-F-]{36})", "ai-provider"),
         (

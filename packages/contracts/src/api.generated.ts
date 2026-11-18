@@ -407,6 +407,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspaceId}/agent/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getAgentSettings"];
+        put: operations["updateAgentSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspaceId}/agent/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listAgentSessions"];
+        put?: never;
+        post: operations["createAgentSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspaceId}/agent/sessions/{sessionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getAgentSession"];
+        put?: never;
+        post?: never;
+        delete: operations["archiveAgentSession"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspaceId}/agent/sessions/{sessionId}/turns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listAgentTurns"];
+        put?: never;
+        post: operations["submitAgentTurn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspaceId}/agent/sessions/{sessionId}/turns/{turnId}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["confirmAgentTurn"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspaceId}/execution-plans": {
         parameters: {
             query?: never;
@@ -4659,6 +4739,162 @@ export interface components {
              */
             trustStatus: "MANAGED" | "USER_REGISTERED";
             allowCredentialDelivery: boolean;
+        };
+        AgentSettingsWrite: {
+            defaultProviderId: components["schemas"]["Id"] | null;
+            agentProviderId: components["schemas"]["Id"] | null;
+        };
+        AgentSettingsDTO: {
+            defaultProviderId: components["schemas"]["Id"] | null;
+            agentProviderId: components["schemas"]["Id"] | null;
+            resolvedProviderId: components["schemas"]["Id"] | null;
+            /**
+             * @enum {string}
+             */
+            providerStatus: "READY" | "UNCONFIGURED" | "UNAVAILABLE";
+            /**
+             * @enum {string}
+             */
+            errorCode?: "AI_PROVIDER_NOT_FOUND" | "AI_PROVIDER_DISABLED" | "AI_ENDPOINT_FORBIDDEN";
+        };
+        AgentSessionCreate: {
+            title?: string;
+        };
+        AgentSessionDTO: {
+            id: components["schemas"]["Id"];
+            workspaceId: components["schemas"]["Id"];
+            title: string;
+            createdAt: components["schemas"]["Timestamp"];
+            archived: boolean;
+        };
+        AgentTurnSubmit: {
+            requestId: components["schemas"]["Id"];
+            text: string;
+        };
+        AgentPlanPreview: {
+            name: string;
+            suiteVersionId: components["schemas"]["Id"];
+            environmentVersionId: components["schemas"]["Id"];
+            browsers: components["schemas"]["Browser"][];
+            runtimeIds: components["schemas"]["Id"][];
+            roleKeys: string[];
+            /**
+             * @enum {string}
+             */
+            overlapPolicy: "QUEUE" | "SKIP" | "REJECT";
+            maxCaseRetries: number;
+            revision?: number;
+        };
+        AgentRunSelection: {
+            caseVersionIds: components["schemas"]["Id"][];
+            environmentVersionId: components["schemas"]["Id"];
+            browsers: components["schemas"]["Browser"][];
+            runtimeIds: components["schemas"]["Id"][];
+            roleKeys: string[];
+            maxRetries?: number;
+        } | {
+            suiteVersionId: components["schemas"]["Id"];
+            environmentVersionId: components["schemas"]["Id"];
+            browsers: components["schemas"]["Browser"][];
+            runtimeIds: components["schemas"]["Id"][];
+            roleKeys: string[];
+            maxRetries?: number;
+        };
+        AgentProposal: {
+            /**
+             * @constant
+             */
+            type: "SAVE_PLAN";
+            planId?: components["schemas"]["Id"];
+            plan: components["schemas"]["AgentPlanPreview"];
+            previousPlan?: components["schemas"]["AgentPlanPreview"];
+        } | {
+            /**
+             * @constant
+             */
+            type: "TRIGGER_PLAN";
+            planId: components["schemas"]["Id"];
+            planRevision: number;
+            triggerInput?: {
+                buildSha?: string;
+                reason?: string;
+            };
+        } | {
+            /**
+             * @constant
+             */
+            type: "RUN_ONCE";
+            selection: components["schemas"]["AgentRunSelection"];
+            planId?: components["schemas"]["Id"];
+            planRevision?: number;
+        };
+        AgentReceipt: {
+            /**
+             * @constant
+             */
+            type: "SAVE_PLAN";
+            planId: components["schemas"]["Id"];
+            planRevision: number;
+        } | {
+            /**
+             * @constant
+             */
+            type: "TRIGGER_PLAN";
+            planId: components["schemas"]["Id"];
+            planRevision: number;
+            runId: components["schemas"]["Id"];
+            /**
+             * @enum {string}
+             */
+            decision: "ENQUEUED" | "REUSED" | "SKIPPED";
+        } | {
+            /**
+             * @constant
+             */
+            type: "RUN_ONCE";
+            runId: components["schemas"]["Id"];
+        };
+        AgentTurnDTO: {
+            id: components["schemas"]["Id"];
+            text: string;
+            /**
+             * @enum {string}
+             */
+            status: "RUNNING" | "COMPLETED" | "FAILED";
+            createdAt: components["schemas"]["Timestamp"];
+            reply?: string;
+            errorCode?: string;
+            providerId?: components["schemas"]["Id"];
+            providerRevision?: number;
+            relatedRunId?: components["schemas"]["Id"];
+            proposal?: components["schemas"]["AgentProposal"];
+            receipt?: components["schemas"]["AgentReceipt"];
+        };
+        AgentSettingsDTOEnvelope: {
+            data: components["schemas"]["AgentSettingsDTO"];
+            requestId: components["schemas"]["Id"];
+        };
+        AgentSessionDTOEnvelope: {
+            data: components["schemas"]["AgentSessionDTO"];
+            requestId: components["schemas"]["Id"];
+        };
+        AgentTurnDTOEnvelope: {
+            data: components["schemas"]["AgentTurnDTO"];
+            requestId: components["schemas"]["Id"];
+        };
+        AgentSessionDTOPageEnvelope: {
+            data: {
+                items: components["schemas"]["AgentSessionDTO"][];
+                nextCursor: string | null;
+            };
+            requestId: components["schemas"]["Id"];
+        };
+        AgentTurnDTOPageEnvelope: {
+            data: {
+                items: components["schemas"]["AgentTurnDTO"][];
+                nextCursor: string | null;
+            };
+            requestId: components["schemas"]["Id"];
         };
         ExecutionPlanWrite: {
             name: string;
@@ -9966,6 +10202,808 @@ export interface operations {
              * @description Stable JSON error; code is a machine-readable domain code.
              */
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getAgentSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /**
+             * @description Success.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentSettingsDTOEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    updateAgentSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentSettingsWrite"];
+            };
+        };
+        responses: {
+            /**
+             * @description Success.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentSettingsDTOEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listAgentSessions: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+                archived?: boolean;
+            };
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /**
+             * @description Success.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentSessionDTOPageEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    createAgentSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentSessionCreate"];
+            };
+        };
+        responses: {
+            /**
+             * @description Success.
+             */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentSessionDTOEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getAgentSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["Id"];
+                sessionId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /**
+             * @description Success.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentSessionDTOEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    archiveAgentSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["Id"];
+                sessionId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /**
+             * @description Success.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmptyEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listAgentTurns: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["Id"];
+                sessionId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /**
+             * @description Success.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentTurnDTOPageEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    submitAgentTurn: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["Id"];
+                sessionId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentTurnSubmit"];
+            };
+        };
+        responses: {
+            /**
+             * @description Success.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentTurnDTOEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    confirmAgentTurn: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["Id"];
+                sessionId: components["schemas"]["Id"];
+                turnId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /**
+             * @description Success.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentTurnDTOEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

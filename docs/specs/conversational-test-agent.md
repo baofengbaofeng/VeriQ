@@ -16,3 +16,11 @@ Web 管理台和 Electron 在线工作区共用一个控制服务端对话 Agent
 - 使用当前员工身份和现有业务服务保存和触发。写入或派单所依据的计划版本、参数和所有权由控制服务检查。重复确认或重试只产生一次已确认的副作用。
 - 会话持久化真实操作回执和 `runId`。用例进度与报告从现有 Run 契约读取。离开或重新进入对话不改变运行生命周期。需要时可以打开完整报告。
 - Web 和 Electron 使用同一 Workspace HTTP 契约。内置 Agent 直接调用业务服务。外部 MCP 工具留待具体接入需求。
+
+## 员工 HTTP 契约
+
+`/api/v1/workspaces/{workspaceId}/agent` 使用员工 Cookie，写入要求同源和 CSRF。`/settings` 允许当前成员读取选择和解析状态，并由拥有 `MANAGE_WORKSPACE` 的成员提交 `defaultProviderId` 和 `agentProviderId`。两项均可为 `null`。解析状态为 `READY`、`UNCONFIGURED` 或 `UNAVAILABLE`。已经选择但停用、删除或失去出口许可的 Provider 保留其配置 ID，解析返回受限错误码，不自动切换模型。
+
+`/sessions` 按创建时间倒序显示当前员工的活跃会话，`archived=true` 列出归档会话。归档后仍可读取会话详情与轮次，不能提交或确认新的操作。轮次历史按时间正序展示。两个列表均支持 `limit` 和 `cursor`，签名游标绑定员工、工作区、列表及筛选范围。提交轮次至少需要 `EDIT`。确认仍须满足对应现有服务的编辑或执行权限。
+
+队列、计划及报告继续使用现有接口。对话中的 `SAVE_PLAN`、`TRIGGER_PLAN` 和 `RUN_ONCE` 提议只携带有界选择及必要修订。保存已有计划时可同时提供原计划的安全预览。提议中不包含变量。确认后保存类型化的计划或运行回执，计划触发回执包含实际是否入队、复用或跳过的决策。操作示例及反例纳入共享 Schema 兼容夹具。

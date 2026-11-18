@@ -1991,6 +1991,142 @@ export type StaticDatasetSelection =
       versionId: Id;
       rowKey: Key;
     };
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "AgentRunSelection".
+ */
+export type AgentRunSelection =
+  | {
+      /**
+       * @minItems 1
+       * @maxItems 100
+       */
+      caseVersionIds: [Id, ...Id[]];
+      environmentVersionId: Id;
+      /**
+       * @minItems 1
+       * @maxItems 3
+       */
+      browsers: [Browser] | [Browser, Browser] | [Browser, Browser, Browser];
+      /**
+       * @minItems 1
+       * @maxItems 20
+       */
+      runtimeIds:
+        | [Id]
+        | [Id, Id]
+        | [Id, Id, Id]
+        | [Id, Id, Id, Id]
+        | [Id, Id, Id, Id, Id]
+        | [Id, Id, Id, Id, Id, Id]
+        | [Id, Id, Id, Id, Id, Id, Id]
+        | [Id, Id, Id, Id, Id, Id, Id, Id]
+        | [Id, Id, Id, Id, Id, Id, Id, Id, Id]
+        | [Id, Id, Id, Id, Id, Id, Id, Id, Id, Id]
+        | [Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id]
+        | [Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id]
+        | [Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id]
+        | [Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id]
+        | [Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id]
+        | [Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id]
+        | [Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id]
+        | [Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id]
+        | [Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id]
+        | [Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id];
+      /**
+       * @minItems 1
+       * @maxItems 32
+       */
+      roleKeys: [string, ...string[]];
+      maxRetries?: number;
+    }
+  | {
+      suiteVersionId: Id;
+      environmentVersionId: Id;
+      /**
+       * @minItems 1
+       * @maxItems 3
+       */
+      browsers: [Browser] | [Browser, Browser] | [Browser, Browser, Browser];
+      /**
+       * @minItems 1
+       * @maxItems 20
+       */
+      runtimeIds:
+        | [Id]
+        | [Id, Id]
+        | [Id, Id, Id]
+        | [Id, Id, Id, Id]
+        | [Id, Id, Id, Id, Id]
+        | [Id, Id, Id, Id, Id, Id]
+        | [Id, Id, Id, Id, Id, Id, Id]
+        | [Id, Id, Id, Id, Id, Id, Id, Id]
+        | [Id, Id, Id, Id, Id, Id, Id, Id, Id]
+        | [Id, Id, Id, Id, Id, Id, Id, Id, Id, Id]
+        | [Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id]
+        | [Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id]
+        | [Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id]
+        | [Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id]
+        | [Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id]
+        | [Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id]
+        | [Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id]
+        | [Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id]
+        | [Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id]
+        | [Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id];
+      /**
+       * @minItems 1
+       * @maxItems 32
+       */
+      roleKeys: [string, ...string[]];
+      maxRetries?: number;
+    };
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "AgentProposal".
+ */
+export type AgentProposal =
+  | {
+      type: "SAVE_PLAN";
+      planId?: Id;
+      plan: AgentPlanPreview;
+      previousPlan?: AgentPlanPreview;
+    }
+  | {
+      type: "TRIGGER_PLAN";
+      planId: Id;
+      planRevision: number;
+      triggerInput?: {
+        buildSha?: string;
+        reason?: string;
+      };
+    }
+  | {
+      type: "RUN_ONCE";
+      selection: AgentRunSelection;
+      planId?: Id;
+      planRevision?: number;
+    };
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "AgentReceipt".
+ */
+export type AgentReceipt =
+  | {
+      type: "SAVE_PLAN";
+      planId: Id;
+      planRevision: number;
+    }
+  | {
+      type: "TRIGGER_PLAN";
+      planId: Id;
+      planRevision: number;
+      runId: Id;
+      decision: "ENQUEUED" | "REUSED" | "SKIPPED";
+    }
+  | {
+      type: "RUN_ONCE";
+      runId: Id;
+    };
 
 export interface ContractDefinitions {
   Id?: Id;
@@ -2135,6 +2271,16 @@ export interface ContractDefinitions {
   HttpDatasetSample?: HttpDatasetSample;
   HttpDatasetResponse?: HttpDatasetResponse;
   StaticDatasetSelection?: StaticDatasetSelection;
+  AgentSettingsWrite?: AgentSettingsWrite;
+  AgentSettingsDTO?: AgentSettingsDTO;
+  AgentSessionCreate?: AgentSessionCreate;
+  AgentSessionDTO?: AgentSessionDTO;
+  AgentTurnSubmit?: AgentTurnSubmit;
+  AgentPlanPreview?: AgentPlanPreview;
+  AgentRunSelection?: AgentRunSelection;
+  AgentProposal?: AgentProposal;
+  AgentReceipt?: AgentReceipt;
+  AgentTurnDTO?: AgentTurnDTO;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -3381,6 +3527,115 @@ export interface HttpDatasetResponse {
    * @maxItems 10000
    */
   rows: DataRowV2[];
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "AgentSettingsWrite".
+ */
+export interface AgentSettingsWrite {
+  defaultProviderId: Id | null;
+  agentProviderId: Id | null;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "AgentSettingsDTO".
+ */
+export interface AgentSettingsDTO {
+  defaultProviderId: Id | null;
+  agentProviderId: Id | null;
+  resolvedProviderId: Id | null;
+  providerStatus: "READY" | "UNCONFIGURED" | "UNAVAILABLE";
+  errorCode?: "AI_PROVIDER_NOT_FOUND" | "AI_PROVIDER_DISABLED" | "AI_ENDPOINT_FORBIDDEN";
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "AgentSessionCreate".
+ */
+export interface AgentSessionCreate {
+  title?: string;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "AgentSessionDTO".
+ */
+export interface AgentSessionDTO {
+  id: Id;
+  workspaceId: Id;
+  title: string;
+  createdAt: Timestamp;
+  archived: boolean;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "AgentTurnSubmit".
+ */
+export interface AgentTurnSubmit {
+  requestId: Id;
+  text: string;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "AgentPlanPreview".
+ */
+export interface AgentPlanPreview {
+  name: string;
+  suiteVersionId: Id;
+  environmentVersionId: Id;
+  /**
+   * @minItems 1
+   * @maxItems 3
+   */
+  browsers: [Browser] | [Browser, Browser] | [Browser, Browser, Browser];
+  /**
+   * @minItems 1
+   * @maxItems 20
+   */
+  runtimeIds:
+    | [Id]
+    | [Id, Id]
+    | [Id, Id, Id]
+    | [Id, Id, Id, Id]
+    | [Id, Id, Id, Id, Id]
+    | [Id, Id, Id, Id, Id, Id]
+    | [Id, Id, Id, Id, Id, Id, Id]
+    | [Id, Id, Id, Id, Id, Id, Id, Id]
+    | [Id, Id, Id, Id, Id, Id, Id, Id, Id]
+    | [Id, Id, Id, Id, Id, Id, Id, Id, Id, Id]
+    | [Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id]
+    | [Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id]
+    | [Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id]
+    | [Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id]
+    | [Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id]
+    | [Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id]
+    | [Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id]
+    | [Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id]
+    | [Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id]
+    | [Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id, Id];
+  /**
+   * @minItems 1
+   * @maxItems 32
+   */
+  roleKeys: [string, ...string[]];
+  overlapPolicy: "QUEUE" | "SKIP" | "REJECT";
+  maxCaseRetries: number;
+  revision?: number;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "AgentTurnDTO".
+ */
+export interface AgentTurnDTO {
+  id: Id;
+  text: string;
+  status: "RUNNING" | "COMPLETED" | "FAILED";
+  createdAt: Timestamp;
+  reply?: string;
+  errorCode?: string;
+  providerId?: Id;
+  providerRevision?: number;
+  relatedRunId?: Id;
+  proposal?: AgentProposal;
+  receipt?: AgentReceipt;
 }
 
 export type SnapshotV1 = AssetSnapshotV1;

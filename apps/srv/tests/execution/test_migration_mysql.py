@@ -139,6 +139,7 @@ async def test_nonempty_artifact_refuses_downgrade_and_retains_history(site):
             await connection.execute(sa.text("SELECT version_num FROM veriq_alembic_version"))
         ).scalar_one()
         assert await _has_copy_audit_column(connection)
+        assert await _has_agent_tables(connection)
         assert after_revision == revision
         # 单步只移除没有复制记录的来源列，不会触碰制品年龄，原有制品无需先删除即可回退到上一版本。
         await change("0015_artifact_retention", downgrade=True)
@@ -165,15 +166,52 @@ async def test_copy_provenance_refuses_direct_downgrade(site):
             )
         )
     async with _migration_connection(database) as (connection, change):
+        before = (await connection.execute(sa.text("SELECT version_num FROM veriq_alembic_version"))).scalar_one()
         with pytest.raises(
             RuntimeError, match="^Dataset copy provenance must be retained; downgrade refused$"
         ):
             await change("0015_artifact_retention", downgrade=True)
         await connection.rollback()
         assert await _has_copy_audit_column(connection)
+        assert await _has_agent_tables(connection)
+        after = (await connection.execute(sa.text("SELECT version_num FROM veriq_alembic_version"))).scalar_one()
+        assert after == before
     async with database.sessions() as session:
         event = await session.get(models.AuditLog, event_id)
         assert (event.target_id, event.source_version_id) == (target, source)
+
+
+async def test_upgrade_from_dataset_head_keeps_copy_provenance(site):
+    """集成升级直接接受已部署数据集修订，来源审计继续可读，空对话表与唯一的新版本记录同时出现。"""
+    _, database = site
+    source, target, event_id = (str(uuid.uuid4()) for _ in range(3))
+    async with _migration_connection(database) as (connection, change):
+        await change("0016_dataset_copy_audit", downgrade=True)
+        assert await _has_copy_audit_column(connection)
+        assert not await _has_agent_tables(connection)
+        await connection.execute(
+            sa.insert(models.AuditLog).values(
+                id=event_id,
+                action="dataset.copied",
+                target_id=target,
+                source_version_id=source,
+                created_at=datetime.datetime.now(datetime.UTC).replace(tzinfo=None),
+            )
+        )
+        await connection.commit()
+        await change("head")
+        revision = (await connection.execute(sa.text("SELECT version_num FROM veriq_alembic_version"))).scalar_one()
+        assert revision == "0017_conversational_agent"
+        assert await _has_agent_tables(connection)
+    async with database.sessions() as session:
+        event = await session.get(models.AuditLog, event_id)
+        assert (event.target_id, event.source_version_id) == (target, source)
+
+
+async def _has_agent_tables(connection):
+    """反射所有 Agent 表，确保降级拒绝后版本号和真实结构仍一致，不能依赖回滚撤销 MySQL 隐式提交。"""
+    tables = await connection.run_sync(lambda sync: sa.inspect(sync).get_table_names())
+    return {"veriq_agent_settings", "veriq_agent_sessions", "veriq_agent_turns"} <= set(tables)
 
 
 async def _has_copy_audit_column(connection):
