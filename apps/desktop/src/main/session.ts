@@ -285,7 +285,16 @@ export class HostSession {
             }
             if (!response.ok || !response.body) {
                 await response.body?.cancel();
-                throw new Error("STREAM_OPEN_FAILED");
+                if (lifetime.aborted) throw new Error("STREAM_SESSION_CHANGED");
+                // 流尚未打开时只凭有限 HTTP 状态更新授权，错误正文不进入渲染层，且旧会话拒绝不会撤销新会话。
+                const denied = {
+                    401: "AUTHENTICATION_REQUIRED",
+                    403: "WORKSPACE_FORBIDDEN",
+                    404: "RUN_NOT_FOUND",
+                    410: "REPORT_EXPIRED",
+                } as Record<number, string>;
+                if (response.status === 401) this.invalidate();
+                throw new Error(denied[response.status] ?? "STREAM_OPEN_FAILED");
             }
             this.streams.set(id, response.body.getReader());
             return id;

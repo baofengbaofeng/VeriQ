@@ -1,19 +1,20 @@
 /**
  * 单条会话拥有自己的读写和报告取消边界。先显示服务器记录的轮次顺序，重新读取后以权威状态补齐正在处理的试验。
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { tx } from "../../locale";
 import type { Workspace } from "../../api";
 import type { ReportAdapter } from "../reports/adapters";
 import type { AgentSchemas, CloudAgentAdapter } from "./adapters";
+import { useAgentLifetime } from "./lifetime";
+import { agentSubmission, clearAgentSubmission } from "./retry";
 import { AgentError, agentProblem } from "./feedback";
 import { Proposal, ActionReceipt } from "./Proposal";
 import { RunCard, type ReportNavigation, type RunReference } from "./RunCard";
 
 type Turn = AgentSchemas["AgentTurnDTO"];
 type Session = AgentSchemas["AgentSessionDTO"];
-type Submission = AgentSchemas["AgentTurnSubmit"];
 
 // 这三组文案对应服务端确定性短语，仅用于启用当前角色的发送操作；服务器仍验证动作和会话权限。
 const confirmAny = new Set(["confirm", "confirm action", "确认", "确认操作"]);
@@ -46,19 +47,17 @@ function runReferences(turns: Turn[]): RunReference[] {
 }
 
 /**
- * 对话收集用户输入、显示持久化历史并确认当前提议。角色和归档状态只控制界面入口，业务授权由服务器逐次重新验证。
+ * 当前会话只在独立效果为其建立新的存活信号后挂载，任何已卸载会话都只能通过服务端历史恢复结果。
  */
-export function Conversation({
-    workspace,
-    owner,
-    initial,
-    initialMessage,
-    adapter,
-    reports,
-    parentSignal,
-    navigate,
-    onArchived,
-}: {
+export function Conversation({ parentSignal, ...props }: ConversationProps) {
+    const signal = useAgentLifetime(parentSignal);
+    return signal ? <Thread {...props} signal={signal} /> : <p role="status">{tx("Loading VeriQ…")}</p>;
+}
+
+/**
+ * 线程输入由授权工作区和选定会话共同限定，时间线、临时输入以及报告属于同一有效渲染代次。
+ */
+interface ConversationProps {
     workspace: Workspace;
     owner: string;
     initial: Session;
@@ -68,19 +67,29 @@ export function Conversation({
     parentSignal: AbortSignal;
     navigate: ReportNavigation;
     onArchived: () => void;
-}) {
-    const [lifetime] = useState(() => new AbortController());
-    const signal = useMemo(() => AbortSignal.any([parentSignal, lifetime.signal]), [parentSignal, lifetime]);
-    useEffect(() => () => lifetime.abort(), [lifetime]);
+}
 
+// 本组件只接收当前挂载拥有的有效信号，角色和归档状态控制入口，服务器负责再次校验全部业务授权。
+function Thread({
+    workspace,
+    owner,
+    initial,
+    initialMessage,
+    adapter,
+    reports,
+    signal,
+    navigate,
+    onArchived,
+}: Omit<ConversationProps, "parentSignal"> & { signal: AbortSignal }) {
     const [text, setText] = useState(initialMessage);
     const [error, setError] = useState<unknown>();
     const [operation, setOperation] = useState<"send" | "confirm" | "archive">();
-    const previousSubmission = useRef<Submission>();
     const mutation = useRef(false);
+    const recovering = useRef<{ id: string; requestId: string }>();
     const [updates, setUpdates] = useState(() => new Map<string, Turn>());
     const [completedRuns, setCompletedRuns] = useState(() => new Set<string>());
     const id = initial.id;
+    const retryKey = "veriq.agent.retry/" + JSON.stringify([owner, workspace.id, id]);
     const key = ["workspace", workspace.id, "agent", owner, "session", id];
     const current = useQuery({
         queryKey: key,
@@ -103,17 +112,28 @@ export function Conversation({
     const turns = mergeTurns(history.data?.pages.flatMap((page) => page.items) ?? [], updates);
     const latest = turns.filter((turn) => turn.proposal && turn.status === "COMPLETED").at(-1);
     const running = turns.some((turn) => turn.status === "RUNNING");
+    const recovered = turns.find((turn) => turn.id === recovering.current?.id && turn.status !== "RUNNING");
+    useEffect(() => {
+        if (recovered && recovering.current) {
+            clearAgentSubmission(retryKey, recovering.current.requestId);
+            recovering.current = undefined;
+        }
+    }, [recovered, retryKey]);
     const references = runReferences(turns);
     const focused = references.filter((run) => !completedRuns.has(run.id)).at(-1)?.id;
     const confirmationText = text
         .trim()
         .toLowerCase()
         .replace(/[.!。！]+$/, "");
+    const isConfirmation =
+        confirmAny.has(confirmationText) || confirmSave.has(confirmationText) || confirmRun.has(confirmationText);
+    const reviewable = !!latest && (!history.hasNextPage || updates.has(latest.id));
     const mayConfirmText =
-        latest?.proposal?.type === "SAVE_PLAN"
+        reviewable &&
+        (latest?.proposal?.type === "SAVE_PLAN"
             ? plan && (confirmAny.has(confirmationText) || confirmSave.has(confirmationText))
-            : !!latest?.proposal && execute && (confirmAny.has(confirmationText) || confirmRun.has(confirmationText));
-    const canSend = !!text.trim() && (plan || mayConfirmText);
+            : execute && (confirmAny.has(confirmationText) || confirmRun.has(confirmationText)));
+    const canSend = !!text.trim() && (isConfirmation ? mayConfirmText : plan);
     const busy = !!operation || running;
 
     // 从快照得知运行终态后重新分配实时订阅名额，不把报告读取成功或已排队的工作误作运行结束。
@@ -158,18 +178,13 @@ export function Conversation({
     function send(event: FormEvent) {
         event.preventDefault();
         if (!canSend || busy) return;
-        const data =
-            previousSubmission.current?.text === text
-                ? previousSubmission.current
-                : {
-                      text,
-                      requestId: crypto.randomUUID(),
-                  };
-        previousSubmission.current = data;
+        const target = isConfirmation ? latest?.id : undefined;
         void act("send", async () => {
+            const data = await agentSubmission(retryKey, text, target, signal);
             const turn = await adapter.submit(id, data, signal);
+            if (turn.status === "RUNNING") recovering.current = { id: turn.id, requestId: data.requestId };
+            else clearAgentSubmission(retryKey, data.requestId);
             signal.throwIfAborted();
-            previousSubmission.current = undefined;
             setText("");
             receive(turn);
         });
@@ -205,6 +220,7 @@ export function Conversation({
             <ol className="vq-agent-history" aria-label={tx("Conversation history")}>
                 {turns.map((turn) => {
                     const confirm =
+                        reviewable &&
                         turn.id === latest?.id &&
                         !turn.receipt &&
                         (turn.proposal?.type === "SAVE_PLAN" ? plan : execute);
@@ -215,7 +231,14 @@ export function Conversation({
                             {turn.status === "RUNNING" && <p role="status">{tx("Waiting for model response…")}</p>}
                             {turn.errorCode && <p role="alert">{agentProblem(turn.errorCode)}</p>}
                             {plan && turn.status === "FAILED" && (
-                                <button type="button" disabled={busy} onClick={() => setText(turn.text)}>
+                                <button
+                                    type="button"
+                                    disabled={busy}
+                                    onClick={() => {
+                                        clearAgentSubmission(retryKey);
+                                        setText(turn.text);
+                                    }}
+                                >
                                     {tx("Retry message")}
                                 </button>
                             )}
@@ -275,6 +298,9 @@ export function Conversation({
                             disabled={!!operation}
                         />
                     </label>
+                    {isConfirmation && !mayConfirmText && (
+                        <p>{tx("Review a matching proposal before confirming it.")}</p>
+                    )}
                     {!plan && <p>{tx("You can confirm a run proposal here.")}</p>}
                     <button type="submit" disabled={busy || !canSend}>
                         {tx("Send")}

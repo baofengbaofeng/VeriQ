@@ -648,7 +648,6 @@ export function App() {
                                     adapter={adapters.conversation}
                                     providers={adapters.ai}
                                     reports={adapters.reports}
-                                    parentSignal={scope.signal}
                                     navigate={(id) => (
                                         <button
                                             type="button"

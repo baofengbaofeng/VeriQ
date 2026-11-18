@@ -7511,6 +7511,9 @@
                 "requestId": {
                     "$ref": "#/$defs/Id"
                 },
+                "expectedProposalId": {
+                    "$ref": "#/$defs/Id"
+                },
                 "text": {
                     "type": "string",
                     "minLength": 1,

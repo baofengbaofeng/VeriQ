@@ -1,7 +1,7 @@
 /**
  * Web 和 Electron 都使用同一工作区会话视图，当前员工的会话列表和模型状态与独立运行报告共享已有服务端授权。
  */
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { tx, useAppLocale } from "../../locale";
 import type { Workspace } from "../../api";
@@ -10,6 +10,7 @@ import type { ReportAdapter } from "../reports/adapters";
 import type { AgentSchemas, CloudAgentAdapter } from "./adapters";
 import { AgentError } from "./feedback";
 import { Conversation } from "./Conversation";
+import { useAgentLifetime } from "./lifetime";
 import { ModelSettings } from "./ModelSettings";
 import type { ReportNavigation } from "./RunCard";
 import "./agent.css";
@@ -17,18 +18,18 @@ import "./agent.css";
 type Session = AgentSchemas["AgentSessionDTO"];
 
 /**
- * 调用方用员工和工作区作为组件身份，桌面额外绑定平台源。离开 Agent 会关闭当前视图请求，已提交操作由服务端继续结算。
+ * 工作区视图边界属于当前员工、空间及服务端源。未完成严格模式重放设置之前不发起依赖工作区信号的查询。
  */
-export function AgentWorkspaceView({
-    workspace,
-    owner,
-    adapter,
-    providers,
-    reports,
-    parentSignal,
-    navigate,
-    initialPlanId,
-}: {
+export function AgentWorkspaceView({ parentSignal, ...props }: WorkspaceProps) {
+    useAppLocale();
+    const signal = useAgentLifetime(parentSignal);
+    return signal ? <WorkspaceConversation {...props} signal={signal} /> : <p role="status">{tx("Loading VeriQ…")}</p>;
+}
+
+/**
+ * 对话入口必须提供当前真实工作区及现有在线传输。父级可额外提供工作区切换信号和仅用于草稿的计划定位。
+ */
+interface WorkspaceProps {
     workspace: Workspace;
     owner: string;
     adapter: CloudAgentAdapter;
@@ -37,15 +38,19 @@ export function AgentWorkspaceView({
     parentSignal?: AbortSignal;
     navigate: ReportNavigation;
     initialPlanId?: string;
-}) {
-    useAppLocale();
-    const [lifetime] = useState(() => new AbortController());
-    const signal = useMemo(
-        () => (parentSignal ? AbortSignal.any([parentSignal, lifetime.signal]) : lifetime.signal),
-        [parentSignal, lifetime],
-    );
-    useEffect(() => () => lifetime.abort(), [lifetime]);
+}
 
+// 工作区列表、模型设置及当前会话共用这一代有效信号，选中会话变化仍由线程自己的挂载边界取消旧请求。
+function WorkspaceConversation({
+    workspace,
+    owner,
+    adapter,
+    providers,
+    reports,
+    signal,
+    navigate,
+    initialPlanId,
+}: Omit<WorkspaceProps, "parentSignal"> & { signal: AbortSignal }) {
     const [archived, setArchived] = useState(false);
     const [selected, setSelected] = useState<{ session: Session; initialMessage: string }>();
     const [title, setTitle] = useState("");

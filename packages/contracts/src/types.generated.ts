@@ -3571,6 +3571,7 @@ export interface AgentSessionDTO {
  */
 export interface AgentTurnSubmit {
   requestId: Id;
+  expectedProposalId?: Id;
   text: string;
 }
 /**

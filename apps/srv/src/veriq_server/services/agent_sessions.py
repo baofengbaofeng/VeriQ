@@ -33,6 +33,16 @@ def session_dto(row: AgentSession) -> dict[str, Any]:
     }
 
 
+CONFIRMATION_SOURCE = "_proposalTurnId"
+
+
+def receipt_dto(receipt: dict[str, Any] | None) -> dict[str, Any] | None:
+    """确认重放所用的原始轮次标识只保存在服务端，回执输出仍维持现有的严格计划或 Run 业务字段。"""
+    if receipt is None:
+        return None
+    return {key: value for key, value in receipt.items() if key != CONFIRMATION_SOURCE}
+
+
 def turn_dto(row: AgentTurn) -> dict[str, Any]:
     """轮次只暴露界面需要的事实，重试身份和调用代际留在服务端；没有实际结果时省略对应字段，避免误报回执。
 
@@ -46,7 +56,7 @@ def turn_dto(row: AgentTurn) -> dict[str, Any]:
         "providerRevision": row.provider_revision,
         "relatedRunId": row.related_run_id,
         "proposal": row.proposal,
-        "receipt": row.receipt,
+        "receipt": receipt_dto(row.receipt),
     }
     return {
         "id": row.id,

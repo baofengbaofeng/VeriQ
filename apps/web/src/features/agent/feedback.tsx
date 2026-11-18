@@ -6,6 +6,7 @@ import { agentErrorCode } from "./adapters";
 
 const messages: Record<string, string> = {
     PLAN_REVISION_CONFLICT: "The plan changed. Open the latest revision and request a new proposal.",
+    AGENT_CONFIRM_TARGET_REQUIRED: "Review a matching proposal before confirming it.",
     AGENT_PROPOSAL_SUPERSEDED: "This proposal was superseded. Review the latest proposal.",
     AGENT_PROVIDER_UNCONFIGURED: "Configure a model to request a plan.",
     AGENT_TURN_BUSY: "The current turn is still processing.",

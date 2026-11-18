@@ -145,3 +145,32 @@ test("employee cloud transport reads conversation history only through the selec
         await Promise.allSettled([read, rejected]);
     }
 });
+
+/**
+ * 报告 HTTP 尚未切换为事件流时仍可拒绝访问，宿主仅向报告卡传递稳定代号并释放失败响应和订阅名额。
+ */
+test("opening reports preserves access-loss status without exposing response content", async () => {
+    for (const [status, code] of [
+        [401, "AUTHENTICATION_REQUIRED"],
+        [403, "WORKSPACE_FORBIDDEN"],
+        [404, "RUN_NOT_FOUND"],
+        [410, "REPORT_EXPIRED"],
+    ] as const) {
+        const { host, pending } = fixture();
+        let cancelled = false;
+        const error = assert.rejects(host.openStream(operation), { message: code });
+        pending[0]!(
+            new Response(
+                new ReadableStream({
+                    cancel() {
+                        cancelled = true;
+                    },
+                }),
+                { status },
+            ),
+        );
+        await error;
+        assert.equal(cancelled, true);
+        assert.equal(host.workspace?.id, status === 401 ? undefined : workspaceId);
+    }
+});

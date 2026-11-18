@@ -21,6 +21,7 @@ from ..db import (
 )
 from ..service import Problem, now
 from ..settings import Settings
+from .agent_sessions import receipt_dto
 from .report import ReportService
 from .runtime import RuntimeService
 
@@ -176,11 +177,13 @@ async def build_context(
         {
             "text": t.text[:1200],
             "reply": (t.reply or "")[:1800],
-            **({"receipt": t.receipt} if t.receipt else {}),
+            **({"receipt": receipt_dto(t.receipt)} if t.receipt else {}),
         }
         for t in recent
     ]
-    mentions = text + " " + " ".join(str(t.proposal or t.receipt or "") for t in recent)
+    mentions = (
+        text + " " + " ".join(str(t.proposal or receipt_dto(t.receipt) or "") for t in recent)
+    )
     plans = list(
         await s.scalars(
             select(ExecutionPlan)

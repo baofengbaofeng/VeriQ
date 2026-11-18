@@ -93,6 +93,10 @@ export const agentMessages: Record<string, readonly [string, string]> = {
         "This proposal was superseded. Review the latest proposal.",
     ],
     "Configure a model to request a plan.": ["请先配置模型，再请求计划。", "Configure a model to request a plan."],
+    "Review a matching proposal before confirming it.": [
+        "请先查看匹配的提议，再发送确认。",
+        "Review a matching proposal before confirming it.",
+    ],
     "The current turn is still processing.": ["当前轮次仍在处理中。", "The current turn is still processing."],
     "The model request expired.": ["模型请求已过期。", "The model request expired."],
     "This provider is disabled.": ["此模型供应商已停用。", "This provider is disabled."],

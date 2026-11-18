@@ -4769,6 +4769,7 @@ export interface components {
         };
         AgentTurnSubmit: {
             requestId: components["schemas"]["Id"];
+            expectedProposalId?: components["schemas"]["Id"];
             text: string;
         };
         AgentPlanPreview: {

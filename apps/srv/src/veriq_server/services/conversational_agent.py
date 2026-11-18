@@ -20,7 +20,7 @@ from ..service import Problem, audit, lock_installation, now
 from ..validation import validate_api
 from .agent_actions import apply_proposal, current_selection, proposal_preview
 from .agent_context import UUID_IN_TEXT, build_context, run_summary
-from .agent_sessions import AgentSessionService, turn_dto
+from .agent_sessions import CONFIRMATION_SOURCE, AgentSessionService, receipt_dto, turn_dto
 from .ai import AGENT_PURPOSE, micros, priced, sanitize
 from .report import ReportService
 from .workspace import WorkspaceRepository
@@ -152,23 +152,61 @@ class ConversationalAgent(AgentSessionService):
         async with self.transaction(scope, write=True) as (s, user):
             owned = await self.require_owned_session(s, scope, user, session_id, active=True)
             turn = await self.require_owned_turn(s, owned, turn_id)
-            if (
-                turn.proposal
-                and not turn.receipt
-                and turn is not await _latest_proposal(s, owned.id)
-            ):
-                raise Problem(
-                    409, "AGENT_PROPOSAL_SUPERSEDED", "Review and confirm the most recent proposal"
-                )
+            await self._reject_superseded(s, owned, turn)
             await apply_proposal(s, scope, user, turn)
             return turn_dto(turn)
+
+    @staticmethod
+    async def _reject_superseded(s, owned, turn):
+        """直接按钮和对话短语使用相同的新鲜度规则，已确认回执可重放但任何旧的未确认提议均失去执行资格。"""
+        if turn.proposal and not turn.receipt and turn is not await _latest_proposal(s, owned.id):
+            raise Problem(
+                409, "AGENT_PROPOSAL_SUPERSEDED", "Review and confirm the most recent proposal"
+            )
+
+    async def _confirmation_source(self, s, owned, target, actions):
+        """根据同一私有会话定位用户已审阅的源轮次，只接受实际完成的提议并校验确认短语允许的动作类别。"""
+        source = await self.require_owned_turn(s, owned, target)
+        if not source.proposal or source.status != "COMPLETED":
+            raise Problem(409, "AGENT_NO_PROPOSAL", "Select a completed proposal before confirming")
+        if source.proposal["type"] not in actions:
+            raise Problem(
+                409, "AGENT_CONFIRM_MISMATCH", "Confirmation does not match the proposed action"
+            )
+        return source
+
+    async def _replay(self, s, scope, user, owned, existing, target, actions, text):
+        """重复请求同时绑定原始文本与精确提议，哪怕不同提议得到同一派发回执也不能复用当前请求编号。"""
+        recorded = (existing.receipt or {}).get(CONFIRMATION_SOURCE)
+        if existing.text != text or recorded != target:
+            raise Problem(
+                409, "IDEMPOTENCY_CONFLICT", "This request ID already represents different intent"
+            )
+        if actions:
+            source = await self._confirmation_source(s, owned, target, actions)
+            if not source.receipt or receipt_dto(source.receipt) != receipt_dto(existing.receipt):
+                raise Problem(
+                    409,
+                    "IDEMPOTENCY_CONFLICT",
+                    "The confirmed proposal no longer matches this request",
+                )
+            await apply_proposal(s, scope, user, source)
+        return turn_dto(existing)
 
     async def submit(self, scope, session_id, req):
         """短事务先处理请求重放和无模型确认，否则持久化调用身份与预算，再在锁外调用指定供应商一次。"""
         actions = CONFIRM.get(req["text"].strip().casefold().rstrip(".!。！"))
+        target = req.get("expectedProposalId")
+        target = target.lower() if target else None
         permission = Permission.VIEW if actions else Permission.EDIT
         async with self.transaction(scope, permission, write=True) as (s, user):
             owned = await self.require_owned_session(s, scope, user, session_id, active=True)
+            if actions and not target:
+                raise Problem(
+                    409, "AGENT_CONFIRM_TARGET_REQUIRED", "Review a proposal before confirming it"
+                )
+            if target and not actions:
+                raise Problem(400, "INVALID_REQUEST", "Only a confirmation can target a proposal")
             pending = await self.expire(s, owned)
             existing = await s.scalar(
                 select(AgentTurn).where(
@@ -177,15 +215,9 @@ class ConversationalAgent(AgentSessionService):
                 )
             )
             if existing:
-                if existing.text != req["text"]:
-                    raise Problem(
-                        409,
-                        "IDEMPOTENCY_CONFLICT",
-                        "This request ID already represents different text",
-                    )
-                if actions and existing.receipt:
-                    await apply_proposal(s, scope, user, existing)
-                return turn_dto(existing)
+                return await self._replay(
+                    s, scope, user, owned, existing, target, actions, req["text"]
+                )
             if pending:
                 raise Problem(409, "AGENT_TURN_BUSY", "Wait for the current turn to finish")
             turn = AgentTurn(
@@ -197,18 +229,11 @@ class ConversationalAgent(AgentSessionService):
                 status="RUNNING",
             )
             if actions:
-                source = await _latest_proposal(s, owned.id)
-                if source is None:
-                    raise Problem(
-                        409, "AGENT_NO_PROPOSAL", "Ask for a concrete proposal before confirming"
-                    )
-                if source.proposal["type"] not in actions:
-                    raise Problem(
-                        409,
-                        "AGENT_CONFIRM_MISMATCH",
-                        "Confirmation does not match the proposed action",
-                    )
-                turn.receipt = await apply_proposal(s, scope, user, source)
+                source = await self._confirmation_source(s, owned, target, actions)
+                await self._reject_superseded(s, owned, source)
+                receipt = await apply_proposal(s, scope, user, source)
+                # 单独确认轮次保留服务端重放关联，API 与模型历史仍只投影公共回执字段。
+                turn.receipt = {**receipt, CONFIRMATION_SOURCE: source.id}
                 turn.status, turn.related_run_id = "COMPLETED", source.related_run_id
                 turn.reply = "已确认操作。" if "确认" in req["text"] else "Action confirmed."
                 s.add(turn)

@@ -32,9 +32,12 @@ async def conversation(c, ws, model, **options):
     return _agent(ws) + f"/sessions/{owned['id']}/turns", base + "/ai/providers/" + pid, config
 
 
-async def submit(c, path, text, request_id=None):
+async def submit(c, path, text, request_id=None, expected_proposal=None):
     """通过正常的轮次提交拿到持久化状态，模型内容校验失败仍需有可供跨客户端恢复的明确失败记录。"""
-    response = await c.post(path, json={"requestId": request_id or str(uuid4()), "text": text})
+    payload = {"requestId": request_id or str(uuid4()), "text": text}
+    if expected_proposal is not None:
+        payload["expectedProposalId"] = expected_proposal
+    response = await c.post(path, json=payload)
     assert response.status_code == 200, response.text
     return response.json()["data"]
 
@@ -81,7 +84,7 @@ async def test_agent_plans_and_revises_in_two_turns(site):
         assert first["text"] in wire and first["reply"] in wire
         assert plan["suiteVersionId"] in wire and "private-baseline-value" not in wire
         assert "private-baseline-value" not in json.dumps(second)
-        confirm = await submit(c, path, "确认")
+        confirm = await submit(c, path, "确认", expected_proposal=second["id"])
         assert confirm["receipt"] == {
             "type": "SAVE_PLAN",
             "planId": receipt["planId"],
@@ -152,7 +155,7 @@ async def test_agent_one_off_keeps_saved_plan(site):
         assert turn == await submit(c, path, turn["text"], rid)
         assert turn["proposal"]["selection"]["suiteVersionId"] == plan["suiteVersionId"]
         assert turn["proposal"]["selection"]["maxRetries"] == 1
-        confirmed = await submit(c, path, "confirm")
+        confirmed = await submit(c, path, "confirm", expected_proposal=turn["id"])
         run_id = confirmed["receipt"]["runId"]
         run = (await c.get(base + f"/runs/{run_id}")).json()["data"]
         async with db.sessions.begin() as session:
@@ -314,7 +317,10 @@ async def test_confirmation_phrase_matches_action_and_current_permissions(site):
         }
         turn = await submit(employee, path, "Please run the smoke plan")
         assert turn["proposal"]["type"] == "TRIGGER_PLAN"
-        mismatch = await employee.post(path, json={"requestId": str(uuid4()), "text": "确认保存"})
+        mismatch = await employee.post(
+            path,
+            json={"requestId": str(uuid4()), "text": "确认保存", "expectedProposalId": turn["id"]},
+        )
         assert (mismatch.status_code, mismatch.json().get("code")) == (
             409,
             "AGENT_CONFIRM_MISMATCH",
@@ -325,7 +331,7 @@ async def test_confirmation_phrase_matches_action_and_current_permissions(site):
         assert (
             await employee.post(path, json={"requestId": str(uuid4()), "text": "New plan"})
         ).status_code == 403
-        confirmed = await submit(employee, path, "确认执行")
+        confirmed = await submit(employee, path, "确认执行", expected_proposal=turn["id"])
         assert confirmed["receipt"]["decision"] == "ENQUEUED"
         assert (
             await c.put(base + f"/members/{member}", json={"role": "VIEWER", "status": "ACTIVE"})
@@ -593,3 +599,42 @@ async def test_history_withholds_revoked_previous_plan_and_archived_selection(si
             "history"
         ]
         assert all(x not in json.dumps(history) for x in (extra, original["runnerId"]))
+
+
+async def test_typed_confirmation_is_pinned_to_the_proposal_the_user_reviewed(site):
+    """另一个客户端可先产生新的同类操作，已显示的旧提议不能把确认传递给尚未审阅的新对象。"""
+    c, _, ws, _, plan = await plan_fixture(site)
+    async with emulator() as model:
+        path, _, _ = await conversation(c, ws, model)
+        model.output = {
+            "reply": "Run the existing plan.",
+            "proposal": {"type": "TRIGGER_PLAN", "planId": plan["id"], "planRevision": 1},
+        }
+        shown = await submit(c, path, "First run proposal")
+        unseen = await submit(c, path, "Second run proposal from another client")
+        request_id = str(uuid4())
+        message = {"requestId": request_id, "text": "confirm run"}
+        bare = await c.post(path, json=message)
+        assert (bare.status_code, bare.json().get("code")) == (409, "AGENT_CONFIRM_TARGET_REQUIRED")
+        stale = await c.post(path, json={**message, "expectedProposalId": shown["id"]})
+        assert (stale.status_code, stale.json().get("code")) == (409, "AGENT_PROPOSAL_SUPERSEDED")
+        wrong_kind = await c.post(
+            path,
+            json={**message, "text": "Please run later", "expectedProposalId": unseen["id"]},
+        )
+        assert (wrong_kind.status_code, wrong_kind.json().get("code")) == (400, "INVALID_REQUEST")
+        base = f"/api/v1/workspaces/{ws}/runs"
+        assert (await c.get(base)).json()["data"]["items"] == []
+
+        accepted = await submit(c, path, "confirm run", request_id, unseen["id"])
+        assert accepted["receipt"]["decision"] == "ENQUEUED"
+        other = await submit(c, path, "Third run proposal")
+        assert "_proposalTurnId" not in model.calls[-1]["body"]["messages"][1]["content"]
+        assert "_proposalTurnId" not in accepted["receipt"]
+        replay = await submit(c, path, "confirm run", request_id, unseen["id"])
+        assert replay == accepted
+        changed = await c.post(path, json={**message, "expectedProposalId": other["id"]})
+        assert (changed.status_code, changed.json().get("code")) == (409, "IDEMPOTENCY_CONFLICT")
+        same_run = (await c.get(base)).json()["data"]["items"]
+        assert [item["id"] for item in same_run] == [accepted["receipt"]["runId"]]
+        assert len(model.calls) == 3

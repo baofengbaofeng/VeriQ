@@ -1,7 +1,7 @@
 /**
  * 会话的 Run 关联只用于定位真实授权报告。一个会话最多由最新的非终态卡片使用实时订阅，其余卡片读取各自报告快照。
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "../../api";
 import { tx } from "../../locale";
@@ -29,6 +29,15 @@ const matching = (workspaceId: string, runId: string, report: RunReport) => {
     return report;
 };
 
+// Web 提供标准 HTTP Problem，桌面保留授权代号；任一来源已明确拒绝时都要隐藏此前缓存的报告和跳转入口。
+function accessDenied(error: unknown): boolean {
+    const code = agentErrorCode(error);
+    return (
+        (error instanceof ApiError && [401, 403, 404, 410].includes(error.status)) ||
+        ["WORKSPACE_FORBIDDEN", "REPORT_EXPIRED", "AUTHENTICATION_REQUIRED", "RUN_NOT_FOUND"].includes(code ?? "")
+    );
+}
+
 /**
  * 为已读取的工作区 Run 显示派发回执、用例进度和真实门禁。订阅失效保留已授权的最近快照并提供恢复入口。
  */
@@ -54,19 +63,25 @@ export function RunCard({
     const id = run.id;
     const cache = useQueryClient();
     const [streamError, setStreamError] = useState<unknown>();
+    const generation = useRef(0);
     const [refreshSignal, setRefreshSignal] = useState(() => new AbortController());
     const key = useMemo(() => ["workspace", workspaceId, "agent", owner, "report", id], [workspaceId, owner, id]);
     const report = useQuery({
         queryKey: key,
-        queryFn: async ({ signal: request }) =>
-            matching(workspaceId, id, await reports.report(id, AbortSignal.any([signal, request]))),
+        queryFn: async ({ signal: request }) => {
+            const version = generation.current;
+            const snapshot = matching(workspaceId, id, await reports.report(id, AbortSignal.any([signal, request])));
+            // 拥有本次读请求时记录的代际用于阻止慢 GET 覆盖已到达的较新 SSE 帧，显式刷新则停止旧流后重新读取。
+            if (version !== generation.current) return cache.getQueryData<RunReport>(key) ?? snapshot;
+            return snapshot;
+        },
         refetchInterval: (snapshot) =>
             !focused && snapshot.state.data && snapshot.state.data.run.state !== "FINISHED" ? 8_000 : false,
         refetchOnWindowFocus: (snapshot) => !focused || !snapshot.state.data,
     });
     const loaded = !!report.data;
     const terminal = report.data?.run.state === "FINISHED";
-    const streaming = focused && !!report.data && !terminal && !report.error;
+    const streaming = focused && loaded && !terminal && !report.error && !report.isFetching;
     useEffect(() => {
         if (!streaming) return;
         const lifetime = new AbortController();
@@ -78,7 +93,9 @@ export function RunCard({
                 id,
                 (next) => {
                     if (active.aborted) return;
-                    cache.setQueryData(key, matching(workspaceId, id, next));
+                    const current = matching(workspaceId, id, next);
+                    generation.current += 1;
+                    cache.setQueryData(key, current);
                     if (next.run.state === "FINISHED") lifetime.abort();
                 },
                 active,
@@ -101,10 +118,7 @@ export function RunCard({
         if (!signal.aborted) setRefreshSignal(new AbortController());
     };
     const problem = report.error ?? streamError;
-    const code = agentErrorCode(problem);
-    const inaccessible =
-        (problem instanceof ApiError && [401, 403, 404, 410].includes(problem.status)) ||
-        ["WORKSPACE_FORBIDDEN", "REPORT_EXPIRED", "AUTHENTICATION_REQUIRED", "RUN_NOT_FOUND"].includes(code ?? "");
+    const inaccessible = accessDenied(report.error) || accessDenied(streamError);
     const value = inaccessible ? undefined : report.data;
     const finished = value?.cases.filter((item) => item.state === "FINISHED").length;
     return (

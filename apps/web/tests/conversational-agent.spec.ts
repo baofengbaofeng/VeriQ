@@ -278,3 +278,70 @@ test("a delayed model reply cannot repopulate another Workspace", async ({ page 
         hold = undefined;
     }
 });
+
+/**
+ * 桌面采用的 React 严格模式可重放挂载效果。第一次服务器响应即使已持久化却丢失，重载仍须续用原来的发送身份。
+ */
+test("StrictMode preserves conversation requests and reload retries reuse the same intent", async ({ page }) => {
+    const scope = await editorScope(page, "conversation-strict");
+    const id = await provider(page, scope.workspaceId, scope.headers);
+    const base = `/api/v1/workspaces/${scope.workspaceId}/agent`;
+    const settings = await page.request.put(`${base}/settings`, {
+        headers: scope.headers,
+        data: { defaultProviderId: id, agentProviderId: null },
+    });
+    expect(settings.status()).toBe(200);
+    await page.goto(`/tests/agent-strict-fixture.html?workspaceId=${scope.workspaceId}`);
+    await expect(page.getByText("Ready", { exact: true })).toBeVisible();
+    await page.getByLabel("Conversation title").fill("Replay safe");
+    await page.getByRole("button", { name: "New conversation", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Replay safe" })).toBeVisible();
+
+    output = { reply: "The strict workspace replied once." };
+    const callsBefore = modelCalls;
+    const text = "Assess this reload-safe Workspace";
+    const boundary = "**/agent/sessions/*/turns";
+    let originalId = "";
+    // 第一次 POST 已送达真实服务，浏览器只丢失响应；随后交给默认网络，避免用拦截器伪造业务重放。
+    await page.route(boundary, async (route) => {
+        if (route.request().method() !== "POST" || originalId) return route.continue();
+        originalId = route.request().postDataJSON().requestId;
+        const response = await route.fetch();
+        expect(response.status(), await response.text()).toBe(200);
+        await route.abort();
+    });
+    await page.getByLabel("Message").fill(text);
+    await page.getByRole("button", { name: "Send", exact: true }).click();
+    await expect(page.getByRole("alert")).toHaveText("Unable to load conversation data. Retry the request.");
+    const stored = await page.evaluate(() =>
+        Object.entries(sessionStorage).filter(([key]) => key.startsWith("veriq.agent.retry/")),
+    );
+    expect(stored.map(([, value]) => value)).toEqual([
+        expect.stringMatching(new RegExp(`^[a-f0-9]{64}/${originalId}$`)),
+    ]);
+    expect(JSON.stringify(stored)).not.toContain(text);
+    await page.reload();
+    await page.getByRole("button", { name: "Replay safe", exact: true }).click();
+    await expect(page.getByText("The strict workspace replied once.")).toBeVisible();
+    const replay = page.waitForResponse(
+        (response) => response.url().endsWith("/turns") && response.request().method() === "POST",
+    );
+    await page.getByLabel("Message").fill(text);
+    await page.getByRole("button", { name: "Send", exact: true }).click();
+    const repeated = await replay;
+    expect(repeated.status(), await repeated.text()).toBe(200);
+    expect(repeated.request().postDataJSON().requestId).toBe(originalId);
+    await expect(page.getByText(text, { exact: true })).toHaveCount(1);
+    expect(modelCalls).toBe(callsBefore + 1);
+    await expect(page.getByLabel("Message")).toHaveValue("");
+    const next = page.waitForResponse(
+        (response) => response.url().endsWith("/turns") && response.request().method() === "POST",
+    );
+    await page.getByLabel("Message").fill(text);
+    await page.getByRole("button", { name: "Send", exact: true }).click();
+    const fresh = await next;
+    expect(fresh.status(), await fresh.text()).toBe(200);
+    expect(fresh.request().postDataJSON().requestId).not.toBe(originalId);
+    await expect(page.getByText(text, { exact: true })).toHaveCount(2);
+    expect(modelCalls).toBe(callsBefore + 2);
+});
