@@ -922,10 +922,7 @@ async def test_legacy_published_dataset_revalidation_uses_frozen_original(site, 
             await asyncio.to_thread(inspect_files, tombstone)
             assert (tombstone / ".veriq-retirement-inventory").is_file()
             assert (modules / ".veriq-retired").is_file()
-            status = (
-                "CLEANED" if (tombstone / ".veriq-retired").is_file() else "OWNERSHIP_UNCONFIRMED"
-            )
-            assert journal["dataCleanup"] == status
+            assert journal["dataCleanup"] == "OWNERSHIP_UNCONFIRMED"
         for file in profile.rglob("*"):
             if file.is_file() and not file.is_symlink():
                 assert marker.encode() not in file.read_bytes(), file

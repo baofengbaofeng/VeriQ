@@ -270,14 +270,7 @@ for (const condition of ["owned", "replacement", "symlink", "unknown", "historic
             if (condition === "relocated") await fs.rename(tmp, join(outside, "relocated"));
             await f.supervisor.recover();
             const persisted = JSON.parse(await readFile(journal, "utf8"));
-            assert.equal(
-                persisted.dataCleanup,
-                condition === "owned"
-                    ? "CLEANED"
-                    : condition === "unknown"
-                      ? "STOP_UNCONFIRMED"
-                      : "OWNERSHIP_UNCONFIRMED",
-            );
+            assert.equal(persisted.dataCleanup, condition === "unknown" ? "STOP_UNCONFIRMED" : "OWNERSHIP_UNCONFIRMED");
             if (condition === "owned") {
                 assert.deepEqual((await readdir(tmp)).sort(), [
                     ".veriq-owner",
@@ -328,7 +321,7 @@ test("recovery verifies the original physical target of the operating system tem
         assert((await lstat(join(work, "node_modules"))).isDirectory());
         await fs.unlink(alias);
         await symlink(join(root, "original"), alias, "junction");
-        assert.equal(await retireScratch(root, alias, record, stop), "CLEANED");
+        assert.equal(await retireScratch(root, alias, record, stop), "OWNERSHIP_UNCONFIRMED");
         assert.deepEqual((await readdir(tmp)).sort(), [
             ".veriq-owner",
             ".veriq-retired",
@@ -441,7 +434,7 @@ for (const targetType of ["file", "directory"]) {
                 assert.equal(await readFile(target, "utf8"), "foreign");
                 assert.equal(await readFile(join(root, "old"), "utf8"), "");
             }
-            assert.equal(status, swapped ? "OWNERSHIP_UNCONFIRMED" : "CLEANED");
+            assert.equal(status, "OWNERSHIP_UNCONFIRMED");
         } finally {
             context.mock.restoreAll();
             syncBuiltinESMExports();
@@ -510,6 +503,57 @@ test("undecodable and valid sibling names cannot alias a retirement proof", asyn
         assert.equal(await readFile(candidate, "utf8"), "preserve");
     } finally {
         await fs.unlink(Buffer.concat([Buffer.from(tmp + "/"), Buffer.from([255])])).catch(() => {});
+        await rm(root, { recursive: true, force: true });
+    }
+});
+
+test("separate retirement receipts cannot prove both mutable trees empty at the same time", async (context) => {
+    const root = await mkdtemp(join(tmpdir(), "vq-cross-root-"));
+    const id = randomUUID(),
+        work = join(root, "work", id),
+        tmp = await mkdtemp(join(root, "veriq-a-"));
+    try {
+        await mkdir(work, { recursive: true });
+        const allocation = await allocateScratch(work, tmp);
+        const modules = join(work, "node_modules"),
+            first = join(modules, "original"),
+            second = join(tmp, "original");
+        await writeFile(first, "known modules bytes");
+        await writeFile(second, "known scratch bytes");
+        const probe = await open(second, "r"),
+            proto = Object.getPrototypeOf(probe),
+            truncate = proto.truncate;
+        await probe.close();
+        context.mock.method(proto, "truncate", async function (this: typeof probe, size: number) {
+            if ((await fs.realpath("/proc/self/fd/" + this.fd)) === second) {
+                assert((await lstat(join(modules, ".veriq-retired"))).isFile());
+                await writeFile(join(modules, "new-foreign-file"), "preserve these later bytes");
+            }
+            return truncate.call(this, size);
+        });
+        const result = await retireScratch(
+            root,
+            root,
+            { work, allocation },
+            {
+                attemptId: id,
+                processStopped: true,
+                processStopScope: "NO_PROCESS_SPAWNED",
+                reason: "NO_PROCESS_SPAWNED",
+                stoppedAt: new Date().toISOString(),
+            },
+        );
+        assert.equal(await readFile(first, "utf8"), "");
+        assert.equal(await readFile(second, "utf8"), "");
+        assert.equal(await readFile(join(modules, "new-foreign-file"), "utf8"), "preserve these later bytes");
+        for (const dir of [modules, tmp])
+            assert.equal(
+                await readFile(join(dir, ".veriq-retired"), "utf8"),
+                await readFile(join(dir, ".veriq-retirement-inventory"), "utf8"),
+            );
+        assert.equal(result, "OWNERSHIP_UNCONFIRMED");
+    } finally {
+        context.mock.restoreAll();
         await rm(root, { recursive: true, force: true });
     }
 });

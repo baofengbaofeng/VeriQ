@@ -174,24 +174,23 @@ export async function retireScratch(
             await check(anchor + "/.", id, marked);
             targets.push({ path, child, id, marked });
         }
-        let complete = true;
         for (const target of targets) {
             const verifyRoot = () => check(target.path, target.id, target.marked);
             try {
-                const retired = await retireContents(
+                await retireContents(
                     target.child,
                     a.owner,
                     target.marked,
                     record.dataCleanup === "CLEANED",
                     verifyRoot,
                 );
-                if (!retired) complete = false;
             } catch {
-                complete = false;
+                // 单个目录核验失败时保留原件；其余目录仍可分别核验并写入已识别文件的退休回执。
+                continue;
             }
         }
-        for (const target of targets) await check(target.path, target.id, target.marked);
-        return complete ? "CLEANED" : "OWNERSHIP_UNCONFIRMED";
+        // 各回执描述其打开的文件集合。两个可变目录没有一致性快照，不能据此证明整个任务当前都已清空。
+        return "OWNERSHIP_UNCONFIRMED";
     } catch {
         return "OWNERSHIP_UNCONFIRMED";
     } finally {
@@ -209,7 +208,7 @@ async function retireContents(
     marked: boolean,
     previouslyCleaned: boolean,
     verifyRoot: () => Promise<void>,
-): Promise<boolean> {
+): Promise<void> {
     const anchor = "/proc/self/fd/" + root.fd;
     const mount = async (fd: number) => {
         const info = await readFile("/proc/self/fdinfo/" + fd, "utf8");
@@ -318,11 +317,10 @@ async function retireContents(
     await marker(markerName, rootNames.includes(markerName));
     if (finished) await marker(doneName, true);
     else if (!rootNames.includes(markerName)) {
-        if (previouslyCleaned) return false;
-        if ((await scan("truncate")).digest !== inventory.digest) return false;
+        if (previouslyCleaned) return;
+        if ((await scan("truncate")).digest !== inventory.digest) return;
     }
     const verified = await scan("verify");
-    if (!verified.safe || verified.digest !== inventory.digest) return false;
+    if (!verified.safe || verified.digest !== inventory.digest) return;
     if (!finished) await marker(doneName, false);
-    return true;
 }
