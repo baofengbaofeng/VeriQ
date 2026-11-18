@@ -40,7 +40,7 @@
 | V06 | 示例全流程、前后端接入和手册可复现性                             | 未执行本轮代码验证                                                                                                               | [接入](tasks/V06-integration.md)            |
 | V07 | 实际 AI Provider、预算、usage/cost、审核与无模型执行             | 阻塞：需独立提供 endpoint/model/密钥配置和预算授权                                                                               | [Provider](tasks/V07-provider.md)           |
 | V08 | 正常前端→static/dist→Python wheel→离线安装→OCI 发行              | 未通过；不能以候选包替代正常成功包                                                                                               | [发行](tasks/V08-release.md)                |
-| V09 | 编码规范、全量测试、覆盖率、许可与SBOM                           | 62ebe3c发行Pylint源根修复已复审；16项通过、E0401专项6→0，全质量仍未过                                                            | [质量](tasks/V09-quality.md)                |
+| V09 | 编码规范、全量测试、覆盖率、许可与SBOM                           | bca9faf服务14正文/8模块头/3doc空行已复审；全仓700/28/150，ratio null未过                                                         | [质量](tasks/V09-quality.md)                |
 | V10 | 最终需求追踪、并发/故障/篡改和整分支独立复审                     | 待 V00–V09 及 V11 的适用条件满足                                                                                                 | [最终验收](tasks/V10-final-review.md)       |
 | V11 | Windows SQLite Claim 日志、本地保留期和未知进程保护              | Linux 既有回归 55 项、新增专项 12 项通过并复审；Windows 与完整 V11 未验收                                                        | [本地持久化](tasks/V11-local-durability.md) |
 
@@ -281,3 +281,11 @@ Pylint的23项原诊断逐条保持，预算local计数未增加，回调仍返�
 下一任务合并10个文件的同形注释整改：completion/import_result/import_upload/jobs/publication/report/results/runtime共8服务文件的14处普通英文正文与模块首doc；另在build_release.\_phase_environment、test_build_release.\_write_namespace_imports与test_release_pylint_resolves_checkout_namespaces三个摘要后补空行。后两文件只能改这三doc的空行，不能改函数体、夹具字节或其它doc。真实业务AST、其它字符串、工具pragma以精确证明保留，禁止用比例填充；无须重跑16/401/188或业务/DB/浏览器。
 
 三处doc建议有具体接续，不丢给含糊最终复审；原恢复UTC offset/root mode两项继续开放。最近全仓实际测量仍是68cda13的700/28/164、ratio=null、passed=false，未对本次代码测量。>40%MVP硬门禁与全部原平台/恢复/Provider/Runtime/发行范围不变。
+
+### 十文件纯注释批次已关闭
+
+`bca9faf` 已独立复审，无C/I/M；14普通正文、8模块头完成，发行三个摘要后空行逐项关闭。8服务之外所有class/functiondocs保持，额外发行两文件仅指定3doc各一行增量，原文字不改。完整AST、33,630运行词元、2,489其余字符串/f-string、pragma及非授权字节证明保持，933保护一致。定向正文14→0，C328→344/K4413同；无业务或16/401/188重跑。
+
+Pylint45服务+31发行、Black3旧hunks、mypy服务8为0/发行测试7旧项保持；Python引号布局仍91处继承（服务70、发行脚本8、测试13）。这些局部结果不关闭全仓质量。最新全量确切绑定bca9faf：700支持/28解析阻断/150正文、C10618/K149696、ratio=null、passed=false，支持子集6.62325%非权威全仓值，>40%仍为MVP硬门禁。
+
+接续恢复两项测试精度建议，唯一test_recovery_guards.py：当前codec对固定+00:00 wire应显式断言decoded.utcoffset为0；\_tree_state用'.'记录根lstat模式，保留所有后代和已有拒绝/驱动/CLI断言。预检未证明生产缺陷，不能虚构RED或规范化任意时区；最终原46+CLI初始化4共50纯用例在当前source SHA重跑，实际DB/恢复/global read lock/S3仍开放。工具语法身份、150正文及28语言/其它质量与全部平台/发行等范围继续。
