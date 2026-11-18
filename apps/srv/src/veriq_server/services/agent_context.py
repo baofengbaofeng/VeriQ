@@ -51,17 +51,10 @@ def _rank(text, *columns):
 
 
 async def run_summary(report: ReportService, scope: WorkspaceScope, run_id: str) -> dict:
-    """只从报告服务读取当前状态与用例统计，保留结果为空的实际语义，避免把入队回执或模型猜测作为测试结论。"""
-    result = await report.get(scope, run_id)
-    run = result["run"]
-    return {
-        "runId": run_id,
-        "state": run["state"],
-        "outcome": run.get("outcome"),
-        "statistics": result["statistics"],
-        "gateAtExecution": result["gateAtExecution"]["passed"],
-        "gateNow": result["gateNow"]["passed"],
-    }
+    """仅从报告服务读取当前状态和实际结论，允许尚无结论的运行作为回答依据；统计及门禁在完整报告中计算。"""
+    # 对话轮次只读有成员授权的运行头，不在持有安装锁时展开逐用例和逐尝试的完整报告或计算门禁。
+    run = await report.run(scope, run_id)
+    return {"runId": run.id, "state": run.state, "outcome": run.outcome}
 
 
 async def _assets(s, scope, text, plans):
@@ -162,6 +155,14 @@ async def _runtimes(s, scope, user, text, plans):
     return result
 
 
+def _visible_selection(selection: dict, devices: set[str], versions: set[str]) -> bool:
+    """历史轮次只能复用目前目录中有权选择的设备和发布版本，包括原计划预览中的套件以及直接运行的每个用例。"""
+    referenced = {selection["environmentVersionId"], *selection.get("caseVersionIds", [])}
+    if "suiteVersionId" in selection:
+        referenced.add(selection["suiteVersionId"])
+    return referenced <= versions and set(selection["runtimeIds"]) <= devices
+
+
 async def build_context(
     s: AsyncSession,
     scope: WorkspaceScope,
@@ -205,18 +206,18 @@ async def build_context(
         if set(p.selection["runtimeIds"]) <= visible
         and {p.selection["suiteVersionId"], p.selection["environmentVersionId"]} <= versions
     ]
-    # 将引用限制到本次仍可见的候选；模型只应在当前授权内延续之前的建议，设备撤销后不能再次寄送旧选择。
+    plan_ids = {p.id for p in plans}
+    # 增量预览中旧值可能包含已撤销的私有设备，历史引用只有在三组选择全部仍可见时才发给供应商。
     for item, turn in zip(history, recent, strict=True):
-        if turn.proposal:
-            selected = turn.proposal.get("plan") or turn.proposal.get("selection") or {}
-            if set(selected.get("runtimeIds", [])) <= visible and (
-                not turn.proposal.get("planId")
-                or any(p.id == turn.proposal["planId"] for p in plans)
-            ):
-                item["proposal"] = turn.proposal
+        proposal = turn.proposal
+        if not proposal or ("planId" in proposal and proposal["planId"] not in plan_ids):
+            continue
+        selections = [proposal[k] for k in ("plan", "previousPlan", "selection") if k in proposal]
+        if all(_visible_selection(selected, visible, versions) for selected in selections):
+            item["proposal"] = proposal
 
     # 用户主动给出的标识先通过同空间运行表解析，正文、报告日志、截图或随环境保存的凭据都不进入模型。
-    mentioned = UUID_IN_TEXT.findall(text)[:8]
+    mentioned = [rid.lower() for rid in UUID_IN_TEXT.findall(text)[:8]]
     explicit = list(
         await s.scalars(
             select(Run.id).where(Run.workspace_id == scope.workspace_id, Run.id.in_(mentioned))
@@ -232,8 +233,17 @@ async def build_context(
         try:
             runs.append(await run_summary(report, scope, rid))
         except Problem as problem:
-            if problem.status not in {404, 410}:
+            if problem.status not in {404, 410} and problem.code != "REPORT_LIMIT":
                 raise
+    allowed_ids = visible | versions | plan_ids | {r["runId"] for r in runs}
+    for item in history:
+        for field in ("text", "reply"):
+            item[field] = UUID_IN_TEXT.sub(
+                lambda match: (
+                    match[0] if match[0].lower() in allowed_ids else "[unavailable reference]"
+                ),
+                item[field],
+            )
     context = {
         "request": text,
         "history": history,

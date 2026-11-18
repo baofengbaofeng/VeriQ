@@ -123,7 +123,7 @@ async def test_agent_confirmation_checks_revision_and_is_idempotent(site):
         report = (await c.get(f"/api/v1/workspaces/{ws}/runs/{run_id}/report")).json()["data"]
         wire = json.loads(model.calls[-1]["body"]["messages"][1]["content"])["context"]
         assert wire["runs"][0]["state"] == report["run"]["state"]
-        assert wire["runs"][0]["statistics"] == report["statistics"]
+        assert wire["runs"][0]["outcome"] == report["run"].get("outcome")
 
 
 async def test_agent_one_off_keeps_saved_plan(site):
@@ -386,3 +386,186 @@ async def test_agent_model_output_withheld_after_provider_revocation(site):
         assert turn["status"] == "FAILED" and turn["errorCode"] == "AI_PROVIDER_DISABLED"
         assert "reply" not in turn and "proposal" not in turn
         assert (await c.get(provider)).json()["data"]["budget"]["estimatedUsedUsd"] == 0.00016
+
+
+async def test_explicit_report_without_model_reference_uses_authoritative_state(site):
+    """显式请求运行状态无需供应商正确回传标识，详细元数据已经到期时仍可读取范围内运行的真实摘要。"""
+    from veriq_server.db import CaseExecution
+
+    c, db, ws, _, plan = await plan_fixture(site)
+    base = f"/api/v1/workspaces/{ws}"
+    started = await c.post(
+        base + f"/execution-plans/{plan['id']}/trigger",
+        json={},
+        headers={"Idempotency-Key": str(uuid4())},
+    )
+    assert started.is_success, started.text
+    rid = started.json()["data"]["runId"]
+    async with db.sessions.begin() as s:
+        case = await s.scalar(select(CaseExecution).where(CaseExecution.run_id == rid))
+        case.provenance = {**case.provenance, "metadataExpiredAt": "2026-01-01T00:00:00Z"}
+    assert (await c.get(base + f"/runs/{rid}/report")).status_code == 410
+    truth = (await c.get(base + f"/runs/{rid}")).json()["data"]
+    async with emulator() as model:
+        path, _, _ = await conversation(c, ws, model)
+        model.output = {"reply": "All cases PASSED"}
+        result = await submit(c, path, "Status of run " + rid.upper())
+        assert result.get("relatedRunId") == rid
+        assert truth["state"] in result["reply"] and "PASSED" not in result["reply"]
+        wire = json.loads(model.calls[-1]["body"]["messages"][1]["content"])["context"]
+        assert wire["runs"] == [
+            {"runId": rid, "state": truth["state"], "outcome": truth.get("outcome")}
+        ]
+
+
+async def test_redacted_plan_name_remains_intact_on_unrelated_update(site):
+    """模拟器实际收到的是引用脱敏占位符，而已有计划的非目标名称必须保持原有字面值，不能把占位符写回。"""
+    c, _, ws, _, plan = await plan_fixture(site)
+    target = f"/api/v1/workspaces/{ws}/execution-plans/{plan['id']}"
+    title = "Verify secretRef error handling"
+    assert (await c.put(target, json={**plan_input(plan), "name": title})).is_success
+    async with emulator() as model:
+        path, _, _ = await conversation(c, ws, model)
+        model.output = {
+            "reply": "Retry once",
+            "proposal": {
+                "type": "SAVE_PLAN",
+                "planId": plan["id"],
+                "plan": {"revision": 2, "maxCaseRetries": 1},
+            },
+        }
+        turn = await submit(c, path, "Enable one retry on the saved plan")
+        assert title not in model.calls[-1]["body"]["messages"][1]["content"]
+        assert turn["proposal"]["plan"]["name"] == title
+        assert (await c.post(f"{path}/{turn['id']}/confirm")).is_success
+        assert (await c.get(target)).json()["data"]["name"] == title
+        model.output["proposal"]["plan"] = {
+            **turn["proposal"]["plan"],
+            "revision": 3,
+            "maxCaseRetries": 0,
+            "name": "[WITHHELD_REFERENCE]",
+        }
+        full = await submit(c, path, "Reset retries")
+        assert full["proposal"]["plan"]["name"] == title
+
+
+async def test_role_and_browser_must_match_a_concrete_variant(site):
+    """角色虽然属于所选环境，仍须匹配同一用例的角色和浏览器；套件覆盖角色生效且不能忽略套件的浏览器过滤。"""
+    from test_runs_mysql import published
+    from veriq_server.db import ResourceVersion
+
+    c, db, ws, _, plan = await plan_fixture(site)
+    async with db.sessions.begin() as s:
+        suite = await s.get(ResourceVersion, plan["suiteVersionId"])
+        env = await s.get(ResourceVersion, plan["environmentVersionId"])
+        case_id = suite.document_json["document"]["cases"][0]["versionId"]
+        env_doc = env.document_json["document"]
+    role = {**env_doc["roles"][0], "roleKey": "admin"}
+    env_id = await published(
+        c, db, ws, "multi-role-env", "ENVIRONMENT", {**env_doc, "roles": [*env_doc["roles"], role]}
+    )
+    suite_id = await published(
+        c,
+        db,
+        ws,
+        "override-suite",
+        "SUITE",
+        {
+            "schemaVersion": "1.0",
+            "cases": [
+                {"versionId": case_id, "roleKeys": ["admin"], "browsers": ["chromium"]},
+                {"versionId": case_id, "roleKeys": ["reader"], "browsers": ["firefox"]},
+            ],
+        },
+    )
+    base = {
+        "environmentVersionId": env_id,
+        "browsers": ["chromium"],
+        "runtimeIds": plan["runtimeIds"],
+    }
+    async with emulator() as model:
+        path, _, _ = await conversation(c, ws, model)
+        for values in (
+            {"caseVersionIds": [case_id], "roleKeys": ["admin"]},
+            {"suiteVersionId": suite_id, "roleKeys": ["reader"]},
+        ):
+            model.output = {
+                "reply": "Ready to run",
+                "proposal": {"type": "RUN_ONCE", "selection": {**base, **values}},
+            }
+            turn = await submit(c, path, "Check coverage")
+            assert turn["status"] == "COMPLETED" and "proposal" not in turn
+            assert "role" in turn["reply"] and "browser" in turn["reply"]
+            assert (await c.post(f"{path}/{turn['id']}/confirm")).status_code == 409
+        # 旧版曾允许保存这种选择，直接确认既有数据库中的预览也必须重新检查实际变体，不能派发空矩阵。
+        old = AgentTurn(
+            id=str(uuid4()),
+            session_id=path.split("/")[-2],
+            created_at=now(),
+            request_id=str(uuid4()),
+            text="Legacy request",
+            status="COMPLETED",
+            reply="Legacy preview",
+            proposal=model.output["proposal"],
+        )
+        async with db.sessions.begin() as s:
+            s.add(old)
+        rejected = await c.post(f"{path}/{old.id}/confirm")
+        assert (rejected.status_code, rejected.json()["code"]) == (422, "AGENT_NO_MATCHING_CASE")
+        model.output["proposal"]["selection"]["roleKeys"] = ["admin"]
+        valid = await submit(c, path, "Use the suite role override")
+        assert valid["proposal"]["type"] == "RUN_ONCE"
+        receipt = (await c.post(f"{path}/{valid['id']}/confirm")).json()["data"]["receipt"]
+        report = await c.get(f"/api/v1/workspaces/{ws}/runs/{receipt['runId']}/report")
+        assert report.json()["data"]["statistics"]["caseCount"] == 1
+
+
+async def test_history_withholds_revoked_previous_plan_and_archived_selection(site):
+    """已保存计划改用第二台设备后撤销旧设备，再归档另一个待确认提议所选的套件，两处历史引用都不能返回模型。"""
+    from test_lease_mysql import device
+    from test_runs_mysql import published
+    from veriq_server.db import ResourceVersion
+
+    c, db, ws, original, plan = await plan_fixture(site)
+    replacement = await device(c, ws)
+    async with db.sessions.begin() as s:
+        suite = await s.get(ResourceVersion, plan["suiteVersionId"])
+        suite_doc = suite.document_json["document"]
+    extra = await published(c, db, ws, "extra-suite", "SUITE", suite_doc)
+    async with db.sessions.begin() as s:
+        extra_resource = (await s.get(ResourceVersion, extra)).resource_id
+    async with emulator() as model:
+        path, _, _ = await conversation(c, ws, model)
+        model.output = {
+            "reply": "Switch device",
+            "proposal": {
+                "type": "SAVE_PLAN",
+                "planId": plan["id"],
+                "plan": {"revision": 1, "runtimeIds": [replacement["runnerId"]]},
+            },
+        }
+        switched = await submit(c, path, "Switch the device")
+        assert (await c.post(f"{path}/{switched['id']}/confirm")).is_success
+        model.output = {
+            "reply": "Run extra suite",
+            "proposal": {
+                "type": "RUN_ONCE",
+                "planId": plan["id"],
+                "planRevision": 2,
+                "selection": {"suiteVersionId": extra},
+            },
+        }
+        assert "proposal" in await submit(c, path, "Try the other suite once")
+        base = f"/api/v1/workspaces/{ws}"
+        assert (await c.post(base + f"/runtimes/{original['runnerId']}/revoke", json={})).is_success
+        assert (
+            await c.patch(
+                base + f"/resources/{extra_resource}", json={"archived": True, "name": "Extra"}
+            )
+        ).is_success
+        model.output = {"reply": "Current coverage"}
+        await submit(c, path, "List our available coverage")
+        history = json.loads(model.calls[-1]["body"]["messages"][1]["content"])["context"][
+            "history"
+        ]
+        assert all(x not in json.dumps(history) for x in (extra, original["runnerId"]))

@@ -42,6 +42,15 @@ def run_dto(run: Run) -> dict[str, Any]:
     }
 
 
+def selected_axes(variant: dict, default_role: str, selection: dict) -> tuple[list[str], list[str]]:
+    """按单个套件条目的覆盖或用例默认值筛选角色及浏览器，准入计数、真实展开和对话预览使用同一匹配语义。"""
+    roles = [r for r in variant.get("roleKeys", [default_role]) if r in selection["roleKeys"]]
+    browsers = [
+        b for b in variant.get("browsers", selection["browsers"]) if b in selection["browsers"]
+    ]
+    return roles, browsers
+
+
 class RunService:
     """编排 Run 创建、用例展开与取消，所有写入限定 actor 已授权 Workspace，RunService 遵守本文件边界。RunService
     必须坚持 Workspace 归属与成员授权，
@@ -238,17 +247,8 @@ class RunService:
                 document = assets[variant["versionId"]]["document"]
                 dataset = variant.get("datasetVersionId", document.get("datasetVersionId"))
                 row_count = len(dataset_matrix_rows(assets[dataset]["document"])) if dataset else 1
-                roles = len(
-                    [
-                        r
-                        for r in variant.get("roleKeys", [document["roleKey"]])
-                        if r in data["roleKeys"]
-                    ]
-                )
-                browsers = len(
-                    [b for b in variant.get("browsers", data["browsers"]) if b in data["browsers"]]
-                )
-                cardinality += row_count * roles * browsers
+                roles, browsers = selected_axes(variant, document["roleKey"], data)
+                cardinality += row_count * len(roles) * len(browsers)
                 if cardinality > 1000:
                     raise Problem(413, "MATRIX_LIMIT", "Run matrix exceeds 1000 variants")
         run = Run(
@@ -280,9 +280,8 @@ class RunService:
                 validate_initial_variables(document.get("initialVariables", {}), variables)
                 dataset_id = variant.get("datasetVersionId", document.get("datasetVersionId"))
                 rows = dataset_matrix_rows(assets[dataset_id]["document"]) if dataset_id else [None]
-                roles = variant.get("roleKeys", [document["roleKey"]])
-                browsers = variant.get("browsers", data["browsers"])
-                for role_key in [r for r in roles if r in data["roleKeys"]]:
+                roles, browsers = selected_axes(variant, document["roleKey"], data)
+                for role_key in roles:
                     selected_role = next(
                         (r for r in environment["roles"] if r["roleKey"] == role_key), None
                     )
@@ -300,7 +299,7 @@ class RunService:
                     adapters = await IdentityRegistry().freeze(
                         self.session, WorkspaceScope(workspace_id), identities
                     )
-                    for browser in [b for b in browsers if b in data["browsers"]]:
+                    for browser in browsers:
                         for row in rows:
                             if len(matrix) >= 1000:
                                 raise Problem(

@@ -19,7 +19,7 @@ from ..infrastructure.providers import DraftContext, ProviderGateway
 from ..service import Problem, audit, lock_installation, now
 from ..validation import validate_api
 from .agent_actions import apply_proposal, current_selection, proposal_preview
-from .agent_context import build_context, run_summary
+from .agent_context import UUID_IN_TEXT, build_context, run_summary
 from .agent_sessions import AgentSessionService, turn_dto
 from .ai import AGENT_PURPOSE, micros, priced, sanitize
 from .report import ReportService
@@ -320,21 +320,58 @@ class ConversationalAgent(AgentSessionService):
         if not output["reply"].strip():
             raise Problem(422, "AGENT_OUTPUT_INVALID", "Conversation reply is empty")
         proposal = None
-        if "proposal" in output:
-            proposal = proposal_preview(output["proposal"], context)
-            await current_selection(s, scope, user, proposal)
-        related = output.get("relatedRunId")
         reply_text = output["reply"]
-        if "relatedRunId" in output:
-            if related not in [r["runId"] for r in context["runs"]]:
-                raise Problem(
-                    422,
-                    "AGENT_RUN_UNAVAILABLE",
-                    "The selected Run is outside this conversation context",
+        if "proposal" in output:
+            proposal = await proposal_preview(s, scope, user, output["proposal"], context)
+            try:
+                await current_selection(s, scope, user, proposal)
+            except Problem as problem:
+                if problem.code != "AGENT_NO_MATCHING_CASE":
+                    raise
+                # 选择属于本空间但无法展开任何执行变体时，仅展示覆盖缺口；不记录可以确认的空运行或计划。
+                proposal, reply_text = None, problem.message
+        available = {r["runId"] for r in context["runs"]}
+        related = output.get("relatedRunId")
+        if related is not None and related not in available:
+            raise Problem(
+                422,
+                "AGENT_RUN_UNAVAILABLE",
+                "The selected Run is outside this conversation context",
+            )
+        report_ids = [related] if related else []
+        if "proposal" not in output:
+            explicit = [
+                rid.lower() for rid in UUID_IN_TEXT.findall(turn.text) if rid.lower() in available
+            ]
+            if explicit:
+                report_ids = list(dict.fromkeys(explicit))
+            elif (
+                not related
+                and len(available) == 1
+                and any(
+                    word in turn.text.casefold()
+                    for word in (
+                        "status",
+                        "progress",
+                        "result",
+                        "report",
+                        "what happened",
+                        "结果",
+                        "进度",
+                        "状态",
+                        "报告",
+                    )
                 )
-            # 报告在供应商调用期间可能继续变化，结果回复重新读取权威状态，取代供应商对运行状态的自由文本描述。
-            summary = await run_summary(ReportService(s, user, self.ai.settings), scope, related)
-            reply_text = f"Run {related} · {summary['state']} · {summary['outcome'] or '—'}"
+            ):
+                report_ids = list(available)
+        if report_ids:
+            related = report_ids[0]
+            report = ReportService(s, user, self.ai.settings)
+            lines = []
+            for rid in report_ids:
+                summary = await run_summary(report, scope, rid)
+                lines.append(f"Run {rid} · {summary['state']} · {summary['outcome'] or '—'}")
+            reply_text = "\n".join(lines)
         dto = {**turn_dto(turn), "status": "COMPLETED", "reply": reply_text}
         if proposal:
             dto["proposal"] = proposal

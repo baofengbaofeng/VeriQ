@@ -3,15 +3,17 @@
 from typing import Any
 
 from jsonschema import ValidationError
+from sqlalchemy import select
 
 from ..auth.authorization import Permission
+from ..db import ResourceVersion
 from ..repositories.resource import ResourceRepository
 from ..service import Problem
 from ..validation import validate_api
 from .agent_context import safe_plan
 from .execution_plan import ExecutionPlanService, TriggerService
 from .runtime import RuntimeService
-from .runs import RunService
+from .runs import RunService, selected_axes
 from .workspace import WorkspaceRepository
 
 
@@ -44,7 +46,7 @@ def _check_selection(selection, assets, runtimes):
         raise _invalid()
 
 
-def proposal_preview(value: Any, context: dict) -> dict:
+async def proposal_preview(s, scope, user, value: Any, context: dict) -> dict:
     """以调用前送出的真实基准补全差量字段，只允许模型指出所需变更，回显原配置与完整提议均由控制面构造。"""
     if not isinstance(value, dict) or "previousPlan" in value:
         raise _invalid()
@@ -52,16 +54,21 @@ def proposal_preview(value: Any, context: dict) -> dict:
     base = None
     kind = proposal.get("type")
     if "planId" in proposal:
-        base = next((p for p in context["plans"] if p["id"] == proposal["planId"]), None)
-        if base is None:
+        offered = next((p for p in context["plans"] if p["id"] == proposal["planId"]), None)
+        if offered is None:
             raise _invalid()
-        base = {k: v for k, v in base.items() if k != "id"}
+        row = await ExecutionPlanService(s, user).get(scope.workspace_id, proposal["planId"])
+        if row.archived or row.revision != offered["revision"]:
+            raise Problem(409, "PLAN_REVISION_CONFLICT", "Review the current active plan revision")
+        base = safe_plan(row)
         # 在合并前比较模型所选修订与实际发给模型的修订；不能把一个陈旧或缺少修订的增量自动升级。
         if kind == "SAVE_PLAN":
             patch = proposal.get("plan")
             if not isinstance(patch, dict) or patch.get("revision") != base["revision"]:
                 raise _invalid()
-            proposal.update(plan={**base, **patch}, previousPlan=base)
+            # 当模型回传完整表单时，脱敏占位同样表示基准值；实际合并须保留未曾交给供应商的原有配置。
+            changes = {k: v for k, v in patch.items() if v != offered.get(k)}
+            proposal.update(plan={**base, **changes}, previousPlan=base)
         elif proposal.get("planRevision") != base["revision"]:
             raise _invalid()
         elif kind == "RUN_ONCE":
@@ -91,6 +98,28 @@ def proposal_preview(value: Any, context: dict) -> dict:
     return proposal
 
 
+async def _require_workload(s, scope, selection, variants):
+    """按不可变用例版本取角色键并逐条交叉匹配，不把不同套件条目的角色与浏览器拼成一个并不存在的可运行组合。"""
+    ids = {v["versionId"] for v in variants}
+    query = select(
+        ResourceVersion.id, ResourceVersion.document_json["document"]["roleKey"].as_string()
+    ).where(
+        ResourceVersion.workspace_id == scope.workspace_id,
+        ResourceVersion.kind == "CASE",
+        ResourceVersion.id.in_(ids),
+    )
+    roles = dict((await s.execute(query)).all())
+    for variant in variants:
+        role = roles.get(variant["versionId"])
+        if role and all(selected_axes(variant, role, selection)):
+            return
+    raise Problem(
+        422,
+        "AGENT_NO_MATCHING_CASE",
+        "No published case matches this role and browser combination. Choose a different role, browser or suite.",
+    )
+
+
 async def current_selection(s, scope, user, proposal):
     """重新解析确认所用的确切版本并读取服务端变量，套件和环境归档、计划修订变化或撤销设备授权都阻止执行。"""
     plan = None
@@ -113,6 +142,7 @@ async def current_selection(s, scope, user, proposal):
     ids = [selection["environmentVersionId"], *selection.get("caseVersionIds", [])]
     if "suiteVersionId" in selection:
         ids.append(selection["suiteVersionId"])
+    variants = [{"versionId": cid} for cid in selection.get("caseVersionIds", [])]
     for vid in ids:
         version = await repo.version(vid)
         if (await repo.resource(version.resource_id)).status == "ARCHIVED":
@@ -122,6 +152,8 @@ async def current_selection(s, scope, user, proposal):
             if version.kind == "ENVIRONMENT"
             else []
         )
+        if version.kind == "SUITE":
+            variants = version.document_json["document"]["cases"]
         assets[vid] = {"kind": version.kind, "roleKeys": [r["roleKey"] for r in roles]}
     devices = {}
     for rid in selection["runtimeIds"]:
@@ -131,6 +163,7 @@ async def current_selection(s, scope, user, proposal):
             "browsers": runtime.capabilities.get("browsers", []),
         }
     _check_selection(selection, assets, devices)
+    await _require_workload(s, scope, selection, variants)
     return plan
 
 
