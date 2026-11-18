@@ -18,7 +18,7 @@ from ..repositories.resource import ResourceRepository
 from ..service import Problem, now, stamp
 from .runtime import RuntimeService
 from .workspace import WorkspaceRepository
-from .snapshots import validate_initial_variables
+from .snapshots import dataset_matrix_rows, execution_data_row, validate_initial_variables
 from .results import aggregate
 from .execution_principal import ServicePrincipal
 
@@ -224,7 +224,7 @@ class RunService:
             for variant in variants:
                 document = assets[variant["versionId"]]["document"]
                 dataset = variant.get("datasetVersionId", document.get("datasetVersionId"))
-                row_count = len(assets[dataset]["document"]["rows"]) if dataset else 1
+                row_count = len(dataset_matrix_rows(assets[dataset]["document"])) if dataset else 1
                 roles = len(
                     [
                         r
@@ -266,7 +266,7 @@ class RunService:
                 variables = data.get("variables", {})
                 validate_initial_variables(document.get("initialVariables", {}), variables)
                 dataset_id = variant.get("datasetVersionId", document.get("datasetVersionId"))
-                rows = assets[dataset_id]["document"]["rows"] if dataset_id else [None]
+                rows = dataset_matrix_rows(assets[dataset_id]["document"]) if dataset_id else [None]
                 roles = variant.get("roleKeys", [document["roleKey"]])
                 browsers = variant.get("browsers", data["browsers"])
                 for role_key in [r for r in roles if r in data["roleKeys"]]:
@@ -341,7 +341,14 @@ class RunService:
                                 "namespace": "attempt_" + execution.id.replace("-", ""),
                                 "attemptNo": 1,
                                 "suiteEntryIndex": ordinal,
-                                **({"dataRow": row, "datasetVersionId": dataset_id} if row else {}),
+                                **(
+                                    {
+                                        "dataRow": execution_data_row(row),
+                                        "datasetVersionId": dataset_id,
+                                    }
+                                    if row
+                                    else {}
+                                ),
                             }
                             if validate_schema("ExecutionSnapshotV1", frozen):
                                 raise Problem(
@@ -383,7 +390,11 @@ class RunService:
                                 resource_keys.append(
                                     sha256(
                                         canonical_bytes(
-                                            ["data", assets[dataset_id]["resourceId"], row["key"]]
+                                            [
+                                                "data",
+                                                assets[dataset_id]["resourceId"],
+                                                provenance["rowKey"],
+                                            ]
                                         )
                                     ).hexdigest()
                                 )

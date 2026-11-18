@@ -50,7 +50,7 @@ const schemas: Record<ResourceKind, string> = {
     CASE: "CaseDslV1",
     ELEMENT_CATALOG: "ElementCatalogV1",
     ASSERTION_TEMPLATE: "AssertionTemplateV1",
-    DATASET: "DatasetV1",
+    DATASET: "DatasetDocument",
     FLOW: "FlowV1",
     FIXTURE: "FixtureV1",
     SUITE: "SuiteV1",
@@ -401,6 +401,10 @@ export function ResourceEditorView({
     const watched = useWatch({ control: form.control, name: "content" }),
         content = clean(watched) as ResourceDocumentV1,
         serialized = pretty(content);
+    /**
+     * 旧版数据集表单只处理 columns 和顶层 rows，新版使用现有 JSON 编辑器，避免表单为新版正文写入旧字段。
+     */
+    const jsonOnly = content.kind === "DATASET" && content.document.schemaVersion === "2.0";
     const [saved, setSaved] = useState(initial),
         [mode, setMode] = useState<"form" | "json">("form"),
         [formLifetime, setFormLifetime] = useState(0),
@@ -593,7 +597,7 @@ export function ResourceEditorView({
                 </Section>
             )}
             <div className="vq-actions">
-                <Button tone="secondary" onClick={() => setMode("form")}>
+                <Button tone="secondary" disabled={jsonOnly} onClick={() => setMode("form")}>
                     {t("form")}
                 </Button>
                 <Button
@@ -608,7 +612,7 @@ export function ResourceEditorView({
             </div>
             <FormProvider {...form}>
                 <fieldset className="vq-editor-fields" disabled={!writable || busy}>
-                    {mode === "form" ? (
+                    {mode === "form" && !jsonOnly ? (
                         <ResourceForms key={formLifetime} kind={resource.kind} versions={allVersions.data ?? []} />
                     ) : (
                         <>

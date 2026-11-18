@@ -857,3 +857,29 @@ it("shared verification preserves the canonical validation-only library", () => 
     delete files["validation.ts"];
     expect(() => verifyFiles(relocated, files)).toThrow("MISSING_VALIDATION_FILE");
 });
+
+/**
+ * 冷装配验证新版树行在旧执行快照中的投影，既接受正确字段值也拒绝任意篡改，即使行键仍匹配原始资产。
+ */
+it("checks a frozen tree matrix row using the existing execution row identity", () => {
+    const s = snapshot(
+        undefined,
+        [
+            asset(3, "DATASET", {
+                schemaVersion: "2.0",
+                shape: "TREE",
+                fields: { code: { type: "string", required: true, nullable: false } },
+                source: {
+                    kind: "STATIC",
+                    rows: [{ key: "root", values: { code: "01" }, parentKey: null, order: 0 }],
+                },
+            }),
+        ],
+        { datasetVersionId: id(3) },
+    );
+    const result = compileFiles(s, distribution());
+    const e = { ...execution(), assetSourceHash: s.sourceHash, dataRow: { key: "root", values: { code: "01" } } };
+    expect(assembleExecution(result.bundle, e, result.files).snapshot.dataRow).toEqual(e.dataRow);
+    e.dataRow.values.code = "1";
+    expect(() => assembleExecution(result.bundle, e, result.files)).toThrow("DATA_ROW_MISMATCH");
+});

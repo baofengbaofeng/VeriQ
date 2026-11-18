@@ -777,6 +777,39 @@ export type LocatorV1 =
     };
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "DataRowV2".
+ */
+export type DataRowV2 = DataRowV1 | TreeDataRowV2;
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "DatasetV2".
+ */
+export type DatasetV2 =
+  | {
+      schemaVersion: "2.0";
+      shape: "TABLE";
+      fields: DatasetFieldsV2;
+      source: {
+        kind: "STATIC";
+        rows: DataRowV1[];
+      };
+    }
+  | {
+      schemaVersion: "2.0";
+      shape: "TREE";
+      fields: DatasetFieldsV2;
+      source: {
+        kind: "STATIC";
+        rows: TreeDataRowV2[];
+      };
+    };
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "DatasetDocument".
+ */
+export type DatasetDocument = DatasetV1 | DatasetV2;
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
  * via the `definition` "ResourceDocumentV1".
  */
 export type ResourceDocumentV1 =
@@ -794,7 +827,7 @@ export type ResourceDocumentV1 =
     }
   | {
       kind: "DATASET";
-      document: DatasetV1;
+      document: DatasetDocument;
     }
   | {
       kind: "FLOW";
@@ -843,7 +876,7 @@ export type AssetVersionV1 =
       versionId: Id;
       kind: "DATASET";
       sha256: Sha256;
-      document: DatasetV1;
+      document: DatasetDocument;
     }
   | {
       resourceId: Id;
@@ -1284,6 +1317,12 @@ export interface ContractDefinitions {
   AssertionTemplateV1?: AssertionTemplateV1;
   DataRowV1?: DataRowV1;
   DatasetV1?: DatasetV1;
+  DataFieldV2?: DataFieldV2;
+  DatasetFieldsV2?: DatasetFieldsV2;
+  TreeDataRowV2?: TreeDataRowV2;
+  DataRowV2?: DataRowV2;
+  DatasetV2?: DatasetV2;
+  DatasetDocument?: DatasetDocument;
   FlowV1?: FlowV1;
   FixtureEndpointV1?: FixtureEndpointV1;
   FixtureV1?: FixtureV1;
@@ -1509,6 +1548,32 @@ export interface DatasetV1 {
    * @minItems 1
    */
   rows: [DataRowV1, ...DataRowV1[]];
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "DataFieldV2".
+ */
+export interface DataFieldV2 {
+  type: "string" | "number" | "integer" | "boolean" | "object" | "array";
+  required: boolean;
+  nullable: boolean;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "DatasetFieldsV2".
+ */
+export interface DatasetFieldsV2 {
+  [k: string]: DataFieldV2;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "TreeDataRowV2".
+ */
+export interface TreeDataRowV2 {
+  key: Key;
+  values: JsonObject;
+  parentKey: Key | null;
+  order: number;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema

@@ -69,18 +69,22 @@ parseContract(schemaName: string, text: string): unknown;
 
 `ResourceDocumentV1` 为 `{kind, document}`，其 kind/document 使用严格联合：
 
-| kind | 文档类型 | 除 schemaVersion `1.0` 外的必填字段 |
+| kind | 文档类型 | 除 schemaVersion 外的必填字段 |
 | --- | --- | --- |
 | CASE | CaseDslV1 | caseKey、title、kind READ/WRITE、roleKey、catalogVersionId、steps |
 | ELEMENT_CATALOG | ElementCatalogV1 | elements：key/locator 记录 |
 | ASSERTION_TEMPLATE | AssertionTemplateV1 | assertions；可选参数类型映射 |
-| DATASET | DatasetV1 | columns 类型映射、`{key, values}` 行 |
+| DATASET | DatasetV1 / DatasetV2 | V1 使用 columns 和 rows；V2 使用 shape、fields 和 source |
 | FLOW | FlowV1 | steps；可选参数类型映射 |
 | FIXTURE | FixtureV1 | prepare/query/cleanup 端点、inputSchema、outputSchema、ttlSeconds |
 | SUITE | SuiteV1 | 锁定 versionId 的 cases；可选 datasetVersionId/roleKeys/browsers |
 | ENVIRONMENT | EnvironmentV1 | baseURL、apiBaseURL、allowedOrigins、locale、timezone、roles |
 
 所有固定文档字段都须声明，拒绝未知字段。有意开放的字典仅限已命名映射或 JSON 业务数据。`FixtureV1.query.method` 为 GET。`EnvironmentV1` 可选 fixtureBaseURL/buildSha；每个角色包含 roleKey、authAdapterVersionId、secretRef、secretVersionId，可选 allowedIdentityIds。环境快照和 Bundle 只包含凭据引用，不包含密码、设备 token、Cookie 或 storageState。
+
+`DatasetV1` 保留 `schemaVersion: "1.0"` 及原有必填列和非空行规则。`DatasetV2` 使用 `schemaVersion: "2.0"`，静态来源为 `{kind: "STATIC", rows}`，字段声明由 `fields` 映射保存。字段类型为 `string`、`number`、`integer`、`boolean`、`object` 或 `array`，`required` 控制是否可省略，`nullable` 控制是否接受显式 `null`。TABLE 行包含 `key` 和 `values`。TREE 行另含 `parentKey`（根节点为 `null`）和数值 `order`。
+
+草稿沿用资源正文及依赖闭包预算。可信编译验证行键、声明字段的存在和值类型，以及树的孤立节点、循环和深度，根节点计为第 1 层，最多 100 层。独立参考数据集允许空行数组，CASE 或 SUITE 矩阵要求至少一行，并按冻结行数组顺序投影 `{key, values}` 到既有执行快照。V2 矩阵要求联网执行。
 
 `CaseDslV1` 可选锁定 fixtureVersionId、datasetVersionId 和 persistenceCheckpointStepId。版本引用是 UUID，不得查询可变 `latest`。WRITE 检查点/关键断言、依赖归属、变量存在性/类型、夹具模式、流程展开/环/深度及数据列一致性等语义由编译器/服务负责。
 

@@ -476,19 +476,19 @@ export function assembleExecution(
               ];
     if (suite ? variants.length === 0 : selectedCase.document.roleKey !== snapshot.roleKey)
         throw new Error("ROLE_MISMATCH");
-    // A no-data alternative remains distinct from every dataset alternative.
-    // Role/browser filtering above must stay coupled to this exact row match.
+    /**
+     * 行身份按当前角色及浏览器允许的变体匹配，无数据的变体只接受无执行行。树元数据属于资产摘要，不属于既有执行行摘要。
+     */
+    const selectedRowHash = snapshot.dataRow ? sha256(canonicalBytes(snapshot.dataRow)) : undefined;
     const matchesData = variants.some((variant) => {
         const datasetId = variant.datasetVersionId ?? selectedCase.document.datasetVersionId;
-        if (!datasetId) return snapshot.dataRow === undefined;
-        if (!snapshot.dataRow) return false;
+        if (!datasetId) return selectedRowHash === undefined;
+        if (!selectedRowHash) return false;
         const dataset = source.assets.find((a) => a.versionId === datasetId);
-        return (
-            dataset?.kind === "DATASET" &&
-            dataset.document.rows.some(
-                (row) => sha256(canonicalBytes(row)) === sha256(canonicalBytes(snapshot.dataRow)),
-            )
-        );
+        if (dataset?.kind !== "DATASET") return false;
+        const d = dataset.document;
+        const rows = d.schemaVersion === "1.0" ? d.rows : d.source.rows;
+        return rows.some(({ key, values }) => sha256(canonicalBytes({ key, values })) === selectedRowHash);
     });
     if (!matchesData)
         throw new Error(

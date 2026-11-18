@@ -113,20 +113,38 @@ async def test_suite_matrix_preserves_dataset_row_provenance_and_frozen_variable
             ],
         },
     )
+    # 变体共享行键但分别冻结旧表和新版树，身份必须保留数据集版本，执行行仅包含稳定键与字段值。
     datasets = [
         await published(
             c,
             db,
             ws,
-            "dataset" + v,
+            "datasetA",
             "DATASET",
             {
                 "schemaVersion": "1.0",
                 "columns": {"value": "string"},
-                "rows": [{"key": "same", "values": {"value": v}}],
+                "rows": [{"key": "same", "values": {"value": "A"}}],
             },
-        )
-        for v in ["A", "B"]
+        ),
+        await published(
+            c,
+            db,
+            ws,
+            "datasetB",
+            "DATASET",
+            {
+                "schemaVersion": "2.0",
+                "shape": "TREE",
+                "fields": {"value": {"type": "string", "required": True, "nullable": False}},
+                "source": {
+                    "kind": "STATIC",
+                    "rows": [
+                        {"key": "same", "values": {"value": "B"}, "parentKey": None, "order": 0}
+                    ],
+                },
+            },
+        ),
     ]
     suite = await published(
         c,
@@ -171,6 +189,10 @@ async def test_suite_matrix_preserves_dataset_row_provenance_and_frozen_variable
             json.loads((await session.get(Artifact, (ws, j.snapshot_hash))).content) for j in jobs
         ]
         assert all(s["variables"] == data["variables"] and s["authAdapters"] for s in snapshots)
+        assert {s["datasetVersionId"]: s["dataRow"] for s in snapshots} == {
+            datasets[0]: {"key": "same", "values": {"value": "A"}},
+            datasets[1]: {"key": "same", "values": {"value": "B"}},
+        }
         assert all("synthetic-business-secret" not in json.dumps(s) for s in snapshots)
     empty = {k: v for k, v in data.items() if k != "suiteVersionId"}
     empty["caseVersionIds"] = []

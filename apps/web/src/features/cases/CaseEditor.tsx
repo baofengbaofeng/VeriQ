@@ -59,8 +59,7 @@ export const newStep = (): StepV1 => ({
     path: "/",
 });
 /**
- * 拥有 steps/initialVariables/dataset 绑定 UI，并嵌入 AssertionEditor。fixtureBindings 合并数据集列与变量供填充提示；
- * 不发起 Workspace API。
+ * 维护步骤和变量编辑，并根据固定的数据集版本提示夹具可用的列或字段。提示只显示声明名称，不在表单读取数据行正文。
  */
 export function CaseEditor({ versions, flow = false }: { versions: VersionOption[]; flow?: boolean }) {
     useAppLocale();
@@ -68,10 +67,12 @@ export function CaseEditor({ versions, flow = false }: { versions: VersionOption
     const initialVariables = useValue<Record<string, string> | undefined>("content.document.initialVariables") ?? {};
     const datasetVersionId = useValue<string | undefined>("content.document.datasetVersionId");
     const dataset = versions.find((v) => v.id === datasetVersionId)?.content;
+    const datasetFields =
+        dataset?.kind === "DATASET"
+            ? Object.keys(dataset.document.schemaVersion === "1.0" ? dataset.document.columns : dataset.document.fields)
+            : [];
     const fixtureBindings = [
-        ...(dataset?.kind === "DATASET"
-            ? Object.keys(dataset.document.columns).map((key) => "{{data." + key + "}}")
-            : []),
+        ...datasetFields.map((key) => "{{data." + key + "}}"),
         ...Object.keys(initialVariables).map((key) => "{{vars." + key + "}}"),
     ];
     return (

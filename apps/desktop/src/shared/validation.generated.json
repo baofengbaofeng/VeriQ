@@ -1970,6 +1970,145 @@
             "required": ["schemaVersion", "columns", "rows"],
             "additionalProperties": false
         },
+        "DataFieldV2": {
+            "type": "object",
+            "properties": {
+                "type": {
+                    "enum": ["string", "number", "integer", "boolean", "object", "array"]
+                },
+                "required": {
+                    "type": "boolean"
+                },
+                "nullable": {
+                    "type": "boolean"
+                }
+            },
+            "required": ["type", "required", "nullable"],
+            "additionalProperties": false
+        },
+        "DatasetFieldsV2": {
+            "type": "object",
+            "propertyNames": {
+                "$ref": "#/$defs/Key"
+            },
+            "additionalProperties": {
+                "$ref": "#/$defs/DataFieldV2"
+            }
+        },
+        "TreeDataRowV2": {
+            "type": "object",
+            "properties": {
+                "key": {
+                    "$ref": "#/$defs/Key"
+                },
+                "values": {
+                    "$ref": "#/$defs/JsonObject"
+                },
+                "parentKey": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/Key"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "order": {
+                    "type": "number"
+                }
+            },
+            "required": ["key", "values", "parentKey", "order"],
+            "additionalProperties": false
+        },
+        "DataRowV2": {
+            "oneOf": [
+                {
+                    "$ref": "#/$defs/DataRowV1"
+                },
+                {
+                    "$ref": "#/$defs/TreeDataRowV2"
+                }
+            ]
+        },
+        "DatasetV2": {
+            "oneOf": [
+                {
+                    "type": "object",
+                    "properties": {
+                        "schemaVersion": {
+                            "const": "2.0"
+                        },
+                        "shape": {
+                            "const": "TABLE"
+                        },
+                        "fields": {
+                            "$ref": "#/$defs/DatasetFieldsV2"
+                        },
+                        "source": {
+                            "type": "object",
+                            "properties": {
+                                "kind": {
+                                    "const": "STATIC"
+                                },
+                                "rows": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/$defs/DataRowV1"
+                                    }
+                                }
+                            },
+                            "required": ["kind", "rows"],
+                            "additionalProperties": false
+                        }
+                    },
+                    "required": ["schemaVersion", "shape", "fields", "source"],
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "schemaVersion": {
+                            "const": "2.0"
+                        },
+                        "shape": {
+                            "const": "TREE"
+                        },
+                        "fields": {
+                            "$ref": "#/$defs/DatasetFieldsV2"
+                        },
+                        "source": {
+                            "type": "object",
+                            "properties": {
+                                "kind": {
+                                    "const": "STATIC"
+                                },
+                                "rows": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/$defs/TreeDataRowV2"
+                                    }
+                                }
+                            },
+                            "required": ["kind", "rows"],
+                            "additionalProperties": false
+                        }
+                    },
+                    "required": ["schemaVersion", "shape", "fields", "source"],
+                    "additionalProperties": false
+                }
+            ]
+        },
+        "DatasetDocument": {
+            "oneOf": [
+                {
+                    "$ref": "#/$defs/DatasetV1"
+                },
+                {
+                    "$ref": "#/$defs/DatasetV2"
+                }
+            ]
+        },
         "FlowV1": {
             "type": "object",
             "properties": {
@@ -2223,7 +2362,7 @@
                             "const": "DATASET"
                         },
                         "document": {
-                            "$ref": "#/$defs/DatasetV1"
+                            "$ref": "#/$defs/DatasetDocument"
                         }
                     },
                     "required": ["kind", "document"],
@@ -2367,7 +2506,7 @@
                             "$ref": "#/$defs/Sha256"
                         },
                         "document": {
-                            "$ref": "#/$defs/DatasetV1"
+                            "$ref": "#/$defs/DatasetDocument"
                         }
                     },
                     "required": ["resourceId", "versionId", "kind", "sha256", "document"],
@@ -5551,6 +5690,24 @@
         },
         "api_DatasetV1": {
             "$ref": "#/$defs/DatasetV1"
+        },
+        "api_DataFieldV2": {
+            "$ref": "#/$defs/DataFieldV2"
+        },
+        "api_DatasetFieldsV2": {
+            "$ref": "#/$defs/DatasetFieldsV2"
+        },
+        "api_TreeDataRowV2": {
+            "$ref": "#/$defs/TreeDataRowV2"
+        },
+        "api_DataRowV2": {
+            "$ref": "#/$defs/DataRowV2"
+        },
+        "api_DatasetV2": {
+            "$ref": "#/$defs/DatasetV2"
+        },
+        "api_DatasetDocument": {
+            "$ref": "#/$defs/DatasetDocument"
         },
         "api_FlowV1": {
             "$ref": "#/$defs/FlowV1"

@@ -5,6 +5,8 @@ import addFormats from "ajv-formats";
 import { resolveOperation } from "../src/main/policy.ts";
 import desktopSchema from "../src/shared/validation.generated.json" with { type: "json" };
 
+import datasetFixtures from "../../../packages/contracts/fixtures/datasets.json" with { type: "json" };
+
 const validator = new Ajv2020({ strict: true, allErrors: true });
 addFormats.default(validator);
 validator.addSchema(desktopSchema);
@@ -75,6 +77,21 @@ test("generated locator accepts veriqId and rejects the retired testId spelling"
     assert.ok(validate);
     assert.equal(validate({ by: "veriqId", value: "checkout-submit" }), true);
     assert.equal(validate({ by: "testId", value: "checkout-submit" }), false);
+});
+
+/**
+ * 通过桌面白名单里的真实草稿操作验证数据集信封，合法表格通过，树形元数据不全的正文在发送网络请求之前被拒绝。
+ */
+test("desktop draft writes apply the V2 dataset schema", () => {
+    const workspaceId = "00000000-0000-4000-8000-000000000001";
+    const resourceId = "00000000-0000-4000-8000-000000000002";
+    for (const fixture of datasetFixtures) {
+        const data = { revision: 1, content: { kind: "DATASET", document: fixture.document } };
+        const request = { operation: "updateDraft", params: { workspaceId, resourceId }, data };
+        if (fixture.invalidStructure)
+            assert.throws(() => resolveOperation(request, workspaceId), /IPC_PAYLOAD_INVALID/, fixture.name);
+        else assert.deepEqual(resolveOperation(request, workspaceId).data, data, fixture.name);
+    }
 });
 
 /**

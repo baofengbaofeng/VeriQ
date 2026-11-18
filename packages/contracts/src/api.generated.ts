@@ -2906,6 +2906,60 @@ export interface components {
             columns: components["schemas"]["ParameterTypes"];
             rows: components["schemas"]["DataRowV1"][];
         };
+        DataFieldV2: {
+            /**
+             * @enum {unknown}
+             */
+            type: "string" | "number" | "integer" | "boolean" | "object" | "array";
+            required: boolean;
+            nullable: boolean;
+        };
+        DatasetFieldsV2: {
+            [key: string]: components["schemas"]["DataFieldV2"];
+        };
+        TreeDataRowV2: {
+            key: components["schemas"]["Key"];
+            values: components["schemas"]["JsonObject"];
+            parentKey: components["schemas"]["Key"] | null;
+            order: number;
+        };
+        DataRowV2: components["schemas"]["DataRowV1"] | components["schemas"]["TreeDataRowV2"];
+        DatasetV2: {
+            /**
+             * @constant
+             */
+            schemaVersion: "2.0";
+            /**
+             * @constant
+             */
+            shape: "TABLE";
+            fields: components["schemas"]["DatasetFieldsV2"];
+            source: {
+                /**
+                 * @constant
+                 */
+                kind: "STATIC";
+                rows: components["schemas"]["DataRowV1"][];
+            };
+        } | {
+            /**
+             * @constant
+             */
+            schemaVersion: "2.0";
+            /**
+             * @constant
+             */
+            shape: "TREE";
+            fields: components["schemas"]["DatasetFieldsV2"];
+            source: {
+                /**
+                 * @constant
+                 */
+                kind: "STATIC";
+                rows: components["schemas"]["TreeDataRowV2"][];
+            };
+        };
+        DatasetDocument: components["schemas"]["DatasetV1"] | components["schemas"]["DatasetV2"];
         FlowV1: {
             /**
              * @constant
@@ -3002,7 +3056,7 @@ export interface components {
              * @constant
              */
             kind: "DATASET";
-            document: components["schemas"]["DatasetV1"];
+            document: components["schemas"]["DatasetDocument"];
         } | {
             /**
              * @constant
@@ -3063,7 +3117,7 @@ export interface components {
              */
             kind: "DATASET";
             sha256: components["schemas"]["Sha256"];
-            document: components["schemas"]["DatasetV1"];
+            document: components["schemas"]["DatasetDocument"];
         } | {
             resourceId: components["schemas"]["Id"];
             versionId: components["schemas"]["Id"];

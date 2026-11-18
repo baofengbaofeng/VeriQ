@@ -159,7 +159,17 @@ def expected_variants(checked: dict[str, Any], result: dict[str, Any]) -> dict[s
             if path in files and (not draft or name.startswith("publishedDependency")):
                 provenance[name] = sha256(files[path]).hexdigest()
         dataset = entry.get("datasetVersionId", document.get("datasetVersionId"))
-        data_rows = assets[dataset]["document"]["rows"] if dataset else [None]
+        data_rows = [None]
+        if dataset:
+            dataset_document = assets[dataset]["document"]
+            # 旧签名包只解释旧版数据行。新版静态矩阵只能经联网准入冻结，不能从旧导入路径推导执行变体。
+            if dataset_document.get("schemaVersion") == "2.0":
+                raise Problem(
+                    422,
+                    "OFFLINE_DATASET_VERSION_UNSUPPORTED",
+                    "Dataset v2 requires connected execution",
+                )
+            data_rows = dataset_document["rows"]
         for role in entry.get("roleKeys", [document["roleKey"]]):
             for browser in entry.get(
                 "browsers", result.get("executionChoices", {}).get("browsers", ["chromium"])
