@@ -34,7 +34,7 @@
 - 修改 `scripts/comment_audit.py`：辅助资格和既有 `_python_source` 的最小接入。
 - 新建 `tests/acceptance/test_python_tool_directives.py`：计量、默认解析兼容、边界与真实mypy行为。
 - 修改 `apps/srv/src/veriq_server/contracts.py`：只准确补充相邻第40行普通中文说明；三个固定标记所在行保持。
-- 修改 `tests/acceptance/test_tool_directives.py`：只将旧Vite警告中的期待路径改为解析后的POSIX绝对路径。
+- 修改 `tests/acceptance/test_tool_directives.py`：只在临时文件仍存在时预存解析后的POSIX绝对路径，退出临时目录上下文后使用缓存期待值。
 
 **接口约束**
 
@@ -48,7 +48,7 @@
 - [ ] 加相邻普通说明与文档串同行代码用例；真实短普通说明仍被检查，完整普通中文说明可独立计C，K自然去重。
 - [ ] 最小实现辅助资格和真实词元/宿主验证；不改通用分组或默认AST函数口径。
 - [ ] 使用同一严格隔离配置运行四组真实mypy静态输入：精确标记退出0；移除退出1且含no-any-return与arg-type；无待抑制错误退出1且含unused-ignore；错拼退出2且含syntax。输入不执行、不加载项目插件或凭据，缺版本直接报错而非跳过。
-- [ ] 只补充contracts相邻短说明，按实际包内资源优先与源码目录回退解释；原AST、字符串及三个标记保持。保持Vite原警告/次数断言，将路径改为 `(root / path).resolve().as_posix()`。
+- [ ] 只补充contracts相邻短说明，按实际包内资源优先与源码目录回退解释；原AST、字符串及三个标记保持。保持Vite原警告/次数及清理断言；在临时文件存在时将 `(root / path).resolve().as_posix()` 存入期待路径字典，退出上下文后按当前path使用缓存值。
 - [ ] 跑新模块GREEN后，运行原六个工具模块和新模块一次，保留全部结果；不执行无关业务、DB、浏览器、原生或付费服务。
 - [ ] 跑触及源的正文/宽度/块排版/Black/Ruff/Pylint/mypy，基线与最终精确对照旧债；冻结所有原始证据、保护清单和完整新文件补丁。
 - [ ] 独立SPEC及QUALITY复审，通过后协调者明确路径提交、一次绑定新源码的全仓审计、文档提交及pushdev。
