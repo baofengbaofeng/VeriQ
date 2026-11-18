@@ -266,12 +266,7 @@ export async function executeCase(
         retryObservation = new RetryObservation(options.page.context(), plan.document.kind === "WRITE");
         ctx = createStepContext({
             datasets: staticDatasetResolver(documents),
-            ...(options.datasetProtected && {
-                datasetVersions: {
-                    matrix: execution.datasetVersionId,
-                    aliases: execution.datasetBindings ?? {},
-                },
-            }),
+            datasetProtected: options.datasetProtected === true,
             onBusinessRequest: (method) => retryObservation!.method(method),
             page: options.page,
             onEvent: async (event) => {

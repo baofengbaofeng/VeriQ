@@ -10,7 +10,7 @@ import { randomUUID } from "node:crypto";
 /**
  * 可信编译桥在开始受保护任务前要求当前 SDK 明确提供写前证据策略，旧归档不会仅因支持连接数据传输而获准启动浏览器用例。
  */
-export const datasetEvidencePolicyVersion = 1;
+export const datasetEvidencePolicyVersion = 2;
 /**
  * 公开接口 RestrictedEvidence 描述受控证据句柄：含制品标识与访问策略：普通报告只保留元数据（RestrictedEvidence）。
  */
@@ -117,6 +117,7 @@ export class EvidencePolicy {
             "handling",
             "pageKey",
         ]);
+        if (this.datasetProtected && value.expectedSource === "PROTECTED_CASE") identifiers.add("expectedSource");
         const dynamic = new Set(["expected", "value", "data", "vars", "variables", "headers"]);
         const restricted = value.sensitivity === "CREDENTIAL_RESTRICTED" || value.kind === "download";
         return Object.fromEntries(

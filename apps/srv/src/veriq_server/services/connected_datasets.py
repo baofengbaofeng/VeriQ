@@ -1,6 +1,7 @@
 """工作区内完整冻结源仅供服务端保存，联网任务采用剔除静态行的独立投影，编译回执仍以原始版本摘要为准。"""
 
 import json
+import re
 from hashlib import sha256
 from typing import Any
 from uuid import uuid4
@@ -46,42 +47,112 @@ async def protected_event_context(
         return None
     manifest = await frozen_object(repo, attempt.manifest_hash)
     ctx = {"subject": subject, "manifest": manifest, "steps": {}, "sources": {}}
-    if not manifest.get("compiledBundleSha256"):
+    case = await repo.session.get(CaseExecution, job.case_execution_id)
+    if (
+        not case
+        or case.workspace_id != repo.scope.workspace_id
+        or case.id != subject.get("caseExecutionId")
+    ):
         return ctx
-    bundle = await frozen_object(repo, manifest["compiledBundleSha256"])
-    files = {f["path"]: f["sha256"] for f in bundle.get("files", [])}
-    if not {"metadata/report-display.json", "source/asset-snapshot.json"} <= files.keys():
-        return ctx
-    display = await frozen_object(repo, files["metadata/report-display.json"], "ReportDisplayV1")
-    source = await frozen_object(repo, files["source/asset-snapshot.json"])
-    by_version = {a["versionId"]: a for a in source["assets"]}
-    for case in display["cases"]:
-        if case["caseVersionId"] != manifest["caseVersionId"]:
-            continue
-        for step in case["steps"]:
-            ctx["steps"][step["id"]] = step
-            for assertion in step["assertions"]:
-                # 编译器的来源路径包含真实 flow/template 调用边界；始终在同一已校验的源快照内跳转。
-                node = source
-                for part in assertion["sourcePath"].strip("/").split("/"):
-                    if part in {"flow", "template"}:
-                        doc = by_version[node["versionId"]]["document"]
-                        node = doc["steps" if part == "flow" else "assertions"]
-                    else:
-                        node = node[int(part)] if isinstance(node, list) else node[part]
-                label = assertion["expectedSource"]
-                version = None
-                if "datasetExpected" in node:
-                    version = subject.get("datasetBindings", {}).get(
-                        node["datasetExpected"]["alias"]
-                    )
-                elif "{{data." in json.dumps(node.get("expected"), ensure_ascii=False):
-                    version = subject.get("datasetVersionId")
-                ctx["sources"][step["id"], assertion["id"]] = (
-                    label + " (" + version + ")" if version else label,
-                    assertion["severity"],
-                )
+    source = await frozen_object(repo, case.source_snapshot_hash)
+    # 只从服务器保留的 CASE 及其明确引用的资产生成出现位置；上传的展示元数据不能提供任何可写标识。
+    try:
+        if (
+            source["workspaceId"] == case.workspace_id
+            and asset_source_hash(source) == subject["assetSourceHash"]
+            and case.case_version_id == manifest.get("caseVersionId")
+            and case.case_version_id in source["entryCaseVersionIds"]
+        ):
+            ctx["steps"], ctx["sources"] = protected_occurrences(
+                source, case.case_version_id, subject
+            )
+    except (TypeError, KeyError, ValueError, IndexError, AttributeError, RecursionError):
+        # 无效或不完整的冻结关联只留下封闭的协议状态，任何步骤、断言或观察器事实均会在落库前被拒绝。
+        pass
     return ctx
+
+
+def protected_occurrences(source: dict, case_id: str, subject: dict) -> tuple[dict, dict]:
+    """以编译器相同的展开路径和预算遍历单个真实 CASE；逐层校验引用种类并继承模板的 WARN。"""
+    versions = {asset["versionId"]: (index, asset) for index, asset in enumerate(source["assets"])}
+    if len(versions) != len(source["assets"]):
+        raise ValueError("DUPLICATE_VERSION")
+    steps, assertions = {}, {}
+    count = 0
+
+    def document(vid: str, kind: str) -> dict:
+        asset = versions[vid][1]
+        if asset["kind"] != kind:
+            raise ValueError("REFERENCE_KIND_MISMATCH")
+        return asset["document"]
+
+    def wire(path: str) -> str:
+        return "v_" + sha256(path.encode("utf-8")).hexdigest()
+
+    def uses_matrix(value, fields) -> bool:
+        if isinstance(value, dict):
+            return any(uses_matrix(v, fields) for v in value.values())
+        if isinstance(value, list):
+            return any(uses_matrix(v, fields) for v in value)
+        pattern = r"\{\{data\.([A-Za-z_][A-Za-z0-9_]*)(?:\.[A-Za-z_][A-Za-z0-9_]*)*\}\}"
+        return isinstance(value, str) and any(key in fields for key in re.findall(pattern, value))
+
+    def scoped(fields, parameters):
+        return (fields - parameters.keys()) | {
+            key for key, value in parameters.items() if uses_matrix(value, fields)
+        }
+
+    def collect_assertions(items, parent, step_id, fields, depth=0, warn=False):
+        nonlocal count
+        for index, item in enumerate(items):
+            count += 1
+            if depth > 5 or count > 5000:
+                raise ValueError("EXPANDED_ASSERTION_LIMIT")
+            path = f"{parent}/{index}"
+            severity = "WARN" if warn else item["severity"]
+            if item["type"] == "template":
+                child = document(item["versionId"], "ASSERTION_TEMPLATE")
+                collect_assertions(
+                    child["assertions"],
+                    path + "/template",
+                    step_id,
+                    scoped(fields, item.get("parameters", {})),
+                    depth + 1,
+                    severity == "WARN",
+                )
+                continue
+            label = "CASE"
+            if "datasetExpected" in item:
+                label = "DATASET:" + subject["datasetBindings"][item["datasetExpected"]["alias"]]
+            elif item["type"] != "responseSchema" and uses_matrix(item.get("expected"), fields):
+                label = "DATASET:" + subject["datasetVersionId"]
+            assertions[step_id, wire(path)] = (label, severity)
+
+    def collect_steps(items, parent, fields, depth=0):
+        for index, step in enumerate(items):
+            if depth > 5 or len(steps) >= 500:
+                raise ValueError("EXPANDED_STEP_LIMIT")
+            path = f"{parent}/{index}"
+            step_id = wire(path)
+            steps[step_id] = {o["id"] for o in step.get("observers", [])}
+            for stage in ["beforeAssertions", "afterAssertions"]:
+                collect_assertions(step.get(stage, []), path + "/" + stage, step_id, fields)
+            if step["action"] == "callFlow":
+                collect_steps(
+                    document(step["versionId"], "FLOW")["steps"],
+                    path + "/flow",
+                    scoped(fields, step.get("parameters", {})),
+                    depth + 1,
+                )
+
+    matrix = (
+        document(subject["datasetVersionId"], "DATASET") if subject.get("datasetVersionId") else {}
+    )
+    fields = set(matrix.get("fields", matrix.get("columns", {})))
+    collect_steps(
+        document(case_id, "CASE")["steps"], f"/assets/{versions[case_id][0]}/document/steps", fields
+    )
+    return steps, assertions
 
 
 def protected_event(ctx: dict, event: dict) -> bool:
@@ -94,7 +165,10 @@ def protected_event(ctx: dict, event: dict) -> bool:
         or ("assertionId" in event) != (kind == "ASSERTION_RESULT")
         or ("stepId" in event and step_id not in ctx["steps"])
         or "message" in payload
-        or ("errorCode" in payload and validate_schema("ProtectedExecutionErrorCode", payload["errorCode"]))
+        or (
+            "errorCode" in payload
+            and validate_schema("ProtectedExecutionErrorCode", payload["errorCode"])
+        )
     ):
         return False
     blocked_step = payload.get("blockedByStepId", step_id)
@@ -105,19 +179,18 @@ def protected_event(ctx: dict, event: dict) -> bool:
         return False
     if kind == "ASSERTION_RESULT":
         return (
-            ctx["sources"].get((step_id, assertion_id))
-            == (payload["expectedSource"], payload["severity"])
+            (step_id, assertion_id) in ctx["sources"]
+            and payload["expectedSource"] == "PROTECTED_CASE"
+            and ctx["sources"][step_id, assertion_id][1] == payload["severity"]
             and payload["actual"] == {"present": False}
             and payload["expected"] is None
         )
     if kind == "OBSERVER_RESULT":
-        return not payload["requests"] and any(
-            o["id"] == payload["observerId"] for o in ctx["steps"][step_id]["observers"]
-        )
+        return not payload["requests"] and payload["observerId"] in ctx["steps"][step_id]
     if kind == "ATTEMPT_STARTED":
         return payload == {
-            "engineVersion": ctx["manifest"]["engineVersion"],
-            "sourceHash": ctx["subject"]["assetSourceHash"],
+            "engineVersion": ctx["manifest"].get("engineVersion"),
+            "sourceHash": ctx["subject"].get("assetSourceHash"),
         }
     return kind in {
         "STEP_STARTED",

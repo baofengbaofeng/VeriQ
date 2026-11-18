@@ -185,7 +185,7 @@ test(
                     page,
                     catalog: ctx.catalog,
                     environment: ctx.environment,
-                    datasetVersions: { matrix: id(16), aliases: {} },
+                    datasetProtected: true,
                 });
                 try {
                     await page.goto(origin);

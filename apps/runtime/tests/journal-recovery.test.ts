@@ -279,8 +279,14 @@ for (const condition of ["owned", "replacement", "symlink", "unknown", "historic
                       : "OWNERSHIP_UNCONFIRMED",
             );
             if (condition === "owned") {
-                assert.deepEqual((await readdir(tmp)).sort(), [".veriq-owner", ".veriq-retired"]);
-                assert.deepEqual(await readdir(modules), [".veriq-retired"]);
+                assert.deepEqual((await readdir(tmp)).sort(), [
+                    ".veriq-owner",
+                    ".veriq-retired",
+                    ".veriq-retirement-inventory",
+                    "old-copy",
+                ]);
+                assert.equal(await readFile(join(tmp, "old-copy"), "utf8"), "");
+                assert.deepEqual((await readdir(modules)).sort(), [".veriq-retired", ".veriq-retirement-inventory"]);
                 await writeFile(join(tmp, "operator-copy"), "keep");
                 await f.supervisor.recover();
                 assert.equal(JSON.parse(await readFile(journal, "utf8")).dataCleanup, "OWNERSHIP_UNCONFIRMED");
@@ -323,7 +329,11 @@ test("recovery verifies the original physical target of the operating system tem
         await fs.unlink(alias);
         await symlink(join(root, "original"), alias, "junction");
         assert.equal(await retireScratch(root, alias, record, stop), "CLEANED");
-        assert.deepEqual((await readdir(tmp)).sort(), [".veriq-owner", ".veriq-retired"]);
+        assert.deepEqual((await readdir(tmp)).sort(), [
+            ".veriq-owner",
+            ".veriq-retired",
+            ".veriq-retirement-inventory",
+        ]);
     } finally {
         await rm(root, { recursive: true, force: true });
     }
@@ -376,3 +386,130 @@ for (const layer of ["top", "nested"])
             await rm(root, { recursive: true, force: true });
         }
     });
+
+for (const targetType of ["file", "directory"]) {
+    test("last name mutation cannot remove or overwrite a foreign " + targetType, async (context) => {
+        const root = await mkdtemp(join(tmpdir(), "vq-last-operation-")),
+            id = randomUUID(),
+            work = join(root, "work", id),
+            tmp = await mkdtemp(join(root, "veriq-a-"));
+        try {
+            await mkdir(work, { recursive: true });
+            const allocation = await allocateScratch(work, tmp),
+                target = join(tmp, "victim");
+            if (targetType === "file") await writeFile(target, "old-data");
+            else await mkdir(target);
+            let swapped = false;
+            const swap = async () => {
+                await fs.rename(target, join(root, "old"));
+                if (targetType === "file") await writeFile(target, "foreign");
+                else await mkdir(target);
+                swapped = true;
+            };
+            for (const method of ["unlink", "rmdir"] as const) {
+                const original = fs[method];
+                context.mock.method(fs, method, async (path: string) => {
+                    if (!swapped && (await fs.realpath(path)) === target) await swap();
+                    return original(path);
+                });
+            }
+            const probe = await open(join(tmp, "fixture-fd"), "w"),
+                proto = Object.getPrototypeOf(probe);
+            await probe.close();
+            const truncate = proto.truncate;
+            context.mock.method(proto, "truncate", async function (this: typeof probe, size: number) {
+                if (!swapped && targetType === "file" && (await fs.realpath("/proc/self/fd/" + this.fd)) === target)
+                    await swap();
+                return truncate.call(this, size);
+            });
+            syncBuiltinESMExports();
+            const status = await retireScratch(
+                root,
+                root,
+                { work, allocation },
+                {
+                    attemptId: id,
+                    processStopped: true,
+                    processStopScope: "NO_PROCESS_SPAWNED",
+                    reason: "NO_PROCESS_SPAWNED",
+                    stoppedAt: new Date().toISOString(),
+                },
+            );
+            if (targetType === "directory") assert((await lstat(target)).isDirectory());
+            else {
+                assert(swapped);
+                assert.equal(await readFile(target, "utf8"), "foreign");
+                assert.equal(await readFile(join(root, "old"), "utf8"), "");
+            }
+            assert.equal(status, swapped ? "OWNERSHIP_UNCONFIRMED" : "CLEANED");
+        } finally {
+            context.mock.restoreAll();
+            syncBuiltinESMExports();
+            await rm(root, { recursive: true, force: true });
+        }
+    });
+}
+
+test("partial retirement preserves hardlinks, symlinks and later writes to an already retired member", async () => {
+    const root = await mkdtemp(join(tmpdir(), "vq-partial-")),
+        id = randomUUID();
+    const work = join(root, "work", id),
+        tmp = await mkdtemp(join(root, "veriq-a-"));
+    try {
+        await mkdir(work, { recursive: true });
+        const allocation = await allocateScratch(work, tmp);
+        const foreign = join(root, "outside"),
+            owned = join(tmp, "owned");
+        await writeFile(foreign, "external bytes");
+        await fs.link(foreign, join(tmp, "hardlink"));
+        await fs.symlink(foreign, join(tmp, "symlink"));
+        await writeFile(owned, "original data");
+        const stop = {
+            attemptId: id,
+            processStopped: true,
+            processStopScope: "NO_PROCESS_SPAWNED" as const,
+            reason: "NO_PROCESS_SPAWNED",
+            stoppedAt: new Date().toISOString(),
+        };
+        assert.equal(await retireScratch(root, root, { work, allocation }, stop), "OWNERSHIP_UNCONFIRMED");
+        assert.equal(await readFile(owned, "utf8"), "");
+        await writeFile(owned, "later operator bytes");
+        assert.equal(await retireScratch(root, root, { work, allocation }, stop), "OWNERSHIP_UNCONFIRMED");
+        assert.equal(await readFile(owned, "utf8"), "later operator bytes");
+        assert.equal(await readFile(foreign, "utf8"), "external bytes");
+        assert.equal(await fs.readlink(join(tmp, "symlink")), foreign);
+    } finally {
+        await rm(root, { recursive: true, force: true });
+    }
+});
+
+test("undecodable and valid sibling names cannot alias a retirement proof", async () => {
+    const root = await mkdtemp(join(tmpdir(), "vq-name-proof-")),
+        id = randomUUID();
+    const work = join(root, "work", id),
+        tmp = await mkdtemp(join(root, "veriq-a-"));
+    try {
+        await mkdir(work, { recursive: true });
+        const allocation = await allocateScratch(work, tmp);
+        const candidate = Buffer.concat([Buffer.from(tmp + "/"), Buffer.from([255])]);
+        await writeFile(candidate, "preserve");
+        await writeFile(join(tmp, "\uFFFD"), "different");
+        const result = await retireScratch(
+            root,
+            root,
+            { work, allocation },
+            {
+                attemptId: id,
+                processStopped: true,
+                processStopScope: "NO_PROCESS_SPAWNED",
+                reason: "NO_PROCESS_SPAWNED",
+                stoppedAt: new Date().toISOString(),
+            },
+        );
+        assert.equal(result, "OWNERSHIP_UNCONFIRMED");
+        assert.equal(await readFile(candidate, "utf8"), "preserve");
+    } finally {
+        await fs.unlink(Buffer.concat([Buffer.from(tmp + "/"), Buffer.from([255])])).catch(() => {});
+        await rm(root, { recursive: true, force: true });
+    }
+});

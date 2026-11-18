@@ -240,12 +240,30 @@ async def test_static_fetch_is_scoped_to_attempt_fence_and_version(site):
         repo = ResourceRepository(session, WorkspaceScope(ws))
         job = await session.get(Job, jid)
         case = await session.get(CaseExecution, job.case_execution_id)
+        case_content = {
+            "kind": "CASE",
+            "document": {
+                "schemaVersion": "1.0",
+                "caseKey": "case",
+                "title": "Case",
+                "kind": "READ",
+                "roleKey": "reader",
+                "catalogVersionId": str(uuid4()),
+                "steps": [{"id": "published", "action": "goto", "path": "/"}],
+            },
+        }
+        case_asset = {
+            **case_content,
+            "versionId": case.case_version_id,
+            "resourceId": str(uuid4()),
+            "sha256": sha256(canonical_bytes(case_content)).hexdigest(),
+        }
         source = {
             "schemaVersion": "1.0",
             "workspaceId": ws,
             "engineVersion": "0.1.0",
             "entryCaseVersionIds": [case.case_version_id],
-            "assets": [asset],
+            "assets": [asset, case_asset],
         }
         source["sourceHash"] = asset_source_hash(source)
         case.source_snapshot_hash = await repo.store(canonical_bytes(source))
@@ -261,6 +279,46 @@ async def test_static_fetch_is_scoped_to_attempt_fence_and_version(site):
                 "rowSha256": sha256(canonical_bytes(document["rows"][0])).hexdigest(),
             },
         }
+        display = {
+            "schemaVersion": "1.0",
+            "cases": [
+                {
+                    "caseVersionId": case.case_version_id,
+                    "caseKey": "case",
+                    "title": "Case",
+                    "steps": [
+                        {
+                            "id": "v_" + "a" * 64,
+                            "sourceId": "published",
+                            "sourcePath": "/assets/0",
+                            "action": "goto",
+                            "order": 0,
+                            "observers": [],
+                            "assertions": [],
+                        }
+                    ],
+                }
+            ],
+        }
+        from veriq_server.contracts import validate_schema
+
+        assert not validate_schema("ReportDisplayV1", display)
+        file = await repo.store(canonical_bytes(display))
+        descriptor = {
+            "files": [
+                {"path": "metadata/report-display.json", "sha256": file},
+                {"path": "source/asset-snapshot.json", "sha256": case.source_snapshot_hash},
+            ]
+        }
+        job.manifest_hash = await repo.store(
+            canonical_bytes(
+                {
+                    "compiledBundleSha256": await repo.store(canonical_bytes(descriptor)),
+                    "caseVersionId": case.case_version_id,
+                    "engineVersion": "0.1.0",
+                }
+            )
+        )
         job.snapshot_hash = await repo.store(canonical_bytes(snapshot))
         job.required_capabilities = {**job.required_capabilities, "connectedDatasets": "2.0"}
     request = claim_body(d)
@@ -356,6 +414,7 @@ async def test_static_fetch_is_scoped_to_attempt_fence_and_version(site):
             },
         },
         {"type": "STEP_STARTED", "stepId": private, "payload": {}},
+        {"type": "STEP_STARTED", "stepId": "v_" + "a" * 64, "payload": {}},
         {"type": "CLEANUP_RESULT", "payload": {"cleanupStatus": "FAILED", "errorCode": private}},
     ]:
         blocked = await c.post(
@@ -413,7 +472,7 @@ async def test_legacy_published_dataset_revalidation_uses_frozen_original(site, 
         )
     ).status_code == 200
     origin, facts = business
-    env = await environment(c, db, ws, origin=origin, identity_path="/identity")
+    env = await environment(c, db, ws, origin=origin, identity_path="/identity", token="CAS")
     catalog = await published(
         c,
         db,
@@ -463,7 +522,7 @@ async def test_legacy_published_dataset_revalidation_uses_frozen_original(site, 
                         "source": "page",
                         "operator": "contains",
                         "severity": "BLOCK",
-                        "expectedSource": "Published route prefix",
+                        "expectedSource": "Published CAST route prefix",
                         "expected": "/verified",
                     },
                     {
@@ -634,6 +693,9 @@ async def test_legacy_published_dataset_revalidation_uses_frozen_original(site, 
         with sqlite3.connect(history_path.as_uri() + "?mode=ro", uri=True) as historical:
             history_before = list(historical.iterdump())
 
+        scratch_parent = profile / "scratch"
+        scratch_parent.mkdir(mode=0o700)
+
         async def launch(*args):
             return await asyncio.create_subprocess_exec(
                 "node",
@@ -644,6 +706,7 @@ async def test_legacy_published_dataset_revalidation_uses_frozen_original(site, 
                 str(release),
                 "/usr/bin/chromium",
                 *args,
+                env={**os.environ, "TMPDIR": str(scratch_parent)},
                 cwd="apps/runtime",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
@@ -712,7 +775,8 @@ async def test_legacy_published_dataset_revalidation_uses_frozen_original(site, 
                 event["payload"]["status"] == "PASSED" for event in assertions
             )
             assert all(event["payload"]["actual"] == {"present": False} for event in assertions)
-            assert assertions[0]["payload"]["expectedSource"] == "Published route prefix"
+            assert assertions[0]["payload"]["expectedSource"] == "CASE"
+            assert all("Published CAST" not in json.dumps(event) for event in assertions)
             assert dataset_version["id"] in assertions[-1]["payload"]["expectedSource"]
         assert facts["echo"] == marker
         # 相同执行主体随后再次运行同一发布版本，应复用已经成功的独立验证，不能改写回执或重复创建验证任务。
@@ -791,9 +855,7 @@ async def test_legacy_published_dataset_revalidation_uses_frozen_original(site, 
                 active_journal = json.loads(
                     (profile / "agent/attempts" / (active_id + ".json")).read_bytes()
                 )
-                scratch = (
-                    Path(tempfile.gettempdir()) / active_journal["allocation"]["temporaryName"]
-                )
+                scratch = scratch_parent / active_journal["allocation"]["temporaryName"]
                 assert scratch.is_dir()
                 await asyncio.to_thread(inspect_files, scratch)
                 await asyncio.to_thread(inspect_files, profile)
@@ -854,13 +916,16 @@ async def test_legacy_published_dataset_revalidation_uses_frozen_original(site, 
                 )
                 assert marker not in json.dumps(retained)
             journal = json.loads((profile / "agent/attempts" / (attempt.id + ".json")).read_bytes())
-            assert journal["dataCleanup"] == "CLEANED"
             assert journal["stop"]["processStopScope"] == "FULL_DESCENDANT_TREE"
-            tombstone = Path(tempfile.gettempdir()) / journal["allocation"]["temporaryName"]
-            assert sorted(member.name for member in tombstone.iterdir()) == [
-                ".veriq-owner",
-                ".veriq-retired",
-            ]
+            tombstone = scratch_parent / journal["allocation"]["temporaryName"]
+            modules = Path(journal["work"]) / "node_modules"
+            await asyncio.to_thread(inspect_files, tombstone)
+            assert (tombstone / ".veriq-retirement-inventory").is_file()
+            assert (modules / ".veriq-retired").is_file()
+            status = (
+                "CLEANED" if (tombstone / ".veriq-retired").is_file() else "OWNERSHIP_UNCONFIRMED"
+            )
+            assert journal["dataCleanup"] == status
         for file in profile.rglob("*"):
             if file.is_file() and not file.is_symlink():
                 assert marker.encode() not in file.read_bytes(), file
@@ -889,3 +954,78 @@ async def test_mvp_exposes_connected_runtime_only(site):
             response.status_code,
         )
     assert (await c.get(base + "/runtimes")).status_code == 200
+
+
+def test_protected_occurrences_expand_only_frozen_case_and_resolve_parameter_provenance():
+    from veriq_server.services.connected_datasets import protected_occurrences
+
+    wire = lambda p: "v_" + sha256(p.encode("utf8")).hexdigest()
+    tree = {
+        "assets": [
+            {"versionId": "dataset", "kind": "DATASET", "document": {"fields": {"value": {}}}},
+            {
+                "versionId": "case",
+                "kind": "CASE",
+                "document": {
+                    "steps": [
+                        {
+                            "action": "callFlow",
+                            "versionId": "flow",
+                            "parameters": {"value": "literal", "fromMatrix": "{{data.value}}"},
+                        }
+                    ]
+                },
+            },
+            {
+                "versionId": "flow",
+                "kind": "FLOW",
+                "document": {
+                    "steps": [
+                        {
+                            "action": "goto",
+                            "observers": [{"id": "realObserver"}],
+                            "afterAssertions": [
+                                {
+                                    "type": "template",
+                                    "versionId": "template",
+                                    "severity": "WARN",
+                                    "parameters": {"carried": "{{data.fromMatrix}}"},
+                                }
+                            ],
+                        }
+                    ]
+                },
+            },
+            {
+                "versionId": "template",
+                "kind": "ASSERTION_TEMPLATE",
+                "document": {
+                    "assertions": [
+                        {"type": "url", "severity": "BLOCK", "expected": "{{data.value}}"},
+                        {"type": "url", "severity": "BLOCK", "expected": "{{data.carried}}"},
+                        {"type": "url", "severity": "BLOCK", "datasetExpected": {"alias": "named"}},
+                        {
+                            "type": "responseSchema",
+                            "severity": "BLOCK",
+                            "expected": {"const": "{{data.carried}}"},
+                        },
+                    ]
+                },
+            },
+            {"versionId": "other", "kind": "CASE", "document": {"steps": [{"action": "goto"}]}},
+        ]
+    }
+    steps, sources = protected_occurrences(
+        tree, "case", {"datasetVersionId": "dataset", "datasetBindings": {"named": "named-version"}}
+    )
+    root = "/assets/1/document/steps/0"
+    nested = root + "/flow/0"
+    assert steps == {wire(root): set(), wire(nested): {"realObserver"}}
+    assert [
+        sources[wire(nested), wire(nested + f"/afterAssertions/0/template/{i}")] for i in range(4)
+    ] == [
+        ("CASE", "WARN"),
+        ("DATASET:dataset", "WARN"),
+        ("DATASET:named-version", "WARN"),
+        ("CASE", "WARN"),
+    ]

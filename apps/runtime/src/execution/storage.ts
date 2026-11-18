@@ -3,9 +3,9 @@
  * 超限即触发确定性停机（storage/INVALID_STORAGE_LIMIT）。
  */
 
-import { lstat, readdir, realpath, rmdir, unlink, open, mkdir, readFile, writeFile } from "node:fs/promises";
+import { lstat, readdir, realpath, open, mkdir, readFile, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { readBoundedFile } from "../offline/config.ts";
 import type { StopReceipt } from "./processes.ts";
 import { basename, dirname, join, resolve } from "node:path";
@@ -172,88 +172,157 @@ export async function retireScratch(
             handles.push(child);
             const anchor = "/proc/self/fd/" + child.fd;
             await check(anchor + "/.", id, marked);
-            const finished = (await readdir(anchor)).includes(".veriq-retired");
-            if (record.dataCleanup === "CLEANED" && !finished) throw new Error("TASK_DIRECTORY_CHANGED");
-            if (finished) {
-                if ((await readBoundedFile(join(anchor, ".veriq-retired"), 36, true)).toString() !== a.owner)
-                    throw new Error("TASK_DIRECTORY_CHANGED");
-                const entries = await readdir(anchor);
-                if (entries.some((entry) => entry !== ".veriq-retired" && !(marked && entry === ".veriq-owner")))
-                    throw new Error("TASK_DIRECTORY_CHANGED");
-            }
-            targets.push({ path, anchor, child, id, marked, finished });
+            targets.push({ path, child, id, marked });
         }
-        // 顶层任务目录始终保留为已验证的空目录；Linux 没有按打开的目录句柄删除它自身的接口。
-        // 所有子目录逐层打开后通过自己的 fd 遍历，不经由可被替换的字符串路径进行递归删除。
-        const mountId = async (fd: number) => {
-            const info = await readFile("/proc/self/fdinfo/" + fd, "utf8");
-            const id = /^mnt_id:\s*(\d+)$/mu.exec(info)?.[1];
-            if (!id) throw new Error("TASK_MOUNT_UNCONFIRMED");
-            return id;
-        };
-        const empty = async (anchor: string, mount: string, marked: boolean, verifyRoot: () => Promise<void>) => {
-            for (const name of await readdir(anchor)) {
-                if (marked && name === ".veriq-owner") continue;
-                await verifyRoot();
-                const path = join(anchor, name),
-                    before = await lstat(path, { bigint: true });
-                if (before.isDirectory()) {
-                    const child = await open(path, constants.O_DIRECTORY | constants.O_RDONLY | constants.O_NOFOLLOW);
-                    try {
-                        const current = await child.stat({ bigint: true });
-                        if (
-                            current.ino !== before.ino ||
-                            current.dev !== before.dev ||
-                            (await mountId(child.fd)) !== mount
-                        )
-                            throw new Error("TASK_DIRECTORY_CHANGED");
-                        const verifyChild = async () => {
-                            await verifyRoot();
-                            const named = await lstat(path, { bigint: true });
-                            if (named.ino !== current.ino || named.dev !== current.dev)
-                                throw new Error("TASK_DIRECTORY_CHANGED");
-                        };
-                        await empty("/proc/self/fd/" + child.fd, mount, false, verifyChild);
-                        await verifyChild();
-                        await rmdir(path);
-                    } finally {
-                        await child.close();
-                    }
-                } else {
-                    await unlink(path);
-                }
-            }
-        };
+        let complete = true;
         for (const target of targets) {
             const verifyRoot = () => check(target.path, target.id, target.marked);
-            if (target.finished) continue;
-            await empty(target.anchor, await mountId(target.child.fd), target.marked, verifyRoot);
-            await verifyRoot();
-            const remaining = await readdir(target.anchor);
-            if (remaining.some((name) => !target.marked || name !== ".veriq-owner"))
-                throw new Error("TASK_DIRECTORY_CHANGED");
-            const marker = await open(join(target.anchor, ".veriq-retired"), "wx", 0o600);
             try {
-                await marker.writeFile(a.owner);
-                await marker.sync();
-            } finally {
-                await marker.close();
+                const retired = await retireContents(
+                    target.child,
+                    a.owner,
+                    target.marked,
+                    record.dataCleanup === "CLEANED",
+                    verifyRoot,
+                );
+                if (!retired) complete = false;
+            } catch {
+                complete = false;
             }
-            await target.child.sync();
         }
-        for (const target of targets) {
-            await check(target.path, target.id, target.marked);
-            const remaining = await readdir(target.anchor);
-            if (
-                !remaining.includes(".veriq-retired") ||
-                remaining.some((name) => name !== ".veriq-retired" && !(target.marked && name === ".veriq-owner"))
-            )
-                throw new Error("TASK_DIRECTORY_CHANGED");
-        }
-        return "CLEANED";
+        for (const target of targets) await check(target.path, target.id, target.marked);
+        return complete ? "CLEANED" : "OWNERSHIP_UNCONFIRMED";
     } catch {
         return "OWNERSHIP_UNCONFIRMED";
     } finally {
         for (const held of handles) await held.close();
     }
+}
+
+/**
+ * 清点把整个任务树的原始名字和物理身份绑定为摘要；日志不写文件名。每个普通文件只通过已验证的独占 inode 描述符截断，
+ * 目录名、文件名和链接均不删除。未知类型或已退休文件发生变化时保留内容并返回未确认状态。
+ */
+async function retireContents(
+    root: Awaited<ReturnType<typeof open>>,
+    owner: string,
+    marked: boolean,
+    previouslyCleaned: boolean,
+    verifyRoot: () => Promise<void>,
+): Promise<boolean> {
+    const anchor = "/proc/self/fd/" + root.fd;
+    const mount = async (fd: number) => {
+        const info = await readFile("/proc/self/fdinfo/" + fd, "utf8");
+        const id = /^mnt_id:\s*(\d+)$/mu.exec(info)?.[1];
+        if (!id) throw new Error("TASK_MOUNT_UNCONFIRMED");
+        return id;
+    };
+    const rootMount = await mount(root.fd);
+    const snapshot = new Map<string, string>();
+    const markerName = ".veriq-retirement-inventory",
+        doneName = ".veriq-retired";
+    const rootNames = await readdir(anchor);
+    const finished = rootNames.includes(doneName);
+    if ((previouslyCleaned || finished) && !rootNames.includes(markerName)) throw new Error("TASK_INVENTORY_MISSING");
+    const scan = async (phase: "discover" | "truncate" | "verify") => {
+        const digest = createHash("sha256");
+        let safe = true;
+        const walk = async (dir: string, relative: string, verifyParent: () => Promise<void>) => {
+            const names = await readdir(dir, { encoding: "buffer" });
+            const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+            for (const name of names.map((bytes) => decoder.decode(bytes)).sort()) {
+                if (!relative && (name === markerName || name === doneName || (marked && name === ".veriq-owner")))
+                    continue;
+                const key = relative + "/" + name,
+                    path = join(dir, name);
+                const before = await lstat(path, { bigint: true });
+                const identity = [before.dev, before.ino, before.birthtimeNs, before.mode, before.nlink].join(":");
+                digest.update(JSON.stringify([key, identity]) + "\n");
+                if (phase === "discover") snapshot.set(key, identity);
+                else if (snapshot.get(key) !== identity) throw new Error("TASK_MEMBER_CHANGED");
+                if (!(before.ino && before.birthtimeNs > 0n && before.uid === BigInt(process.getuid!()))) {
+                    safe = false;
+                    continue;
+                }
+                const verifyMember = async () => {
+                    await verifyParent();
+                    const current = await lstat(path, { bigint: true });
+                    if (
+                        current.ino !== before.ino ||
+                        current.dev !== before.dev ||
+                        current.birthtimeNs !== before.birthtimeNs ||
+                        current.nlink !== before.nlink
+                    )
+                        throw new Error("TASK_MEMBER_CHANGED");
+                };
+                if (before.isDirectory()) {
+                    const child = await open(path, constants.O_DIRECTORY | constants.O_RDONLY | constants.O_NOFOLLOW);
+                    try {
+                        const held = await child.stat({ bigint: true });
+                        if (held.ino !== before.ino || held.dev !== before.dev || (await mount(child.fd)) !== rootMount)
+                            throw new Error("TASK_MEMBER_CHANGED");
+                        await walk("/proc/self/fd/" + child.fd, key, verifyMember);
+                        await verifyMember();
+                    } finally {
+                        await child.close();
+                    }
+                } else if (!before.isFile() || before.nlink !== 1n) safe = false;
+                else if (phase === "verify" || (phase === "truncate" && before.size)) {
+                    const access = phase === "truncate" ? constants.O_WRONLY : constants.O_RDONLY;
+                    const flags = access | constants.O_NOFOLLOW | constants.O_NONBLOCK | constants.O_NOCTTY;
+                    const file = await open(path, flags);
+                    try {
+                        const held = await file.stat({ bigint: true });
+                        if (
+                            !held.isFile() ||
+                            held.nlink !== 1n ||
+                            held.dev !== before.dev ||
+                            held.ino !== before.ino ||
+                            held.birthtimeNs !== before.birthtimeNs ||
+                            (await mount(file.fd)) !== rootMount
+                        )
+                            throw new Error("TASK_MEMBER_CHANGED");
+                        if (phase === "truncate") {
+                            await verifyMember();
+                            await file.truncate(0);
+                            await file.sync();
+                            await verifyMember();
+                        } else if (held.size) safe = false;
+                    } finally {
+                        await file.close();
+                    }
+                }
+            }
+        };
+        await walk(anchor, "", verifyRoot);
+        await verifyRoot();
+        return { digest: digest.digest("hex"), safe };
+    };
+    const inventory = await scan("discover");
+    const receipt = owner + ":" + inventory.digest;
+    const marker = async (name: string, exists: boolean) => {
+        if (exists) {
+            if ((await readBoundedFile(join(anchor, name), receipt.length, true)).toString() !== receipt)
+                throw new Error("TASK_INVENTORY_CHANGED");
+            return;
+        }
+        const file = await open(join(anchor, name), "wx", 0o600);
+        try {
+            await file.writeFile(receipt);
+            await file.sync();
+        } finally {
+            await file.close();
+        }
+        await root.sync();
+    };
+    await marker(markerName, rootNames.includes(markerName));
+    if (finished) await marker(doneName, true);
+    else if (!rootNames.includes(markerName)) {
+        if (previouslyCleaned) return false;
+        if ((await scan("truncate")).digest !== inventory.digest) return false;
+    }
+    const verified = await scan("verify");
+    if (!verified.safe || verified.digest !== inventory.digest) return false;
+    if (!finished) await marker(doneName, false);
+    return true;
 }

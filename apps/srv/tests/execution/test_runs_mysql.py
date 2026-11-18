@@ -18,7 +18,8 @@ async def published(c, db, ws, key, kind, document):
 
 
 async def environment(
-    c, db, ws, with_fixture=False, *, origin="https://business.test", identity_path="/me"
+    c, db, ws, with_fixture=False, *, origin="https://business.test", identity_path="/me",
+    token="synthetic-business-secret",
 ):
     base = f"/api/v1/workspaces/{ws}"
     secret = (
@@ -26,7 +27,7 @@ async def environment(
             base + "/credentials",
             json={
                 "secretRef": "business",
-                "value": {"token": "synthetic-business-secret"},
+                "value": {"token": token},
                 "allowedIdentityIds": ["reader"],
             },
         )

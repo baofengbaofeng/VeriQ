@@ -56,18 +56,10 @@ export function fieldMatches(actual: Presence, operator: string, expected: JsonV
     }
 }
 /**
- * 展开后的断言保留作者的出处说明，只有本条期望从矩阵或命名数据集读取时才附加实际冻结的版本。
+ * 受保护断言只发送固定标记，服务端根据实际冻结来源生成最终出处；普通断言保留作者说明。
  */
 export function assertionExpectedSource(item: CompiledAssertion, ctx: StepContext): string {
-    const assertion = item.assertion;
-    if (!ctx.datasetVersions) return assertion.expectedSource;
-    const version =
-        "datasetExpected" in assertion
-            ? ctx.datasetVersions.aliases[assertion.datasetExpected.alias]
-            : "expected" in assertion && JSON.stringify(assertion.expected).includes("{{data.")
-              ? ctx.datasetVersions.matrix
-              : undefined;
-    return version ? assertion.expectedSource + " (" + version + ")" : assertion.expectedSource;
+    return ctx.datasetProtected ? "PROTECTED_CASE" : item.assertion.expectedSource;
 }
 /**
  * 公开函数 runAssertion 在 Exchange/数据上下文上执行单条编译断言：返回 AssertionResult。不把原始密钥写入结果。
@@ -215,8 +207,8 @@ export async function runAssertion(
         status: queryError ? "ERROR" : errorCode ? (a.severity === "WARN" ? "WARN" : "FAILED") : "PASSED",
         severity: a.severity,
         expectedSource: assertionExpectedSource(item, ctx),
-        expected: ctx.datasetVersions || "datasetExpected" in a ? null : expected,
-        actual: ctx.datasetVersions || "datasetExpected" in a ? { present: false } : actual,
+        expected: ctx.datasetProtected || "datasetExpected" in a ? null : expected,
+        actual: ctx.datasetProtected || "datasetExpected" in a ? { present: false } : actual,
         durationMs: Date.now() - start,
         ...(errorCode ? { errorCode } : {}),
     };

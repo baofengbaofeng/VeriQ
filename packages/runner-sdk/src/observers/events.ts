@@ -52,7 +52,7 @@ export function armEvent(
     spec: DialogObserverV1 | NewPageObserverV1 | DownloadObserverV1,
     ctx: StepContext,
 ): EventHandle {
-    if (spec.kind === "download" && !ctx.datasetVersions && !ctx.downloads)
+    if (spec.kind === "download" && !ctx.datasetProtected && !ctx.downloads)
         throw new Error("DOWNLOAD_PROVIDER_REQUIRED");
     if (spec.kind === "newPage" && ctx.pages.has(spec.pageKey)) throw new Error("DUPLICATE_PAGE_KEY");
     const controller = new AbortController(),
@@ -132,7 +132,7 @@ export function armEvent(
     const download = (d: Download) => {
         activeDownloads.add(d);
         const task = receive(async () => {
-            if (ctx.datasetVersions) {
+            if (ctx.datasetProtected) {
                 // 受保护上下文拒绝浏览器保存下载，只确认真实事件；不请求数据流、文件名或磁盘副本。
                 return { kind: "download", observerId: spec.id, sensitivity: "CREDENTIAL_RESTRICTED" };
             }

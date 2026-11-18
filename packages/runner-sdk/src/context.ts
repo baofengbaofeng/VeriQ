@@ -51,7 +51,7 @@ export type LiveStepEvent =
  * 公开接口 StepContextOptions 配置 createStepContext 所需的页面、执行、预算与绑定环境。
  */
 export interface StepContextOptions {
-    datasetVersions?: { matrix: string | undefined; aliases: Record<string, string> };
+    datasetProtected?: boolean;
     datasets?: import("./datasets.js").DatasetResolver;
     onBusinessRequest?: (method: string) => void;
     onEvent?: (event: LiveStepEvent) => Promise<void>;

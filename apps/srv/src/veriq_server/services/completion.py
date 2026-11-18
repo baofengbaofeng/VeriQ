@@ -62,6 +62,9 @@ class CompletionService:
                     "DATASET_EVIDENCE_FORBIDDEN",
                     "Protected event contains unapproved evidence",
                 )
+            if protected is not None and event["type"] == "ASSERTION_RESULT":
+                source, _ = protected["sources"][event["stepId"], event["assertionId"]]
+                event = {**event, "payload": {**event["payload"], "expectedSource": source}}
             digest = sha256(canonical_bytes(event)).hexdigest()
             existing = await self.session.get(AttemptEvent, (attempt_id, event["sequence"]))
             if existing:
