@@ -1,6 +1,6 @@
 # VeriQ
 
-面向企业 PC Web 系统的自动化冒烟与回归平台，以版本化测试资产和确定性 Playwright TypeScript 执行为核心，连接云端 Runtime、本地桌面客户端与离线执行。
+面向企业 PC Web 系统的自动化冒烟与回归平台，以版本化测试资产和确定性 Playwright TypeScript 执行为核心，支持联网 Runtime 和本地桌面客户端。
 
 **当前状态：开发中 / 尚未发布。** 账户与 Workspace、版本化测试资产、确定性编译器与 Runner SDK、fixture 与业务身份、Runtime 授权、统一队列及 Linux Agent 实际执行已有实现。八类资产编辑、编译发布、版本源码预览，以及实时结构化报告、受限证据、本机 Trace 查看、File/S3 存储与原始证据保留期维护已通过独立审查。AI 配置、预算、结构化草稿审核及失败分析已有实现并通过代码复审，实际外部 Provider 验收仍待用户授权和独立配置。签名包、可信公钥缓存、只读验证、本地凭证，以及真实离线执行、SQLite 持久化报告、取消恢复和幂等回传已通过独立复审；外部 HTTP 计划触发、独立服务令牌、计划与令牌管理界面及 CI 门禁已通过独立审查及重要问题修复复审；生产同源静态服务、完整文件清单校验和构建信息已通过独立审查及修复复审。
 
@@ -30,7 +30,7 @@ AI 是可选辅助：用于生成结构化草稿、边界建议与失败分析�
 
 ## 1.0 完整 MVP 范围
 
-首发目标包含以下全部 14 个模块，内部研发阶段不作为完整 MVP 交付。Electron 桌面 GUI 属于首发范围，CLI 与无人值守 Agent 同时保留。
+首发目标包含下表各模块。Electron 桌面 GUI、CLI 和无人值守 Agent 均纳入首发。MVP 采用联网执行，原 F12 本地离线已退出首发范围。数据集和执行范围见[工作区数据集与联网执行](docs/specs/veriq-datasets.md)。
 
 | 编号 | 模块             | 交付目标                                                                          |
 | ---- | ---------------- | --------------------------------------------------------------------------------- |
@@ -45,7 +45,6 @@ AI 是可选辅助：用于生成结构化草稿、边界建议与失败分析�
 | F09  | Runtime          | 云端/本地运行、设备注册、自检、私有/共享授权、撤销与实际进程命名                  |
 | F10  | 执行             | 手动与 HTTP 触发、队列、容量、租约、心跳、取消、重跑与整用例重试                  |
 | F11  | 报告             | 实时进度、步骤/断言差异、请求关联、截图、Trace 下载与本地查看、历史、门禁与 JUnit |
-| F12  | 本地离线         | 依赖闭包导出、签名校验、本地凭证、独立执行、离线报告、幂等导入与来源标识          |
 | F13  | AI 辅助          | Provider 配置与连接校验、结构化草稿、审核、失败分析、预算与调用记录               |
 | F14  | 产品运维         | 同源发布、升级、备份恢复、保留期、日志指标、第三方许可、手册与验收报告            |
 
@@ -69,20 +68,15 @@ flowchart TB
   LOCAL --> ENGINE
   ENGINE --> PW[Playwright Test 与测试浏览器]
   PW --> APP[被测前后端 / fixture 服务]
-  API -->|导出| BUNDLE[签名测试包 / 只读快照]
-  BUNDLE --> OFFLINE[本地离线 Runtime 与 GUI]
-  OFFLINE -->|恢复连接后幂等导入结果| API
-  OFFLINE --> ENGINE
+  API --> DS[获批 HTTP 数据源]
 ```
 
 - **云端：** Tornado 提供控制 API 和 Web 管理台，独立 Runtime 主动领取任务。服务端部署环境无需 Node、pnpm、Chrome 或 Playwright 浏览器运行条件。
 - **本地桌面：** Electron + React 提供安装入口、配置登录、Workspace 与设备绑定、资源下载、执行/取消、进度、报告及诊断。React 资源随安装包本地提供，GUI 可在平台断网时打开。桌面程序不要求本机安装 Python/MySQL。
 - **执行引擎：** Agent/Runner 使用独立锁定的 Node24；Electron 内嵌 Node 随 Electron 版本变化，不能视为 Node24 执行引擎。Playwright 测试浏览器与桌面 UI Chromium 分离，桌面升级不得静默改变测试引擎。
-- **离线：** 下载已发布资产的依赖闭包与签名快照，验签后使用本地凭证映射执行、查看报告，恢复连接后回传结果。离线意味着无需连接控制平台，被测业务系统仍须可达；离线包不携带密码、Cookie 或设备 token，也不自动双向同步编辑。
+- **联网生命周期：** Runtime 从平台领取、心跳和回报，直接访问被测系统。平台失联后按租约停止和清理。
 
-签名包导出、信任根与本地凭证操作见[离线包说明](docs/offline-bundles.md)；离线执行、取消恢复、本地报告与回传见[操作说明](docs/offline-execution.md)。
-
-个人 Runtime 默认私有，共享须由所有者明确授权。离线结果保留来源与信任信息；签名验证包来源和完整性，不能证明本地结果绝未被修改。断网期间无法保证远程即时取消或权限回收。
+个人 Runtime 默认私有，共享须由所有者明确授权。
 
 业务定时由外部调度中间件通过受限身份调用 HTTP 触发接口，执行计划不保存平台解释的 Cron。平台不内置 Cron 解析、计划扫描或 APScheduler 服务；任务轮询、租约心跳及有界维护接口沿用统一执行协议。计划管理、服务令牌、重叠策略和可运行 CI 命令见[外部调度接入](docs/integration/external-scheduler.md)。
 
@@ -187,7 +181,7 @@ veriq/
 
 编码相关要求见 `AGENTS.md`：全部语言 4 空格缩进；源码注释使用中文且注释覆盖率大于 40%；公开方法与接口必须有注释；注释块首行不少于 60 个字符；日志输出使用英文。
 
-规划中的质量门禁包括 Python/TypeScript 单测、跨语言契约样本、真实 MySQL 集成、Web/桌面 E2E、权限与故障恢复、离线与幂等回传、wheel 干净安装及各目标 OS 原生发行验收。Python 可执行代码与 TS 核心包行覆盖率目标分别不低于 75%；关键状态、权限和错误恢复仍须独立测试。构建默认完整测试，缺 MySQL/浏览器条件不得自动跳过；证据须绑定同一提交、锁文件与静态资源清单。全部 F01–F14 及桌面验收通过后，才标记 1.0 完成。
+规划中的质量门禁包括 Python/TypeScript 单测、跨语言契约样本、真实 MySQL 集成、Web/桌面 E2E、权限与故障恢复、联网数据集清理、wheel 干净安装及各目标 OS 原生发行验收。Python 可执行代码与 TS 核心包行覆盖率目标分别不低于 75%，关键状态、权限和错误恢复须单独测试。构建默认完整测试，缺 MySQL 或浏览器条件不得自动跳过。证据须绑定同一提交、锁文件与静态资源清单。首发范围和桌面验收通过后标记 1.0 完成。
 
 ## 许可证
 
@@ -217,7 +211,7 @@ AI is optional assistance for structured drafts, boundary suggestions, and failu
 
 ## Full 1.0 MVP scope
 
-The first release targets all 14 modules below. Internal milestones are not a complete MVP. The Electron desktop GUI is in first-release scope; CLI and unattended Agent remain as well.
+The first release targets the modules below and includes the Electron desktop GUI, CLI, and unattended Agent. MVP test runs require a platform connection. Former F12 offline execution is outside the first release. See the [workspace datasets and connected execution spec](docs/specs/veriq-datasets.md).
 
 | ID  | Module                    | Delivery goal                                                                                                                     |
 | --- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
@@ -232,7 +226,6 @@ The first release targets all 14 modules below. Internal milestones are not a co
 | F09 | Runtime                   | Cloud/local run, device registration, self-check, private/shared grants, revoke, real process names                               |
 | F10 | Execution                 | Manual and HTTP trigger, queue, capacity, lease, heartbeat, cancel, rerun, whole-case retry                                       |
 | F11 | Reports                   | Live progress, step/assertion diffs, request correlation, screenshots, Trace download and local view, history, gates, JUnit       |
-| F12 | Local offline             | Dependency-closure export, signature verify, local credentials, standalone run, offline reports, idempotent import and provenance |
 | F13 | AI assistance             | Provider config and connectivity check, structured drafts, review, failure analysis, budget and call records                      |
 | F14 | Product operations        | Same-origin release, upgrade, backup/restore, retention, logs/metrics, third-party notices, manuals and acceptance report         |
 
@@ -256,20 +249,15 @@ flowchart TB
   LOCAL --> ENGINE
   ENGINE --> PW[Playwright Test and test browsers]
   PW --> APP[System under test / fixture services]
-  API -->|export| BUNDLE[Signed test bundle / read-only snapshot]
-  BUNDLE --> OFFLINE[Local offline Runtime and GUI]
-  OFFLINE -->|idempotent import after reconnect| API
-  OFFLINE --> ENGINE
+  API --> DS[Approved HTTP dataset sources]
 ```
 
 - **Cloud:** Tornado serves the control API and web console; independent Runtimes actively claim work. Server deploy environments do not need Node, pnpm, Chrome, or Playwright browser runtime prerequisites.
 - **Local desktop:** Electron + React provide install entry, config/login, Workspace and device binding, asset download, run/cancel, progress, reports, and diagnostics. React assets ship with the installer; the GUI can open while disconnected from the platform. The desktop app does not require local Python/MySQL.
 - **Execution engine:** Agent/Runner uses a separately pinned Node24. Electron’s embedded Node tracks Electron and must not be treated as the Node24 execution engine. Playwright test browsers stay separate from desktop UI Chromium; desktop upgrades must not silently change the test engine.
-- **Offline:** Download the dependency closure and signed snapshot of published assets, verify signatures, map local credentials, execute, view reports, and upload results after reconnect. Offline means no control-plane connection; the system under test must still be reachable. Offline bundles do not carry passwords, cookies, or device tokens, and do not auto-sync edits bidirectionally.
+- **Connected lifecycle.** Runtime claims work, sends heartbeats, and reports to the platform. It reaches the system under test directly. If the platform connection is lost, Runtime stops and cleans up when the lease expires.
 
-See [offline bundles](docs/offline-bundles.md) for signed export, trust roots, and local credentials; see [offline execution](docs/offline-execution.md) for offline run, cancel/resume, local reports, and upload.
-
-Personal Runtimes are private by default; sharing requires explicit owner authorization. Offline results retain provenance and trust metadata. Signatures prove bundle origin and integrity, not that local results were never altered. Remote instant cancel or permission revoke cannot be guaranteed while disconnected.
+Personal Runtimes are private by default. Sharing requires explicit owner authorization.
 
 Business schedules are driven by external middleware calling authenticated HTTP trigger APIs. The platform does not store platform-interpreted Cron, and does not embed Cron parsing, schedule scanners, or APScheduler. Task polling, lease heartbeats and bounded maintenance reuse the unified execution protocol. Plan management, scoped service tokens, overlap policies and a runnable CI command are documented in [external scheduler integration](docs/integration/external-scheduler.md).
 
@@ -374,7 +362,7 @@ Contributions should include reviewable behavior notes, matching tests, and real
 
 Coding requirements are in `AGENTS.md`: 4-space indentation for all languages; Chinese source comments with comment coverage above 40%; public methods and interfaces must be commented; each comment block’s first line must be at least 60 characters; log output must be English.
 
-Planned quality gates include Python/TypeScript unit tests, cross-language contract samples, real MySQL integration, web/desktop E2E, permission and failure recovery, offline and idempotent upload, clean wheel install, and native release acceptance on each target OS. Line coverage targets are at least 75% for Python executables and core TS packages; critical state, authorization, and error recovery still need dedicated tests. Builds default to full tests and must not auto-skip when MySQL/browser conditions are missing; evidence must bind the same commit, lockfiles, and static asset manifest. Mark 1.0 complete only after all F01–F14 and desktop acceptance pass.
+Planned quality gates include Python and TypeScript unit tests, cross-language contract samples, real MySQL integration, web and desktop E2E, authorization and recovery, connected dataset cleanup, clean wheel install, and native release acceptance on each target OS. Line coverage targets are at least 75% for Python executables and core TypeScript packages. Critical state, authorization, and recovery require dedicated tests. Builds default to full tests and must not auto-skip when MySQL or browser conditions are missing. Evidence must bind the same commit, lockfiles, and static asset manifest. Mark 1.0 complete after the first-release scope and desktop acceptance pass.
 
 ## License
 

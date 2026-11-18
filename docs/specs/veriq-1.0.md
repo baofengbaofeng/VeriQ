@@ -12,6 +12,8 @@ VeriQ是面向企业PC Web系统的自动化冒烟与回归平台。模型按需
 
 首个MVP即完整可安装使用的1.0产品，必须交付下列全部模块。内部研发按依赖分阶段，不将阶段性闭环当作MVP交付，也不以假数据页面、空接口或TODO替代功能。
 
+2026-11-18 范围修订。MVP 采用联网执行。客户端运行测试时须连接平台并可访问被测系统。原 F12 本地离线退出首发范围。数据集的管理、取数与本地清理以[工作区数据集与联网执行](veriq-datasets.md)为准。
+
 | 编号 | 模块 | 1.0必须具备 |
 |---|---|---|
 | F01 | 安装与系统初始化 | 文档化部署、数据库迁移、管理员创建、配置校验、健康检查、示例资源 |
@@ -25,7 +27,6 @@ VeriQ是面向企业PC Web系统的自动化冒烟与回归平台。模型按需
 | F09 | Runtime | 云端/本地、设备注册、能力自检、私有/共享、授权撤销、实际进程命名 |
 | F10 | 执行 | 手动、HTTP触发、队列、容量、租约、心跳、取消、重跑、整用例重试 |
 | F11 | 报告 | 实时进度、步骤/断言差异、请求关联、截图、Trace下载与本地查看、历史与门禁、JUnit |
-| F12 | 本地离线 | 依赖闭包导出、签名校验、本地凭证、独立执行、离线报告、幂等导入、来源标识 |
 | F13 | AI辅助 | 可配置Provider、连接校验、结构化草稿、审核、失败分析、预算与调用记录 |
 | F14 | 产品运维 | 同源发布、升级、备份恢复、保留期、日志指标、第三方许可、完整手册与验收报告 |
 
@@ -88,10 +89,7 @@ flowchart TB
   RT --> SDK[编译器/Runner SDK]
   SDK --> PW[Playwright与浏览器]
   PW --> SYS[业务前后端/fixture服务]
-  API --> B[签名测试包]
-  B --> OFF[离线Runtime]
-  OFF --> IMP[结果导入]
-  IMP --> API
+  API --> DS[获批 HTTP 数据源]
 ```
 
 Handler做认证、参数和响应；Service做领域规则和事务；Repository做查询。每个请求/并发任务独立AsyncSession；禁止共享Session、多协程并发使用同事务。打包、哈希、同步SDK等阻塞工作进入受限执行池或独立作业，不阻塞IOLoop。
@@ -253,11 +251,13 @@ TriggerReceipt包含decision(ENQUEUED/REUSED/SKIPPED)、runId、statusUrl。SKIP
 
 绑定流程：CLI发设备码→用户确认设备、空间和共享范围→短效/可轮换设备凭证→doctor检测OS/arch/Node/SDK/浏览器/网络→上线。设备token最小权限、只存摘要/本地安全存储，撤销可查。私人设备分享由owner控制。任务匹配空间、设备授权、引擎、浏览器、网络和容量；无合适设备显示WAITING_FOR_RUNTIME，不静默换机。
 
-CLI：login/logout；workspace list/use；runtime start/status/stop；doctor；bundle download；run --offline；results upload；trace open。每条都有help、退出码、日志定位与错误恢复文档。命令参数以数组spawn，不执行用户shell字符串。
+CLI 提供 login/logout、workspace list/use、runtime start/status/stop、doctor 和 trace open。每条都有 help、退出码、日志定位与错误恢复文档。命令参数以数组 spawn，不执行用户 shell 字符串。
 
 云端Runtime使用同一Linux发行包和独立含浏览器镜像，提供Compose可选Runtime 档案及systemd示例。部署账号经短效一次性登记凭证注册，持久化设备身份和信任配置；控制服务镜像仍无Node/Chrome。trustStatus只能由系统管理员在设备所有者已授权共享的范围内授予，客户端不得自报。MANAGED_CLOUD/CONNECTED_LOCAL是执行位置，MANAGED/USER_REGISTERED/REVOKED是独立信任等级。私人本地设备也可经正式授权成为MANAGED，云端位置本身不自动可信。撤销不改历史outcome，当前门禁重新检查可信策略；历史gateAtExecution与当前gateNow分别显示。
 
-## 14. 离线包、凭证与结果来源
+## 14. 离线包、凭证与结果来源（历史规格）
+
+本节用于核对已有离线实现和历史记录。MVP 执行与验收遵循[联网范围修订](veriq-datasets.md)。
 
 包包含manifest、资源依赖闭包、非敏感数据、fixture定义、环境公开配置、引擎清单/锁文件、入口、实际生成TS及结果目录。平台签manifest精确字节，manifest列文件SHA-256；验证后解压，限制路径/链接/体积/文件数。
 
@@ -355,7 +355,7 @@ Runtime产物在对应Windows/Linux构建与测试job产生，含原生入口、
 
 必须具备全部菜单、真实API、权限、空态/加载/错误/成功、表单校验、版本冲突、进度重连和可恢复错误。按钮不可只有外观；演示数据不能替代真实后端。默认中文，提供英文资源，布局满足PC1280宽及以上，操作可键盘完成关键路径。
 
-功能验收覆盖F01-F14；并发验收同时10Run、默认不超过4上下文/空间2；故障验收快速响应、业务失败、未持久化、歧义定位、失联、迟到回报、取消、清理/证据失败；权限覆盖跨空间和私人设备；离线覆盖无平台执行、缺凭证、篡改、重复导入；生产打包覆盖wheel真实安装与深链接。
+功能验收覆盖首发功能表中各项。并发验收同时 10 Run，默认不超过全局 4 个上下文、每空间 2 个。故障验收覆盖快速响应、业务失败、未持久化、歧义定位、失联、迟到回报、取消和清理或证据失败。权限覆盖跨空间和私人设备。联网数据集验收覆盖冻结版本、连接中断、撤权和本地无数据副本。生产打包覆盖 wheel 真实安装与深链接。
 
 完整验收不依赖模型Key，但AI Provider通过模拟协议与至少一个经授权实际Provider分别验证，真实调用数据/成本如实记录。真实业务接入5～10条关键流程至少5轮，保留首次失败和修复证据，不将轮次当统计可靠性证明。
 
