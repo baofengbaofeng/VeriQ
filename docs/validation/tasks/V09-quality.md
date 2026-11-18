@@ -6,7 +6,7 @@
 
 当前已交付 Python 格式口径、可信源码库存、Shell/CSS/Java 注释适配、编译器与 CSS 的实质说明整改及相关专项复审。`f215375` 另已修复原生确认辅助脚本在优化模式下丢失守卫的问题，16 项纯内存绑定回归通过，定向质量和独立复审通过；不替代实际 GUI 验收。
 
-最新实际全量注释审计绑定 `592235e`（2026-11-18）：705支持/28解析阻断/111正文，C10642/K151234，coverageComplete=false、ratio=null、passed=false，支持子集约6.57417%，退出1。bca9faf等为历史快照。
+最新实际全量注释审计绑定 `9d848ae`（2026-11-18）：705支持/28解析阻断/42正文，C10637/K151234，coverageComplete=false、ratio=null、passed=false，支持子集约6.57128%，退出1。bca9faf等为历史快照。
 
 SDK 开发类型由 `04e4eca` 独立复审交付：四个精确 MIT 输入、160 个安装载荷验证，56 项生产依赖和 112 个旧锁记录不变。该SDK阶段完整服务源严格类型从 19 项降至 14 项（rekey 12、recovery 2），工具当时保留原 4 项；该SDK切片定向 Pylint 15 项与基线一致，尚不能称全仓 lint 或类型通过。[ADR 0027](../../decisions/0027-sdk-type-stubs.md)记录旧核心声明与当前使用面的限定兼容，17aba48已完成S3 SDK/HTTP与Stubber专项，真实S3仍未证明。
 
@@ -123,3 +123,8 @@ Minor是pytest -v自己的RED diff省略，同BASE/SHA正式审计完整列两�
 exit1/4.576秒，支持子集6.61197%不代表全仓。后续69TS普通、37Python普通及两个测试moduleDoc、三type-ignore。
 三指令已获真实mypy正反及CPython位置证据，辅助严格type-comments解析失败不得使普通Python语言计量回归。
 源码复制/保留注释emit/tar及缓存hash可能随TS说明变化，必须形成新候选，不改旧签名或冻结材料。
+
+## TS/JS 剩余普通说明的当前锚点
+
+`9d848ae` 的43源/69说明已独立复审，定向正文0、代码与类型及去注释发射保持，旧静态债不变。
+最新全仓仍是705支持/28解析阻断/42正文，C10637/K151234，coverageComplete=false、ratio=null、passed=false，支持子集约6.57128%；后续39处Python说明与3条工具指令资格分开处理，不重新派发已完成批次。
