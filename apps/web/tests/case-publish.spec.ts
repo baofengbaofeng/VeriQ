@@ -1544,3 +1544,58 @@ test("pages sparse static dataset rows and fields", async ({ page }) => {
         source: { rows: rows.map((r, i) => (i === 112 ? { ...r, values: { f_96: "edited tail" } } : r)) },
     });
 });
+
+/**
+ * 通过实际键盘删除指定位置，区分两个看起来相同的换行符；另检查删除分隔字符后仍保留两个可见行界。
+ */
+test("deletes the selected physical line break in a static dataset", async ({ page }) => {
+    const scope = await editorScope(page, "line-edit");
+    const rows = [
+        { key: "adjacent", values: { body: "a\r\n\nb" } },
+        { key: "separate", values: { body: "a\rX\nb" } },
+    ];
+    const created = await page.request.post(`/api/v1/workspaces/${scope.workspaceId}/resources`, {
+        headers: scope.headers,
+        data: {
+            kind: "DATASET",
+            key: "text_rows",
+            name: "Text rows",
+            content: {
+                kind: "DATASET",
+                document: {
+                    schemaVersion: "2.0",
+                    shape: "TABLE",
+                    fields: { body: { type: "string", required: true, nullable: false } },
+                    source: { kind: "STATIC", rows: [] },
+                },
+            },
+        },
+    });
+    expect(created.status(), await created.text()).toBe(201);
+    await page.reload();
+    await page.getByLabel("Workspace").selectOption(scope.workspaceId);
+    await page.getByRole("button", { name: "text_rows", exact: true }).click();
+    await page.getByRole("combobox", { name: "Import format" }).selectOption("JSON");
+    await page.getByLabel("Import text").fill(JSON.stringify(rows));
+    await page.getByRole("button", { name: "Preview import" }).click();
+    await page.getByRole("button", { name: "Apply import" }).click();
+    const cells = page.getByRole("article").getByRole("textbox", { name: "body", exact: true });
+    const first = cells.first(),
+        second = cells.last();
+    await first.focus();
+    await first.press("Control+Home");
+    await first.press("ArrowRight");
+    await first.press("Delete");
+    await expect(first).toHaveValue("a\nb");
+    await second.focus();
+    await second.press("Control+Home");
+    await second.press("ArrowRight");
+    await second.press("ArrowRight");
+    await second.press("Delete");
+    expect.soft(await second.inputValue()).toBe("a\n\nb");
+    const saved = await saveDraft(page);
+    const [adjacent, separate] = (saved.content.document as { source: { rows: { values: { body: string } }[] } }).source
+        .rows;
+    expect.soft(adjacent!.values.body).toBe("a\nb");
+    expect(separate!.values.body.replace(/\r\n?/gu, "\n")).toBe("a\n\nb");
+});

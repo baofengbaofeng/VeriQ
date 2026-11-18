@@ -19,22 +19,24 @@ const without = <T,>(record: Record<string, T>, key: string) =>
     Object.fromEntries(Object.entries(record).filter(([k]) => k !== key));
 
 const pageSize = 10;
+const displayString = (raw: string) => raw.replace(/\r\n?/gu, "\n");
 
 /**
  * 原生多行输入会把 CRLF 和 CR 一律显示为 LF；仅替换实际改变的区间，保留未编辑的前后文本中的原换行样式。
  * 浏览器选择范围按 UTF-16 单元计数，原文位置同样按单元计算，避免将跨两个单元的字符误作单个偏移量。
  */
-function editedString(previous: string, next: string) {
+function editedString(previous: string, next: string, caret: number) {
     if (!previous.includes("\r")) return next;
-    const visible = previous.replace(/\r\n?/gu, "\n");
+    const visible = displayString(previous);
     let start = 0,
         oldEnd = visible.length,
         newEnd = next.length;
-    while (start < oldEnd && start < newEnd && visible[start] === next[start]) start++;
-    while (oldEnd > start && newEnd > start && visible[oldEnd - 1] === next[newEnd - 1]) {
+    // 输入事件发生后，光标位于替换内容末尾。先固定它右侧未改变的后缀，避免连续相同行界被误认成左侧前缀。
+    while (oldEnd > 0 && newEnd > caret && visible[oldEnd - 1] === next[newEnd - 1]) {
         oldEnd--;
         newEnd--;
     }
+    while (start < oldEnd && start < newEnd && visible[start] === next[start]) start++;
     function originalOffset(displayOffset: number) {
         let offset = 0;
         for (let i = 0; i < displayOffset; i++, offset++) {
@@ -42,9 +44,13 @@ function editedString(previous: string, next: string) {
         }
         return offset;
     }
-    return (
-        previous.slice(0, originalOffset(start)) + next.slice(start, newEnd) + previous.slice(originalOffset(oldEnd))
-    );
+    // 在拼接处若孤立 CR 遇到 LF，将左边的行界扩为 CRLF，保留右边独立的 LF，使两个可见换行不被合并。
+    const join = (left: string, right: string) =>
+        left.endsWith("\r") && right.startsWith("\n") ? left + "\n" + right : left + right;
+    const prefix = previous.slice(0, originalOffset(start));
+    const suffix = previous.slice(originalOffset(oldEnd));
+    const result = join(join(prefix, next.slice(start, newEnd)), suffix);
+    return displayString(result) === next ? result : next;
 }
 
 function multiline(label: string, value: string, change: (value: string) => void) {
@@ -53,8 +59,10 @@ function multiline(label: string, value: string, change: (value: string) => void
             {label}
             <textarea
                 aria-label={label}
-                value={value}
-                onChange={(event) => change(editedString(value, event.target.value))}
+                value={displayString(value)}
+                onChange={({ currentTarget }) =>
+                    change(editedString(value, currentTarget.value, currentTarget.selectionStart))
+                }
             />
         </label>
     );
