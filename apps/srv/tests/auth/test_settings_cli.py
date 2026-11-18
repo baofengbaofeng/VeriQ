@@ -38,7 +38,7 @@ def test_settings_precedence_and_secret_validation(tmp_path, monkeypatch):
 
 
 async def test_real_cli_init_migrate_create_admin_and_serve(site, tmp_path):
-    # The HTTP fixture owns/reset the dedicated test schema; use another listen port.
+    # 命令行用例复用 HTTP 夹具负责清理的专用测试库，并用独立监听端口让两套服务在用例期间并存。
     c, db = site
     env = os.environ.copy()
     env["VERIQ_DATABASE_URL"] = json.loads(
@@ -68,7 +68,7 @@ async def test_real_cli_init_migrate_create_admin_and_serve(site, tmp_path):
     secret_path = path.with_suffix(".installation-secret")
     assert secret_path.stat().st_mode & 0o777 == 0o600
     original = path.read_bytes()
-    secret_path.unlink()  # Resume interruption between configuration and secret writes.
+    secret_path.unlink()  # 删去安装密钥模拟配置先落盘后的中断，重跑 init 应补齐密钥并逐字节保留原来的配置文件。
     await command("init")
     assert path.read_bytes() == original
     await command("migrate")

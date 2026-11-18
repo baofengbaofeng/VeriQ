@@ -511,7 +511,7 @@ async def test_current_requester_revocation_blocks_content_while_device_owner_re
             json={"role": "VIEWER", "status": "ACTIVE"},
         )
         assert removed.status_code == 200, removed.text
-        # The independent owner/device remains valid, but historical created_by is not authority.
+        # 发起人降为只读成员后，设备查询仍然成功，但该执行尝试的快照访问已被拒绝，心跳也会要求取消。
         assert (await c.get("/internal/v1/runtime", headers=auth(d))).status_code == 200
         headers = {
             **auth(d),
@@ -626,7 +626,7 @@ async def test_claim_scans_past_multiple_pages_of_ineligible_older_jobs(site):
     newer = await queued_browser_jobs(c, db, ws, 1)
     async with db.sessions.begin() as session:
         for job in (await session.execute(select(Job).where(Job.id.in_(older)))).scalars():
-            # Dynamic allowlist deliberately remains a post-query check.
+            # 将旧任务限定为另一台设备可领取，验证当前设备可以跨过多页不合格任务，最终只为新任务建立执行尝试。
             job.required_capabilities = {
                 **job.required_capabilities,
                 "runtimeIds": [offline["runnerId"]],

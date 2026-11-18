@@ -1,4 +1,7 @@
-"""Test-only transport barriers around the real demo business validation boundary."""
+"""为迟到请求测试在真实演示业务校验通过后暂缓指定请求，并由测试驱动放行以控制后续操作的顺序。
+
+驱动从标准输出读取监听端口，通过维护路由等候请求进入屏障、允许请求继续或让指定夹具过期。
+"""
 
 import asyncio
 import importlib.util

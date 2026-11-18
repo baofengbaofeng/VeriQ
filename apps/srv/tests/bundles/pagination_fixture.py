@@ -1,6 +1,7 @@
-"""The two genuine Agent publications retain original immutable IDs/source/receipt/TS.
-Only their display versionNo moves after30 synthetic list rows, then the browser
-publishes a genuine newer revision to make the selected publication historical.
+"""为浏览器分页用例把真实 Agent 发布版本移至第 31 号，并填充前 30 条列表记录以验证历史选择。
+
+脚本按参数接收版本 ID，保留原发布的 ID、源码、回执和 TypeScript 制品，只调整显示版本号。
+浏览器随后真实发布更新的修订，使第 31 号版本成为可在分页列表中选择的历史版本。
 """
 
 import asyncio

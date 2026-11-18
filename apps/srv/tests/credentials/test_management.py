@@ -63,7 +63,7 @@ async def test_credentials_require_current_environment_manager_and_workspace(sit
                     },
                 )
             ).status_code == 403
-    # Never accept trust/lease labels supplied by a caller as a device proof.
+    # 请求体自报受管身份和工作区归属时仍缺少执行尝试证明，内部凭据解析应以对应错误码返回 403。
     response = await c.post(
         "/internal/v1/attempts/11111111-1111-4111-8111-111111111111/credentials/resolve",
         json={"trustStatus": "MANAGED", "workspaceId": ws},

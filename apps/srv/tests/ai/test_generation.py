@@ -145,7 +145,7 @@ async def test_canonical_case_review_writes_only_draft(site):
     async with emulator() as model:
         ws, base, p = await ai_setup(c, model.base_url)
         catalog_path = await create(c, ws)
-        # Existing T04 helper publishes an immutable catalogue with a test-only receipt.
+        # 用仅供测试的校验回执发布不可变目录，给生成请求提供固定版本，再确认审核接受只产生尚未发布的草稿。
         from test_publish import publish
 
         version, _, _ = await publish(c, db, catalog_path)
@@ -499,7 +499,7 @@ async def test_fix1_truncated_sdk_reply_retains_verified_usage(site, adapter):
 async def test_fix1_parser_failure_finalizes_known_usage(site, raw):
     c, _ = site
     if raw is None:
-        # Python 3.12's C JSON decoder has its own recursion threshold.
+        # 把数组嵌套到触发 Python 3.12 JSON 解码器递归异常的深度，同时保持报文小于 128 KiB。
         depth = 10000
         raw = "[" * depth + "0" + "]" * depth
         assert len(raw.encode()) < 128 * 1024

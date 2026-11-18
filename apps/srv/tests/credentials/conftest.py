@@ -1,4 +1,4 @@
-# Reuse the guarded real-MySQL/HTTP fixture; no second test database harness.
+# 凭据测试借用认证站点夹具，管理与解析用例沿用同一专用测试库的库名检查、表清理和 HTTP 入口。
 import sys
 from pathlib import Path
 

@@ -178,7 +178,7 @@ async def test_expiry_revoke_password_origin_and_safe_errors(site):
     assert (await login(c, password="New password 123!")).status_code == 200
     assert (await c.post("/api/v1/account/sessions/revoke", json={})).status_code == 200
     assert (await c.get("/api/v1/auth/session")).status_code == 401
-    # App-level body limit preserves the JSON error envelope (below transport hard limit).
+    # 让登录正文刚超过应用层上限，验证服务仍以约定的 JSON 错误格式返回 413 和 BODY_TOO_LARGE。
     oversized = await c.post(
         "/api/v1/auth/login", content="x" * 65537, headers={"Content-Type": "application/json"}
     )
@@ -203,7 +203,7 @@ async def test_concurrent_last_admin_and_disabled_session(site):
             },
         )
     ).json()["data"]["id"]
-    # Two clients representing distinct administrators race to disable themselves.
+    # 使用两个独立管理员会话并发停用各自账号，断言只有一个请求成功，数据库里仍有一名启用的管理员。
     async with httpx.AsyncClient(
         base_url=str(c.base_url), headers={"Origin": str(c.base_url).rstrip("/")}
     ) as other:

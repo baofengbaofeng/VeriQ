@@ -325,7 +325,7 @@ async def test_debug_candidate_waits_for_validation_without_fabricating_publishe
     assert (
         await c.post("/internal/v1/jobs/claim", json=claim_body(d), headers=auth(d))
     ).status_code == 204
-    # Explicit T04 domain completion fixture isolates dependent-claim behavior here.
+    # 依赖未完成时领取返回空响应，再由校验夹具补齐回执，验证相同领取请求重放能够取回同一个执行尝试。
     await completed(db, validation["id"])
     request = claim_body(d)
     claim = await c.post("/internal/v1/jobs/claim", json=request, headers=auth(d))

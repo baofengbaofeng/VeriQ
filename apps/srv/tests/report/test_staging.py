@@ -63,7 +63,7 @@ async def test_revocation_during_real_file_staging_never_commits_upload(site, mo
     )
     try:
         await asyncio.wait_for(staged.wait(), 10)
-        # This mutation completing while I/O waits also proves the installation lock was released.
+        # 文件写入已完成，提交仍等待屏障放行，此时撤销设备成功表明安装锁已释放，放行后上传请求被拒。
         revoked = await asyncio.wait_for(
             c.post(f"/api/v1/workspaces/{ws}/runtimes/{credential['runnerId']}/revoke", json={}), 5
         )

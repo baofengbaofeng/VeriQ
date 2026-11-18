@@ -1,4 +1,4 @@
-# Reuse the guarded real-MySQL/HTTP fixture; no second test database harness.
+# 打包测试从认证套件加载站点夹具，沿用重建专用 MySQL 测试库时的表检查和真实 HTTP 入口。
 import sys
 import shutil
 import pytest

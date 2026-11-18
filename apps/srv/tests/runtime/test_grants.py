@@ -337,7 +337,7 @@ async def test_inspection_csrf_token_scope_and_unsupported_methods(site):
     assert d["deviceCode"] not in r.text
     credential = await enroll(c, ws)
     headers = {"Authorization": "Bearer " + credential["deviceToken"]}
-    # Device tokens cannot authenticate Web membership/admin APIs.
+    # 用同一设备令牌访问 Web 管理接口和内部 Runtime 接口，验证设备身份只能认证后者，登出后该令牌随即失效。
     import httpx
 
     async with httpx.AsyncClient(base_url=c.base_url, headers=headers) as native:
@@ -352,7 +352,7 @@ async def test_inspection_csrf_token_scope_and_unsupported_methods(site):
         assert (await native.get("/internal/v1/runtime/token/rotate")).status_code == 405
         assert (await native.post("/internal/v1/runtime/logout", json={})).status_code == 200
         assert (await native.get("/internal/v1/runtime")).status_code == 401
-    # Originless native registration works; browser cross-origin requests fail closed.
+    # 前面用夹具默认的同源 Origin 发起设备注册，这里显式传入异源 Origin，验证同一入口返回 403。
     assert (
         await c.post(
             "/api/v1/runtime-enrollments",
@@ -422,7 +422,7 @@ async def test_hardware_trust_and_workspace_secret_delivery_need_distinct_author
         )
         assert approved.status_code == 200, approved.text
         assert approved.json()["data"]["allowCredentialDelivery"] is True
-        # Security can clear the grant when demoting trust, without secret authority.
+        # 安全人员降低设备信任时清除凭据下发授权，所有者撤去共享及用户授权后，所有者和工作区管理员均无法重新开启。
         assert (
             await security.put(
                 base + "/trust",

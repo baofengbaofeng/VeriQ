@@ -46,7 +46,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # Rehydration is an explicit operator operation; never discard external evidence.
+    # 降级前检查缺少库内正文的制品、已过期上传及待删除记录，发现任一项便要求操作员先处理。
     count = (
         op.get_bind()
         .execute(sa.text("SELECT COUNT(*) FROM veriq_artifacts WHERE content IS NULL"))

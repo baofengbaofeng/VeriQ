@@ -335,7 +335,7 @@ async def test_publication_rejects_tampered_provenance(site, tamper):
     if tamper == "attempt":
         from sqlalchemy.exc import IntegrityError
 
-        # T09 now rejects impossible provenance at the composite FK itself.
+        # 把校验回执改为引用不存在的执行尝试后立即刷新事务，验证数据库会通过组合外键直接拒绝这条写入。
         with pytest.raises(IntegrityError, match="fk_validation_attempt"):
             async with db.sessions.begin() as s:
                 r = await s.get(ValidationReceipt, rid)

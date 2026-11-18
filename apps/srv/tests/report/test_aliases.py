@@ -46,7 +46,7 @@ async def test_live_alias_pins_bytes_and_old_delete_cannot_remove_rehydrated_upl
                 )
             ).scalar_one()
             path = f"/api/v1/workspaces/{ws}/attempts/{claim['attemptId']}/artifacts/{row.id}"
-        # Completed external upload lost-ACK recovery verifies the exact tail chunk.
+        # 外部存储已经收齐文件时按原偏移重放尾块，验证服务既能确认此前的成功上传，也会拒绝字节不同的尾块。
         replay_headers = {
             **auth(credential),
             "Content-Type": "application/octet-stream",

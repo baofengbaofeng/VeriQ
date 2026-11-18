@@ -36,7 +36,7 @@ def _response_hooks(
 async def site(request, monkeypatch):
     env = json.loads(Path(".superpowers/sdd/veriq-1/test-env.json").read_text())
     assert make_url(env["mysql_dsn"]).database == "veriq_test"
-    # The operator provisioned this database exclusively for isolated task tests.
+    # 夹具会重建专用数据库中的表，因此检查库名为 veriq_test，并在清理前核对已有表是否全部属于许可名单。
     storage = {}
     moto = None
     if getattr(request, "param", "FILE") == "S3":

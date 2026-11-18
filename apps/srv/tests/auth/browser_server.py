@@ -17,7 +17,7 @@ from veriq_server.settings import Settings
 async def main():
     env = json.loads(Path(".superpowers/sdd/veriq-1/test-env.json").read_text())
     assert make_url(env["mysql_dsn"]).database == "veriq_test"
-    # Test-only persistent signer. Production never creates an issuer while serving.
+    # 浏览器夹具复用缓存中的签发密钥，缺少密钥文件时才初始化签发器，并单独写出公钥供测试调用方读取。
     from veriq_server.bundles.issuer import Issuer
 
     issuer_path = Path(".superpowers/cache/t14/browser-issuer/issuer.json")

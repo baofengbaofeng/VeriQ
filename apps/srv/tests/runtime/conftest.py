@@ -1,4 +1,4 @@
-# Reuse the guarded real-MySQL/HTTP fixture; no second test database harness.
+# 设备注册和授权用例复用认证套件的站点夹具，在同一个专用 MySQL 测试库中沿用表归属检查和清理流程。
 import sys
 from pathlib import Path
 

@@ -112,7 +112,7 @@ async def test_real_agent_report_compiler_diagnostics_credentials_and_trust(site
             files = (await c.get(resource + f"/versions/{version}/compiled-source")).json()["data"][
                 "files"
             ]
-            # Exact emitted TS contains references only, never resolved platform credentials.
+            # 逐个下载编译器实际生成的 TypeScript 文件，直接检查原始文件字节没有包含测试配置中的凭据值。
             import httpx
 
             async with httpx.AsyncClient(

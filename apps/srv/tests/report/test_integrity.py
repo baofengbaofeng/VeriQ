@@ -66,7 +66,7 @@ async def test_raw_trace_claimed_redacted_requires_current_environment_permissio
         member = await session.get(WorkspaceMember, (ws, actor))
         member.role = "EXECUTOR"
     assert (await c.get(path)).status_code == 403
-    # Retention operates on real uploaded bytes while preserving historical facts.
+    # 保留期用例让此前实际上传的制品过期，核对下载入口失效后原执行尝试的结果和证据状态仍然可读。
     from datetime import timedelta
     from uuid import uuid4
     from veriq_server.service import now
@@ -96,8 +96,8 @@ async def test_raw_trace_claimed_redacted_requires_current_environment_permissio
         "Idempotency-Key": str(uuid4()),
     }
     target = "/internal/v1/maintenance/artifacts/expire"
-    # A legacy terminal record without server terminal time remains pinned even if its creation time is old; no client
-    # clock or lease time is a substitute.
+    # 旧执行尝试即使早已创建且处于终态，只要服务端未记录结束时间，保留期任务就应跳过其制品。
+    # 创建时间、客户端时间和租约时间均不能替代服务端记录的结束时间。
     unknown = await c.post(target, json={"workspaceId": ws, "limit": 100}, headers=headers)
     assert unknown.status_code == 200 and unknown.json()["data"]["processedCount"] == 0
     async with db.sessions.begin() as session:

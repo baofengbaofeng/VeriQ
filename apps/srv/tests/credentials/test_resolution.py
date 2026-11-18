@@ -54,7 +54,7 @@ async def test_resolution_requires_current_verified_grant_and_exact_pin(site, mo
         current_fence=7,
         identities=[role],
     )
-    # This proof is an explicit domain-test fixture, not production device integration.
+    # 在领域测试中直接构造设备证明及其租约与围栏状态，确认有效证明可以解密，而密钥版本不符时请求被拒。
     from dataclasses import replace
 
     ring = import_module("veriq_server.credentials.crypto").Keyring(
@@ -77,7 +77,7 @@ async def test_resolution_requires_current_verified_grant_and_exact_pin(site, mo
                 await module.resolve_verified(session, bad, "business", secret["versionId"], ring)
         with pytest.raises(Problem):
             await module.resolve_verified(session, proof, "business", "other-version", ring)
-    # Explicit injected test proof drives the real HTTP response schema; production stays denied.
+    # 在此用例替换证明校验器并注入预设证明，随后通过真实 HTTP 路由核对响应字段及禁止缓存的响应头。
     attempt_id = "11111111-1111-4111-8111-111111111111"
 
     async def verified(self, session, requested_attempt, transport):
@@ -222,7 +222,7 @@ async def test_adapter_and_secret_authorization_lock_serializes_revocation(site)
     ring = Keyring("primary", {"primary": bytes.fromhex("a" * 64)})
     async with db.sessions.begin() as issuing:
         await IdentityRegistry().require_role(issuing, WorkspaceScope(ws), role)
-        # A competing revocation transaction cannot cross the authorization/decrypt point.
+        # 签发事务持锁时由另一事务尝试锁定适配器版本和密钥版本，两次尝试均须被拒，签发事务随后继续解密。
         for model, version in [
             (AuthAdapterVersion, adapter["versionId"]),
             (SecretVersion, secret["versionId"]),

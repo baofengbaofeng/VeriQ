@@ -1,4 +1,4 @@
-# Reuse the guarded real-MySQL/HTTP fixture; no second test database harness.
+# 资源测试加载认证套件的真实 HTTP 站点夹具，复用其重建专用 MySQL 库中表之前的归属检查。
 import sys
 from pathlib import Path
 

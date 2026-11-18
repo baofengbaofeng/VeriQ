@@ -76,8 +76,8 @@ async def test_sse_replays_once_and_closes_after_membership_revocation(site):
         {"workspaceId": ws, "runId": run_id, "userId": actor},
         {str(uuid4()): 9007199254740991 for _ in range(2000)},
     )
-    # The actual POST transport admits the maximum signed body and rejects its foreign Attempt positions normally,
-    # rather than failing a header/body limit.
+    # 用实际 POST 发送达到接口容量上限的签名游标，验证其中不属于此运行的执行尝试位置仍触发重新同步。
+    # 后续另发超长游标正文，验证传输大小限制返回 413。
     invalid = await c.post(path, json={"cursor": maximum})
     assert invalid.status_code == 400 and invalid.json()["code"] == "REPORT_RESYNC_REQUIRED"
     oversized = await c.post(path, json={"cursor": "x" * (256 * 1024)})

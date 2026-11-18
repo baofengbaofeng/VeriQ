@@ -35,8 +35,8 @@ def upgrade() -> None:
         "veriq_artifact_publications",
         ["workspace_id", "state", "id"],
     )
-    # An older delete acknowledgment did not fence still-pending create-only writes. Revisit exact recorded keys once
-    # to install empty barriers on upgrade.
+    # 旧的删除回执无法拦住尚在进行的仅创建写入，升级会按原存储键将已完成的删除记录重新设为待处理。
+    # 回收时在同一个键写入空内容屏障，阻止迟到的写入。
     op.execute("UPDATE veriq_artifact_deletions SET deleted_at = NULL")
 
 

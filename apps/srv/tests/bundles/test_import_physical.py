@@ -301,7 +301,7 @@ async def test_actual_offline_browser_result_uploads_to_enrolled_mysql_import(
         assert exported.status_code == 201, exported.text
         bundle = exported.json()["data"]
         export_elapsed = time.monotonic() - export_started
-        # Operator key input is independent from the downloaded archive/routing metadata.
+        # 从独立的签发器文件读取公钥作为操作员输入，使制品签名验证的信任来源独立于下载归档和路由元数据。
         issuer = Issuer(tmp_path / "issuer" / "keys.json").public()
         (profile / "integration-input.json").write_text(
             json.dumps(

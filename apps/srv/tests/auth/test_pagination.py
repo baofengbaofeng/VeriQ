@@ -66,7 +66,7 @@ async def test_users_filtered_keyset_pages_and_caps(site):
         await c.get("/api/v1/admin/users", params={"disabled": "false", "systemAdmin": "true"})
     ).json()["data"]["items"]
     assert len(admins) == 1 and admins[0]["email"] == "admin@example.com"
-    # Authorization is checked before cursors, and a cursor grants no capability.
+    # 退出登录后用刚取得的有效分页游标再次查询管理员列表，验证游标本身无法替代会话，服务仍返回 401。
     await c.post("/api/v1/auth/logout", json={})
     assert (
         await c.get("/api/v1/admin/users", params={"cursor": cap["nextCursor"]})

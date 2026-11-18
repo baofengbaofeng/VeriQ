@@ -170,7 +170,7 @@ def cleanup_event():
 
 @pytest.mark.parametrize("business", ["FAILED", "ERROR", "INCOMPLETE", "CANCELLED", "SKIPPED"])
 def test_post_step_business_failure_is_never_reduced_to_pass(business):
-    # SDK origin enforcement can fail after every step passed.
+    # 模拟步骤全部通过后才收到非通过业务结果，验证归约的最终结果和业务状态都保留该结束事件的原结果。
     result = canonical_case(
         [expected_step()],
         [
