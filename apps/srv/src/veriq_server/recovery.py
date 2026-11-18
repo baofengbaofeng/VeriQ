@@ -1,4 +1,5 @@
-"""VeriQ 停机备份以 MySQL 全局读锁固定所有表的同一状态，同时保存真实制品和生效密钥配置；恢复仅面向已经显式迁移的空目标，
+"""
+VeriQ 停机备份以 MySQL 全局读锁固定所有表的同一状态，同时保存真实制品和生效密钥配置；恢复仅面向已经显式迁移的空目标，
 版本、摘要、密钥和外键全部匹配才可解除失败标记。
 """
 
@@ -33,7 +34,8 @@ from .snapshot_io import (
 
 @asynccontextmanager
 async def maintenance_connection(db: Database, *, freeze: bool) -> AsyncIterator[AsyncConnection]:
-    """复用迁移命名锁阻止升级与恢复交错，备份额外持有全局读锁冻结真实数据库；命名锁失败或清理无法确认时直接失败，
+    """
+    复用迁移命名锁阻止升级与恢复交错，备份额外持有全局读锁冻结真实数据库；命名锁失败或清理无法确认时直接失败，
     不自动重连伪造旧物理会话已经释放锁的结论。
     """
     async with db.engine.connect() as connection:
@@ -68,7 +70,8 @@ async def maintenance_connection(db: Database, *, freeze: bool) -> AsyncIterator
 
 
 async def installed_tables(connection: AsyncConnection) -> MetaData:
-    """读取目标已安装的真实表及外键并要求与当前程序完整匹配，恢复不会执行 DDL 或忽略未知平台表；迁移头必须精确一致，
+    """
+    读取目标已安装的真实表及外键并要求与当前程序完整匹配，恢复不会执行 DDL 或忽略未知平台表；迁移头必须精确一致，
     避免把新数据库交给旧软件进行猜测式回滚。
     """
     version = str((await connection.execute(text("SELECT VERSION()"))).scalar_one())
@@ -89,7 +92,8 @@ async def installed_tables(connection: AsyncConnection) -> MetaData:
 
 
 async def require_quiescent(connection: AsyncConnection, metadata: MetaData) -> None:
-    """停机声明之外再检查数据库中的在途任务、隔离容量、未完成发布和导出；这些状态可能仍有外部进程写入，因此无法仅靠暂停
+    """
+    停机声明之外再检查数据库中的在途任务、隔离容量、未完成发布和导出；这些状态可能仍有外部进程写入，因此无法仅靠暂停
     HTTP 服务证明制品已经稳定，遇到任何一个就拒绝备份。
     """
     checks = {
@@ -106,7 +110,8 @@ async def require_quiescent(connection: AsyncConnection, metadata: MetaData) -> 
 
 
 def key_fingerprints(settings: Settings) -> dict[str, str]:
-    """只为兼容比较计算生效密钥的摘要，完整配置仅写入私有备份载荷而不输出到日志；密钥标识与字节共同参与比较，
+    """
+    只为兼容比较计算生效密钥的摘要，完整配置仅写入私有备份载荷而不输出到日志；密钥标识与字节共同参与比较，
     防止同名密钥被错误替换后恢复出不可解密的数据库。
     """
     values = {**settings.previous_master_keys, settings.master_key_id: settings.master_key}
@@ -117,7 +122,8 @@ def key_fingerprints(settings: Settings) -> dict[str, str]:
 
 
 def s3_client(settings: Settings) -> Any:
-    """仅在备份中确实存在 S3 记录或恢复明确允许桶清单检查时创建真实客户端，操作使用既有 boto3 依赖与有界网络超时，
+    """
+    仅在备份中确实存在 S3 记录或恢复明确允许桶清单检查时创建真实客户端，操作使用既有 boto3 依赖与有界网络超时，
     不改变业务存储适配器或探测策略的权限默认值。
     """
     import boto3
@@ -141,7 +147,8 @@ async def backup(
     services_stopped: bool,
     configuration_path: Path,
 ) -> str:
-    """操作员确认所有写入服务停止后，在同一全局读锁窗口流式导出全部真实表与外置字节并保存生效配置、签发私钥和引擎库存，
+    """
+    操作员确认所有写入服务停止后，在同一全局读锁窗口流式导出全部真实表与外置字节并保存生效配置、签发私钥和引擎库存，
     只有所有载荷同步完成才写入完成清单并返回摘要。
     """
     if not services_stopped or not destination.is_absolute() or destination.exists():
@@ -304,7 +311,8 @@ async def restore(
     allow_s3_inventory: bool,
     configuration_path: Path,
 ) -> None:
-    """恢复必须携带独立清单摘要和三项显式停机及空目标确认，拒绝任何版本或密钥不兼容；外部制品写入失败时保留不完整标记，
+    """
+    恢复必须携带独立清单摘要和三项显式停机及空目标确认，拒绝任何版本或密钥不兼容；外部制品写入失败时保留不完整标记，
     禁止将部分恢复的目标自动报告为可用服务。
     """
     if (
@@ -348,7 +356,12 @@ async def restore(
     archived_settings = Settings.model_validate(
         json.loads(safe_snapshot_file(source, "configuration.json").read_text())
     )
-    if key_fingerprints(archived_settings) != manifest["keyFingerprints"]:
+    # 已确认的清单同时约束归档和目标的签名字节，避免私有配置与实际恢复使用的签名身份不一致。
+    if (
+        key_fingerprints(archived_settings) != manifest["keyFingerprints"]
+        or sha256(bytes.fromhex(archived_settings.signing_key.get_secret_value())).hexdigest()
+        != manifest["signingKeyFingerprint"]
+    ):
         raise ValueError("BACKUP_KEY_MATERIAL_MISMATCH")
     version_entry = manifest["tables"]["veriq_alembic_version"]
     with safe_snapshot_file(source, version_entry["file"]).open() as version_stream:
