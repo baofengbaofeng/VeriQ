@@ -7,6 +7,11 @@ import i18next, { type i18n } from "i18next";
 import { initReactI18next } from "react-i18next";
 import { initialLanguage } from "../../locales/preference";
 const zh = {
+    copyDataset: "复制数据集",
+    copySource: "源工作区",
+    copyVersion: "已发布版本",
+    copySubmit: "创建草稿",
+    copyNoVersions: "此工作区没有已发布的数据集版本。",
     resources: "资源",
     columnKey: "标识",
     columnName: "名称",
@@ -47,6 +52,11 @@ const zh = {
     language: "语言",
 };
 const en: typeof zh = {
+    copyDataset: "Copy dataset",
+    copySource: "Source workspace",
+    copyVersion: "Published version",
+    copySubmit: "Create draft",
+    copyNoVersions: "This workspace has no published dataset versions.",
     resources: "Resources",
     columnKey: "Key",
     columnName: "Name",

@@ -41,6 +41,20 @@ export type CloudOperation =
           data: S["ResourceCreate"];
       }
     | {
+          operation: "listDatasetCopySources";
+          params: {
+              workspaceId: string;
+          };
+          query?: Record<string, string | number | boolean>;
+      }
+    | {
+          operation: "copyDataset";
+          params: {
+              workspaceId: string;
+          };
+          data: S["DatasetCopyRequest"];
+      }
+    | {
           operation: "getResource";
           params: {
               workspaceId: string;

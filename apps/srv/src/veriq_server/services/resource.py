@@ -255,6 +255,41 @@ class ResourceService:
             raise Problem(409, "RESOURCE_ARCHIVED", "Resource is archived")
         return resource
 
+    async def dataset_copy_source(
+        self, target: WorkspaceScope, source_id: str
+    ) -> ResourceRepository:
+        """先检查目标可编辑性和来源下载权限，再返回仅能查询来源工作区的仓储，发现和复制共用这个入口。"""
+        await self.authorize(target, "DATASET")
+        source = WorkspaceScope(source_id)
+        await self.authorize(source, "DATASET", Permission.DOWNLOAD, write=False)
+        return ResourceRepository(self.session, source)
+
+    async def copy_dataset(self, scope: WorkspaceScope, data: dict[str, Any]) -> dict[str, Any]:
+        """以源版本冻结的正文建立独立的目标修订，并在同一事务中为新资源记录可追溯的来源版本标识。"""
+        repo = await self.dataset_copy_source(scope, data["sourceWorkspaceId"])
+        version = await repo.version(data["sourceDatasetVersionId"])
+        resource = await repo.resource(version.resource_id)
+        if resource.kind != "DATASET":
+            raise Problem(404, "VERSION_NOT_FOUND", "Dataset version not found")
+        result = await self.create(
+            scope,
+            {
+                "kind": "DATASET",
+                "key": data["key"],
+                "name": data["name"],
+                "content": version.document_json,
+            },
+        )
+        audit(
+            self.session,
+            "dataset.copied",
+            self.user.id,
+            result["id"],
+            workspace_id=scope.workspace_id,
+            source_version_id=version.id,
+        )
+        return result
+
     async def create(self, scope: WorkspaceScope, data: dict[str, Any]) -> dict[str, Any]:
         """在 Workspace 内创建资源头与初始草稿，key 冲突返回 Problem，ResourceService.create 遵守本文件边界。
         create 实现于 apps/srv/src/veriq_server/services/resource.py：请按该符号的输入校验、错误码与调用方契约阅读，

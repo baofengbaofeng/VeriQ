@@ -161,6 +161,7 @@ def handler_for(action: str) -> type[API]:
     if action == "credential-resolve":
         return CredentialResolveAPI
     if action in {
+        "dataset-copies",
         "resources",
         "resource",
         "draft",
@@ -388,6 +389,7 @@ def make_app(settings: Settings, db: Database, delivery: Delivery | None = None)
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})/invitations", "invitations"),
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})/invitations/([0-9a-fA-F-]{36})", "invitation"),
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})", "workspace"),
+        ("/api/v1/workspaces/([0-9a-fA-F-]{36})/resources/dataset-copies", "dataset-copies"),
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})/resources", "resources"),
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})/resources/([0-9a-fA-F-]{36})", "resource"),
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})/resources/([0-9a-fA-F-]{36})/draft", "draft"),

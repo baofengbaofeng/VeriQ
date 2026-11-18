@@ -110,6 +110,7 @@ class AuditLog(Base):
     workspace_id: Mapped[str | None] = mapped_column(
         uuid_type, ForeignKey("veriq_workspaces.id"), index=True
     )
+    source_version_id: Mapped[str | None] = mapped_column(uuid_type)
     action: Mapped[str] = mapped_column(String(80, collation="ascii_bin"))
     created_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
 

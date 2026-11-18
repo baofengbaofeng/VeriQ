@@ -3,6 +3,7 @@ import re
 from sqlalchemy import and_, or_, select
 from ..auth.authorization import Permission, WorkspaceScope
 from ..db import Resource, ResourceVersion, ResourceDependency, ValidationReceipt, Attempt
+from ..contracts import validate_schema
 from ..pagination import Page
 from ..repositories.resource import ResourceRepository
 from ..service import Problem, audit, lock_installation
@@ -29,6 +30,7 @@ class ResourceAPI(API):
         self.body_limit = 2 * 1024 * 1024 + 4096 if self.action in {"resources", "draft"} else 65536
         super().prepare()
         allowed = {
+            "dataset-copies": {"GET", "POST"},
             "resources": {"GET", "POST"},
             "resource": {"GET", "PATCH"},
             "draft": {"GET", "PUT"},
@@ -70,6 +72,18 @@ class ResourceAPI(API):
         scope = WorkspaceScope(workspace_id)
         async with self.db.sessions() as s:
             user, _ = await self.identity(s)
+            if self.action == "dataset-copies":
+                source = self.get_query_argument("sourceWorkspaceId")
+                if validate_schema("Id", source):
+                    raise Problem(400, "INVALID_FILTER", "Invalid source workspace ID")
+                repo = await self.service(s, user).dataset_copy_source(scope, source)
+                page = Page.read(
+                    self,
+                    {"list": self.action, "actor": user.id, "workspaceId": workspace_id, "source": source},
+                    self.config.signing_key.get_secret_value(),
+                )
+                self.respond(await repo.dataset_versions(page))
+                return
             await WorkspaceRepository(s, scope).authorize(user)
             repo = ResourceRepository(s, scope)
             if self.action in {"job", "validation-receipt"}:
@@ -264,6 +278,7 @@ class ResourceAPI(API):
         data = self.body(
             {
                 "resources": "ResourceCreate",
+                "dataset-copies": "DatasetCopyRequest",
                 "validate": "ValidationRequest",
                 "publish": "PublishRequest",
             }[self.action]
@@ -275,6 +290,8 @@ class ResourceAPI(API):
             service = self.service(s, user)
             if self.action == "resources":
                 result = await service.create(scope, data)
+            elif self.action == "dataset-copies":
+                result = await service.copy_dataset(scope, data)
             elif self.action == "validate":
                 assert resource_id
                 result = await service.validate(

@@ -6,6 +6,7 @@ import { readFile, writeFile } from "node:fs/promises";
  */
 const allowed = new Set(
     `login session logout getSetup getAccount listWorkspaces getWorkspace
+listDatasetCopySources copyDataset
 listResources createResource getResource updateResource getDraft updateDraft validateResource publishResource
 listVersions getVersion listDependents previewResourceValidation getPublishedCompiledSource getJob getValidationReceipt
 listRuns createRun getRun cancelRun rerun getRunReport streamRunReport getAttemptHistory getAttemptArtifacts

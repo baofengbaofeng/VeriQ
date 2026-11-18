@@ -6076,6 +6076,83 @@
         "api_ResourceDTO": {
             "$ref": "#/$defs/ResourceDTO"
         },
+        "api_DatasetCopyRequest": {
+            "type": "object",
+            "properties": {
+                "sourceWorkspaceId": {
+                    "$ref": "#/$defs/api_Id"
+                },
+                "sourceDatasetVersionId": {
+                    "$ref": "#/$defs/api_Id"
+                },
+                "key": {
+                    "$ref": "#/$defs/api_Key",
+                    "maxLength": 160,
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                }
+            },
+            "required": ["sourceWorkspaceId", "sourceDatasetVersionId", "key", "name"],
+            "additionalProperties": false
+        },
+        "api_DatasetCopySource": {
+            "type": "object",
+            "properties": {
+                "resourceId": {
+                    "$ref": "#/$defs/api_Id"
+                },
+                "key": {
+                    "$ref": "#/$defs/api_Key",
+                    "maxLength": 160,
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                },
+                "versionId": {
+                    "$ref": "#/$defs/api_Id"
+                },
+                "versionNo": {
+                    "type": "integer",
+                    "minimum": 1
+                }
+            },
+            "required": ["resourceId", "key", "name", "versionId", "versionNo"],
+            "additionalProperties": false
+        },
+        "api_DatasetCopySourcePageEnvelope": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "object",
+                    "properties": {
+                        "items": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/$defs/api_DatasetCopySource"
+                            }
+                        },
+                        "nextCursor": {
+                            "type": ["string", "null"]
+                        }
+                    },
+                    "required": ["items", "nextCursor"],
+                    "additionalProperties": false
+                },
+                "requestId": {
+                    "type": "string",
+                    "minLength": 1
+                }
+            },
+            "required": ["data", "requestId"],
+            "additionalProperties": false
+        },
         "api_ResourceCreate": {
             "type": "object",
             "properties": {

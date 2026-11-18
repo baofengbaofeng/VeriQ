@@ -1,4 +1,5 @@
-import { spawn } from "node:child_process";
+import { promisify } from "node:util";
+import { execFile, spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { mkdtemp, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -1257,5 +1258,123 @@ test("primitive rows preserve focused survivors and persist only business values
                 );
             }),
         ).toBe(true);
+    }
+});
+
+test("copy dataset opens an independent target draft", async ({ page }) => {
+    test.setTimeout(180_000);
+    const scope = await editorScope(page, "copy-source");
+    const target = await page.request.post("/api/v1/workspaces", {
+        headers: scope.headers,
+        data: { key: "copy-target", name: "Copy target" },
+    });
+    expect(target.status()).toBe(201);
+    const targetId = (await target.json()).data.id;
+    await expect(page.getByRole("button", { name: "Copy dataset" })).toBeVisible();
+    const source = await createResource(page, "DATASET", "source-data");
+    await saveDraft(page);
+    const job = await queueValidation(page);
+    await promisify(execFile)(
+        "uv",
+        [
+            "run",
+            "--project",
+            "apps/srv",
+            "--no-sync",
+            "python",
+            "apps/srv/tests/resources/copy_browser_fixture.py",
+            job.id,
+        ],
+        { cwd: fileURLToPath(new URL("../../../", import.meta.url)) },
+    );
+    const base = "/api/v1/workspaces/" + scope.workspaceId;
+    const receipt = await page.request.get(base + "/jobs/" + job.id + "/validation-receipt");
+    expect(receipt.status(), await receipt.text()).toBe(200);
+    const frozen = (await receipt.json()).data;
+    const publication = await page.request.post(base + "/resources/" + source.id + "/publish", {
+        headers: scope.headers,
+        data: { revision: frozen.revision, validationReceiptId: frozen.id },
+    });
+    expect(publication.status(), await publication.text()).toBe(201);
+    const version = (await publication.json()).data;
+    await page.reload();
+    await page.getByRole("combobox", { name: "Workspace", exact: true }).selectOption(targetId);
+    await page.getByRole("button", { name: "Copy dataset" }).click();
+    const dialog = page.getByRole("dialog", { name: "Copy dataset" });
+    await dialog.getByLabel("Source workspace").selectOption(scope.workspaceId);
+    await dialog.getByLabel("Published version").selectOption(version.id);
+    await dialog.getByLabel("Key", { exact: true }).fill("copied-data");
+    await dialog.getByLabel("Name", { exact: true }).fill("Copied data");
+    const response = page.waitForResponse(
+        (r) => r.url().endsWith("/dataset-copies") && r.request().method() === "POST",
+    );
+    await dialog.getByRole("button", { name: "Create draft" }).click();
+    const copied = await response;
+    expect(copied.status(), await copied.text()).toBe(201);
+    const resource = (await copied.json()).data;
+    expect(resource.id).not.toBe(source.id);
+    await expect(page.getByRole("article").getByRole("heading", { name: "Copied data · DATASET" })).toBeVisible();
+    const draft = await page.request.get(`/api/v1/workspaces/${targetId}/resources/${resource.id}/draft`);
+    expect((await draft.json()).data.content).toEqual(version.content);
+});
+
+test("copy dataset respects viewer and editor roles in the shared dialog", async ({ page, browser }) => {
+    const target = await editorScope(page, "role-target");
+    const source = await page.request.post("/api/v1/workspaces", {
+        headers: target.headers,
+        data: { key: "role-source", name: "Read only source" },
+    });
+    expect(source.status()).toBe(201);
+    const sourceId = (await source.json()).data.id;
+    const email = "dataset-member@example.com";
+    const password = "Dataset member 123!";
+    const origin = "http://127.0.0.1:5173";
+    const member = await browser.newContext({ baseURL: origin });
+    try {
+        const user = await page.request.post("/api/v1/admin/users", {
+            headers: target.headers,
+            data: { email, displayName: "Dataset member", password, systemAdmin: false },
+        });
+        expect(user.status()).toBe(201);
+        const setup = await member.request.get("/api/v1/setup");
+        const login = await member.request.post("/api/v1/auth/login", {
+            headers: { Origin: origin, "X-CSRF-Token": (await setup.json()).data.csrfToken },
+            data: { email, password },
+        });
+        expect(login.status()).toBe(200);
+        const headers = { Origin: origin, "X-CSRF-Token": (await login.json()).data.csrfToken };
+        for (const [id, role] of [
+            [sourceId, "VIEWER"],
+            [target.workspaceId, "EDITOR"],
+        ]) {
+            const invite = await page.request.post(`/api/v1/workspaces/${id}/invitations`, {
+                headers: target.headers,
+                data: { email, role },
+            });
+            expect(invite.status()).toBe(201);
+            const fragment = new URL((await invite.json()).data.invitationUrl).hash;
+            const token = new URLSearchParams(fragment.slice(1)).get("token");
+            expect(
+                (await member.request.post("/api/v1/auth/invitations/accept", { headers, data: { token } })).status(),
+            ).toBe(200);
+        }
+        const view = await member.newPage();
+        await view.goto("/resources");
+        const select = view.getByRole("combobox", { name: "Workspace", exact: true });
+        await select.selectOption(sourceId);
+        await expect(view.getByRole("button", { name: "Create resource", exact: true })).toBeDisabled();
+        await expect(view.getByRole("button", { name: "Copy dataset" })).toHaveCount(0);
+        await select.selectOption(target.workspaceId);
+        const loaded = view.waitForResponse((r) => new URL(r.url()).pathname === "/api/v1/workspaces");
+        await view.getByRole("button", { name: "Copy dataset" }).click();
+        // 首次打开会读取当前会话的成员关系。这里检查实际查询完成后的候选列表，防止空加载状态伪装成正确过滤。
+        const dialog = view.getByRole("dialog", { name: "Copy dataset" });
+        await expect(dialog).toBeVisible();
+        await loaded;
+        await expect(dialog.getByRole("status")).toHaveCount(0);
+        await expect(dialog.getByLabel("Source workspace").getByRole("option")).toHaveCount(1);
+        await expect(dialog.getByRole("option", { name: "Read only source" })).toHaveCount(0);
+    } finally {
+        await member.close();
     }
 });

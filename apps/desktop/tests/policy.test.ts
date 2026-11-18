@@ -122,3 +122,19 @@ test("generated maintenance token metadata admits the five allowed scopes", () =
     assert.equal(validate({ ...token, operations: [...operations, "extra-scope"] }), false);
     assert.ok(validate.errors?.some(({ keyword }) => keyword === "maxItems"));
 });
+
+test("dataset copy discovery and creation bind the selected target workspace", () => {
+    const workspaceId = "00000000-0000-4000-8000-000000000001";
+    const sourceWorkspaceId = "00000000-0000-4000-8000-000000000002";
+    const data = { sourceWorkspaceId, sourceDatasetVersionId: workspaceId, key: "copy", name: "copy" };
+    const params = { workspaceId };
+    const query = { sourceWorkspaceId };
+    const path = `/api/v1/workspaces/${workspaceId}/resources/dataset-copies`;
+    const list = { operation: "listDatasetCopySources", params, query };
+    const copy = { operation: "copyDataset", params, data };
+    assert.equal(resolveOperation(list, workspaceId).path, path + "?sourceWorkspaceId=" + sourceWorkspaceId);
+    assert.deepEqual(resolveOperation(copy, workspaceId), { method: "POST", path, data, kind: "json" });
+    for (const request of [list, copy]) {
+        assert.throws(() => resolveOperation(request, sourceWorkspaceId), /WORKSPACE_SCOPE_MISMATCH/);
+    }
+});

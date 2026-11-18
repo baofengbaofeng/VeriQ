@@ -182,6 +182,7 @@ export function ResourceWorkspaceView({
         [createKind, setCreateKind] = useState<ResourceKind>(initialKind ?? "CASE"),
         [key, setKey] = useState(""),
         [name, setName] = useState(""),
+        [copying, setCopying] = useState(false),
         [selected, setSelected] = useState<Resource | null>(null),
         [error, setError] = useState<Error | null>(null),
         [busy, setBusy] = useState(false);
@@ -266,6 +267,25 @@ export function ResourceWorkspaceView({
                     </Button>
                 )}
             </Section>
+            {!adapter.readOnly && editableRole(workspace, "DATASET") && (!initialKind || initialKind === "DATASET") && (
+                <>
+                    <Button onClick={() => setCopying(true)}>{t("copyDataset")}</Button>
+                    <Sheet open={copying} onOpenChange={setCopying} title={t("copyDataset")}>
+                        {copying && (
+                            <DatasetCopyForm
+                                target={workspace.id}
+                                adapter={adapter}
+                                parent={signal}
+                                onCopied={(resource) => {
+                                    setCopying(false);
+                                    setSelected(resource);
+                                    void refresh();
+                                }}
+                            />
+                        )}
+                    </Sheet>
+                </>
+            )}
             {!adapter.readOnly && (
                 <Section title={t("create")}>
                     <form
@@ -350,6 +370,133 @@ export function ResourceWorkspaceView({
         </div>
     );
 }
+/**
+ * 工作区列表按当前会话分页读取，只列出能够下载的来源工作区；版本查询和复制写入仍绑定目标适配器。
+ * 搜索结果不含正文，提交时使用所选发布版本标识，由服务端重新检查两个工作区的授权。
+ */
+function DatasetCopyForm({
+    target,
+    adapter,
+    parent,
+    onCopied,
+}: {
+    target: string;
+    adapter: ResourceAdapter;
+    parent: AbortSignal;
+    onCopied: (resource: Resource) => void;
+}) {
+    const { t } = useTranslation(undefined, useEditorTranslationOptions);
+    const signal = useLifetime(parent);
+    const [source, setSource] = useState("");
+    const [version, setVersion] = useState("");
+    const [error, setError] = useState<Error | null>(null);
+    const [busy, setBusy] = useState(false);
+    const spaces = useInfiniteQuery({
+        queryKey: ["workspace", target, "dataset-copy-workspaces"],
+        queryFn: ({ pageParam, signal: qs }) => api.workspaces(pageParam, AbortSignal.any([qs, signal])),
+        initialPageParam: undefined as string | undefined,
+        getNextPageParam: (p) => p.nextCursor ?? undefined,
+        gcTime: 0,
+    });
+    const versions = useInfiniteQuery({
+        queryKey: ["workspace", target, "dataset-copy-versions", source],
+        queryFn: ({ pageParam, signal: qs }) =>
+            adapter.listDatasetCopySources(source, pageParam, AbortSignal.any([qs, signal])),
+        initialPageParam: undefined as string | undefined,
+        getNextPageParam: (p) => p.nextCursor ?? undefined,
+        enabled: !!source,
+        gcTime: 0,
+    });
+    const options = spaces.data?.pages.flatMap((p) => p.items).filter((w) => w.id !== target && w.role !== "VIEWER");
+    const items = versions.data?.pages.flatMap((p) => p.items);
+    return (
+        <form
+            className="vq-create"
+            onSubmit={async (event) => {
+                event.preventDefault();
+                const fields = new FormData(event.currentTarget);
+                setBusy(true);
+                setError(null);
+                try {
+                    const resource = await adapter.copyDataset(
+                        {
+                            sourceWorkspaceId: source,
+                            sourceDatasetVersionId: version,
+                            key: String(fields.get("key")),
+                            name: String(fields.get("name")),
+                        },
+                        signal,
+                    );
+                    if (!signal.aborted) onCopied(resource);
+                } catch (reason) {
+                    if (!signal.aborted) setError(reason instanceof Error ? reason : new Error(String(reason)));
+                } finally {
+                    if (!signal.aborted) setBusy(false);
+                }
+            }}
+        >
+            <label>
+                {t("copySource")}
+                <select
+                    required
+                    disabled={busy}
+                    value={source}
+                    onChange={(event) => {
+                        setSource(event.target.value);
+                        setVersion("");
+                        setError(null);
+                    }}
+                >
+                    <option value="">{tx("选择 / Select")}</option>
+                    {options?.map((w) => (
+                        <option key={w.id} value={w.id}>
+                            {w.name}
+                        </option>
+                    ))}
+                </select>
+            </label>
+            {spaces.hasNextPage && (
+                <Button onClick={() => void spaces.fetchNextPage()}>{tx("更多空间 / More Workspaces")}</Button>
+            )}
+            {spaces.error && <ErrorState error={spaces.error} retry={() => void spaces.refetch()} />}
+            <label>
+                {t("copyVersion")}
+                <select
+                    required
+                    disabled={busy || !source}
+                    value={version}
+                    onChange={(event) => setVersion(event.target.value)}
+                >
+                    <option value="">{tx("选择 / Select")}</option>
+                    {items?.map((v) => (
+                        <option key={v.versionId} value={v.versionId}>
+                            {v.name} · {v.key} · v{v.versionNo}
+                        </option>
+                    ))}
+                </select>
+            </label>
+            {(spaces.isFetching || versions.isFetching) && <p role="status">{t("loading")}</p>}
+            {versions.isSuccess && !items?.length && <p>{t("copyNoVersions")}</p>}
+            {versions.hasNextPage && (
+                <Button onClick={() => void versions.fetchNextPage()}>{tx("更多版本 / More versions")}</Button>
+            )}
+            {versions.error && <ErrorState error={versions.error} retry={() => void versions.refetch()} />}
+            <label>
+                {t("columnKey")}
+                <input name="key" required maxLength={160} pattern="[A-Za-z_][A-Za-z0-9_\-]*" />
+            </label>
+            <label>
+                {t("columnName")}
+                <input name="name" required maxLength={160} />
+            </label>
+            <Button type="submit" disabled={busy || !version}>
+                {t("copySubmit")}
+            </Button>
+            {error && <ErrorState error={error} />}
+        </form>
+    );
+}
+
 function DraftLoader(props: {
     resource: Resource;
     adapter: ResourceAdapter;
