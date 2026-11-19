@@ -152,7 +152,7 @@ function Sidebar({ collapsed }: { collapsed: boolean }) {
         />
     );
     return (
-        <aside className="vq-sidebar" data-collapsed={collapsed}>
+        <aside className="vq-sidebar" id="vq-sidebar" data-collapsed={collapsed}>
             <div className="vq-sidebar-header">
                 <Link to="/" className="vq-sidebar-brand" aria-label="VeriQ">
                     {collapsed ? (
@@ -375,6 +375,7 @@ function Header({
     onToggleCollapse: () => void;
     onLogout: () => void;
 }) {
+    useAppLocale();
     const { user } = useContext(Auth);
     const [breakpoint] = useState(() => window.matchMedia("(max-width: 1024px)"));
     const [compact, setCompact] = useState(breakpoint.matches);
@@ -394,8 +395,6 @@ function Header({
     const collapsible = Boolean(user) && compact;
     const toolsVisible = !collapsible || expanded;
     function toggleTools() {
-        // 收起前把仍在工具组内的焦点交给“更多”按钮，避免控件隐藏后焦点落回文档根。
-        if (expanded && actions.current?.contains(document.activeElement)) more.current?.focus();
         setExpanded(!expanded);
     }
     return (
@@ -405,6 +404,7 @@ function Header({
                     type="button"
                     className="vq-hamburger"
                     aria-label={tx("Toggle sidebar")}
+                    aria-controls="vq-sidebar"
                     aria-expanded={!collapsed}
                     onClick={onToggleCollapse}
                 >
