@@ -135,7 +135,7 @@ function WorkspaceMenu() {
 /**
  * 选择与创建都提交给同一个目录，创建失败仍保留当前表单；成功响应提供新实体，不依赖其出现在第一页。
  */
-export function WorkspaceControls() {
+export function WorkspaceControls({ visible }: { visible: boolean }) {
     const { created } = useWorkspaceDirectory();
     const [lifetime] = useState(() => new AbortController());
     const signal = lifetime.signal;
@@ -174,10 +174,12 @@ export function WorkspaceControls() {
     }
     return (
         <>
-            <WorkspaceMenu />
+            {visible && <WorkspaceMenu />}
             <button
                 className="vq-workspace-icon"
                 aria-label={tx("Add workspace")}
+                aria-haspopup="dialog"
+                aria-expanded={open}
                 title={tx("Add workspace")}
                 ref={trigger}
                 type="button"

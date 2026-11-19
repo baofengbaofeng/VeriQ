@@ -640,7 +640,6 @@ tbody tr:hover td {
 .vq-topbar-workspaces {
     display: flex;
     align-items: center;
-    flex-wrap: wrap;
     min-width: 0;
     gap: 6px;
 }
