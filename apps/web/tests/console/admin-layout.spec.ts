@@ -188,7 +188,10 @@ test("Web controls distinguish field, keyboard and pointer focus", async ({ page
     await expect(archived).toHaveCSS("outline-style", "none");
     await page.keyboard.press("Tab");
     await expect(title).toBeFocused();
-    await expect(title).toHaveCSS("outline-color", "rgba(0, 0, 0, 0)");
+    await expect(title).toHaveCSS("outline-color", "rgb(117, 131, 154)");
+    await expect(title).toHaveCSS("outline-style", "solid");
+    await expect(title).toHaveCSS("outline-width", "2px");
+    await expect(title).toHaveCSS("outline-offset", "2px");
     await expect(title).toHaveCSS("border-color", "rgb(156, 185, 255)");
     await expect(title).toHaveCSS("box-shadow", "rgba(70, 95, 255, 0.1) 0px 0px 0px 4px");
     await page.keyboard.press("Shift+Tab");

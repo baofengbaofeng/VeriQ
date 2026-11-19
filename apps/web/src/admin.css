@@ -360,6 +360,7 @@ button:not(:disabled):hover {
 input:focus-visible,
 .vq-input:focus-visible,
 .vq-agent :is(button, a):focus-visible {
+    --vq-field-outline: var(--vq-focus-outline);
     outline: 2px solid var(--vq-focus-outline);
     outline-offset: 3px;
 }
@@ -390,7 +391,7 @@ input:focus:not(:focus-visible) {
     border-color: #9cb9ff;
     box-shadow: 0 0 0 4px rgb(70 95 255 / 10%);
     outline: 2px solid var(--vq-field-outline);
-    outline-offset: 1px;
+    outline-offset: 2px;
 }
 @media (forced-colors: active) {
     :root {
