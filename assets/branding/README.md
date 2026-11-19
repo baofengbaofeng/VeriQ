@@ -9,6 +9,10 @@
 | [veriq-logo.png](veriq-logo.png) | 1254 × 1254 PNG | 用户确认的原始图稿，保留白色画布与边距 |
 | [veriq-logo.svg](veriq-logo.svg) | 矢量，1024 × 1024 画布 | 彩色主标志，深靛蓝背景与冰蓝至青绿色 V/Q 图形 |
 | [veriq-logo-1024.png](veriq-logo-1024.png) | 1024 × 1024 PNG | 从矢量稿导出的彩色图标，圆角外部透明 |
+| [verifyquality-logo-light.svg](verifyquality-logo-light.svg) | 矢量，474 × 114 透明画布 | 浅色背景用，原版彩色图标配深蓝色 VerifyQuality 字标 |
+| [verifyquality-logo-light.png](verifyquality-logo-light.png) | 948 × 228 透明 PNG，2× | 浅色背景用的横版标志 |
+| [verifyquality-logo-dark.svg](verifyquality-logo-dark.svg) | 矢量，474 × 114 透明画布 | 深色背景用，原版彩色图标配浅蓝与青绿色 VerifyQuality 字标 |
+| [verifyquality-logo-dark.png](verifyquality-logo-dark.png) | 948 × 228 透明 PNG，2× | 深色背景用的横版标志 |
 | [veriq-menubar.svg](veriq-menubar.svg) | 矢量，22 × 22 画布 | 透明背景的纯黑 V/Q 图形 |
 | [veriq-menubar-white.svg](veriq-menubar-white.svg) | 矢量，22 × 22 画布 | 透明背景的纯白 V/Q 图形 |
 | [veriq-menubarTemplate.png](veriq-menubarTemplate.png) | 22 × 22 PNG，1× | macOS 菜单栏黑色模板图标 |
@@ -19,6 +23,9 @@
 `veriq-logo.png` 是原始文件的逐字节副本，继续保留作确认稿。
 SVG 以真实贝塞尔路径和渐变重建相同设计，未嵌入位图、字体或外部资源；曲线版本去掉了外部白色画布。
 矢量稿保持确认稿的轮廓和色系，其栅格导出与原始生成图不要求逐像素相同。
+
+两款 VerifyQuality 横版标志均保留彩色图标的靛蓝圆角底形，图标和字标以外的画布为透明。
+字标已转为矢量路径，可直接用于网页和文档，无需安装字体。
 
 菜单栏版只保留 V/Q 图形，采用透明画布与纯黑或纯白填充；边缘通过透明度抗锯齿。
 22 × 22 画布中的主体宽度为 18，留出系统栏所需的呼吸空间。
@@ -53,6 +60,13 @@ inkscape assets/branding/veriq-logo.svg \
     --export-area-page --export-background-opacity=0 \
     --export-width=1024 --export-height=1024 \
     --export-filename=assets/branding/veriq-logo-1024.png
+
+for theme in light dark; do
+    inkscape "assets/branding/verifyquality-logo-${theme}.svg" \
+        --export-area-page --export-background-opacity=0 \
+        --export-width=948 --export-height=228 \
+        --export-filename="assets/branding/verifyquality-logo-${theme}.png"
+done
 
 for size in 22 44; do
     suffix=""
