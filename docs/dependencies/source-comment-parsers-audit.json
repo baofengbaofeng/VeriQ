@@ -78,7 +78,9 @@
             "wheelBytes": 678547,
             "wheelHashMatchesLockAndOfficialMetadata": true,
             "priorRecordVerifiedFiles": 8,
-            "recordUnhashedFiles": ["tree_sitter-0.26.1.dist-info/RECORD"],
+            "recordUnhashedFiles": [
+                "tree_sitter-0.26.1.dist-info/RECORD"
+            ],
             "installedPayloadMatchesAuditedWheel": true,
             "evidenceCapturedAtUTC": "2026-11-17T14:15:22.261418+00:00",
             "priorSupplyEvidenceSHA256": "6387e53f9c8b192577e42d6dae948d6486361c9f3fa49653790c5019faac57e7",
@@ -101,7 +103,9 @@
             "pypiURL": "https://pypi.org/pypi/tree-sitter-bash/0.25.1/json",
             "metadataSHA256": "cf21d2ae724a0d7e12c0f611231d646c4a578abbe70059974c8a429ea7954506",
             "requiresPython": ">=3.10",
-            "requirements": ["tree-sitter~=0.24; extra == \"core\""],
+            "requirements": [
+                "tree-sitter~=0.24; extra == \"core\""
+            ],
             "enabledExtras": [],
             "resolvedUnconditionalDependencies": [],
             "declaredLicense": "MIT",
@@ -120,7 +124,9 @@
             "wheelBytes": 231981,
             "wheelHashMatchesLockAndOfficialMetadata": true,
             "priorRecordVerifiedFiles": 10,
-            "recordUnhashedFiles": ["tree_sitter_bash-0.25.1.dist-info/RECORD"],
+            "recordUnhashedFiles": [
+                "tree_sitter_bash-0.25.1.dist-info/RECORD"
+            ],
             "installedPayloadMatchesAuditedWheel": true,
             "evidenceCapturedAtUTC": "2026-11-17T16:08:00.867029+00:00",
             "priorSupplyEvidenceSHA256": "fc4d7164e7989d45a7eda93ca3c7262dfb26deb90b599e81d2755fbafb6eff2c",
@@ -143,7 +149,9 @@
             "pypiURL": "https://pypi.org/pypi/tree-sitter-css/0.25.0/json",
             "metadataSHA256": "302d2b4b4d2d9e4795e8e5d816342c8c533e193cb81d35fa7f0119546e09b9f4",
             "requiresPython": ">=3.10",
-            "requirements": ["tree-sitter~=0.24; extra == \"core\""],
+            "requirements": [
+                "tree-sitter~=0.24; extra == \"core\""
+            ],
             "enabledExtras": [],
             "resolvedUnconditionalDependencies": [],
             "declaredLicense": "MIT",
@@ -162,7 +170,9 @@
             "wheelBytes": 41713,
             "wheelHashMatchesLockAndOfficialMetadata": true,
             "priorRecordVerifiedFiles": 10,
-            "recordUnhashedFiles": ["tree_sitter_css-0.25.0.dist-info/RECORD"],
+            "recordUnhashedFiles": [
+                "tree_sitter_css-0.25.0.dist-info/RECORD"
+            ],
             "installedPayloadMatchesAuditedWheel": true,
             "evidenceCapturedAtUTC": "2026-11-17T16:08:00.867029+00:00",
             "priorSupplyEvidenceSHA256": "fc4d7164e7989d45a7eda93ca3c7262dfb26deb90b599e81d2755fbafb6eff2c",
@@ -185,12 +195,16 @@
             "wheelURL": "https://files.pythonhosted.org/packages/29/09/e0d08f5c212062fd046db35c1015a2621c2631bc8b4aae5740d7adb276ad/tree_sitter_java-0.23.5-cp39-abi3-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
             "wheelSHA256": "370b204b9500b847f6d0c5ad584045831cee69e9a3e4d878535d39e4a7e4c4f1",
             "wheelBytes": 84033,
-            "recordUnhashedFiles": ["tree_sitter_java-0.23.5.dist-info/RECORD"],
+            "recordUnhashedFiles": [
+                "tree_sitter_java-0.23.5.dist-info/RECORD"
+            ],
             "developmentOnly": true,
             "pypiURL": "https://pypi.org/pypi/tree-sitter-java/0.23.5/json",
             "metadataSHA256": "acac8dc9d74dccdd7b4c4976edd57a50370ecc3dc39c7cae0ab3b7b7daafb950",
             "requiresPython": ">=3.9",
-            "requirements": ["tree-sitter~=0.22; extra == \"core\""],
+            "requirements": [
+                "tree-sitter~=0.22; extra == \"core\""
+            ],
             "enabledExtras": [],
             "resolvedUnconditionalDependencies": [],
             "declaredLicense": "MIT",
@@ -241,7 +255,9 @@
         "pypiURL": "https://pypi.org/pypi/tree-sitter-html/0.23.2/json",
         "pypiQueriedAtUTC": "2026-11-18T02:13:45.505282+00:00",
         "requiresPython": ">=3.9",
-        "requirements": ["tree-sitter~=0.22; extra == \"core\""],
+        "requirements": [
+            "tree-sitter~=0.22; extra == \"core\""
+        ],
         "enabledExtras": [],
         "resolvedUnconditionalDependencies": [],
         "declaredLicense": "MIT",
@@ -260,7 +276,9 @@
         "wheelBytes": 39630,
         "wheelHashMatchesLockAndOfficialMetadata": true,
         "priorSupplyEvidenceSHA256": "fc4d7164e7989d45a7eda93ca3c7262dfb26deb90b599e81d2755fbafb6eff2c",
-        "recordUnhashedFiles": ["tree_sitter_html-0.23.2.dist-info/RECORD"],
+        "recordUnhashedFiles": [
+            "tree_sitter_html-0.23.2.dist-info/RECORD"
+        ],
         "installedOriginalPayloadFilesVerified": 11,
         "installedPayloadSHA256": {
             "tree_sitter_html/__init__.py": "9b5620bf2983c56121b3df34727f8965b2a4429ce9c7898e88a0b1e8fda3e810",
@@ -276,7 +294,10 @@
             "tree_sitter_html-0.23.2.dist-info/WHEEL": "950ffbb08f2c9ed20e62e573af4a5320c50fbf532dd2a52b1ce80054e065d0df"
         },
         "parserCoreVersion": "0.26.1",
-        "parserCoreABIRange": [13, 15],
+        "parserCoreABIRange": [
+            13,
+            15
+        ],
         "grammarABI": 14,
         "existingNonProjectRecordsChanged": [],
         "existingNonProjectRecordsVerified": 116,
@@ -286,7 +307,15 @@
                 "bytes": 26735,
                 "sha256": "aa60f90b349cd5bd1eaffc2447266d58d1468fc7ed6d45d4dbbc0a57b2f06a44",
                 "unchanged": true,
-                "command": ["uv", "export", "--project", "apps/srv", "--frozen", "--no-dev", "--no-header"]
+                "command": [
+                    "uv",
+                    "export",
+                    "--project",
+                    "apps/srv",
+                    "--frozen",
+                    "--no-dev",
+                    "--no-header"
+                ]
             },
             "withoutHashes": {
                 "requirementCount": 56,

@@ -8,7 +8,9 @@
         {
             "name": "boto3-stubs",
             "version": "1.44.0",
-            "selectedExtras": ["s3"],
+            "selectedExtras": [
+                "s3"
+            ],
             "licenseExpression": "MIT",
             "pypiMetadataUrl": "https://pypi.org/pypi/boto3-stubs/1.44.0/json",
             "wheel": {
@@ -155,7 +157,12 @@
         },
         "httpStatus": 200,
         "response": {
-            "results": [{}, {}, {}, {}]
+            "results": [
+                {},
+                {},
+                {},
+                {}
+            ]
         },
         "limitation": "四个精确版本的查询在该日无匹配；覆盖范围限于所列版本及该次 OSV 查询。"
     },

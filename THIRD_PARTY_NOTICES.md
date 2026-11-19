@@ -10,7 +10,7 @@ NOTICE files in distributions. [ADR 0024](docs/decisions/0024-网页界面依赖
 attribution, the retained metadata evidence and the dated 2026-11-17 production advisory audit;
 that audit does not provide a permanent security guarantee or replace release SBOM checks.
 
-The T01 dependency choices, exact versions, declared direct licenses, replacement boundaries and validation limits are recorded in [ADR 0003](docs/decisions/0003-工程基线.md). Machine-readable inventories contain the installed [npm](docs/dependencies/npm-licenses.json) and [Python](docs/dependencies/python-licenses.json) dependency metadata, including development dependencies. Full resolved dependency versions and hashes are in the lockfiles.
+The T01 dependency choices, exact versions, declared direct licenses, replacement boundaries and validation limits are recorded in [ADR 0003](docs/decisions/0003-工程基线.md). Machine-readable inventories contain the installed [npm](docs/dependencies/npm-license-inventory.json) and [Python](docs/dependencies/python-license-inventory.json) dependency metadata, including development dependencies. Full resolved dependency versions and hashes are in the lockfiles. See the [dependency inventory and audit index](docs/dependencies/README.md).
 
 For dual-licensed direct dependencies, the selected alternatives are Apache-2.0 for DOMPurify, BSD-3-Clause for cryptography and MIT for structlog. These choices do not replace upstream copyright notices or license text. Upstream package license files remain authoritative.
 
@@ -65,13 +65,13 @@ T14 adds yauzl 3.4.0 (MIT), resolved pend 1.2.0 (MIT), and development-only
 @types/yauzl 3.4.0 (MIT). Python ZIP writing uses the existing standard library;
 Ed25519 reuses cryptography and Node crypto. The exact new graph's OSV query and
 installed license-file hashes are recorded in
-[the archive audit](docs/dependencies/t14-archive-audit.json). No advisories were
+[the archive audit](docs/dependencies/offline-archive-dependency-audit.json). No advisories were
 returned at that timestamp; this does not reassess unchanged dependencies or
 replace release-time checks. Distributions must include the upstream MIT notices.
 
-T18 adds development-only Biome2.6.7 (MIT selected) and CycloneDX-bom8.0.1 with the exact12-package Python delta in [ADR0020](docs/decisions/0020-服务端发行流程.md). Existing runtime versions are unchanged. [The full tool audit](docs/dependencies/t18-build-tools-audit.json) records licenses and the2026-11-13 OSV result; no advisories were returned at that time. Actual server SBOMs collect installed dependency license texts; Web BOMs describe the pre-bundle production closure and retain upstream LICENSE/NOTICE/README files. These build tools are not installed into the control-service runtime wheelhouse.
+T18 adds development-only Biome2.6.7 (MIT selected) and CycloneDX-bom8.0.1 with the exact12-package Python delta in [ADR0020](docs/decisions/0020-服务端发行流程.md). Existing runtime versions are unchanged. [The full tool audit](docs/dependencies/server-release-tools-audit.json) records licenses and the2026-11-13 OSV result; no advisories were returned at that time. Actual server SBOMs collect installed dependency license texts; Web BOMs describe the pre-bundle production closure and retain upstream LICENSE/NOTICE/README files. These build tools are not installed into the control-service runtime wheelhouse.
 
-T20 promotes the already locked @electron/fuses1.8.0 (MIT) to a direct desktop dependency for Cookie encryption fuse verification. No dependency versions change. [The exact13-package audit](docs/dependencies/t20-cookie-fuses-audit.json) records the installed MIT/ISC closure, registry integrity match and2026-11-14 OSV response with no advisories returned for those exact versions. This is not a full-release security assessment. Release bundles must preserve all upstream license texts.
+T20 promotes the already locked @electron/fuses1.8.0 (MIT) to a direct desktop dependency for Cookie encryption fuse verification. No dependency versions change. [The exact13-package audit](docs/dependencies/electron-cookie-fuses-audit.json) records the installed MIT/ISC closure, registry integrity match and2026-11-14 OSV response with no advisories returned for those exact versions. This is not a full-release security assessment. Release bundles must preserve all upstream license texts.
 
 R03 test recovery directly declares development-only undici 7.30.2 (MIT, already resolved) and
 adds tough-cookie 6.1.0 (BSD-3-Clause), with tldts 7.5.4 and tldts-core 7.5.4 (MIT).
@@ -86,7 +86,7 @@ V09 adds development-only tree-sitter 0.26.1, tree-sitter-bash 0.25.1, tree-sitt
 and tree-sitter-java 0.23.5,
 each under the MIT license. Their original wheel license texts, exact source and wheel hashes,
 and the dated exact-version OSV responses are preserved in the
-[comment parser audit](docs/dependencies/v09-comment-parsers-audit.json).
+[comment parser audit](docs/dependencies/source-comment-parsers-audit.json).
 The upstream copyright notices are Copyright (c) 2019 Max Brunsfeld, GitHub (tree-sitter),
 Copyright (c) 2017 Max Brunsfeld (tree-sitter-bash), Copyright (c) 2018 Max Brunsfeld (tree-sitter-css), and Copyright (c) 2017 Ayman Nadeem (tree-sitter-java).
 Distributing a development environment or these tools requires retaining their full MIT copyright,
@@ -104,7 +104,7 @@ and `types-s3transfer` 0.19.3. The upstream copyright notices are Copyright (c) 
 for `boto3-stubs` and `mypy-boto3-s3`, and Copyright (c) 2022 Vlad Emelianov for `botocore-stubs`
 and `types-s3transfer`. Distributions of these tools must retain their original copyright, permission,
 and warranty notices. Official wheel hashes, original MIT texts, and the 2026-11-17 exact-version OSV
-query are recorded in the [SDK type audit](docs/dependencies/v09-sdk-types-audit.json).
+query are recorded in the [SDK type audit](docs/dependencies/s3-sdk-type-stubs-audit.json).
 [ADR 0027](docs/decisions/0027-对象存储开发套件类型存根.md) records the verified scope of the older core declarations.
 The production `--no-dev` requirements export retains the same 56 entries and distribution hashes.
 
@@ -114,7 +114,7 @@ V09 extends the source-comment adapters to qualified HTML with development-only
 tree-sitter-html 0.23.2 under the MIT license. Its distribution retains the upstream notice
 below. The grammar is absent from the production service `--no-dev` requirements and is
 used for static source measurement. The Linux x86_64 wheel, exact-version OSV response,
-and qualification scope are recorded in the [comment parser audit](docs/dependencies/v09-comment-parsers-audit.json)
+and qualification scope are recorded in the [comment parser audit](docs/dependencies/source-comment-parsers-audit.json)
 and [ADR 0026](docs/decisions/0026-可信注释解析器.md).
 
 ```text
