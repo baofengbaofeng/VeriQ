@@ -2,6 +2,7 @@
  * 本文件实现 HTTP/数据断言：按字段匹配期望值：并在交换对象上运行编译期展开后的断言列表，供调用方理解 http 路径。
  */
 
+import { addAbortListener } from "node:events";
 import { isDeepStrictEqual } from "node:util";
 import { expect } from "@playwright/test";
 import { Ajv2020 } from "ajv/dist/2020.js";
@@ -13,6 +14,7 @@ import {
     validateSchema,
     resolvePointer,
     type CompiledAssertion,
+    type HttpDatasetSample,
     type JsonValue,
     type Presence,
     type JsonObject,
@@ -74,7 +76,7 @@ export async function runAssertion(
     let actual: Presence = { present: false },
         expected: JsonValue = "expected" in a ? a.expected : null,
         ctx = outer;
-    let sample: import("@veriq/contracts").HttpDatasetSample | undefined;
+    let sample: HttpDatasetSample | undefined;
     let queryError = "datasetExpected" in a;
     let errorCode: string | undefined;
     try {
@@ -86,17 +88,56 @@ export async function runAssertion(
             ctx = { ...ctx, page: await interruptible(ctx, () => page) };
         }
         if ("datasetExpected" in a) {
-            if (!ctx.datasets) throw new Error("DATASET_RESOLVER_REQUIRED");
-            expected = await interruptible(ctx, () =>
-                ctx.datasets!.read(
-                    a.datasetExpected,
-                    { data: ctx.data, vars: ctx.vars },
-                    ctx.signal ?? new AbortController().signal,
-                    (metadata) => {
-                        sample = metadata;
-                    },
-                ),
-            );
+            budget(ctx, 1);
+            const { datasets, deadline, signal: userSignal } = ctx;
+            if (!datasets) throw new Error("DATASET_RESOLVER_REQUIRED");
+            const sampling = new AbortController();
+            const timeout = new Error("BUSINESS_TIMEOUT");
+            const userAbort = userSignal && addAbortListener(userSignal, () => sampling.abort(userSignal.reason));
+            let timer: ReturnType<typeof setTimeout> | undefined;
+            let acceptingSample = true;
+            let receivedSample: HttpDatasetSample | undefined;
+
+            // 按当前挂钟安排一次等待，超过单次定时器上限时再核对原截止时间，避免提前触发业务超时。
+            const scheduleTimeout = () => {
+                const remaining = (deadline ?? Infinity) - Date.now();
+                if (remaining <= 0) {
+                    sampling.abort(timeout);
+                } else if (Number.isFinite(remaining)) {
+                    timer = setTimeout(scheduleTimeout, Math.min(remaining, 2 ** 31 - 1));
+                }
+            };
+            try {
+                scheduleTimeout();
+                const result = await interruptible(sampling, () =>
+                    datasets.read(
+                        a.datasetExpected,
+                        { data: ctx.data, vars: ctx.vars },
+                        sampling.signal,
+                        (metadata) => {
+                            if (acceptingSample && !sampling.signal.aborted) receivedSample = metadata;
+                        },
+                    ),
+                ).then(
+                    (value) => ({ value }),
+                    (error: unknown) => ({ error }),
+                );
+
+                // 定时器回调可能晚于读取完成，交付值与样本出处前用实际挂钟和已经发生的取消再判定一次。
+                if (userSignal?.aborted) throw new ExecutionCancelled();
+                if (sampling.signal.reason === timeout || (deadline !== undefined && Date.now() >= deadline)) {
+                    sampling.abort(timeout);
+                    throw timeout;
+                }
+                sample = receivedSample;
+                if ("error" in result) throw result.error;
+                expected = result.value;
+            } finally {
+                // 断言离开采样后停止接受元数据并解绑用户取消，忽略取消的读取也无法影响接下来的断言。
+                acceptingSample = false;
+                clearTimeout(timer);
+                userAbort?.[Symbol.dispose]();
+            }
             if (!assertionExpectedTypes(a).some((t) => accepts(t, valueType(expected))))
                 throw new Error("DATASET_EXPECTED_TYPE");
             if (
