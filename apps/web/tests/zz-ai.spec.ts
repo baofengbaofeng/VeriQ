@@ -104,6 +104,30 @@ test.afterAll(async () => {
     await new Promise<void>((resolve, reject) => model.close((e) => (e ? reject(e) : resolve())));
 });
 
+test("workspace AI settings show connection status only for the tested provider revision", async ({ page }) => {
+    await editorScope(page, `settings-model-${randomUUID()}`);
+    await page.getByRole("link", { name: "Workspace settings", exact: true }).click();
+    await page.getByRole("tab", { name: "AI settings", exact: true }).click();
+    const panel = page.getByRole("tabpanel", { name: "AI settings" });
+    const form = panel.getByRole("group", { name: "Provider", exact: true });
+    await form.getByLabel("Name", { exact: true }).fill("Local HTTP protocol emulator");
+    await form.getByLabel("Base URL").fill("http://127.0.0.1:18890/v1");
+    await form.getByLabel("Model", { exact: true }).fill("emulator");
+    await form.getByLabel("Write-only API key").fill("synthetic-settings-key");
+    await form.getByLabel("Enabled").check();
+    await form.getByRole("button", { name: "Save provider" }).click();
+    await form.getByRole("button", { name: "Test connection (uses budget)" }).click();
+    const status = panel.getByRole("status").filter({ hasText: "SUCCEEDED" });
+    await expect(status).toBeVisible();
+    await form.getByLabel("Model", { exact: true }).fill("updated-emulator");
+    await form.getByRole("button", { name: "Save provider" }).click();
+    await expect(status).toHaveCount(0);
+    await page.getByRole("link", { name: "AI", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Call history" }).locator("..")).toContainText(
+        "CONNECTION_TEST · SUCCEEDED",
+    );
+});
+
 test("real UI config, paid-call preview, review, genuine compiler, cancel and scoped history", async ({ page }) => {
     test.setTimeout(180000);
     const scope = await editorScope(page, "ai-full");

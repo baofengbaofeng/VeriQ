@@ -90,10 +90,36 @@ test("real Workspace selection, invitation acceptance and member permissions", a
     const beta = await selectedWorkspaceId(page);
     await chooseWorkspace(page, alpha);
     await expect(page.getByRole("article")).toContainText("Browser Alpha");
+    await page.getByRole("tab", { name: "Members" }).click();
     await page.getByLabel("Email").fill("workspace-viewer@example.com");
     await page.locator('select[name="role"]').selectOption("VIEWER");
+    await page.route(
+        (url) => url.pathname === `/api/v1/workspaces/${alpha}`,
+        (route) =>
+            route.fulfill({
+                status: 503,
+                contentType: "application/json",
+                body: JSON.stringify({ code: "UNAVAILABLE", message: "Retry workspace details" }),
+            }),
+        { times: 1 },
+    );
+    const created = page.waitForResponse(
+        (response) =>
+            response.request().method() === "POST" &&
+            new URL(response.url()).pathname === `/api/v1/workspaces/${alpha}/invitations`,
+    );
     await page.getByRole("button", { name: "Create invitation" }).click();
-    const invitation = await page.getByLabel("Copy invitation link").inputValue();
+    const createdInvite = await created;
+    expect(createdInvite.status()).toBe(201);
+    const invitation: string = (await createdInvite.json()).data.invitationUrl;
+    await page.getByRole("button", { name: "Retry Workspace", exact: true }).click();
+    await expect(page.getByLabel("Copy invitation link")).toBeVisible();
+    expect((await page.getByLabel("Copy invitation link").inputValue()) === invitation).toBe(true);
+    await page.getByRole("tab", { name: "Basic information" }).click();
+    await page.getByRole("tab", { name: "AI settings" }).click();
+    await page.getByRole("tab", { name: "Members" }).click();
+    await expect(page.getByLabel("Copy invitation link")).toBeVisible();
+    expect((await page.getByLabel("Copy invitation link").inputValue()) === invitation).toBe(true);
     const viewerContext = await browser.newContext();
     const viewer = await viewerContext.newPage();
     await viewer.goto(invitation);
@@ -113,7 +139,15 @@ test("real Workspace selection, invitation acceptance and member permissions", a
     await viewer.getByRole("link", { name: "Workspace settings", exact: true }).click();
     await expect(viewer.getByRole("article")).toContainText("Browser Alpha");
     await expect(viewer.getByRole("article")).toContainText("VIEWER");
+    await viewer.getByRole("tab", { name: "Members" }).click();
+    await expect(viewer.getByRole("tabpanel", { name: "Members" })).toContainText("Workspace Viewer");
     await expect(viewer.getByRole("button", { name: "Create invitation" })).toHaveCount(0);
+    await viewer.getByRole("tab", { name: "AI settings" }).click();
+    await expect(viewer.getByRole("tabpanel", { name: "AI settings" })).toContainText(
+        "Provider configuration is read-only.",
+    );
+    await expect(viewer.getByRole("button", { name: "Save provider" })).toHaveCount(0);
+    await viewer.getByRole("tab", { name: "Basic information" }).click();
     await expect(viewer.getByRole("button", { name: "Rename Workspace" })).toHaveCount(0);
     await page.getByRole("button", { name: "Refresh Workspace" }).click();
     const member = page
@@ -125,7 +159,7 @@ test("real Workspace selection, invitation acceptance and member permissions", a
     await expect(member.getByRole("combobox", { name: "Role" })).toHaveValue("VIEWER");
     await member.getByRole("combobox", { name: "Role" }).selectOption("EDITOR");
     await member.getByRole("button", { name: "Save member" }).click();
-    await expect(page.getByRole("status")).toContainText("Member updated");
+    await expect(member.getByRole("status")).toContainText("Member updated");
     await page.screenshot({
         path: "../../.superpowers/sdd/veriq-1/evidence/t03/workspace-active.png",
         fullPage: true,
@@ -189,11 +223,21 @@ test("real Workspace selection, invitation acceptance and member permissions", a
     await existingPage.getByLabel("Password").fill("Existing password 123!");
     await existingPage.getByRole("button", { name: "Accept invitation" }).click();
     await expect(existingPage.getByRole("status")).toContainText("Invitation accepted");
-    await existingPage.getByRole("link", { name: "Workspace settings", exact: true }).click();
+    const settingsLink = existingPage.getByRole("link", { name: "Open workspace settings to view your membership." });
+    await expect(settingsLink).toHaveAttribute("href", "/workspaces?tab=members");
+    await settingsLink.click();
+    await expect(existingPage.getByRole("tab", { name: "Members" })).toHaveAttribute("aria-selected", "true");
     await expect(workspacePicker(existingPage)).toHaveAttribute("data-workspace-id", beta);
     await existingContext.close();
+    await page.getByRole("tab", { name: "Basic information" }).click();
     await page.getByRole("button", { name: "Archive Workspace" }).click();
     await expect(page.getByRole("article")).toContainText("Archived");
+    await page.getByRole("tab", { name: "AI settings" }).click();
+    await expect(page.getByRole("tabpanel", { name: "AI settings" })).toContainText(
+        "Provider configuration is read-only.",
+    );
+    await expect(page.getByRole("button", { name: "New provider" })).toHaveCount(0);
+    await page.getByRole("tab", { name: "Members" }).click();
     await expect(page.getByRole("button", { name: "Create invitation" })).toHaveCount(0);
     await page.screenshot({
         path: "../../.superpowers/sdd/veriq-1/evidence/t03/workspace.png",
