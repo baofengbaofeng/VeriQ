@@ -86,7 +86,7 @@ uv run --project apps/srv --frozen --no-sync python scripts/comment_audit.py --o
 - [ ] 无模型密钥依赖；缺夹具未静默假绿
 - [ ] 覆盖率与关键路径专项测试满足要求
 
-## 源码显示列宽检查
+## 10. 源码显示列宽检查
 
 运行 `python3 scripts/line_width.py` 或 `pnpm lint:width`，覆盖测试、夹具与生成源码。
 显示列宽工具的边界验收位于 `tests/acceptance/test_line_width.py`。

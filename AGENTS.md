@@ -44,8 +44,8 @@
 | [`.agents/rules/security-standard.md`](./.agents/rules/security-standard.md) | 认证授权、密钥、IPC、签名与供应链 | 改动安全相关路径时 |
 | [`.agents/rules/testing-standard.md`](./.agents/rules/testing-standard.md) | TDD、假绿禁令、覆盖率与平台测试 | 编写或审查测试时 |
 | [`.agents/rules/review-standard.md`](./.agents/rules/review-standard.md) | 审查职责、必查项与拒绝标准 | 审查代码或规格时 |
-| [原生与跨平台要求](./.agents/rules/release-standard.md#原生与跨平台要求) | 进程停止范围、凭据、路径与能力声明 | 改动各操作系统上的进程、凭据或停止证明时 |
-| [发行、配置与回滚](./.agents/rules/release-standard.md#发行配置与回滚) | 产物完整性、晋升、安全默认与回滚 | 构建发行物或设定配置默认时 |
+| [原生与跨平台要求](./.agents/rules/release-standard.md#2-原生与跨平台要求) | 进程停止范围、凭据、路径与能力声明 | 改动各操作系统上的进程、凭据或停止证明时 |
+| [发行、配置与回滚](./.agents/rules/release-standard.md#1-发行配置与回滚) | 产物完整性、晋升、安全默认与回滚 | 构建发行物或设定配置默认时 |
 | [`.agents/rules/privacy-standard.md`](./.agents/rules/privacy-standard.md) | 数据分类、证据授权、保留期与脱敏 | 处理用户数据、证据或日志时 |
 
 编写 Python 时遵守 [Coding Standard](./.agents/rules/coding-standard.md) 与 [Python 编码规范](./.agents/rules/coding-standard-rules/python-coding-standard.md)。编写 TypeScript/JavaScript 时遵守同一总则与 [TypeScript/JavaScript 编码规范](./.agents/rules/coding-standard-rules/typescript-javascript-coding-standard.md)。语言指南与总则冲突时，以总则和本文件中的不可协商基线为准；总则与语言指南已经写明的数字和工具名，不得用本文件以外的旧稿覆盖。
