@@ -175,3 +175,36 @@ test.describe("desktop touch console", () => {
         }
     });
 });
+
+test("Web controls distinguish field, keyboard and pointer focus", async ({ page }) => {
+    const { workspaceId } = await editorScope(page, `focus-${randomUUID()}`);
+    await page.goto(`/agent?workspaceId=${workspaceId}`);
+    const conversations = page.getByRole("complementary", { name: "Conversations" });
+    const archived = conversations.getByRole("button", { name: "Archived", exact: true });
+    const title = conversations.getByRole("textbox", { name: "Conversation title" });
+
+    await archived.click();
+    await expect(archived).toHaveAttribute("aria-pressed", "true");
+    await expect(archived).toHaveCSS("outline-style", "none");
+    await page.keyboard.press("Tab");
+    await expect(title).toBeFocused();
+    await expect(title).toHaveCSS("outline-color", "rgb(117, 131, 154)");
+    await expect(title).toHaveCSS("outline-style", "solid");
+    await expect(title).toHaveCSS("outline-width", "2px");
+    await expect(title).toHaveCSS("outline-offset", "2px");
+    await expect(title).toHaveCSS("border-color", "rgb(156, 185, 255)");
+    await expect(title).toHaveCSS("box-shadow", "rgba(70, 95, 255, 0.1) 0px 0px 0px 4px");
+    await page.keyboard.press("Shift+Tab");
+    await expect(archived).toBeFocused();
+    await expect(archived).toHaveCSS("outline-style", "solid");
+    await expect(archived).toHaveCSS("outline-color", "rgb(117, 131, 154)");
+    await expect(archived).toHaveCSS("outline-offset", "3px");
+    await expect(archived).toHaveAttribute("aria-pressed", "true");
+
+    await page.emulateMedia({ forcedColors: "active" });
+    await page.keyboard.press("Tab");
+    await expect(title).toBeFocused();
+    await expect(title).toHaveCSS("box-shadow", "none");
+    await expect(title).toHaveCSS("outline-style", "solid");
+    await expect(title).toHaveCSS("outline-width", "2px");
+});
