@@ -365,6 +365,20 @@ for (const [mode, neutral] of focusColors) {
     });
 }
 
+/**
+ * 读取实际对话框边界，在桌面与窄屏验证双轴居中、视口边距和有限宽度，避免创建表单退回右侧抽屉。
+ */
+async function expectCenteredCreateDialog(page: Page, dialog: Locator) {
+    await expect(dialog).toBeVisible();
+    const box = await dialog.boundingBox();
+    const viewport = page.viewportSize();
+    if (!box || !viewport) throw new Error("Missing create dialog or viewport bounds");
+    expect(box.x + box.width / 2).toBeCloseTo(viewport.width / 2, 0);
+    expect(box.y + box.height / 2).toBeCloseTo(viewport.height / 2, 0);
+    expect(box.width).toBe(Math.min(400, viewport.width - 32));
+    expect(box.y).toBeGreaterThanOrEqual(16);
+}
+
 test("header creates and retains an authorized workspace across navigation", async ({ page }) => {
     await signIn(page);
     const header = page.getByRole("banner");
@@ -376,16 +390,21 @@ test("header creates and retains an authorized workspace across navigation", asy
         if (name === "Beta") await page.getByRole("link", { name: "Runtimes", exact: true }).click();
         await header.getByRole("button", { name: "Add workspace" }).click();
         const dialog = page.getByRole("dialog", { name: "Add workspace" });
+        await expectCenteredCreateDialog(page, dialog);
         await dialog.getByLabel("Key").fill(firstKey);
         await dialog.getByLabel("Name").fill(name);
         if (name === "Alpha") {
-            await page.setViewportSize({ width: 320, height: 750 });
+            await page.setViewportSize({ width: 320, height: 200 });
+            await expectCenteredCreateDialog(page, dialog);
+            expect(await dialog.evaluate((node) => node.scrollHeight > node.clientHeight)).toBe(true);
             await expect(dialog.getByLabel("Key")).toHaveValue(firstKey);
             await expect(dialog.getByLabel("Name")).toBeFocused();
             await expect(dialog.getByLabel("Name")).toHaveValue(name);
         }
         if (name === "Beta") {
+            const conflict = page.waitForResponse((r) => r.url().endsWith("/workspaces") && r.status() === 409);
             await dialog.getByRole("button", { name: "Create Workspace" }).click();
+            await conflict;
             await expect(dialog.getByRole("alert")).toBeVisible();
             await expect(dialog.getByLabel("Name")).toHaveValue(name);
             await expect(workspacePicker(page)).toHaveAttribute("data-workspace-id", ids[0]);
@@ -750,13 +769,18 @@ test("Workspace toolbar browses paginated members and opens workspace settings",
     await expect(menu).toBeHidden();
     await expander.press("Enter");
     const add = header.getByRole("button", { name: "Add workspace" });
+    await header.getByRole("button", { name: "Dark mode" }).click();
     await add.press("Enter");
-    await expect(page.getByRole("dialog", { name: "Add workspace" })).toBeVisible();
+    const dialog = page.getByRole("dialog", { name: "Add workspace" });
+    await expectCenteredCreateDialog(page, dialog);
+    await expect(dialog).toHaveCSS("background-color", "rgb(26, 34, 49)");
+    await dialog.getByRole("button", { name: "Create Workspace" }).focus();
+    await page.keyboard.press("Tab");
+    await expect(dialog.getByRole("button", { name: "Close" })).toBeFocused();
     await page.keyboard.press("Escape");
     await expect(add).toBeFocused();
     await settings.press("Enter");
     await expect(page).toHaveURL(/\/workspaces$/);
-    await header.getByRole("button", { name: "Dark mode" }).click();
     await trigger.click();
     await expect(menu).toHaveCSS("background-color", "rgb(30, 38, 53)");
     const bounds = await menu.boundingBox();
