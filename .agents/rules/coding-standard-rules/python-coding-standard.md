@@ -18,7 +18,7 @@ Python 程序必须遵守本文件的必须项，禁止本文件的禁止项。�
 
 必须用 pylintrc 对代码运行 pylint。
 
-确认是误报或外部接口要求后，优先使用范围最窄的 pylint 抑制，并在相邻位置说明具体原因。pylint 指令继续按普通注释计量，排版保留指令不赋予计量豁免。已批准的固定工具词元及资格见[工具语法计量规格](../../../docs/specs/tool-syntax-accounting.md)。
+确认是误报或外部接口要求后，优先使用范围最窄的 pylint 抑制，并在相邻位置说明具体原因。pylint 指令继续按普通注释计量，排版保留指令不赋予计量豁免。已批准的 Python 固定工具词元及资格见[行尾类型检查指令计量 ADR](../../../docs/decisions/0030-行尾类型检查指令计量.md)。
 
 ```
 # BaseHTTPRequestHandler 根据 HTTP 方法名分派到 do_PUT，名称由基类约定，因此只在此处抑制命名诊断。
@@ -529,7 +529,7 @@ dictionary = {
 
 ### 3.7 Shebang 行
 
-由 `python`、`python -m` 或包入口调用的 `.py` 模块无需 shebang。仓库内优先用这些入口保持 Python 3.12 环境。确需由操作系统直接执行的 Python 文件，应先为 shebang 明确经批准的计量方案。现行[工具语法计量规格](../../../docs/specs/tool-syntax-accounting.md)只将 Shell shebang 作为功能代码处理，Python shebang 仍走普通注释检查。
+由 `python`、`python -m` 或包入口调用的 `.py` 模块无需 shebang。仓库内优先用这些入口保持 Python 3.12 环境。确需由操作系统直接执行的 Python 文件，应先为 shebang 明确经批准的计量方案。Python shebang 仍走普通注释检查。获准的 Shell shebang 按[可信注释解析器 ADR](../../../docs/decisions/0026-可信注释解析器.md)计入代码行。
 
 ### 3.8 注释与文档字符串
 
@@ -1225,7 +1225,7 @@ _ShortName: TypeAlias = other_module.SignificantlyInconvenientlyLongName
 
 无法用类型或运行时校验表达的边界才使用 mypy 单行抑制。使用 `# type: ignore[错误码]` 限定实际诊断，并在相邻位置写明此处的依据。整段禁用检查和裸 `ignore` 会遮住无关诊断。
 
-当前注释审计只将满足精确词元及行尾位置条件的 `# type: ignore[no-any-return]` 和 `# type: ignore[arg-type]` 按功能代码计量。mypy 接受的其他指令继续按普通注释处理。同行与相邻的普通说明仍须符合总则。资格、示例与计量见[工具语法计量规格](../../../docs/specs/tool-syntax-accounting.md#python-行尾类型检查指令)。
+当前注释审计只将满足精确词元及行尾位置条件的 `# type: ignore[no-any-return]` 和 `# type: ignore[arg-type]` 按功能代码计量。mypy 接受的其他指令继续按普通注释处理。同行与相邻的普通说明仍须符合总则。资格与计量见[行尾类型检查指令计量 ADR](../../../docs/decisions/0030-行尾类型检查指令计量.md)。
 
 
 #### 3.18.8 给变量标注类型

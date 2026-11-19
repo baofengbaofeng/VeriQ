@@ -24,7 +24,7 @@
 - 系统管理员不是隐式空间成员，也不隐式拥有私人设备派单权。
 - 个人 Runtime 默认私有；共享须所有者显式授权。撤销后必须阻断后续 claim/download/upload。
 - 跨空间 IDOR 类缺陷视为高危：测试必须覆盖负例。
-- 对话 Agent 的会话请求每次都须校验当前 Workspace 成员身份与会话所有权。`/agent/settings` 按 Workspace 授权，当前成员可读取，写入须有 `MANAGE_WORKSPACE` 权限。模型只接收有界、允许的会话内容与脱敏资源投影。保存计划或派单须经用户确认，由服务端核对当前提议、操作权限和修订。对话确认绑定用户已审阅的 `expectedProposalId`，未确认旧提议不得替换为新提议执行。模型输出不能充当确认或自动发布资产。见[对话测试 Agent 规格](../../docs/specs/conversational-test-agent.md)。
+- 对话 Agent 的会话请求每次都须校验当前 Workspace 成员身份与会话所有权。`/agent/settings` 按 Workspace 授权，当前成员可读取，写入须有 `MANAGE_WORKSPACE` 权限。模型只接收有界、允许的会话内容与脱敏资源投影。保存计划或派单须经用户确认，由服务端核对当前提议、操作权限和修订。对话确认绑定用户已审阅的 `expectedProposalId`，未确认旧提议不得替换为新提议执行。模型输出不能充当确认或自动发布资产。会话、设置和确认接口见[OpenAPI 契约](../../packages/contracts/openapi/platform.yaml)。
 
 ## 4. 密钥与敏感数据
 
@@ -50,7 +50,7 @@
 
 ## 7. 签名、离线与停止证明
 
-- MVP 发行只提供联网执行。现有离线包和结果的兼容核对遵循[历史离线规格](../../docs/specs/veriq-1.0.md#14-离线包凭证与结果来源历史规格)与[联网范围修订](../../docs/specs/veriq-datasets.md)。
+- MVP 发行只提供联网执行。现有离线包和结果的兼容核对遵循[离线契约](../../docs/contracts.md#offline-contracts)及[生产路由范围](../../docs/contracts.md#联网任务的证据与恢复)。
 - 历史离线包须由独立可信来源提供的签发者公钥验签。验签失败或已知密钥已撤销必须拒绝。断网无法查到最新撤销状态时标记 `UNKNOWN`，不得标记 `CURRENT` 或据此通过正式门禁。过期包仅允许按规格显式进入 `DEBUG`，不得通过正式门禁。
 - 签名证明包内容来源与完整性，不证明本地结果未被篡改——导入与门禁不得夸大信任。
 - 进程停止回执必须带正确 `processStopScope`；禁止把 Mac 受控停止写成全后代排空。不确定即隔离，不释放容量。

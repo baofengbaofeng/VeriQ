@@ -34,7 +34,7 @@
 
 设备登记、所有者共享、系统 MANAGED 信任、空间凭据投递分别授权。不要为了让编译或执行立即通过而关闭库存、签名、租约或当前主体检查。Runtimes 页看登记状态、设备位置、实际在线能力、共享范围、信任和投递；CLI 的 doctor 需要真实浏览器启动，但本轮交付不运行它。
 
-Mac 优先 macOS15+ Intel x64 / Apple Silicon arm64，使用宿主原生 Chrome；Windows11 x64、Ubuntu24.04 x64 仍需各自验收。控制服务无需 Node/Chrome；桌面 Electron 的内嵌 Node 不代替独立 Node24 引擎。具体安装/打包与已知失败见[发行](../release.md)、[桌面规格](../specs/desktop.md)、[Runtime 凭据](../runtime-credentials.md)。
+Mac 优先 macOS15+ Intel x64 / Apple Silicon arm64，使用宿主原生 Chrome；Windows11 x64、Ubuntu24.04 x64 仍需各自验收。控制服务无需 Node/Chrome；桌面 Electron 的内嵌 Node 不代替独立 Node24 引擎。具体安装/打包与已知失败见[发行](../release.md)、[桌面指南](../desktop.md)、[Runtime 凭据](../runtime-credentials.md)。
 
 业务凭据由环境管理界面安全创建，使用 secretRef 与不可变 secretVersionId，allowedIdentityIds 必须匹配真实 `/me`。普通包不包含密码、Cookie、storageState、设备 token 或 cleanupToken。不要把 token/tokenId/secretVersionId 放进业务表单 label、veriqId、recordKey、title、query string 或报告业务名称。tokenId 仅在具有管理权的令牌元数据视图显示；它不是再次授权依据。
 

@@ -217,6 +217,11 @@ node_modules/
 /apps/srv/src/veriq_server/release/engine-inventory.json
 /.superpowers/
 
+# Local planning, specifications, and Superpowers documents
+/docs/plans/
+/docs/specs/
+/docs/superpowers/
+
 # Ruff stuff:
 .ruff_cache/
 

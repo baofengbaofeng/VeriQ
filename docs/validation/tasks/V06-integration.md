@@ -34,7 +34,7 @@
 | UI组件消费工程 | React18/Vite6/Tailwind3，已有直接依赖、Query/i18next Providers、受控翻译 | 不以产品Web自身build替代未被tsconfig收录的fixture组件验证 |
 | 外部调度 | 受限EXECUTION 令牌、单计划trigger/read/cancel；独立MAINTENANCE 令牌；允许合成调用 | token在秘密管理器，不写argv/URL/证据；本轮未授权真实外部Provider调用 |
 
-先读根 `AGENTS.md` 与[当前交付约束](../../plans/code-delivery.md)，确认后续任务确已转为执行验证阶段。准备环境和依赖安装是后续任务动作，本轮没有执行。
+先读[仓库协作规范](../../../AGENTS.md)与[MVP 验证交接](../mvp-handoff.md#接手规则)，确认本次验证的环境、范围和所需授权。准备环境和依赖安装是后续任务动作，源码交付阶段没有执行。
 
 ## 后续命令与预期
 

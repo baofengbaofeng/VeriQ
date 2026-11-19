@@ -129,4 +129,4 @@ Playwright 自动等待用于正常可交互状态。最终一致由有限的只
 <a id="implementation-references"></a>
 ## 实现参考
 
-当前契约支持稳定 veriqId、role 定位器、嵌套目录作用域及精确的 `data-record-key` 筛选。实现见[定位器解析](../../packages/runner-sdk/src/context.ts)、[动作执行](../../packages/runner-sdk/src/execute-step.ts)、[UI 断言](../../packages/runner-sdk/src/assertions/ui.ts)、[网络观察器](../../packages/runner-sdk/src/observers/network.ts)及[后端接入契约](backend.md)。上文示例描述接入方式；完整产品与已安装平台的最终验收仍以[里程碑台账](../plans/milestones.md)为准。
+当前契约支持稳定 veriqId、role 定位器、嵌套目录作用域及精确的 `data-record-key` 筛选。实现见[定位器解析](../../packages/runner-sdk/src/context.ts)、[动作执行](../../packages/runner-sdk/src/execute-step.ts)、[UI 断言](../../packages/runner-sdk/src/assertions/ui.ts)、[网络观察器](../../packages/runner-sdk/src/observers/network.ts)及[后端接入契约](backend.md)。上文示例描述接入方式。完整产品与已安装平台的最终验收仍需独立验证，接手入口见[MVP 验证交接](../validation/mvp-handoff.md)。

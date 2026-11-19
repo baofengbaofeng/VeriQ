@@ -137,4 +137,4 @@ pnpm --filter @veriq/runtime test:vault:darwin:dedicated
 
 每架构分别记录源码提交、锁文件摘要、工具链、OS/架构、构建事实、测试命令、完整计数和清理状态。保存日志前核对其未包含敏感材料，不提交会话配置、测试存储或凭据。发生失败保留原结果，分析具体原因后再验证；不通过增加超时、强制授权或不断重跑获取绿色结果。
 
-最终生产默认钥匙串、安装后的 helper 身份、Electron Cookie 冷启动/锁定与恢复、稳定签名升级和安装包仍须单独记录。参考[Mac 范围与验收要求](../specs/macos-mvp-scope.md)及[交付里程碑](../plans/milestones.md)。
+最终生产默认钥匙串、安装后的 helper 身份、Electron Cookie 冷启动/锁定与恢复、稳定签名升级和安装包仍须单独记录。平台凭据和安装边界见 [Runtime 分发 ADR](../decisions/0021-运行时发行与原生边界.md)。

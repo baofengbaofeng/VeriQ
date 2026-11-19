@@ -4,9 +4,9 @@
 
 **当前状态：开发中 / 尚未发布。** 账户与 Workspace、版本化测试资产、确定性编译器与 Runner SDK、fixture 与业务身份、Runtime 授权、统一队列及 Linux Agent 实际执行已有实现。八类资产编辑、编译发布、版本源码预览，以及实时结构化报告、受限证据、本机 Trace 查看、File/S3 存储与原始证据保留期维护已通过独立审查。AI 配置、预算、结构化草稿审核及失败分析已有实现并通过代码复审，实际外部 Provider 验收仍待用户授权和独立配置。历史签名包和 SQLite 报告保留兼容读取；外部 HTTP 计划触发、独立服务令牌、计划与令牌管理界面及 CI 门禁已通过独立审查及重要问题修复复审；生产同源静态服务、完整文件清单校验和构建信息已通过独立审查及修复复审。
 
-服务端构建、前端入 wheel、离线安装校验、引擎候选与独立晋升工具的代码已通过独立审查及取消/晋升问题修复复审。固定浏览器 SDK 136 项检查通过，行覆盖率 91.46%；这不代表最终集成门禁完成。默认构建仍被历史 lint、格式和注释规范阻断，当前包明确标记 UNVERIFIED。Electron 桌面 GUI 模块已通过独立审查，通过独立 Agent 联网领取任务，可查看已有历史报告。原生发行仍在开发：Windows Server 与 Ubuntu 已有原生 IPC、系统保险库及空初始化恢复的真实目标验证，Cookie 磁盘保护与重启读回也已验证；Ubuntu 源码 7 项 GUI 回归通过。Windows 在 `2455199` 的历史运行有 3 项 ACL/所有者失败；后续 C07 改过 SQLite 初始化，当前结果待复验。Windows11/Ubuntu 安装和完整产品验收尚未完成，目前没有正式安装包。详见[里程碑](docs/plans/milestones.md)和[构建发行指南](docs/release.md)。
+服务端构建、前端入 wheel、离线安装校验、引擎候选与独立晋升工具的代码已通过独立审查及取消/晋升问题修复复审。固定浏览器 SDK 136 项检查通过，行覆盖率 91.46%；这不代表最终集成门禁完成。默认构建仍被历史 lint、格式和注释规范阻断，当前包明确标记 UNVERIFIED。Electron 桌面 GUI 模块已通过独立审查，通过独立 Agent 联网领取任务，可查看已有历史报告。原生发行仍在开发：Windows Server 与 Ubuntu 已有原生 IPC、系统保险库及空初始化恢复的真实目标验证，Cookie 磁盘保护与重启读回也已验证；Ubuntu 源码 7 项 GUI 回归通过。Windows 在 `2455199` 的历史运行有 3 项 ACL/所有者失败；后续 C07 改过 SQLite 初始化，当前结果待复验。Windows11/Ubuntu 安装和完整产品验收尚未完成，目前没有正式安装包。构建流程见[发行指南](docs/release.md)。
 
-Mac Runtime 的输入核验、有界归档和完整静态候选组装已通过组件复审，包含实际 stage CLI、来源记录与最终路径校验。固定官方 Node/Chrome 获取与观测工具在 `a245535` 的 macOS 15 Intel/ARM 流水线均已完成完整扫描；两份证据的源码绑定、原始 Unix 模式和 Framework 链接事实已独立复核，见[资产观测说明](docs/specs/runtime-assets-observation.md)。`6ef86c1` 随后补齐三处 ZIP 消费者的有限关闭结算、首错保留和未知关闭现场保留，214 项受影响回归及全新独立审查通过。固定锁生产依赖布局已完成下述双 Mac 采集；正式依赖闭包、目标解析、二进制执行、Electron 插件装载、安装及完整系统凭据验收仍待完成，未生成批准的 Expected 或 ready。注释审计坐标、Web 按钮类型、会话/列表响应归属及两项退出时序问题已完成源码修正及复审；本地真实认证回归通过，完整锁定依赖和全局会话生命周期仍待 CI 与后续验收。全仓质量与完整 UI 验收仍未通过，详见[里程碑](docs/plans/milestones.md)。
+Mac Runtime 的输入核验、有界归档和完整静态候选组装已通过组件复审，包含实际 stage CLI、来源记录与最终路径校验。固定官方 Node/Chrome 获取与观测工具在 `a245535` 的 macOS 15 Intel/ARM 流水线均已完成完整扫描；两份证据的源码绑定、原始 Unix 模式和 Framework 链接事实已独立复核。`6ef86c1` 随后补齐三处 ZIP 消费者的有限关闭结算、首错保留和未知关闭现场保留，214 项受影响回归及全新独立审查通过。固定锁生产依赖布局已完成下述双 Mac 采集；正式依赖闭包、目标解析、二进制执行、Electron 插件装载、安装及完整系统凭据验收仍待完成，未生成批准的 Expected 或 ready。注释审计坐标、Web 按钮类型、会话/列表响应归属及两项退出时序问题已完成源码修正及复审；本地真实认证回归通过，完整锁定依赖和全局会话生命周期仍待 CI 与后续验收。全仓质量与完整 UI 验收仍未通过。
 
 Node 原始内容提取与 npm 物理包实例索引组件（`68875bb` / `88398c9`）及流水线接入（`1c20bc5` / `89d568d`）已完成源码复审。现已通过[真实双 Mac 官方资产消费](https://github.com/baofengbaofeng/VeriQ/actions/runs/43740087046)：两架构均完成获取、观测与 bootstrap，提交和清理确认；各提取 4,797 个文件，索引 npm 根及其嵌套的 144 个物理包实例。两份小型证据各 46 个 ZIP 成员、45 个清单引用及 23 项不同源码引用已核验，大归档未下载到本机。这些仍是 0600/0700 私有静态材料，来源保持未批准；可执行布局、生产依赖闭包、目标解析及完整 Runtime 尚未验收。
 
@@ -16,11 +16,11 @@ Workspace 生命周期、入口默认选择与 Identity 表单清理已分别由
 
 Mac Bundle ID 固定为 `io.github.baofengbaofeng.veriq`。`e0ba135` 已通过[双 Mac 私有 Runtime 存储验收](https://github.com/baofengbaofeng/VeriQ/actions/runs/43758515194)：每种架构 7＋2 项测试通过且无跳过，覆盖八项 ACL 策略、不确定恢复与真实解锁读取拒绝；四个夹具的正文、擦除、钥匙串删除、控制器退出及目录清理均通过。该结果来自独立临时 VM 的私有文件 Keychain；Cookie、真实控制台、正式签名安装及完整发行仍待验收。
 
-仓库当前已落地 `apps/srv`（Tornado 控制服务）、`apps/web`（React 管理台）、`apps/runtime`（联网 Agent/CLI）、`packages/{contracts,compiler,runner-sdk,ui}`；`apps/desktop` 已包含 main/preload/renderer、本地打包界面和独立 Agent 入口。首发桌面范围已加入 Mac Intel x64 与 Apple Silicon arm64，优先级高于仍需交付的 Windows/Ubuntu；Mac 原生适配与安装验收尚未完成，见 [Mac 范围与兼容性记录](docs/specs/macos-mvp-scope.md)。贡献与智能体须遵循根目录 `AGENTS.md` 中的编码规范（4 空格缩进、中文注释、英文日志等）。
+仓库当前已落地 `apps/srv`（Tornado 控制服务）、`apps/web`（React 管理台）、`apps/runtime`（联网 Agent/CLI）、`packages/{contracts,compiler,runner-sdk,ui}`；`apps/desktop` 已包含 main/preload/renderer、本地打包界面和独立 Agent 入口。首发桌面范围已加入 Mac Intel x64 与 Apple Silicon arm64，优先级高于仍需交付的 Windows/Ubuntu；Mac 原生适配与安装验收尚未完成。贡献与智能体须遵循根目录 `AGENTS.md` 中的编码规范（4 空格缩进、中文注释、英文日志等）。
 
-入口与执行文件输入生产器已完成源码审查：真实 Vite 夹具及相关测试共 55 项通过，包清单物理归属与跨平台大小写冲突回归通过。双架构 Mac 上真实项目入口的构建验收正在接入，完整 Runtime、桌面安装与 MVP 尚未完成；详见[里程碑](docs/plans/milestones.md)。
+入口与执行文件输入生产器已完成源码审查：真实 Vite 夹具及相关测试共 55 项通过，包清单物理归属与跨平台大小写冲突回归通过。双架构 Mac 上真实项目入口的构建验收正在接入，完整 Runtime、桌面安装与 MVP 尚未完成。
 
-当前开发采用代码优先交付：剩余功能源码按独立批次提交，验证、真实环境验收和复审另行执行。请接手的 Agent 先阅读[代码交付计划](docs/plans/code-delivery.md)与[独立验证清单](docs/validation/mvp-handoff.md)；源码交付不代表完整 MVP 已通过验收。
+当前开发采用代码优先交付：剩余功能源码按独立批次提交，验证、真实环境验收和复审另行执行。请接手的 Agent 先阅读[独立验证清单](docs/validation/mvp-handoff.md)；源码交付不代表完整 MVP 已通过验收。
 
 ## 为什么做 VeriQ
 
@@ -30,7 +30,7 @@ AI 是可选辅助：用于生成结构化草稿、边界建议与失败分析�
 
 ## 1.0 完整 MVP 范围
 
-首发目标包含下表各模块。Electron 桌面 GUI、CLI 和无人值守 Agent 均纳入首发。MVP 采用联网执行，原 F12 本地离线已退出首发范围。数据集和执行范围见[工作区数据集与联网执行](docs/specs/veriq-datasets.md)。
+首发目标包含下表各模块。Electron 桌面 GUI、CLI 和无人值守 Agent 均纳入首发。MVP 采用联网执行，原 F12 本地离线已退出首发范围。联网数据集协议见[公共契约](docs/contracts.md#联网静态数据传输)。
 
 | 编号 | 模块             | 交付目标                                                                          |
 | ---- | ---------------- | --------------------------------------------------------------------------------- |
@@ -148,8 +148,9 @@ veriq/
 ├── deploy/                        # 离线安装、容器与启动资料
 ├── build.sh                       # 默认完整门禁；当前仍有明确阻塞
 └── docs/
-    ├── specs/                     # 需求与桌面规格
-    └── plans/                     # 实施计划
+    ├── decisions/                 # 工程决策记录
+    ├── guides/                    # 使用与接入指南
+    └── validation/                # 验收证据与接续
 ```
 
 ## 开发与生产打包约定
@@ -162,7 +163,7 @@ veriq/
 
 生产路由须区分 API、静态文件与登记的 SPA 页面：未知 API 和缺失静态资源返回真实 404，登记页面支持深链接刷新。凭证不得写入前端构建产物，用户证据不放入静态发布目录。
 
-桌面安装包按 macOS x64、macOS arm64、Windows x64、Ubuntu x64 分别构建与验收，包含本地 GUI、Agent/Runner 及所需依赖；Mac 双架构优先。共享业务代码之外，凭据库、进程监督、原生文件访问与桌面生命周期仍需平台适配。服务端打包成功不能代替桌面验证。以上为待实现的发布契约，具体步骤见[需求与技术规格](docs/specs/veriq-1.0.md)、[Mac 范围记录](docs/specs/macos-mvp-scope.md)及[实施计划](docs/plans/veriq-1.0.md)。
+桌面安装包按 macOS x64、macOS arm64、Windows x64、Ubuntu x64 分别构建与验收，包含本地 GUI、Agent/Runner 及所需依赖；Mac 双架构优先。共享业务代码之外，凭据库、进程监督、原生文件访问与桌面生命周期仍需平台适配。服务端打包成功不能代替桌面验证。安装与平台验收仍待完成。现有操作见[桌面指南](docs/desktop.md)，原生发行边界见 [ADR 0021](docs/decisions/0021-运行时发行与原生边界.md)。
 
 ## Workspace 与命名规则
 
@@ -173,15 +174,15 @@ veriq/
 
 ## 文档与参与贡献
 
-当前全部交付项、里程碑状态、完成依据、遗留问题和 Agent 接续上下文见[交付里程碑与接续状态](docs/plans/milestones.md)。
+独立验收的证据、未关闭事项与接续入口见[MVP 验证交接](docs/validation/mvp-handoff.md)。
 
-请先阅读[1.0 需求与技术规格](docs/specs/veriq-1.0.md)、[桌面 GUI 规格](docs/specs/desktop.md)和[实施计划](docs/plans/veriq-1.0.md)。桌面规格覆盖早期仅 CLI 或薄原生启动器的过时候选。影响范围、契约或技术基线的新决策应先同步规格与 ADR，再进入实现。
+先查阅[公共契约](docs/contracts.md)和[桌面指南](docs/desktop.md)。当前采用完整桌面 GUI 和独立 Runtime，已取代早期仅 CLI 或薄原生启动器方案。影响范围、契约或技术基线的新决策应在实现前同步到相应的契约文档与 ADR。
 
-贡献应包含可审阅的行为说明、相应测试与实际验证结果，并同步受影响的 Schema、OpenAPI、客户端和文档。不要以空接口、假数据页面、TODO 或默认跳过测试代替模块交付；未运行的验证须如实说明。已交付的检查入口见上文，实施计划中的其他命令须由对应任务实现并实际验证。
+贡献应包含可审阅的行为说明、相应测试与实际验证结果，并同步受影响的 Schema、OpenAPI、客户端和文档。不要以空接口、假数据页面、TODO 或默认跳过测试代替模块交付；未运行的验证须如实说明。已交付的检查入口见上文，其他检查命令须由对应任务实现并实际验证。
 
 编码相关要求见 `AGENTS.md`：全部语言 4 空格缩进；普通源码注释使用中文，公开 API 与关键逻辑须有说明；独立单行及块首行有效正文为 40～120 个 Unicode 字符，整物理行最多 120 显示列（中文两列）；日志输出使用英文。全仓有效注释行占比必须严格大于 40%，禁止无信息填充。
 
-经成熟解析器上下文和实际工具行为验证的固定工具词元按功能代码计量：C=0，代码分母 K 保留。普通说明、显示列宽及全仓门槛保持，精确范围见[工具语法计量规格](docs/specs/tool-syntax-accounting.md)。
+经成熟解析器上下文和实际工具行为验证的固定工具词元按功能代码计量：C=0，代码分母 K 保留。普通说明、显示列宽及全仓门槛保持，计量规则见 [Coding Standard](.agents/rules/coding-standard.md#3-注释中文)，精确的工具边界见 [ADR 0028](docs/decisions/0028-工具语法计量.md)与 [ADR 0030](docs/decisions/0030-行尾类型检查指令计量.md)。
 
 规划中的质量门禁包括 Python/TypeScript 单测、跨语言契约样本、真实 MySQL 集成、Web/桌面 E2E、权限与故障恢复、联网数据集清理、wheel 干净安装及各目标 OS 原生发行验收。Python 可执行代码与 TS 核心包行覆盖率目标分别不低于 75%，关键状态、权限和错误恢复须单独测试。构建默认完整测试，缺 MySQL 或浏览器条件不得自动跳过。证据须绑定同一提交、锁文件与静态资源清单。首发范围和桌面验收通过后标记 1.0 完成。
 
@@ -197,13 +198,13 @@ VeriQ is an automated smoke and regression platform for enterprise PC web system
 
 **Current status: under development / not released.** Accounts and Workspaces, versioned test assets, the deterministic compiler and Runner SDK, fixtures and business identities, Runtime authorization, the unified queue, and real Linux Agent execution are implemented. Editing for the eight asset kinds, compile/publish, version source preview, live structured reports, restricted evidence, local Trace viewing, File/S3 storage, and raw-evidence retention maintenance have passed independent review. AI configuration, budgets, structured draft review, and failure analysis are implemented and code-reviewed; real external Provider acceptance still needs user authorization and separate configuration. Existing signed bundle metadata and historical SQLite reports remain readable. External HTTP plan triggers, independent service tokens, plan/token management UI and CI gates have passed independent review and scoped fix re-review; Production same-origin static serving, complete file-inventory validation and build identity have passed independent review and scoped fixes.
 
-Server build tooling, frontend-in-wheel packaging, offline installation checks, engine candidates and separate promotion have passed independent review and scoped cancellation/promotion fixes. The pinned-browser SDK gate passed 136 tests with 91.46% line coverage; this does not close final integration gates. Default builds remain blocked by existing lint, formatting and comment-policy debt, and current candidates are explicitly UNVERIFIED. The Electron desktop GUI module has passed independent review and supports connected execution and historical report viewing. Native distribution remains in progress: native IPC, system vaults and explicit empty-initialization recovery have real Windows Server and Ubuntu target evidence, including protected Cookie databases and restart readback. Seven Ubuntu source-GUI cases passed. Three ACL/owner cases failed on the historical Windows run at `2455199`; C07 later changed SQLite initialization, and current results remain unverified. Windows11/Ubuntu installation and complete-product acceptance remain pending; there is no formal installer yet. See [milestones](docs/plans/milestones.md) and [release tooling](docs/release.md).
+Server build tooling, frontend-in-wheel packaging, offline installation checks, engine candidates and separate promotion have passed independent review and scoped cancellation/promotion fixes. The pinned-browser SDK gate passed 136 tests with 91.46% line coverage; this does not close final integration gates. Default builds remain blocked by existing lint, formatting and comment-policy debt, and current candidates are explicitly UNVERIFIED. The Electron desktop GUI module has passed independent review and supports connected execution and historical report viewing. Native distribution remains in progress: native IPC, system vaults and explicit empty-initialization recovery have real Windows Server and Ubuntu target evidence, including protected Cookie databases and restart readback. Seven Ubuntu source-GUI cases passed. Three ACL/owner cases failed on the historical Windows run at `2455199`; C07 later changed SQLite initialization, and current results remain unverified. Windows11/Ubuntu installation and complete-product acceptance remain pending; there is no formal installer yet. For the build procedure, see [release tooling](docs/release.md).
 
 The repository currently includes `apps/srv` (Tornado control service), `apps/web` (React console), `apps/runtime` (connected Agent/CLI), and `packages/{contracts,compiler,runner-sdk,ui}`. `apps/desktop` contains main/preload/renderer, bundled local UI and an independent Agent entry; target installers and remaining native capabilities are in progress. Contributors and coding agents must follow the coding standards in root `AGENTS.md` (4-space indentation, Chinese source comments, English logs, and related rules).
 
-The entry/execution input producer has passed source review and 55 relevant real Vite fixture tests, including physical package ownership and portable case-collision regressions. Native Intel/ARM Mac acceptance of the real project entries is next; complete Runtime, desktop installation and MVP acceptance remain open. See [milestones](docs/plans/milestones.md).
+The entry/execution input producer has passed source review and 55 relevant real Vite fixture tests, including physical package ownership and portable case-collision regressions. Native Intel/ARM Mac acceptance of the real project entries is next; complete Runtime, desktop installation and MVP acceptance remain open.
 
-Development currently prioritizes source delivery in scoped commits. Validation, real-environment acceptance and independent review are separate follow-up tasks. See the [source delivery plan](docs/plans/code-delivery.md) and [validation handoff](docs/validation/mvp-handoff.md); committed source does not imply MVP acceptance.
+Development currently prioritizes source delivery in scoped commits. Validation, real-environment acceptance and independent review are separate follow-up tasks. See the [validation handoff](docs/validation/mvp-handoff.md); committed source does not imply MVP acceptance.
 
 ## Why VeriQ
 
@@ -213,7 +214,7 @@ AI is optional assistance for structured drafts, boundary suggestions, and failu
 
 ## Full 1.0 MVP scope
 
-The first release targets the modules below and includes the Electron desktop GUI, CLI, and unattended Agent. MVP test runs require a platform connection. Former F12 offline execution is outside the first release. See the [workspace datasets and connected execution spec](docs/specs/veriq-datasets.md).
+The first release targets the modules below and includes the Electron desktop GUI, CLI, and unattended Agent. MVP test runs require a platform connection. Former F12 offline execution is outside the first release. See the [connected dataset contract](docs/contracts.md#联网静态数据传输).
 
 | ID  | Module                    | Delivery goal                                                                                                                     |
 | --- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
@@ -280,9 +281,9 @@ Exact dependency versions and license records are in [ADR 0003](docs/decisions/0
 | AI                    | Provider SDK adapters, Midscene on demand                                                                    |
 | Build and test        | pnpm, uv, build, Hatchling, pytest/pytest-asyncio, Vitest, Playwright                                        |
 
-Target compatibility is server Linux x64, with macOS Intel x64 and Apple Silicon arm64 as the highest-priority desktop/Runtime MVP targets. Windows 11 x64 and Ubuntu 24.04 x64 remain required at lower priority. Mac native integration and installed acceptance are pending; the confirmed minimum is macOS 15 (Sequoia) for both Mac architectures, and tests must use host-native macOS Chrome. See [Mac scope and compatibility](docs/specs/macos-mvp-scope.md). Support claims require real builds and acceptance on each platform.
+Target compatibility is server Linux x64, with macOS Intel x64 and Apple Silicon arm64 as the highest-priority desktop/Runtime MVP targets. Windows 11 x64 and Ubuntu 24.04 x64 remain required at lower priority. Mac native integration and installed acceptance are pending; the confirmed minimum is macOS 15 (Sequoia) for both Mac architectures, and tests must use host-native macOS Chrome. Support claims require real builds and acceptance on each platform.
 
-Mac Runtime input inspection, bounded archive intake, and complete static candidate assembly have passed component review, including the actual stage CLI, source records, and final-path verification. Official assets, native execution, Electron addon loading, installers, and OS credential acceptance remain pending; see the [milestones](docs/plans/milestones.md).
+Mac Runtime input inspection, bounded archive intake, and complete static candidate assembly have passed component review, including the actual stage CLI, source records, and final-path verification. Official assets, native execution, Electron addon loading, installers, and OS credential acceptance remain pending.
 
 ## Development checks
 
@@ -333,8 +334,9 @@ veriq/
 ├── deploy/                        # offline install, container and startup files
 ├── build.sh                       # complete default gates; known blockers remain
 └── docs/
-    ├── specs/                     # requirements and desktop specs
-    └── plans/                     # implementation plans
+    ├── decisions/                 # engineering decisions
+    ├── guides/                    # usage and integration guides
+    └── validation/                # acceptance evidence and handoff
 ```
 
 ## Development and production packaging
@@ -347,7 +349,7 @@ The release entry is `./build.sh`; `--with-tests` is the default alias, and `--s
 
 Production routing must distinguish API, static files, and registered SPA pages: unknown APIs and missing static assets return real 404s; registered pages support deep-link refresh. Credentials must not be baked into frontend build artifacts; user evidence must not land in the static publish directory.
 
-Desktop installers require separate macOS x64, macOS arm64, Windows x64 and Ubuntu x64 build and acceptance flows, prioritizing both Mac architectures. They include local GUI, Agent/Runner and required dependencies. Business code is shared, while credentials, process supervision, native file access and desktop lifecycle need platform adapters. A successful server package does not replace desktop verification. These release contracts are still to be fully implemented; see the [requirements and technical spec](docs/specs/veriq-1.0.md), [Mac scope record](docs/specs/macos-mvp-scope.md) and [implementation plan](docs/plans/veriq-1.0.md).
+Desktop installers require separate macOS x64, macOS arm64, Windows x64 and Ubuntu x64 build and acceptance flows, prioritizing both Mac architectures. They include local GUI, Agent/Runner and required dependencies. Business code is shared, while credentials, process supervision, native file access and desktop lifecycle need platform adapters. A successful server package does not replace desktop verification. Installed acceptance remains open. See the [desktop guide](docs/desktop.md) for current procedures and [ADR 0021](docs/decisions/0021-运行时发行与原生边界.md) for native release boundaries.
 
 ## Workspace and naming rules
 
@@ -358,13 +360,13 @@ Desktop installers require separate macOS x64, macOS arm64, Windows x64 and Ubun
 
 ## Docs and contributing
 
-Start with the [1.0 requirements and technical spec](docs/specs/veriq-1.0.md), [desktop GUI spec](docs/specs/desktop.md), and [implementation plan](docs/plans/veriq-1.0.md). The desktop spec supersedes earlier CLI-only or thin-native-launcher candidates. Decisions that change scope, contracts, or the engineering baseline should update specs and ADRs before implementation.
+Start with the [public contracts](docs/contracts.md) and [desktop guide](docs/desktop.md). The full desktop GUI and separate Runtime supersede the earlier CLI-only or thin-native-launcher candidates. Decisions that change scope, contracts, or the engineering baseline should update the relevant contract documents and ADRs before implementation.
 
-Contributions should include reviewable behavior notes, matching tests, and real verification results, and should keep affected Schema, OpenAPI, clients, and docs in sync. Do not substitute empty interfaces, fake-data pages, TODOs, or default-skipped tests for module delivery; unrun verification must be stated honestly. Delivered check entry points are above; other commands in the plan must be implemented and actually verified by their owning tasks.
+Contributions should include reviewable behavior notes, matching tests, and real verification results, and should keep affected Schema, OpenAPI, clients, and docs in sync. Do not substitute empty interfaces, fake-data pages, TODOs, or default-skipped tests for module delivery; unrun verification must be stated honestly. Delivered check entry points are above; any additional check commands must be implemented and verified by the contributors responsible for them.
 
 Coding requirements are in `AGENTS.md`: 4-space indentation; Chinese explanatory comments for public APIs and critical logic; 40–120 Unicode characters in each standalone line or first effective block body; at most 120 display columns per physical line, counting CJK wide characters as two. Logs use English. Effective comment coverage must be strictly above 40% repository-wide, without filler.
 
-Fixed tool tokens require verified parser context and actual tool behavior before counting as functional code: C=0, with K retained. Ordinary prose, display width and the repository-wide threshold still apply. See the [tool syntax accounting specification](docs/specs/tool-syntax-accounting.md).
+Fixed tool tokens require verified parser context and actual tool behavior before counting as functional code: C=0, with K retained. Ordinary prose, display width and the repository-wide threshold still apply. See the [coding rules](.agents/rules/coding-standard.md#3-注释中文) and the tool-specific boundaries in [ADR 0028](docs/decisions/0028-工具语法计量.md) and [ADR 0030](docs/decisions/0030-行尾类型检查指令计量.md).
 
 Planned quality gates include Python and TypeScript unit tests, cross-language contract samples, real MySQL integration, web and desktop E2E, authorization and recovery, connected dataset cleanup, clean wheel install, and native release acceptance on each target OS. Line coverage targets are at least 75% for Python executables and core TypeScript packages. Critical state, authorization, and recovery require dedicated tests. Builds default to full tests and must not auto-skip when MySQL or browser conditions are missing. Evidence must bind the same commit, lockfiles, and static asset manifest. Mark 1.0 complete after the first-release scope and desktop acceptance pass.
 

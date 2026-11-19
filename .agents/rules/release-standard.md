@@ -69,7 +69,7 @@
 - Electron 内嵌 Node ≠ 锁定 Node 24 执行引擎；测试浏览器 ≠ 桌面 UI Chromium。
 - Linux / Windows：全后代停止范围 `FULL_DESCENDANT_TREE`（subreaper / Job 等经核实机制）。
 - macOS：`CONTROLLED_WORKER_BROWSER`；不确定则隔离；禁止写成 `DRAINED` 全树证明。
-- 各平台仅在该 Attempt 的持久状态证明从未派生执行进程时，才可在停止回执中使用 `NO_PROCESS_SPAWNED`。`SPAWNING` 状态不明时不得使用。见[停止回执规格](../../docs/specs/macos-controlled-stop.md)。
+- 各平台仅在该 Attempt 的持久状态证明从未派生执行进程时，才可在停止回执中使用 `NO_PROCESS_SPAWNED`。`SPAWNING` 状态不明时不得使用。枚举值见[共享契约 Schema](../../packages/contracts/schemas/platform-v1.schema.json)。
 - 不得以 PID 扫描、窗口关闭、裸退出码单独作为完整停止回执。
 
 ### 2.3 凭据与私有存储

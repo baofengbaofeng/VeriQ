@@ -19,7 +19,7 @@
 - 普通字符串字面量使用双引号，与 Prettier 的 `singleQuote: false` 一致。见字符串字面量一节。
 - 注释和 JSDoc 使用中文，均须遵守[正文长度](../coding-standard.md#12-注释正文长度)与[显示列宽](../coding-standard.md#11-显示列宽的统一计算)要求。
 - 产品名 VeriQ 和技术标识允许在中文注释里保持原文。
-- 固定工具词元须满足[工具语法计量规格](../../../docs/specs/tool-syntax-accounting.md)确认的拼法与 AST 位置。合格词元贡献 `C=0`，所在非空物理行保留在 `K`，继续检查显示列宽和同行普通说明。
+- 固定工具词元须满足[工具语法计量 ADR](../../../docs/decisions/0028-工具语法计量.md)确认的拼法与 AST 位置。合格词元贡献 `C=0`，所在非空物理行保留在 `K`，继续检查显示列宽和同行普通说明。
 
 ## 3. 源文件基础
 
@@ -1418,7 +1418,7 @@ const [leftHalf, rightHalf] = splitInHalf("my string");
 
 生产代码禁止用 `@ts-ignore`、`@ts-expect-error` 和 `@ts-nocheck` 跳过类型检查。修正类型、声明或运行时校验。需要验证编译器拒绝特定用法的单元测试，可以在目标行使用 `@ts-expect-error` 并说明预期失败原因；应确认该用例确实由 `tsc` 检查。
 
-工具指令是否被编译器或排版器识别，与注释审计是否按功能代码计量分别判定。现行 TypeScript/JavaScript 计量仅支持符合动态导入位置及拼法要求的 `/* @vite-ignore */`，其他真实注释继续按普通规则处理。见[工具语法计量规格](../../../docs/specs/tool-syntax-accounting.md)。
+工具指令是否被编译器或排版器识别，与注释审计是否按功能代码计量分别判定。现行 TypeScript/JavaScript 计量仅支持符合动态导入位置及拼法要求的 `/* @vite-ignore */`，其他真实注释继续按普通规则处理。见[工具语法计量 ADR](../../../docs/decisions/0028-工具语法计量.md)。
 
 ## 9. 注释与文档
 

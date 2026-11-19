@@ -192,7 +192,7 @@ Ruff、格式和生成一致性均有记录。不将这些分组结果称为同�
 恢复环境中的测试库存已迁入当前工作区私有状态，历史清单与保留副本逐字节一致；专用测试库binlog压力已处理。
 不把开发测试库存当正式批准分发。目标浏览器匹配、完整覆盖率、源码注释规范、真实Provider、生产打包及两平台
 安装仍是后续门禁。报告跨页Workspace深链接和计划错误方法500两项次要问题明确由T22整改；旧账号/重跑/events
-声明仍须对齐，F10重跑不因旧路由未实现而被移出首发。完整状态以[里程碑](plans/milestones.md)为接续依据。
+声明仍须对齐，F10重跑不因旧路由未实现而被移出首发。独立验收与接续见[MVP 验证交接](validation/mvp-handoff.md)。
 
 <a id="production-same-origin-static-service-reviewed-t17"></a>
 
@@ -206,7 +206,7 @@ Ruff、格式和生成一致性均有记录。不将这些分组结果称为同�
 基础实现阶段310项Python受影响回归、201项TS契约、真实HTTPS/Vite/MySQL认证和深链接，以及独立开发代理认证场景均通过。
 后续修复先观察真实RED，最终90项静态回归与85文件严格mypy、Ruff/格式通过；未重复310/浏览器/build，也不把旧结果重新绑定到修复源码。
 生产浏览器使用实际编译前端和临时TLS/包资源，服务器仍为真实Python工厂；这不是已安装wheel或目标OS发行验收。
-T18已提供实际stage/wheel及Debian下无Node/只读/仓库外安装证明，正常发行和Ubuntu/OCI验收仍开放；T21继续完整存储/静态/关键依赖就绪监控；[里程碑](plans/milestones.md)保留所有发布阻塞。
+T18已提供实际stage/wheel及Debian下无Node/只读/仓库外安装证明，正常发行和Ubuntu/OCI验收仍开放；T21继续完整存储/静态/关键依赖就绪监控。
 
 <a id="server-release-tooling-reviewed-t18-acceptance-pending"></a>
 
@@ -218,7 +218,7 @@ T18已提供实际stage/wheel及Debian下无Node/只读/仓库外安装证明，
 
 证据继续按源码阶段分开记录：钉死 Chromium158/revision1254 的 SDK 门禁通过 136 个测试/15 个文件，用时 33.38 秒，行覆盖率 91.46%；保持 15 秒/两个 worker 限制不变，Fix1 中 SDK 产品源码未改变。历史超时原因仍为 UNKNOWN。初始包验收通过 13 个测试；受影响后端批次为 140 通过/一个过时测试控制失败，之后两项定向检查通过。Fix1 的 27 项真实信号、锁及新鲜度测试用时 30.37 秒通过。不据此推断统一全量通过。
 
-Fix1 wheel（`15bc3473…`）含当前晋升源码，并在 Debian13/Python3.12.14 上通过真实离线、只读、仓库外、空 PATH 的生产启动。其静态原始库存仍为 `561ee42a…`。此前 `3995648` 的无 Git 源码重建和 UNVERIFIED tar 仍是历史候选，不含 Fix1。最终引擎候选条目 `4ac70538…` 和原始库存 `75fc7c83…` 具有加载/安装/导出/编译证据；真实候选浏览器执行归 T19/T23。UTF-16 注释审计及可配置引擎元数据两个次要问题仍分配给 T22。[里程碑](plans/milestones.md)列出全部剩余验收工作。
+Fix1 wheel（`15bc3473…`）含当前晋升源码，并在 Debian13/Python3.12.14 上通过真实离线、只读、仓库外、空 PATH 的生产启动。其静态原始库存仍为 `561ee42a…`。此前 `3995648` 的无 Git 源码重建和 UNVERIFIED tar 仍是历史候选，不含 Fix1。最终引擎候选条目 `4ac70538…` 和原始库存 `75fc7c83…` 具有加载/安装/导出/编译证据；真实候选浏览器执行归 T19/T23。UTF-16 注释审计及可配置引擎元数据两个次要问题仍分配给 T22。
 
 <a id="electron-desktop-gui-reviewed-t19"></a>
 
@@ -232,7 +232,7 @@ QA 只使用 Python3.12/pidfd 注入归属精确的 renderer 故障；Python 不
 
 CI 使用独立且未批准的引擎1.0.2-t19-fix1（规范 `1c64aff0…`），保留原始引擎身份。501 个源码摘要匹配该提交，原始库存身份也匹配；65 个编译摘要是 CI 清单记录，其字节未下载到本机独立重算。托管环境精确二进制的 AppArmor QA 策略已完整移除，没有修改全局限制。已有业务浏览器 `--no-sandbox` 参数仍是 T20 安全默认值任务，与启用沙箱的 Electron UI 分开记录。
 
-以上关闭 T19 模块，不代表已安装 Windows11/Ubuntu24.04 分发、vault/进程/签名/升级、真实 Provider、全仓质量或完整 MVP 验收完成。继续 T20 打包及[里程碑接续](plans/milestones.md)；绑定源码的 GUI 证据不是生产发行包。见[桌面开发](desktop.md)。
+以上关闭 T19 模块，不代表已安装 Windows11/Ubuntu24.04 分发、vault/进程/签名/升级、真实 Provider、全仓质量或完整 MVP 验收完成。后续进入 T20 打包。绑定源码的 GUI 证据不是生产发行包。见[桌面开发](desktop.md)。
 
 <a id="current-verification-limits"></a>
 

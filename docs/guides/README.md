@@ -11,4 +11,4 @@
 | 使用、管理与排障 | [用户、管理员与运维](users-and-operators.md) | [具体运维命令](../../deploy/OPERATIONS.md)、[已有开发入口](../development.md)、[发行说明](../release.md) |
 | 后续 Agent 真实验证 | [V06](../validation/tasks/V06-integration.md) | 环境、命令、8条流程×5轮、失败及清理要求 |
 
-产品规格、公共 Schema、原有接入规范分别见[需求](../specs/veriq-1.0.md)、[契约](../contracts.md)、[前端](../integration/frontend.md)、[后端](../integration/backend.md)。这些指南补充落地步骤，不创建另一份协议或验收结论。
+公共 Schema 与原有接入规范分别见[契约](../contracts.md)、[前端](../integration/frontend.md)与[后端](../integration/backend.md)。这些指南补充落地步骤，不创建另一份协议或验收结论。
