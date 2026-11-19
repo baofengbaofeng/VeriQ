@@ -26,13 +26,18 @@ async function signIn(page: Page) {
  * 直接测量 Banner 内当前可见的全部交互元素，覆盖粗指针和移动设备各展开状态。
  */
 async function expectCompactBanner(page: Page, count: number) {
-    const controls = page.getByRole("banner").locator("a:visible, button:visible, select:visible, input:visible");
+    const banner = page.getByRole("banner");
+    const logo = banner.getByRole("link", { name: "VeriQ", exact: true });
+    const bounds = await logo.boundingBox();
+    expect(bounds).toMatchObject({ width: 42, height: 42 });
+    expect(await logo.getByRole("img", { name: "VeriQ" }).boundingBox()).toEqual(bounds);
+    const controls = banner.locator("a:visible, button:visible, select:visible, input:visible");
     await expect(controls).toHaveCount(count);
     const viewport = await page.evaluate(() => document.documentElement.clientWidth);
     for (const control of await controls.all()) {
         const box = await control.boundingBox();
         if (!box) throw new Error("Banner control has no visible bounding box");
-        expect(box.height).toBeLessThanOrEqual(32);
+        if (!(await control.and(logo).count())) expect(box.height).toBeLessThanOrEqual(32);
         expect(box.x).toBeGreaterThanOrEqual(0);
         expect(box.x + box.width).toBeLessThanOrEqual(viewport);
     }

@@ -365,7 +365,7 @@ function TopBar({ onLogout }: { onLogout: () => void }) {
             <div className="vq-header-main">
                 <div className="vq-topbar-workspaces">
                     <Link to="/" className="vq-brand">
-                        <img src={brand} width="22" height="22" alt="VeriQ" />
+                        <img src={brand} width="42" height="42" alt="VeriQ" />
                     </Link>
                     {user && <WorkspaceControls />}
                 </div>

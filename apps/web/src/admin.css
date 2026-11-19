@@ -37,6 +37,7 @@
     height: var(--vq-banner-control-size);
 }
 .vq-brand {
+    --vq-banner-control-size: 42px;
     width: var(--vq-banner-control-size);
     justify-content: center;
     font-size: 14px;
