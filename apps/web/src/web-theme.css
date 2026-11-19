@@ -650,3 +650,59 @@
         width: 36px;
     }
 }
+
+/*
+ * 工作区设置沿用 TailAdmin 的图标下划线变体；窄屏允许标签文字折行，键盘焦点仍使用 Web 的中性轮廓。
+ */
+.vq-settings-tabs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 48px;
+    margin-block: 12px 16px;
+    border-bottom: 1px solid var(--vq-profile-border);
+    --vq-tab-active: #465fff;
+}
+[data-theme="dark"] .vq-settings-tabs {
+    --vq-tab-active: #7592ff;
+}
+.vq-settings-tabs button[role="tab"] {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 48px;
+    margin: 0 0 -1px;
+    padding: 0 12px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    color: var(--vq-profile-muted);
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 18px;
+}
+.vq-settings-tabs button[role="tab"]:hover {
+    color: var(--vq-profile-body);
+}
+.vq-settings-tabs button[aria-selected="true"] {
+    border-color: var(--vq-tab-active);
+    color: var(--vq-tab-active);
+}
+.vq-settings-tabs svg {
+    flex: none;
+}
+@media (max-width: 480px) {
+    .vq-settings-tabs {
+        gap: 2px;
+    }
+    .vq-settings-tabs button[role="tab"] {
+        gap: 4px;
+        padding-inline: 4px;
+    }
+    .vq-workspace-settings .vq-ai :is(label, fieldset) {
+        min-width: 0;
+    }
+}

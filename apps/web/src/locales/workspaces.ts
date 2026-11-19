@@ -7,6 +7,8 @@ export const workspacesMessages: Record<string, readonly [string, string]> = {
     Key: ["标识", "Key"],
     "Loading Workspaces…": ["正在加载工作区…", "Loading Workspaces…"],
     "Retry Workspaces": ["重试工作区列表", "Retry Workspaces"],
+    "AI settings": ["AI 设置", "AI settings"],
+    "Provider configuration is read-only.": ["模型提供方配置为只读。", "Provider configuration is read-only."],
     "Workspace settings": ["工作区设置", "Workspace settings"],
     "Retry more workspaces": ["重试加载更多工作区", "Retry more workspaces"],
     "Load more Workspaces": ["加载更多工作区", "Load more Workspaces"],

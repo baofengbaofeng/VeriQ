@@ -5,14 +5,16 @@
  */
 
 import { tx, useAppLocale } from "../../locale";
-import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Link, Navigate } from "react-router-dom";
+import { useContext, useEffect, useLayoutEffect, useId, useRef, useState } from "react";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError, type Member, type Workspace } from "../../api";
 import { Auth } from "../../auth-context";
 import { Field, Notice, Panel, useAction, values } from "../../ui";
 import { useWorkspaceDirectory, WorkspaceStatus } from "./WorkspaceDirectory";
 import { useWorkspace } from "./WorkspaceContext";
+import { WorkspaceAiSettings } from "../ai/ProviderControls";
+import { SettingsPanel, SettingsTabs, settingsTabs, type SettingsTab } from "./SettingsTabs";
 import { SampleWorkspaceWizard } from "../examples/SampleWorkspaceWizard";
 
 const roles = ["OWNER", "ADMIN", "EDITOR", "EXECUTOR", "VIEWER"] as const;
@@ -79,28 +81,42 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
     const client = useQueryClient(),
         a = useAction(),
         { signal } = useWorkspace();
+    const location = useLocation();
+    const navigate = useNavigate();
+    const prefix = useId();
+    const params = new URLSearchParams(location.search);
+    const tab = settingsTabs.find((entry) => entry.id === params.get("tab"))?.id ?? "basic";
+    function activate(next: SettingsTab) {
+        if (next === tab) return;
+        if (next === "basic") params.delete("tab");
+        else params.set("tab", next);
+        void navigate({ pathname: location.pathname, search: params.toString(), hash: location.hash });
+    }
     const key = ["workspace", identity, id];
     const detail = useQuery({
         queryKey: [...key, "detail"],
         queryFn: ({ signal }) => api.workspace(id, signal),
     });
-    const members = useInfiniteQuery({
-        queryKey: [...key, "members"],
-        queryFn: ({ pageParam, signal }) => api.members(id, pageParam, signal),
-        initialPageParam: undefined as string | undefined,
-        getNextPageParam: (page) => page.nextCursor ?? undefined,
-    });
-    const canManage = detail.data && ["OWNER", "ADMIN"].includes(detail.data.role) && !detail.data.archived;
-    const invites = useInfiniteQuery({
-        queryKey: [...key, "invitations"],
-        queryFn: ({ pageParam, signal }) => api.invitations(id, pageParam, signal),
-        initialPageParam: undefined as string | undefined,
-        getNextPageParam: (page) => page.nextCursor ?? undefined,
-        enabled: !!canManage,
-    });
-    const [link, setLink] = useState("");
+    const [invitation, setInvitation] = useState("");
+    const accessGeneration = useRef(0);
+    const denied =
+        (detail.error instanceof ApiError && [401, 403, 404].includes(detail.error.status)) ||
+        (detail.isSuccess && (!["OWNER", "ADMIN"].includes(detail.data.role) || detail.data.archived));
+    // 详情暂时失败时保留已签发的一次性链接，确认管理权限撤销时立即清除，并阻止较早的异步提交重新放回链接。
+    useLayoutEffect(() => {
+        if (denied) {
+            accessGeneration.current++;
+            setInvitation("");
+        }
+    }, [denied]);
+    const generation = accessGeneration.current;
+    function issued(link: string) {
+        if (!signal?.aborted && generation === accessGeneration.current) setInvitation(link);
+    }
     const refresh = async () => {
+        if (signal?.aborted) return;
         await client.invalidateQueries({ queryKey: key });
+        if (signal?.aborted) return;
         await client.invalidateQueries({ queryKey: ["workspaces", identity] });
         await client.invalidateQueries({ queryKey: ["directory-entry", identity, id] });
     };
@@ -116,14 +132,49 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
         );
     const ws = detail.data;
     return (
-        <article>
+        <article className="vq-workspace-settings">
             <h2>{ws.name}</h2>
-            <p>
-                {ws.key} · {ws.role} · {ws.archived ? tx("Archived") : tx("Active")}
-            </p>
             <button type="button" onClick={() => void a.run(refresh)} disabled={a.busy}>
                 {tx("Refresh Workspace")}
             </button>
+            <SettingsTabs selected={tab} prefix={prefix} activate={activate} />
+            <SettingsPanel tab="basic" prefix={prefix} selected={tab}>
+                <WorkspaceBasics ws={ws} refresh={refresh} />
+            </SettingsPanel>
+            <SettingsPanel tab="members" prefix={prefix} selected={tab}>
+                <WorkspaceMembers
+                    key={`${ws.role}-${ws.archived}`}
+                    ws={ws}
+                    link={invitation}
+                    onIssued={issued}
+                    directoryKey={key}
+                    active={tab === "members"}
+                    refresh={refresh}
+                />
+            </SettingsPanel>
+            <SettingsPanel tab="ai" prefix={prefix} selected={tab}>
+                {tab === "ai" && <WorkspaceAiSettings key={`${ws.role}-${ws.archived}`} workspace={ws} />}
+            </SettingsPanel>
+            <Notice error={a.error} message={a.message} />
+        </article>
+    );
+}
+
+type SettingsProps = { ws: Workspace; refresh: () => Promise<void> };
+
+/**
+ * 普通信息与成员操作分别保存表单和状态提示；切换标签仍能找回刚提交的结果，切换工作区则重新挂载。
+ */
+function WorkspaceBasics({ ws, refresh }: SettingsProps) {
+    const { signal } = useWorkspace(),
+        a = useAction();
+    const { id } = ws;
+    const canManage = ["OWNER", "ADMIN"].includes(ws.role) && !ws.archived;
+    return (
+        <>
+            <p>
+                {ws.key} · {ws.role} · {ws.archived ? tx("Archived") : tx("Active")}
+            </p>
             {canManage && (
                 <form
                     onSubmit={(e) => {
@@ -165,6 +216,42 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
                         : tx("Your role cannot manage this Workspace or its members.")}
                 </p>
             )}
+            <Notice error={a.error} message={a.message} />
+        </>
+    );
+}
+
+/**
+ * 成员列表只在成员标签请求；同一工作区内的切页保留一次性邀请链接。管理权限或工作区身份改变时清除旧链接。
+ */
+function WorkspaceMembers({
+    ws,
+    refresh,
+    active,
+    directoryKey,
+    link,
+    onIssued,
+}: SettingsProps & { active: boolean; directoryKey: string[]; link: string; onIssued: (link: string) => void }) {
+    const { signal } = useWorkspace(),
+        a = useAction();
+    const { id } = ws;
+    const canManage = ["OWNER", "ADMIN"].includes(ws.role) && !ws.archived;
+    const members = useInfiniteQuery({
+        queryKey: [...directoryKey, "members"],
+        queryFn: ({ pageParam, signal }) => api.members(id, pageParam, signal),
+        enabled: active,
+        initialPageParam: undefined as string | undefined,
+        getNextPageParam: (page) => page.nextCursor ?? undefined,
+    });
+    const invites = useInfiniteQuery({
+        queryKey: [...directoryKey, "invitations"],
+        queryFn: ({ pageParam, signal }) => api.invitations(id, pageParam, signal),
+        initialPageParam: undefined as string | undefined,
+        getNextPageParam: (page) => page.nextCursor ?? undefined,
+        enabled: !!canManage && active,
+    });
+    return (
+        <>
             <h3>{tx("Members")}</h3>
             {members.isPending && <p role="status">{tx("Loading members…")}</p>}
             {members.error && (
@@ -222,7 +309,8 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
                                     },
                                     signal,
                                 );
-                                setLink(result.invitationUrl);
+                                if (signal?.aborted) return;
+                                onIssued(result.invitationUrl);
                                 await refresh();
                                 a.setMessage(
                                     result.delivery === "FAILED"
@@ -315,7 +403,7 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
                 </>
             )}
             <Notice error={a.error} message={a.message} />
-        </article>
+        </>
     );
 }
 
@@ -451,7 +539,9 @@ export function AcceptInvitation({
                 <InvitationStatus>
                     {tx("Invitation accepted.")}{" "}
                     {user ? (
-                        <Link to="/workspaces">{tx("Open workspace settings to view your membership.")}</Link>
+                        <Link to="/workspaces?tab=members">
+                            {tx("Open workspace settings to view your membership.")}
+                        </Link>
                     ) : (
                         tx("Sign in with your account to open the Workspace.")
                     )}

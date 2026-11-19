@@ -4,7 +4,7 @@
  */
 
 import { tx, useAppLocale } from "../../locale";
-import { useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { useCallback, useContext, useMemo, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -16,24 +16,12 @@ import { useWorkspaceDirectory, WorkspaceStatus } from "../workspaces/WorkspaceD
 import { useWorkspace } from "../workspaces/WorkspaceContext";
 import { ResourceEditorView } from "../resources/ResourcePage";
 import { CloudResourceAdapter, type ResourceAdapter } from "../resources/adapters";
-import { CloudAiAdapter, type AiAdapter, type Generation, type GenerationRequest, type Provider } from "./adapters";
+import { CloudAiAdapter, type AiAdapter, type Generation, type GenerationRequest } from "./adapters";
 import { aiI18n } from "./i18n";
-import "./ai.css";
+import { ProviderControls, useProviderDirectory } from "./ProviderControls";
 type S = PlatformComponents["schemas"];
 const useLabels = () => useTranslation("ai", { i18n: aiI18n }).t;
 const json = (v: unknown) => JSON.stringify(v, null, 2);
-const defaults: S["ProviderWrite"] = {
-    name: "",
-    adapter: "OPENAI_COMPATIBLE",
-    baseURL: "https://api.openai.com/v1",
-    model: "",
-    enabled: false,
-    monthlyBudgetUsd: 1,
-    inputUsdPerMillion: 1,
-    outputUsdPerMillion: 2,
-    maxOutputTokens: 1024,
-    maxRequestUsd: 0.5,
-};
 /**
  * 按照顶部目录选中的工作区建立模型与资源适配器，切换空间时替换表单并停止原空间的异步任务。
  */
@@ -102,20 +90,10 @@ export function AiWorkspaceView({
 }) {
     useAppLocale();
     const t = useLabels();
-    const [controller] = useState(() => new AbortController());
-    const signal = useMemo(
-        () => (parent ? AbortSignal.any([parent, controller.signal]) : controller.signal),
-        [parent, controller],
-    );
-    useEffect(() => () => controller.abort(), [controller]);
-    const manage = ["OWNER", "ADMIN"].includes(workspace.role) && !workspace.archived;
+    const directory = useProviderDirectory(workspace, adapter, parent);
+    const { signal, providers, rows, busy, error, setError, action } = directory;
     const edit = ["OWNER", "ADMIN", "EDITOR"].includes(workspace.role) && !workspace.archived;
-    const [error, setError] = useState(""),
-        [busy, setBusy] = useState(false),
-        [generating, setGenerating] = useState(false);
-    const [form, setForm] = useState<S["ProviderWrite"]>(defaults),
-        [editing, setEditing] = useState(""),
-        [apiKey, setKey] = useState("");
+    const [generating, setGenerating] = useState(false);
     const [requestState, setRequestState] = useState<RequestState>({
         inputs: {
             providerId: "",
@@ -150,12 +128,6 @@ export function AiWorkspaceView({
         [key, setResourceKey] = useState(""),
         [name, setName] = useState(""),
         [editorId, setEditorId] = useState("");
-    const providers = useInfiniteQuery({
-        queryKey: ["workspace", workspace.id, "ai", "providers"],
-        queryFn: ({ pageParam }) => adapter.providers(pageParam, signal),
-        initialPageParam: undefined as string | undefined,
-        getNextPageParam: (p) => p.nextCursor ?? undefined,
-    });
     const history = useInfiniteQuery({
         queryKey: ["workspace", workspace.id, "ai", "history"],
         queryFn: ({ pageParam }) => adapter.history(pageParam, signal),
@@ -168,43 +140,12 @@ export function AiWorkspaceView({
         initialPageParam: undefined as string | undefined,
         getNextPageParam: (p) => p.nextCursor ?? undefined,
     });
-    const rows = providers.data?.pages.flatMap((p) => p.items) ?? [],
-        calls = history.data?.pages.flatMap((p) => p.items) ?? [];
+    const calls = history.data?.pages.flatMap((p) => p.items) ?? [];
     const provider = rows.find((p) => p.id === providerId);
-    const firstProviderId = rows[0]?.id;
-    useEffect(() => {
-        if (!providerId && firstProviderId) changeInput("providerId", firstProviderId);
-    }, [providerId, firstProviderId, changeInput]);
+    const setProvider = useCallback((id: string) => changeInput("providerId", id), [changeInput]);
     const refresh = async () => {
-        await Promise.all([providers.refetch(), history.refetch()]);
-    };
-    const action = async (fn: () => Promise<void>) => {
-        setBusy(true);
-        setError("");
-        try {
-            await fn();
-        } catch (e) {
-            if (!signal.aborted) setError(e instanceof Error ? e.message : t("failed"));
-        } finally {
-            if (!signal.aborted) setBusy(false);
-        }
-    };
-    const selectProvider = (p: Provider) => {
-        setEditing(p.id);
-        changeInput("providerId", p.id);
-        setForm({
-            name: p.name,
-            adapter: p.adapter,
-            baseURL: p.baseURL,
-            model: p.model,
-            enabled: p.enabled,
-            monthlyBudgetUsd: p.monthlyBudgetUsd,
-            inputUsdPerMillion: p.inputUsdPerMillion,
-            outputUsdPerMillion: p.outputUsdPerMillion,
-            maxOutputTokens: p.maxOutputTokens,
-            maxRequestUsd: p.maxRequestUsd,
-        });
-        setKey("");
+        const [updated] = await Promise.all([directory.refreshProviders(), history.refetch()]);
+        return updated;
     };
     const makeRequest = (): GenerationRequest => ({
         requestId: crypto.randomUUID(),
@@ -240,161 +181,14 @@ export function AiWorkspaceView({
                 </p>
             )}
             {(busy || providers.isPending) && <p role="status">{t("loading")}</p>}
-            {!providers.isPending && !rows.length && <p>{t("empty")}</p>}
-            <label>
-                {t("provider")}
-                <select value={providerId} onChange={(e) => changeInput("providerId", e.target.value)}>
-                    <option value="">—</option>
-                    {rows.map((p) => (
-                        <option key={p.id} value={p.id}>
-                            {p.name} · {p.enabled ? "ON" : "OFF"}
-                        </option>
-                    ))}
-                </select>
-            </label>
-            {providers.hasNextPage && (
-                <button type="button" onClick={() => void providers.fetchNextPage()}>
-                    {t("more")}
-                </button>
-            )}
-            {provider && (
-                <div>
-                    <strong>{t("budget")} USD</strong>{" "}
-                    {`${t("used")}: ${provider.budget.estimatedUsedUsd} · ${t("held")}: ${provider.budget.heldUsd} · ` +
-                        `${t("available")}: ${provider.budget.availableUsd}`}
-                </div>
-            )}
-            {manage && (
-                <fieldset disabled={busy}>
-                    <legend>{t("provider")}</legend>
-                    <button
-                        type="button"
-                        onClick={() => {
-                            setEditing("");
-                            setForm(defaults);
-                            setKey("");
-                        }}
-                    >
-                        {t("newProvider")}
-                    </button>
-                    {provider && (
-                        <button type="button" onClick={() => selectProvider(provider)}>
-                            {t("provider")} {provider.name}
-                        </button>
-                    )}
-                    {(["name", "baseURL", "model"] as const).map((k, i) => (
-                        <label key={k}>
-                            {t((["name", "endpoint", "model"] as const)[i]!)}
-                            <input value={form[k]} onChange={(e) => setForm({ ...form, [k]: e.target.value })} />
-                        </label>
-                    ))}
-                    <label>
-                        {tx("Adapter")}
-                        <select
-                            value={form.adapter}
-                            onChange={(e) =>
-                                setForm({
-                                    ...form,
-                                    adapter: e.target.value as S["ProviderWrite"]["adapter"],
-                                })
-                            }
-                        >
-                            <option>OPENAI_COMPATIBLE</option>
-                            <option>ANTHROPIC</option>
-                        </select>
-                    </label>
-                    <label>
-                        {t("key")}
-                        <input
-                            type="password"
-                            autoComplete="new-password"
-                            value={apiKey}
-                            onChange={(e) => setKey(e.target.value)}
-                        />
-                    </label>
-                    <p>{t("keyHint")}</p>
-                    {(
-                        [
-                            "monthlyBudgetUsd",
-                            "inputUsdPerMillion",
-                            "outputUsdPerMillion",
-                            "maxOutputTokens",
-                            "maxRequestUsd",
-                        ] as const
-                    ).map((k, i) => (
-                        <label key={k}>
-                            {t((["monthly", "inputRate", "outputRate", "outputLimit", "requestLimit"] as const)[i]!)}
-                            <input
-                                type="number"
-                                min="0"
-                                step="any"
-                                value={form[k]}
-                                onChange={(e) => setForm({ ...form, [k]: Number(e.target.value) })}
-                            />
-                        </label>
-                    ))}
-                    <label>
-                        <input
-                            type="checkbox"
-                            checked={form.enabled}
-                            onChange={(e) => setForm({ ...form, enabled: e.target.checked })}
-                        />
-                        {t("enabled")}
-                    </label>
-                    <button
-                        type="button"
-                        onClick={() =>
-                            void action(async () => {
-                                const p = await adapter.save(
-                                    { ...form, ...(apiKey ? { apiKey } : {}) },
-                                    editing || undefined,
-                                    signal,
-                                );
-                                if (signal.aborted) return;
-                                setKey("");
-                                setEditing(p.id);
-                                changeInput("providerId", p.id);
-                                await refresh();
-                            })
-                        }
-                    >
-                        {t("save")}
-                    </button>
-                    {provider && (
-                        <>
-                            <button
-                                type="button"
-                                disabled={!provider.enabled}
-                                onClick={() =>
-                                    void action(async () => {
-                                        const g = await adapter.test(provider.id, crypto.randomUUID(), signal);
-                                        if (signal.aborted) return;
-                                        setGeneration(g);
-                                        await refresh();
-                                    })
-                                }
-                            >
-                                {t("test")}
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    void action(async () => {
-                                        await adapter.remove(provider.id, signal);
-                                        if (signal.aborted) return;
-                                        changeInput("providerId", "");
-                                        setEditing("");
-                                        setForm(defaults);
-                                        await refresh();
-                                    })
-                                }
-                            >
-                                {t("remove")}
-                            </button>
-                        </>
-                    )}
-                </fieldset>
-            )}
+            <ProviderControls
+                key={directory.manage ? "manage" : "read-only"}
+                directory={directory}
+                providerId={providerId}
+                onSelect={setProvider}
+                refresh={refresh}
+                onTest={(result) => setGeneration(result)}
+            />
             <fieldset disabled={!edit || busy || generating}>
                 <legend>{t("selected")}</legend>
                 <p>{t("privacy")}</p>
