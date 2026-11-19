@@ -60,7 +60,7 @@ function WorkspaceMenu() {
                     ref={content}
                     className="vq-workspace-menu"
                     align="start"
-                    sideOffset={8}
+                    sideOffset={4}
                     collisionPadding={8}
                 >
                     <DropdownMenu.RadioGroup value={workspace?.id ?? ""} onValueChange={choose}>
@@ -74,7 +74,7 @@ function WorkspaceMenu() {
                             >
                                 {workspaceLabel(item)}
                                 <DropdownMenu.ItemIndicator className="vq-workspace-check">
-                                    <svg aria-hidden="true" width="16" height="16">
+                                    <svg aria-hidden="true" width="14" height="14">
                                         <use href={`${icons}#check`} />
                                     </svg>
                                 </DropdownMenu.ItemIndicator>
