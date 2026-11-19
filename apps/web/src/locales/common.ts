@@ -3,6 +3,11 @@
  * 请求参数、技术标识或用户创建的业务名称。
  */
 export const commonMessages: Record<string, readonly [string, string]> = {
+    "Dark mode": ["深色模式", "Dark mode"],
+    Home: ["首页", "Home"],
+    Profile: ["个人资料", "Profile"],
+    "Personal information": ["个人信息", "Personal information"],
+    Breadcrumb: ["面包屑导航", "Breadcrumb"],
     "Add workspace": ["添加工作区", "Add workspace"],
     Settings: ["设置", "Settings"],
     Menu: ["菜单", "Menu"],

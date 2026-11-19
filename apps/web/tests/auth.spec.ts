@@ -254,7 +254,7 @@ test("real setup, login, account, administration and one-time reset", async ({ p
     await page.goto("/admin/users");
     await expect(page.getByRole("alert")).toContainText("System administrator permission");
     await page.goto("/account");
-    await expect(page.getByRole("heading", { name: "Your account" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Profile", exact: true })).toBeVisible();
     await page.getByLabel("Current password").fill("Changed password 123!");
     await page.getByLabel(/^New password \(at least 12 characters\)/).fill("Final password 123!");
     const passwordNavigations: string[] = [];

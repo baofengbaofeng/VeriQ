@@ -28,6 +28,7 @@ import { WorkspaceDirectory } from "./features/workspaces/WorkspaceDirectory";
 import { AppShell } from "./layout";
 import "./style.css";
 import "./admin.css";
+import "./web-theme.css";
 function App() {
     const { pathname, key: locationKey } = useLocation();
     useAppLocale();

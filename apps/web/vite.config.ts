@@ -8,6 +8,8 @@ import react from "@vitejs/plugin-react";
 // 阶段单独写入构建元数据。
 export default defineConfig({
     plugins: [react()],
+    // 独立目录让首次绘制前读取偏好的经典脚本仅随 Web 页面发布，桌面共享库继续使用自己的构建入口和资源。
+    publicDir: "public-web",
     // 发布服务校验完整库存之外还检查 Vite 入口和导入引用，因此开启模块图输出并保留默认隐藏路径；此处不生成构建身份，也
     // 不把运行配置读取进前端编译环境。.vite/manifest.json 本身参与完整库存，但不作为公开
     // URL 服务。build-info.json 与 static-manifest.json 在后续发布阶段写入，避免自引用哈希。

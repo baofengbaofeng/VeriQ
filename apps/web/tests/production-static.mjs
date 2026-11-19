@@ -41,8 +41,31 @@ try {
     // 和已认证 API 能在同一源配合运行。
     // 无 Workspace 时仍应显示计划页面的实际空状态。
     // 不创建计划、执行任务或调用外部服务。
+    const darkMode = page.getByRole("button", { name: "Dark mode" });
+    await darkMode.click();
+    await expect(darkMode).toHaveAttribute("aria-pressed", "true");
     await page.goto(`${origin}/execution-plans`);
-    await page.reload();
+    // 暂缓真实入口模块的交付以观察首次绘制之前的主题，断言完成后继续原请求并使用正常页面验证认证仍然有效。
+    const moduleUrl = await page.locator('script[type="module"]').getAttribute("src");
+    const held = page.waitForRequest(new URL(moduleUrl, origin).href, { timeout: 15_000 });
+    const resume = Promise.withResolvers();
+    await page.route(
+        new URL(moduleUrl, origin).href,
+        async (route) => {
+            await resume.promise;
+            await route.continue();
+        },
+        { times: 1 },
+    );
+    const committed = page.reload({ waitUntil: "commit" });
+    try {
+        await Promise.all([held, committed]);
+        await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+        await expect(page.locator("#root")).toBeEmpty();
+    } finally {
+        resume.resolve();
+    }
+    await expect(darkMode).toHaveAttribute("aria-pressed", "true");
     await expect(page.getByRole("heading", { name: "Execution plans" })).toBeVisible();
     // 用同一浏览器上下文请求入口并核对 no-cache，避免页面从前次客户端状态看似成功；服务必须为每次刷新保留重新验证入口的
     // 语义。

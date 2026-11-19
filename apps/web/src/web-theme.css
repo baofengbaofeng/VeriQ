@@ -1,0 +1,378 @@
+/*
+ * 资料页与个人菜单按 TailAdmin 的布局和色板显示，字号继续遵循管理台规范；这些样式只由 Web 入口载入。
+ */
+:root {
+    --vq-surface: #fff;
+    --vq-canvas: #f9fafb;
+    --vq-profile-border: #e4e7ec;
+    --vq-profile-heading: #1d2939;
+    --vq-profile-body: #344054;
+    --vq-profile-muted: #667085;
+    --vq-popup: #fff;
+    --vq-hover: #f2f4f7;
+}
+.vq-header-tools {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    margin-inline-start: auto;
+    gap: 16px;
+    max-width: 100%;
+}
+.vq-header-tools button + button {
+    margin: 0;
+}
+.vq-theme-toggle {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    flex: 0 0 44px;
+    width: 44px;
+    height: 44px;
+    border: 1px solid var(--vq-profile-border);
+    border-radius: 50%;
+    padding: 0;
+    color: var(--vq-profile-muted);
+    background: var(--vq-surface);
+}
+.vq-theme-toggle .vq-nav-icon,
+.vq-profile-menu .vq-nav-icon {
+    width: 20px;
+    height: 20px;
+    flex-basis: 20px;
+}
+.vq-theme-toggle:hover {
+    background: var(--vq-hover);
+    color: var(--vq-profile-heading);
+}
+.vq-header-tools .vq-user-trigger {
+    padding: 0;
+    gap: 0;
+    color: var(--vq-profile-body);
+    background: transparent;
+    font-weight: 500;
+}
+.vq-user-trigger .vq-avatar {
+    margin-inline-end: 12px;
+}
+.vq-user-trigger .vq-nav-icon {
+    width: 18px;
+    height: 20px;
+    flex-basis: 18px;
+    margin-inline-start: 4px;
+    color: var(--vq-profile-muted);
+    transition: transform 200ms;
+}
+.vq-user-trigger[data-state="open"] .vq-nav-icon {
+    transform: rotate(180deg);
+}
+.vq-profile-menu {
+    width: min(260px, calc(100vw - 16px));
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 12px;
+    border: 1px solid var(--vq-profile-border);
+    border-radius: 16px;
+    background: var(--vq-popup);
+    color: var(--vq-profile-body);
+    box-shadow:
+        0 12px 16px -4px rgb(16 24 40 / 8%),
+        0 4px 6px -2px rgb(16 24 40 / 3%);
+}
+.vq-menu-identity {
+    display: grid;
+    gap: 2px;
+    overflow-wrap: anywhere;
+}
+.vq-menu-identity strong {
+    font-weight: 500;
+}
+.vq-menu-identity span,
+.vq-profile-menu .vq-menu-label {
+    font-size: 12px;
+    color: var(--vq-profile-muted);
+}
+.vq-menu-options {
+    display: grid;
+    gap: 4px;
+    padding: 16px 0 12px;
+}
+.vq-profile-menu .vq-menu-label {
+    padding: 4px 12px 0;
+    margin: 0;
+}
+.vq-profile-menu .vq-menu-item {
+    padding: 8px 12px;
+    gap: 12px;
+    color: var(--vq-profile-body);
+    border-radius: 8px;
+    font-weight: 500;
+}
+.vq-profile-menu .vq-menu-item[data-highlighted] {
+    background: var(--vq-hover);
+}
+.vq-profile-menu .vq-menu-separator {
+    margin: 0 0 12px;
+    border-color: var(--vq-profile-border);
+}
+.vq-content:has(.vq-account) {
+    background: var(--vq-canvas);
+}
+.vq-content-inner:has(.vq-account) {
+    padding: 16px;
+}
+.vq-account {
+    min-width: 0;
+    color: var(--vq-profile-heading);
+}
+.vq-profile-heading,
+.vq-profile-heading nav {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.vq-profile-heading {
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+.vq-profile-heading h1 {
+    font-size: 16px;
+    margin: 0;
+    font-weight: 600;
+}
+.vq-profile-heading nav {
+    gap: 6px;
+    color: var(--vq-profile-heading);
+}
+.vq-profile-heading nav a {
+    text-decoration: none;
+    color: var(--vq-profile-muted);
+}
+.vq-profile-heading a:hover {
+    text-decoration: underline;
+}
+.vq-profile,
+.vq-profile-card {
+    min-width: 0;
+    border: 1px solid var(--vq-profile-border);
+    border-radius: 16px;
+    padding: 20px;
+}
+.vq-profile {
+    display: grid;
+    gap: 24px;
+    background: var(--vq-surface);
+}
+.vq-profile h2,
+.vq-profile h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+}
+.vq-profile-card > h3 {
+    margin-bottom: 20px;
+}
+.vq-profile-summary {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    text-align: center;
+}
+.vq-profile .vq-avatar,
+.vq-user-trigger .vq-avatar {
+    border: 1px solid var(--vq-profile-border);
+    font-size: 16px;
+    background: var(--vq-brand-soft);
+    color: var(--vq-brand-dark);
+}
+.vq-profile-meta {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+.vq-profile-meta p {
+    margin: 4px 0 0;
+    color: var(--vq-profile-muted);
+}
+.vq-profile-edit {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    border: 1px solid var(--vq-profile-border);
+    border-radius: 999px;
+    padding: 10px 16px;
+    background: var(--vq-surface);
+    color: var(--vq-profile-body);
+    box-shadow: 0 1px 2px rgb(16 24 40 / 5%);
+}
+.vq-profile-edit:hover {
+    background: var(--vq-hover);
+}
+.vq-profile-card dl {
+    display: grid;
+    gap: 16px;
+    margin: 0;
+}
+.vq-profile-card dt {
+    margin-bottom: 8px;
+    color: var(--vq-profile-muted);
+}
+.vq-profile-card dd {
+    margin: 0;
+    font-weight: 500;
+    overflow-wrap: anywhere;
+}
+.vq-profile-card > label {
+    max-width: 16rem;
+}
+.vq-profile-card form {
+    margin: 0;
+}
+.vq-profile-card form button[type="submit"] {
+    justify-self: start;
+}
+@media (min-width: 1024px) {
+    .vq-content-inner:has(.vq-account),
+    .vq-profile,
+    .vq-profile-card {
+        padding: 24px;
+    }
+    .vq-profile-card dl {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 28px;
+    }
+    .vq-profile-card > h3 {
+        margin-bottom: 24px;
+    }
+    .vq-profile-edit {
+        width: auto;
+    }
+}
+@media (min-width: 1280px) {
+    .vq-profile-summary {
+        flex-direction: row;
+        text-align: start;
+        gap: 20px;
+    }
+    .vq-profile-summary .vq-profile-edit {
+        margin-inline-start: auto;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .vq-user-trigger .vq-nav-icon {
+        transition: none;
+    }
+}
+
+/*
+ * 根节点同时容纳 Web 路由与挂在文档主体的菜单、抽屉和确认框。交互颜色独立于正文，保持高亮、只读和错误可辨。
+ */
+:root[data-theme="dark"] {
+    --vq-surface: #18202f;
+    --vq-canvas: #101828;
+    --vq-popup: #1a2231;
+    --vq-profile-border: #1d2939;
+    --vq-profile-heading: #f2f4f7;
+    --vq-profile-body: #d0d5dd;
+    --vq-profile-muted: #98a2b3;
+    --vq-hover: #263244;
+    --vq-button-fill: #465fff;
+    --vq-brand: #9cb9ff;
+    --vq-brand-dark: #c2d6ff;
+    --vq-brand-soft: #233455;
+    --vq-brand-text: #f2f4f7;
+    --vq-border: #344054;
+    --vq-field: #1d2939;
+    --vq-rail: #182230;
+    --vq-secondary: #d0d5dd;
+    --vq-muted: #98a2b3;
+    background: var(--vq-canvas);
+}
+[data-theme="dark"] :is(.vq-shell, .vq-content, .panel, .vq-topbar) {
+    background: var(--vq-canvas);
+}
+[data-theme="dark"]
+    :is(.vq-sheet, .vq-dialog, .vq-select-content, .vq-item .vq-item, .veriq-skip-link, .report-assertion) {
+    background: var(--vq-popup);
+    color: var(--vq-brand-text);
+}
+[data-theme="dark"]
+    :is(
+        input,
+        select,
+        textarea,
+        .vq-input,
+        .vq-select-trigger,
+        .vq-secondary,
+        .vq-btn-secondary,
+        .vq-topbar-workspaces button,
+        .vq-hint-icon
+    ) {
+    background: var(--vq-surface);
+    color: var(--vq-secondary);
+    border-color: var(--vq-border);
+}
+[data-theme="dark"] :is(.vq-select-item, .vq-field-hint, .vq-select-icon) {
+    color: var(--vq-secondary);
+}
+[data-theme="dark"] :is(.vq-primary, .vq-btn-primary) {
+    background: #465fff;
+    border-color: #6172ff;
+    color: #fff;
+}
+[data-theme="dark"] .vq-topbar-workspaces button {
+    background: var(--vq-surface);
+    color: var(--vq-secondary);
+}
+[data-theme="dark"] :is(.vq-primary, .vq-btn-primary):not(:disabled):hover {
+    background: #3641f5;
+}
+[data-theme="dark"] :is(.vq-danger, .vq-btn-danger, [role="alert"]) {
+    background: #382427;
+    color: #fda29b;
+}
+[data-theme="dark"] :is(.vq-field-required, .vq-agent-field del) {
+    color: #fda29b;
+}
+[data-theme="dark"] :is([role="status"], .vq-agent-field ins) {
+    color: #75e0a7;
+}
+[data-theme="dark"] :is(.vq-nav :is(a, button):hover, tbody tr:hover td) {
+    background: var(--vq-hover);
+}
+[data-theme="dark"] :is(.vq-nav [aria-current="page"], .vq-select-item[data-highlighted]) {
+    background: var(--vq-brand-soft);
+}
+[data-theme="dark"] :is(.vq-ai pre, .report-steps > li, aside:not(.vq-sidebar)) {
+    background: var(--vq-field);
+}
+[data-theme="dark"]
+    :is(
+        .report-case,
+        .report-assertion,
+        .report-assertion td,
+        .report-assertion th,
+        .vq-ai section,
+        .vq-nav-children,
+        .vq-value,
+        .vq-monaco,
+        .vq-sheet-header
+    ) {
+    border-color: var(--vq-border);
+}
+[data-theme="dark"] .vq-state {
+    background: #344054;
+    color: #e4e7ec;
+}
+[data-theme="dark"] .vq-state[data-status="PUBLISHED"] {
+    background: #123b31;
+    color: #a9efc5;
+}
+[data-theme="dark"] .vq-state[data-status="DRAFT"] {
+    background: #423319;
+    color: #fedf89;
+}

@@ -6,11 +6,12 @@
 
 import { tx, useAppLocale } from "../locale";
 import { useState, useContext, useEffect, useLayoutEffect, useCallback, useRef } from "react";
-import { Navigate } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { api, type AccountSessions } from "../api";
 import { Avatar } from "../components";
 import { Auth } from "../auth-context";
-import { Notice, Field, useAction, values, Panel } from "../ui";
+import adminIcons from "../admin-icons.svg?no-inline";
+import { Notice, Field, useAction, values } from "../ui";
 /**
  * 以当前 user.id 和所选每页数量拥有会话列表及游标，首次加载与重试替换首屏、More 仅追加当前游标的一页，并在改密或撤销后
  * 通过身份刷新进入重新登录流程。
@@ -21,6 +22,7 @@ export function Account() {
     const { user, refresh } = useContext(Auth),
         a = useAction();
     const [sessions, setSessions] = useState<AccountSessions | null>(null);
+    const passwordForm = useRef<HTMLFormElement>(null);
     const [limit, setLimit] = useState(25);
     const userId = user?.id;
     const key = JSON.stringify([userId, limit]);
@@ -70,22 +72,55 @@ export function Account() {
         await refresh();
     };
     return (
-        <Panel title={tx("Your account")}>
+        <section className="vq-account">
+            <div className="vq-profile-heading">
+                <h1 tabIndex={-1}>{tx("Profile")}</h1>
+                <nav aria-label={tx("Breadcrumb")}>
+                    <Link to="/">{tx("Home")}</Link>
+                    <span aria-hidden="true">›</span>
+                    <span aria-current="page">{tx("Profile")}</span>
+                </nav>
+            </div>
             <div className="vq-profile">
+                <h2>{tx("Profile")}</h2>
                 <section className="vq-profile-card vq-profile-summary">
-                    <Avatar name={user.displayName} size={36} />
+                    <Avatar name={user.displayName} size={80} fontSize={16} />
+                    <div className="vq-profile-meta">
+                        <h3>{user.displayName}</h3>
+                        <p>{user.systemAdmin ? tx("System administrator") : tx("User")}</p>
+                    </div>
+                    <button
+                        type="button"
+                        className="vq-profile-edit"
+                        onClick={() => passwordForm.current?.querySelector("input")?.focus()}
+                    >
+                        <svg aria-hidden="true" width="18" height="18">
+                            <use href={`${adminIcons}#edit`} />
+                        </svg>
+                        {tx("Change password")}
+                    </button>
+                </section>
+                <section className="vq-profile-card">
+                    <h3>{tx("Personal information")}</h3>
                     <dl>
-                        <dt>{tx("Display name")}</dt>
-                        <dd>{user.displayName}</dd>
-                        <dt>{tx("Email")}</dt>
-                        <dd>{user.email}</dd>
-                        <dt>{tx("Permission")}</dt>
-                        <dd>{user.systemAdmin ? tx("System administrator") : tx("User")}</dd>
+                        <div>
+                            <dt>{tx("Display name")}</dt>
+                            <dd>{user.displayName}</dd>
+                        </div>
+                        <div>
+                            <dt>{tx("Email")}</dt>
+                            <dd>{user.email}</dd>
+                        </div>
+                        <div>
+                            <dt>{tx("Permission")}</dt>
+                            <dd>{user.systemAdmin ? tx("System administrator") : tx("User")}</dd>
+                        </div>
                     </dl>
                 </section>
                 <section className="vq-profile-card">
-                    <h2>{tx("Change password")}</h2>
+                    <h3>{tx("Change password")}</h3>
                     <form
+                        ref={passwordForm}
                         onSubmit={(e) => {
                             const v = values(e);
                             void a.run(async () => {
@@ -111,7 +146,7 @@ export function Account() {
                     </form>
                 </section>
                 <section className="vq-profile-card">
-                    <h2>{tx("Active sessions")}</h2>
+                    <h3>{tx("Active sessions")}</h3>
                     <label>
                         {tx("Sessions per page")}
                         <select value={limit} disabled={a.busy} onChange={(e) => setLimit(Number(e.target.value))}>
@@ -173,6 +208,6 @@ export function Account() {
                 </section>
                 <Notice error={a.error} />
             </div>
-        </Panel>
+        </section>
     );
 }
