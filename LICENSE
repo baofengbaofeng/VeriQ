@@ -1,3 +1,19 @@
+VeriQ project notice
+
+VeriQ is an automated smoke and regression testing platform for enterprise
+web applications.
+
+Copyright (C) 2026 VeriQ contributors
+Project license: GNU Affero General Public License, version 3 only
+(AGPL-3.0-only).
+Project and source: https://github.com/baofengbaofeng/VeriQ
+Project contact: through the repository above.
+Third-party notices: see THIRD_PARTY_NOTICES.md.
+
+----------------------------------------------------------------------
+GNU AGPL license text follows
+----------------------------------------------------------------------
+
                     GNU AFFERO GENERAL PUBLIC LICENSE
                        Version 3, 19 November 2007
 
