@@ -48,7 +48,7 @@ test("editor and AI locale events synchronize without replacing unsaved resource
         await editorI18n.changeLanguage("zh");
     });
     await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
-    await expect(page.getByRole("link", { name: "工作区", exact: true, includeHidden: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "工作区设置", exact: true, includeHidden: true })).toBeVisible();
     const localizedName = page.getByLabel("数据行 key", { exact: true });
     await expect(localizedName).toHaveValue("unsaved_localized_row");
     expect(await localizedName.evaluate((current, retained) => current === retained, node)).toBe(true);
@@ -58,7 +58,9 @@ test("editor and AI locale events synchronize without replacing unsaved resource
         await aiI18n.changeLanguage("en");
     });
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
-    await expect(page.getByRole("link", { name: "Workspaces", exact: true, includeHidden: true })).toBeVisible();
+    await expect(
+        page.getByRole("link", { name: "Workspace settings", exact: true, includeHidden: true }),
+    ).toBeVisible();
     await expect(name).toHaveValue("unsaved_localized_row");
     expect(await name.evaluate((current, retained) => current === retained, node)).toBe(true);
 });

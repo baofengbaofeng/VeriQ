@@ -2,7 +2,14 @@
  * VeriQ 的作用域测试直接挂载产品 Provider 与真实 QueryClient，并以已提交信号、订阅关闭及查询取消为观察依据；页面测试仅
  * 延迟真实服务器响应，不构造资源或替换权限数据。
  */
-import { signOut, workspacePicker } from "./support/console-controls";
+import {
+    chooseWorkspace,
+    openWorkspaceMenu,
+    selectedWorkspaceId,
+    signOut,
+    workspaceOption,
+    workspacePicker,
+} from "./support/console-controls";
 import { randomUUID } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -377,7 +384,7 @@ test("three GUI routes retain manual selection across real directory refetch", a
             await page.getByLabel("Password").fill("Workspace password 123!");
             await page.getByRole("button", { name: "Sign in" }).click();
             await expect(page.locator("dl")).toBeVisible();
-            await page.getByRole("link", { name: "Workspaces", exact: true }).click();
+            await page.getByRole("link", { name: "Workspace settings", exact: true }).click();
             await expect(page.getByText("No Workspaces yet.", { exact: true })).toBeVisible();
             const ids: string[] = [];
             for (const name of ["Alpha", "Beta"]) {
@@ -392,7 +399,7 @@ test("three GUI routes retain manual selection across real directory refetch", a
                     .fill("W2B " + name);
                 await page.getByRole("button", { name: "Create Workspace" }).click();
                 await expect(page.getByRole("article")).toContainText("W2B " + name);
-                ids.push(await workspacePicker(page).inputValue());
+                ids.push(await selectedWorkspaceId(page));
             }
             const membership = (await (await page.request.get("/api/v1/workspaces")).json()).data;
             expect(membership.items.map((workspace: { id: string }) => workspace.id).sort()).toEqual([...ids].sort());
@@ -433,18 +440,24 @@ test("three GUI routes retain manual selection across real directory refetch", a
                           )
                         : undefined;
                 await markPhase(`${entry.link}:navigate before barrier`);
-                await page.getByRole("link", { name: entry.link, exact: true }).click();
+                await page
+                    .getByRole("link", {
+                        name: entry.link === "Workspaces" ? "Workspace settings" : entry.link,
+                        exact: true,
+                    })
+                    .click();
                 const heading = page.getByRole("heading", { level: 1, name: entry.heading, exact: true });
                 await expect(heading).toBeVisible();
                 if (navigationList) expect(await (await navigationList).finished()).toBeNull();
                 const panel = page.locator("section.panel").filter({ has: heading });
                 const selector = workspacePicker(page);
                 const input = entry.input.and(panel.locator("input, select"));
-                await expect(selector.locator(`option[value="${alpha}"]`)).toHaveText("W2B Alpha");
-                await expect(selector.locator(`option[value="${beta}"]`)).toHaveText("W2B Beta");
+                await openWorkspaceMenu(page);
+                await expect(workspaceOption(page, alpha)).toHaveText("W2B Alpha");
+                await expect(workspaceOption(page, beta)).toHaveText("W2B Beta");
                 await markPhase(`${entry.link}:prepare Alpha`);
-                await selector.selectOption(alpha);
-                await expect(selector).toHaveValue(alpha);
+                await chooseWorkspace(page, alpha);
+                await expect(selector).toHaveAttribute("data-workspace-id", alpha);
                 await expect(input).toBeVisible();
                 await expect.poll(() => pendingLists.size).toBe(0);
                 /**
@@ -535,7 +548,8 @@ test("three GUI routes retain manual selection across real directory refetch", a
                         expect(heldRequest && pendingLists.has(heldRequest)).toBe(true);
                         expect(await pickerIsCurrent()).toBe(true);
                         await markPhase(`${entry.link}:select Beta`);
-                        await ownedPicker.selectOption(beta);
+                        await ownedPicker.click();
+                        await workspaceOption(page, beta).click();
                         expect(await pickerIsCurrent()).toBe(true);
                         await markPhase(`${entry.link}:write unsaved value`);
                         const unsaved = entry.link === "Runtimes" ? "ABCDEFGH2345" : "Beta unsaved " + entry.link;
@@ -551,12 +565,13 @@ test("three GUI routes retain manual selection across real directory refetch", a
                         expect(heldRequest?.failure()).toBeNull();
                         expect(aborted).toEqual([]);
                         expect(await pickerIsCurrent()).toBe(true);
-                        await expect(selector).toHaveValue(beta);
+                        await expect(selector).toHaveAttribute("data-workspace-id", beta);
                         await expect(input).toHaveValue(unsaved);
                         if (entry.link === "Workspaces")
                             await expect(page.getByRole("article")).toContainText("W2B Beta");
                         await markPhase(`${entry.link}:select Alpha`);
-                        await ownedPicker.selectOption(alpha);
+                        await ownedPicker.click();
+                        await workspaceOption(page, alpha).click();
                         if (entry.link === "Runtimes" || entry.link === "Plans") await expect(input).toHaveValue("");
                     },
                     async () => {
@@ -575,7 +590,7 @@ test("three GUI routes retain manual selection across real directory refetch", a
                 );
             }
             await markPhase("Plans:session reset");
-            await workspacePicker(page).selectOption(beta);
+            await chooseWorkspace(page, beta);
             await page.getByLabel("Plan name").fill("Beta unsaved Plan");
             await signOut(page);
             await page.getByRole("textbox", { name: "Email" }).fill(actorEmail);
@@ -583,7 +598,7 @@ test("three GUI routes retain manual selection across real directory refetch", a
             await page.getByRole("button", { name: "Sign in" }).click();
             await expect(page.locator("dl")).toBeVisible();
             await page.getByRole("link", { name: "Plans", exact: true }).click();
-            await expect(workspacePicker(page)).toHaveValue(alpha);
+            await expect(workspacePicker(page)).toHaveAttribute("data-workspace-id", alpha);
             await expect(page.getByLabel("Plan name")).toHaveValue("");
         },
         async () => {

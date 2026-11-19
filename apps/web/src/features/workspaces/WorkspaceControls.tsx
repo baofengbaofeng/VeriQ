@@ -1,17 +1,138 @@
 /**
- * 顶栏使用原生成员空间选择器和现有 Sheet。创建操作绑定当前登录身份，账户卸载后忽略旧结果，空间切换不打断请求。
+ * 顶栏使用成员空间菜单和现有 Sheet。创建操作绑定当前登录身份，账户卸载后忽略旧结果，空间切换不打断请求。
  */
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
-import { api, ApiError } from "../../api";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import { Link } from "react-router-dom";
+import icons from "../../admin-icons.svg?no-inline";
+import { api, ApiError, type Workspace } from "../../api";
 import { Sheet } from "../../components";
 import { tx } from "../../locale";
 import { useWorkspaceDirectory } from "./WorkspaceDirectory";
 
 /**
+ * 归档工作区继续出现在当前选择和成员目录中，两处共用一个本地化名称，方便用户辨认只读空间。
+ */
+function workspaceLabel(item: Workspace) {
+    return item.archived ? `${item.name} (${tx("Archived")})` : item.name;
+}
+
+/**
+ * 分页只更新菜单。键盘用户提交后从第一条新记录继续浏览，移动到别处或关闭菜单则不再转移焦点。
+ */
+function WorkspaceMenu() {
+    const { workspace, items, choose, loading, error, retry, nextCursor, more, loadingMore, pagingError } =
+        useWorkspaceDirectory();
+    const content = useRef<HTMLDivElement>(null);
+    const action = useRef<HTMLDivElement>(null);
+    const previous = useRef<{ cursor: string; ids: Set<string>; focused: boolean }>();
+    const label = workspace ? workspaceLabel(workspace) : tx("Select Workspace");
+    useLayoutEffect(() => {
+        const pending = previous.current;
+        if (!pending || loadingMore || !content.current || (pending.cursor === nextCursor && !pagingError)) return;
+        previous.current = undefined;
+        if (!pending.focused || pagingError) return;
+        if (document.activeElement !== action.current && document.activeElement !== document.body) return;
+        const next = items.find((item) => !pending.ids.has(item.id)) ?? items.at(-1);
+        const row = next && content.current.querySelector<HTMLElement>(`[data-workspace-id="${next.id}"]`);
+        (row || content.current).focus();
+    }, [items, loadingMore, pagingError, nextCursor]);
+    return (
+        <DropdownMenu.Root
+            modal={false}
+            onOpenChange={(open) => {
+                if (!open) previous.current = undefined;
+            }}
+        >
+            <DropdownMenu.Trigger
+                className="vq-workspace-picker"
+                data-workspace-id={workspace?.id ?? ""}
+                aria-label={`${tx("Workspace")}: ${label}`}
+                title={label}
+            >
+                <span>{label}</span>
+                <svg aria-hidden="true" width="16" height="16">
+                    <use href={`${icons}#account-chevron`} />
+                </svg>
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Portal>
+                <DropdownMenu.Content
+                    ref={content}
+                    className="vq-workspace-menu"
+                    align="start"
+                    sideOffset={8}
+                    collisionPadding={8}
+                >
+                    <DropdownMenu.RadioGroup value={workspace?.id ?? ""} onValueChange={choose}>
+                        {items.map((item) => (
+                            <DropdownMenu.RadioItem
+                                key={item.id}
+                                value={item.id}
+                                data-workspace-id={item.id}
+                                className="vq-menu-item"
+                                textValue={workspaceLabel(item)}
+                            >
+                                {workspaceLabel(item)}
+                                <DropdownMenu.ItemIndicator className="vq-workspace-check">
+                                    <svg aria-hidden="true" width="16" height="16">
+                                        <use href={`${icons}#check`} />
+                                    </svg>
+                                </DropdownMenu.ItemIndicator>
+                            </DropdownMenu.RadioItem>
+                        ))}
+                    </DropdownMenu.RadioGroup>
+                    {!items.length && !error && (
+                        <span className="vq-menu-item" role="status">
+                            {tx(loading ? "Loading Workspaces…" : "No Workspaces yet.")}
+                        </span>
+                    )}
+                    {error && (
+                        <DropdownMenu.Item
+                            className="vq-menu-item"
+                            onSelect={(event) => {
+                                event.preventDefault();
+                                retry();
+                            }}
+                        >
+                            {tx("Retry Workspaces")}
+                        </DropdownMenu.Item>
+                    )}
+                    {nextCursor && (
+                        <DropdownMenu.Item
+                            className="vq-menu-item"
+                            ref={action}
+                            aria-disabled={loadingMore}
+                            onSelect={(event) => {
+                                event.preventDefault();
+                                if (loadingMore) return;
+                                previous.current = {
+                                    cursor: nextCursor,
+                                    ids: new Set(items.map((item) => item.id)),
+                                    focused: action.current === document.activeElement,
+                                };
+                                more();
+                            }}
+                        >
+                            {tx(
+                                loadingMore
+                                    ? "Loading Workspaces…"
+                                    : pagingError
+                                      ? "Retry more workspaces"
+                                      : "More Workspaces",
+                            )}
+                        </DropdownMenu.Item>
+                    )}
+                </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+        </DropdownMenu.Root>
+    );
+}
+
+/**
  * 选择与创建都提交给同一个目录，创建失败仍保留当前表单；成功响应提供新实体，不依赖其出现在第一页。
  */
 export function WorkspaceControls() {
-    const { workspace, items, choose, created, hasMore, more, loadingMore } = useWorkspaceDirectory();
+    const { created } = useWorkspaceDirectory();
     const [lifetime] = useState(() => new AbortController());
     const signal = lifetime.signal;
     useEffect(() => () => lifetime.abort(), [lifetime]);
@@ -49,24 +170,10 @@ export function WorkspaceControls() {
     }
     return (
         <>
-            <select
-                className="vq-workspace-picker"
-                aria-label={tx("Workspace")}
-                value={workspace?.id ?? ""}
-                onChange={(event) => choose(event.target.value)}
-            >
-                <option value="" disabled>
-                    {tx("Select Workspace")}
-                </option>
-                {items.map((item) => (
-                    <option key={item.id} value={item.id}>
-                        {item.name}
-                        {item.archived ? ` (${tx("Archived")})` : ""}
-                    </option>
-                ))}
-            </select>
+            <WorkspaceMenu />
             <button
-                className="vq-add-workspace"
+                className="vq-workspace-icon"
+                aria-label={tx("Add workspace")}
                 title={tx("Add workspace")}
                 ref={trigger}
                 type="button"
@@ -76,19 +183,20 @@ export function WorkspaceControls() {
                     setOpen(true);
                 }}
             >
-                <span className="vq-compact-symbol" aria-hidden="true">
-                    ＋
-                </span>
-                <span className="vq-workspace-caption">{tx("Add workspace")}</span>
+                <svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20">
+                    <path d="M10 4v12M4 10h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
             </button>
-            {hasMore && (
-                <button type="button" disabled={loadingMore} onClick={more} title={tx("More Workspaces")}>
-                    <span className="vq-compact-symbol" aria-hidden="true">
-                        ↓
-                    </span>
-                    <span className="vq-workspace-caption">{tx("More Workspaces")}</span>
-                </button>
-            )}
+            <Link
+                className="vq-workspace-icon"
+                to="/workspaces"
+                aria-label={tx("Workspace settings")}
+                title={tx("Workspace settings")}
+            >
+                <svg aria-hidden="true" width="20" height="20">
+                    <use href={`${icons}#settings`} />
+                </svg>
+            </Link>
             <Sheet
                 open={open}
                 title={tx("Add workspace")}

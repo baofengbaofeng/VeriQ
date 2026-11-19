@@ -17,9 +17,6 @@
     min-width: 0;
     gap: 8px;
 }
-.vq-compact-symbol {
-    display: none;
-}
 .vq-header-tools[hidden] {
     display: none;
 }
@@ -64,10 +61,6 @@
         min-width: 0;
         flex-wrap: nowrap;
     }
-    .vq-topbar-workspaces .vq-workspace-picker {
-        min-width: 0;
-        width: clamp(6rem, 18vw, 18rem);
-    }
     .vq-topbar .vq-header-tools {
         justify-content: space-between;
         padding: 16px 20px;
@@ -87,25 +80,8 @@
         flex: 1;
         max-width: 14rem;
     }
-    .vq-topbar-workspaces button {
-        flex: none;
-        min-width: 36px;
-        padding: 5px;
-        margin: 0;
-    }
     .vq-topbar-workspaces .vq-brand {
         flex: none;
-    }
-    .vq-workspace-caption {
-        position: absolute;
-        width: 1px;
-        height: 1px;
-        clip-path: inset(50%);
-        overflow: hidden;
-        white-space: nowrap;
-    }
-    .vq-compact-symbol {
-        display: inline;
     }
 }
 .vq-header-tools {
@@ -159,7 +135,7 @@
 }
 .vq-user-trigger .vq-user-name,
 .vq-menu-identity strong,
-:is(.vq-profile-menu, .vq-language-menu) .vq-menu-item {
+:is(.vq-profile-menu, .vq-language-menu, .vq-workspace-menu) .vq-menu-item {
     font-size: 14px;
     line-height: 20px;
     font-weight: 500;
@@ -181,7 +157,8 @@
 }
 
 .vq-profile-menu,
-.vq-language-menu {
+.vq-language-menu,
+.vq-workspace-menu {
     width: min(260px, calc(100vw - 16px));
     min-width: 0;
     max-height: var(--radix-dropdown-menu-content-available-height);
@@ -212,7 +189,7 @@
     line-height: 18px;
     color: var(--vq-profile-muted);
 }
-:is(.vq-profile-menu, .vq-language-menu) .vq-menu-item {
+:is(.vq-profile-menu, .vq-language-menu, .vq-workspace-menu) .vq-menu-item {
     padding: 10px 12px;
     gap: 12px;
     color: var(--vq-profile-body);
@@ -225,7 +202,7 @@
     height: 24px;
     flex-basis: 24px;
 }
-:is(.vq-profile-menu, .vq-language-menu) .vq-menu-item:is([data-highlighted], [data-state="open"]) {
+:is(.vq-profile-menu, .vq-language-menu, .vq-workspace-menu) .vq-menu-item:is([data-highlighted], [data-state="open"]) {
     background: var(--vq-hover);
 }
 .vq-profile-menu .vq-menu-separator {
@@ -258,7 +235,7 @@
     height: 6px;
     border-radius: 50%;
 }
-.vq-language-menu .vq-menu-item[data-state="checked"] {
+:is(.vq-language-menu, .vq-workspace-menu) .vq-menu-item[data-state="checked"] {
     color: #3641f5;
     background: #ecf3ff;
 }
@@ -289,7 +266,7 @@
 [data-theme="dark"] .vq-header-tools .vq-user-trigger {
     color: #98a2b3;
 }
-[data-theme="dark"] :is(.vq-profile-menu, .vq-language-menu) {
+[data-theme="dark"] :is(.vq-profile-menu, .vq-language-menu, .vq-workspace-menu) {
     background: #1e2635;
 }
 [data-theme="dark"] .vq-profile-menu .vq-sign-out {
@@ -593,10 +570,83 @@
     color: #fedf89;
 }
 
-[data-theme="dark"] .vq-language-menu .vq-menu-item[data-state="checked"] {
+[data-theme="dark"] :is(.vq-language-menu, .vq-workspace-menu) .vq-menu-item[data-state="checked"] {
     color: #9cb9ff;
     background: rgb(70 95 255 / 15%);
 }
 [data-theme="dark"] .vq-language-menu .vq-menu-item[data-state="checked"]::before {
     background: #7592ff;
+}
+
+/*
+ * 工作区切换使用 TailAdmin 的轮廓按钮和浮层行；名称可缩短，图标操作保留原生标题与可访问名称。
+ */
+.vq-topbar-workspaces :is(.vq-workspace-picker, .vq-workspace-icon) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 44px;
+    margin: 0;
+    border: 1px solid #d0d5dd;
+    box-shadow: 0 1px 2px rgb(16 24 40 / 5%);
+    border-radius: 10px;
+    color: var(--vq-profile-body);
+    background: var(--vq-surface);
+}
+.vq-topbar-workspaces .vq-workspace-picker {
+    width: clamp(9rem, 18vw, 18rem);
+    justify-content: space-between;
+    padding: 0 12px;
+    font-size: 14px;
+    font-weight: 500;
+}
+.vq-workspace-picker span {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+.vq-workspace-picker svg {
+    flex: none;
+}
+.vq-workspace-picker[data-state="open"] svg {
+    transform: rotate(180deg);
+}
+.vq-topbar-workspaces .vq-workspace-icon {
+    flex: none;
+    width: 44px;
+    padding: 0;
+}
+.vq-topbar-workspaces :is(.vq-workspace-picker, .vq-workspace-icon):hover,
+.vq-topbar-workspaces .vq-workspace-picker[data-state="open"] {
+    background: var(--vq-hover);
+}
+.vq-workspace-menu {
+    z-index: 50;
+    overflow-wrap: anywhere;
+}
+[data-theme="dark"] .vq-topbar-workspaces :is(.vq-workspace-picker, .vq-workspace-icon) {
+    border-color: var(--vq-border);
+}
+.vq-workspace-check {
+    display: inline-flex;
+    flex: none;
+    margin-inline-start: auto;
+}
+.vq-workspace-menu [role="group"] {
+    max-height: 360px;
+    min-height: 0;
+    overflow-y: auto;
+}
+.vq-workspace-menu > .vq-menu-item {
+    flex-shrink: 0;
+}
+@media (max-width: 560px) {
+    .vq-topbar-workspaces .vq-workspace-picker {
+        width: 0;
+        padding-inline: 8px;
+    }
+    .vq-topbar-workspaces .vq-workspace-icon {
+        width: 36px;
+    }
 }

@@ -1,4 +1,11 @@
-import { chooseLanguage, workspacePicker } from "./support/console-controls";
+import {
+    chooseLanguage,
+    chooseWorkspace,
+    openWorkspaceMenu,
+    selectedWorkspaceId,
+    workspaceOption,
+    workspacePicker,
+} from "./support/console-controls";
 import { test, expect, type Page, type Response } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import type { PlatformComponents } from "@veriq/contracts";
@@ -106,7 +113,7 @@ test("real UI config, paid-call preview, review, genuine compiler, cancel and sc
         catalogId = (await compiler.publish()).id;
         await closeResourceEditor(page);
         await page.getByRole("link", { name: "AI", exact: true }).click();
-        await workspacePicker(page).selectOption(scope.workspaceId);
+        await chooseWorkspace(page, scope.workspaceId);
         await chooseLanguage(page, "en");
         await page.getByLabel("Name").fill("Local HTTP protocol emulator");
         await page.getByLabel("Base URL").fill("http://127.0.0.1:18890/v1");
@@ -192,7 +199,7 @@ test("real UI config, paid-call preview, review, genuine compiler, cancel and sc
         });
         expect(other.status()).toBe(201);
         await page.reload();
-        await workspacePicker(page).selectOption((await other.json()).data.id);
+        await chooseWorkspace(page, (await other.json()).data.id);
         await expect(page.getByText("No providers configured")).toBeVisible();
         await expect(page.getByRole("heading", { name: "Proposed output", level: 3 }).locator("..")).toHaveCount(0);
     } finally {
@@ -252,7 +259,7 @@ test("fix1 existing CASE review increments only its draft and rejects a stale re
         });
         expect(configured.status(), await configured.text()).toBe(201);
         await page.getByRole("link", { name: "AI", exact: true }).click();
-        await workspacePicker(page).selectOption(scope.workspaceId);
+        await chooseWorkspace(page, scope.workspaceId);
         await chooseLanguage(page, "en");
         await page.getByLabel("Existing CASE resource ID (optional)").fill(resourceId);
         await page
@@ -413,11 +420,11 @@ function aiEffectLists(page: Page, workspaceId: string) {
 }
 
 /**
- * 从真实空间分页响应核对新增选项，再用空间选择框旁的加载按钮寻找自有夹具，避免误点同名的提供方或历史分页按钮。
+ * 从真实空间分页响应核对新增选项，再用工作区菜单中的分页操作寻找自有夹具，避免误点同名的提供方或历史分页按钮。
  * 空页、重复记录或游标、列表耗尽及超过百页都明确失败，不改变默认选择或请求页大小。
  */
 async function aiEffectWorkspaces(page: Page, firstPage: Response, workspaceIds: readonly string[]) {
-    const picker = page.getByRole("combobox", { name: "Workspace", exact: true });
+    await openWorkspaceMenu(page);
     const seenIds = new Set<string>();
     const seenCursors = new Set<string>();
     let response = firstPage;
@@ -431,16 +438,17 @@ async function aiEffectWorkspaces(page: Page, firstPage: Response, workspaceIds:
             expect(seenIds.has(item.id), "Workspace pages must not repeat IDs").toBe(false);
             seenIds.add(item.id);
         }
-        await expect(picker.locator(`option[value="${last.id}"]`)).toBeAttached();
+        await expect(workspaceOption(page, last.id)).toBeVisible();
         if (workspaceIds.every((id) => seenIds.has(id))) {
-            for (const id of workspaceIds) await expect(picker.locator(`option[value="${id}"]`)).toBeAttached();
+            for (const id of workspaceIds) await expect(workspaceOption(page, id)).toBeVisible();
+            await page.keyboard.press("Escape");
             return;
         }
         if (!nextCursor) throw new Error("Known AI Workspaces were absent from the complete list");
         if (seenCursors.has(nextCursor)) throw new Error("Workspace pagination repeated a cursor");
         seenCursors.add(nextCursor);
         if (pageNumber === 99) break;
-        const more = page.getByRole("banner").getByRole("button", { name: "More Workspaces", exact: true });
+        const more = page.getByRole("menuitem", { name: "More Workspaces", exact: true });
         await expect(more).toBeEnabled();
         const nextPage = page.waitForResponse((candidate) => {
             const url = new URL(candidate.url());
@@ -483,7 +491,7 @@ test("AI request inputs invalidate reviewed context and preserve manual scope", 
     });
     await page.getByRole("link", { name: "AI", exact: true }).click();
     const [firstProviders] = await initial;
-    await expect(workspacePicker(page)).toHaveValue(firstWorkspaceId);
+    await expect(workspacePicker(page)).toHaveAttribute("data-workspace-id", firstWorkspaceId);
     if (firstProviders?.length) {
         await expect(page.getByLabel("Provider")).toHaveValue(aiEffectItem(firstProviders).id);
     } else {
@@ -499,7 +507,7 @@ test("AI request inputs invalidate reviewed context and preserve manual scope", 
     let alphaProviders = firstProviders;
     if (firstWorkspaceId !== scope.alpha) {
         const alphaLists = aiEffectLists(page, scope.alpha);
-        await workspacePicker(page).selectOption(scope.alpha);
+        await chooseWorkspace(page, scope.alpha);
         [alphaProviders] = await alphaLists;
     }
     const knownAlpha = ownProviders.get(scope.alpha);
@@ -512,7 +520,7 @@ test("AI request inputs invalidate reviewed context and preserve manual scope", 
     );
     const manualWorkspace = scope.beta;
     const switched = aiEffectLists(page, manualWorkspace);
-    await workspacePicker(page).selectOption(manualWorkspace);
+    await chooseWorkspace(page, manualWorkspace);
     const [providers] = await switched;
     const providerRows = (await (await page.request.get(`/api/v1/workspaces/${manualWorkspace}/ai/providers`)).json())
         .data.items as PlatformComponents["schemas"]["ProviderDTO"][];
@@ -532,13 +540,13 @@ test("AI request inputs invalidate reviewed context and preserve manual scope", 
     await page.getByRole("button", { name: "Refresh" }).click();
     expect((await refreshed).status()).toBe(200);
     await expect(page.getByLabel("Provider")).toHaveValue(selected.id);
-    await expect(workspacePicker(page)).toHaveValue(manualWorkspace);
+    await expect(workspacePicker(page)).toHaveAttribute("data-workspace-id", manualWorkspace);
     await page.getByRole("link", { name: "Resources", exact: true }).click();
-    await expect(workspacePicker(page)).toHaveValue(manualWorkspace);
+    await expect(workspacePicker(page)).toHaveAttribute("data-workspace-id", manualWorkspace);
     const returned = aiEffectLists(page, manualWorkspace);
     await page.getByRole("link", { name: "AI", exact: true }).click();
     await returned;
-    await expect(workspacePicker(page)).toHaveValue(manualWorkspace);
+    await expect(workspacePicker(page)).toHaveAttribute("data-workspace-id", manualWorkspace);
     await page.getByLabel("Provider").selectOption(selected.id);
     await page.getByLabel("Requirement / expected-result basis").fill("REQ-EFFECTS: reject empty passwords.");
     const priorCalls = calls;
@@ -677,9 +685,9 @@ test("AI generation completion stays in its owning workspace", async ({ page }) 
     });
     await page.getByRole("link", { name: "AI", exact: true }).click();
     await aiEffectWorkspaces(page, await firstPage, [scope.alpha, scope.beta]);
-    if ((await workspacePicker(page).inputValue()) !== scope.alpha) {
+    if ((await selectedWorkspaceId(page)) !== scope.alpha) {
         const alphaLists = aiEffectLists(page, scope.alpha);
-        await workspacePicker(page).selectOption(scope.alpha);
+        await chooseWorkspace(page, scope.alpha);
         await alphaLists;
     }
     await expect(page.getByLabel("Provider")).toHaveValue(provider.id);
@@ -695,7 +703,7 @@ test("AI generation completion stays in its owning workspace", async ({ page }) 
         await expect.poll(() => calls).toBe(priorCalls + 1);
         await expect.poll(() => typeof release).toBe("function");
         const betaLists = aiEffectLists(page, scope.beta);
-        await workspacePicker(page).selectOption(scope.beta);
+        await chooseWorkspace(page, scope.beta);
         expect(await betaLists).toEqual([[], [], []]);
         await expect(page.getByText("No providers configured")).toBeVisible();
         release?.();
@@ -715,7 +723,7 @@ test("AI generation completion stays in its owning workspace", async ({ page }) 
             status: "SUCCEEDED",
             purpose: "BOUNDARY_SUGGESTION",
         });
-        await expect(workspacePicker(page)).toHaveValue(scope.beta);
+        await expect(workspacePicker(page)).toHaveAttribute("data-workspace-id", scope.beta);
         await expect(page.getByLabel("Provider")).toHaveValue("");
         await expect(page.getByLabel("Requirement / expected-result basis")).toHaveValue("");
         await expect(page.getByRole("heading", { name: "Exact sanitized context" }).locator("..")).toHaveCount(0);

@@ -6,7 +6,7 @@
 
 import { tx, useAppLocale } from "../../locale";
 import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError, type Member, type Workspace } from "../../api";
 import { Auth } from "../../auth-context";
@@ -450,9 +450,11 @@ export function AcceptInvitation({
             ) : accepted ? (
                 <InvitationStatus>
                     {tx("Invitation accepted.")}{" "}
-                    {user
-                        ? tx("Open Workspaces to view your membership.")
-                        : tx("Sign in with your account to open the Workspace.")}
+                    {user ? (
+                        <Link to="/workspaces">{tx("Open workspace settings to view your membership.")}</Link>
+                    ) : (
+                        tx("Sign in with your account to open the Workspace.")
+                    )}
                 </InvitationStatus>
             ) : (
                 <>

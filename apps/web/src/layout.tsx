@@ -43,7 +43,6 @@ const authoring: MenuGroup = {
     icon: "design",
     label: "测试设计",
     items: [
-        { path: "/workspaces", label: "Workspaces" },
         { path: "/resources", label: "Resources" },
         { path: "/environments", label: "Environments" },
         { path: "/ai", label: "AI" },

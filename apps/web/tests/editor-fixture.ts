@@ -1,6 +1,7 @@
 /**
  * 这些测试辅助通过真实的编辑器界面和控制接口准备数据，并启动 Runtime CLI 处理验证，回执由正式执行链产生。
  */
+import { chooseWorkspace } from "./support/console-controls";
 import { spawn } from "node:child_process";
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
@@ -29,7 +30,7 @@ export async function editorScope(page: Page, key: string): Promise<EditorScope>
     expect(response.status(), await response.text()).toBe(201);
     const workspaceId = (await response.json()).data.id;
     await page.goto("/resources");
-    await page.getByLabel("Workspace").selectOption(workspaceId);
+    await chooseWorkspace(page, workspaceId);
     return { workspaceId, key, headers };
 }
 export async function createResource(page: Page, kind: ResourceKind, key: string): Promise<S["ResourceDTO"]> {

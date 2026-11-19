@@ -1,3 +1,4 @@
+import { chooseWorkspace, openWorkspaceMenu, workspaceOption, workspacePicker } from "./support/console-controls";
 import { promisify } from "node:util";
 import { execFile, spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
@@ -168,7 +169,7 @@ test("resource forms save a canonical case and publish only after real Agent val
             };
             await page.goto("/resources");
             await expect(page.getByRole("heading", { name: "Resources", exact: true })).toBeVisible();
-            await page.getByLabel("Workspace").selectOption(workspace.id);
+            await chooseWorkspace(page, workspace.id);
             await expect(page.getByText("No resources in this Workspace.")).toBeVisible();
             await page.getByRole("button", { name: "New resource", exact: true }).click();
             await resourceCreateForm(page)
@@ -260,7 +261,7 @@ test("resource forms save a canonical case and publish only after real Agent val
 test("environment manager creates immutable auth and credential versions without echoing secrets", async ({ page }) => {
     const alpha = await editorScope(page, `identity-immutable-${randomUUID()}`);
     await page.goto("/environments");
-    await page.getByLabel("Workspace").selectOption(alpha.workspaceId);
+    await chooseWorkspace(page, alpha.workspaceId);
     await expect(
         page.getByRole("heading", { name: "Environment identities and credentials" }).locator(".."),
     ).toBeVisible();
@@ -312,8 +313,8 @@ test("identity manager retains scope across rerenders and late credential respon
     expect(betaResponse.status()).toBe(201);
     const betaId: string = (await betaResponse.json()).data.id;
     await page.goto("/environments");
-    const selector = page.getByLabel("Workspace");
-    await selector.selectOption(alpha.workspaceId);
+    const selector = workspacePicker(page);
+    await chooseWorkspace(page, alpha.workspaceId);
     const manager = page.getByRole("heading", { name: "Environment identities and credentials" }).locator("..");
     await expect(manager).toBeVisible();
     const secretRef = "identity_late";
@@ -365,7 +366,7 @@ test("identity manager retains scope across rerenders and late credential respon
         });
         await page.getByRole("button", { name: "Save credential version" }).click();
         versionId = await backendCommitted;
-        await selector.selectOption(betaId);
+        await chooseWorkspace(page, betaId);
         expect((await aborted).failure()?.errorText).toContain("ERR_ABORTED");
     } finally {
         release();
@@ -375,7 +376,7 @@ test("identity manager retains scope across rerenders and late credential respon
             await page.unroute(matches);
         }
     }
-    await expect(selector).toHaveValue(betaId);
+    await expect(selector).toHaveAttribute("data-workspace-id", betaId);
     await expect(page.getByRole("heading", { name: "Credential versions" }).locator("..")).not.toContainText(secretRef);
     await expect(manager).not.toContainText(versionId);
     await expect(manager).not.toContainText("Credential saved:");
@@ -384,7 +385,7 @@ test("identity manager retains scope across rerenders and late credential respon
     await expect(page.getByLabel("Allowed identities")).toHaveValue("");
     await expect(page.getByLabel("Bearer token")).toHaveValue("");
     await expect(page.getByRole("button", { name: "Save credential version" })).toBeEnabled();
-    await selector.selectOption(alpha.workspaceId);
+    await chooseWorkspace(page, alpha.workspaceId);
     await expect(page.getByRole("heading", { name: "Credential versions" }).locator("..")).toContainText(secretRef);
     await expect(page.getByRole("heading", { name: "Credential versions" }).locator("..")).toContainText(versionId);
     await expect(page.getByRole("heading", { name: "Credential versions" }).locator("..")).toContainText(
@@ -415,7 +416,7 @@ test("all eight kinds expose usable typed controls and preserve literal business
     expect(workspaceResponse.status()).toBe(201);
     const workspace = (await workspaceResponse.json()).data;
     await page.goto("/resources");
-    await page.getByLabel("Workspace").selectOption(workspace.id);
+    await chooseWorkspace(page, workspace.id);
     const kinds = [
         "CASE",
         "ELEMENT_CATALOG",
@@ -613,7 +614,7 @@ test("JSON Apply is lossless, blocks unapplied writes, and revision recovery ret
     expect(ownWorkspaceResponse.status()).toBe(201);
     const ownWorkspace = (await ownWorkspaceResponse.json()).data;
     await page.goto("/resources");
-    await page.getByLabel("Workspace").selectOption(ownWorkspace.id);
+    await chooseWorkspace(page, ownWorkspace.id);
     await page.getByRole("button", { name: "New resource", exact: true }).click();
     await resourceCreateForm(page).getByRole("combobox", { name: "Kind", exact: true }).selectOption("ELEMENT_CATALOG");
     await resourceCreateForm(page).getByLabel("Key", { exact: true }).fill("conflict_catalog");
@@ -714,17 +715,16 @@ test("JSON Apply is lossless, blocks unapplied writes, and revision recovery ret
     expect(second.status()).toBe(201);
     await page.goto("/resources");
     const secondWorkspace = (await second.json()).data;
-    await expect(page.getByLabel("Workspace").locator(`option[value="${secondWorkspace.id}"]`)).toHaveText(
-        "Editor isolation",
-    );
-    await page.getByLabel("Workspace").selectOption(ownWorkspace.id);
+    await openWorkspaceMenu(page);
+    await expect(workspaceOption(page, secondWorkspace.id)).toHaveText("Editor isolation");
+    await chooseWorkspace(page, ownWorkspace.id);
     await page.getByRole("button", { name: "Conflict catalog" }).click();
     await page.getByRole("button", { name: "JSON source" }).click();
     await replaceJson("{ invalid");
     await page.getByRole("button", { name: "Apply JSON" }).click();
     await expect(resourceError).toBeVisible();
     await closeResourceEditor(page);
-    await page.getByLabel("Workspace").selectOption(secondWorkspace.id);
+    await chooseWorkspace(page, secondWorkspace.id);
     await expect(page.getByRole("article")).toHaveCount(0);
     await expect(page.getByText("Unapplied JSON changes")).toHaveCount(0);
     await expect(page.getByText("No resources in this Workspace.")).toBeVisible();
@@ -747,7 +747,7 @@ test("fixture binding picker exposes declared initial variables without future o
     expect(response.status()).toBe(201);
     const workspace = (await response.json()).data;
     await page.goto("/resources");
-    await page.getByLabel("Workspace").selectOption(workspace.id);
+    await chooseWorkspace(page, workspace.id);
     await page.getByRole("button", { name: "New resource", exact: true }).click();
     await resourceCreateForm(page).getByRole("combobox", { name: "Kind", exact: true }).selectOption("CASE");
     await resourceCreateForm(page).getByLabel("Key", { exact: true }).fill("bindings");
@@ -1310,7 +1310,7 @@ test("copy dataset opens an independent target draft", async ({ page }) => {
     await expect(page.getByRole("button", { name: "Copy dataset" })).toBeVisible();
     const version = await publishWriterDataset(page, scope);
     await page.reload();
-    await page.getByRole("combobox", { name: "Workspace", exact: true }).selectOption(targetId);
+    await chooseWorkspace(page, targetId);
     await page.getByRole("button", { name: "Copy dataset" }).click();
     const dialog = page.getByRole("dialog", { name: "Copy dataset" });
     await dialog.getByLabel("Source workspace").selectOption(scope.workspaceId);
@@ -1373,11 +1373,10 @@ test("copy dataset respects viewer and editor roles in the shared dialog", async
         }
         const view = await member.newPage();
         await view.goto("/resources");
-        const select = view.getByRole("combobox", { name: "Workspace", exact: true });
-        await select.selectOption(sourceId);
+        await chooseWorkspace(view, sourceId);
         await expect(view.getByRole("button", { name: "New resource", exact: true })).toBeDisabled();
         await expect(view.getByRole("button", { name: "Copy dataset" })).toHaveCount(0);
-        await select.selectOption(target.workspaceId);
+        await chooseWorkspace(view, target.workspaceId);
         const loaded = view.waitForResponse((r) => new URL(r.url()).pathname === "/api/v1/workspaces");
         await view.getByRole("button", { name: "Copy dataset" }).click();
         // 首次打开会读取当前会话的成员关系。这里检查实际查询完成后的候选列表，防止空加载状态伪装成正确过滤。
@@ -1541,7 +1540,7 @@ test("pages sparse static dataset rows and fields", async ({ page }) => {
     });
     expect(created.status(), await created.text()).toBe(201);
     await page.reload();
-    await page.getByLabel("Workspace").selectOption(scope.workspaceId);
+    await chooseWorkspace(page, scope.workspaceId);
     await page.getByRole("button", { name: "sparse", exact: true }).click();
     await expect(page.getByRole("article").getByRole("heading", { name: "sparse · DATASET" })).toBeVisible();
     const article = page.getByRole("article");
@@ -1586,7 +1585,7 @@ test("deletes the selected physical line break in a static dataset", async ({ pa
     });
     expect(created.status(), await created.text()).toBe(201);
     await page.reload();
-    await page.getByLabel("Workspace").selectOption(scope.workspaceId);
+    await chooseWorkspace(page, scope.workspaceId);
     await page.getByRole("button", { name: "text_rows", exact: true }).click();
     await page.getByRole("combobox", { name: "Import format" }).selectOption("JSON");
     await page.getByLabel("Import text").fill(JSON.stringify(rows));
@@ -1618,7 +1617,7 @@ test("writes named dataset queries without changing the expected provenance", as
     const scope = await editorScope(page, "named-queries");
     const version = await publishWriterDataset(page, scope);
     await page.reload();
-    await page.getByRole("combobox", { name: "Workspace", exact: true }).selectOption(scope.workspaceId);
+    await chooseWorkspace(page, scope.workspaceId);
     await createResource(page, "CASE", "named-case");
     await expect(page.getByLabel("New dataset alias")).toBeVisible();
     await applyDocument(page, {
@@ -1785,16 +1784,16 @@ test("edits and previews HTTP datasets", async ({ page }) => {
     expect(copy.status(), await copy.text()).toBe(201);
     await closeResourceEditor(page);
     await page.reload();
-    await page.getByLabel("Workspace").selectOption(target);
+    await chooseWorkspace(page, target);
     await page.getByRole("button", { name: "copy", exact: true }).click();
     await expect(editor.getByLabel("Connection version", { exact: true })).toHaveValue("");
     await expect(editor.getByLabel("Credential version")).toHaveValue("");
     await expect(editor.getByLabel("Query value").nth(0)).toHaveValue("first");
     await closeResourceEditor(page);
-    await page.getByLabel("Workspace").selectOption(scope.workspaceId);
+    await chooseWorkspace(page, scope.workspaceId);
     const local = await publishWriterDataset(page, scope);
     await page.reload();
-    await page.getByLabel("Workspace").selectOption(scope.workspaceId);
+    await chooseWorkspace(page, scope.workspaceId);
     await createResource(page, "CASE", "http-source-arguments");
     const remoteId = (await pub.json()).data.id;
     await applyDocument(page, {
