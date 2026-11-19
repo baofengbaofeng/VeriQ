@@ -556,6 +556,18 @@
 /*
  * 工作区切换使用 TailAdmin 的轮廓按钮和浮层行；名称可缩短，图标操作保留原生标题与可访问名称。
  */
+.vq-workspace-caption {
+    flex: none;
+    color: var(--vq-profile-muted);
+    font-size: 12px;
+    white-space: nowrap;
+}
+.vq-workspace-divider {
+    flex: none;
+    width: 1px;
+    height: 20px;
+    background: var(--vq-border);
+}
 .vq-topbar-workspaces :is(.vq-workspace-picker, .vq-workspace-icon) {
     display: inline-flex;
     align-items: center;
@@ -627,7 +639,7 @@
 }
 @media (max-width: 560px) {
     .vq-topbar-workspaces .vq-workspace-picker {
-        width: clamp(7rem, 40vw, 11rem);
+        width: clamp(7rem, 30vw, 11rem);
     }
 }
 

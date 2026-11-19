@@ -332,7 +332,7 @@ function UserMenu({ onLogout }: { onLogout: () => void }) {
  * 品牌图标独立居左，工作区、主题与账户操作依次排在右侧；窄屏通过同一个展开按钮访问工具区。
  */
 function TopBar({ onLogout }: { onLogout: () => void }) {
-    useAppLocale();
+    const { language } = useAppLocale();
     const { user } = useContext(Auth);
     const [breakpoint] = useState(() => window.matchMedia("(max-width: 1279.98px)"));
     const [compact, setCompact] = useState(breakpoint.matches);
@@ -386,7 +386,11 @@ function TopBar({ onLogout }: { onLogout: () => void }) {
             <div className="vq-header-tools" id={toolsId} ref={actions} hidden={!toolsVisible}>
                 {user && (
                     <div className="vq-topbar-workspaces">
+                        <span className="vq-workspace-caption">
+                            {tx(language === "zh" ? "Current Workspace" : "Workspace")}
+                        </span>
                         <WorkspaceControls visible={toolsVisible} />
+                        <span className="vq-workspace-divider" aria-hidden="true" />
                     </div>
                 )}
                 {toolsVisible && (
