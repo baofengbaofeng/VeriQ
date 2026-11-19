@@ -427,11 +427,17 @@ test("TailAdmin profile dimensions and theme persist through real navigation", a
     await expect(menu).toHaveCSS("border-radius", "12px");
     await expect(menu).toHaveCSS("padding", "8px");
     for (const action of await menu.getByRole("menuitem").all()) {
-        await expect(action).toHaveCSS("font-size", "13px");
+        await expect(action).toHaveCSS("font-size", "12px");
         await expect(action).toHaveCSS("height", "32px");
     }
     await expect(menu).toHaveCSS("background-color", "rgb(30, 38, 53)");
-    await expect(menu.getByText("browser-admin@example.com")).toBeVisible();
+    const name = menu.getByText("Browser Administrator", { exact: true });
+    await expect(name).toHaveCSS("font-size", "12px");
+    await expect(name).toHaveCSS("line-height", "16px");
+    const email = menu.getByText("browser-admin@example.com");
+    await expect(email).toBeVisible();
+    await expect(email).toHaveCSS("font-size", "11px");
+    await expect(email).toHaveCSS("line-height", "16px");
     const logout = menu.getByRole("menuitem", { name: "Sign out" });
     await logout.hover();
     await expect(logout).toHaveCSS("color", "rgb(253, 162, 155)");
@@ -536,12 +542,13 @@ test("TailAdmin banner sizes and nested language choices preserve the resource d
     await user.press("Enter");
     const language = page.getByRole("menuitem", { name: /Language/ });
     await expect(language).toContainText("EN");
+    await expect(language.locator(".vq-locale-badge")).toHaveCSS("font-size", "11px");
     await expect(language.locator(".vq-locale-badge svg")).toHaveCSS("width", "12px");
     await language.press("ArrowRight");
     const english = page.getByRole("menuitemradio", { name: "English", exact: true });
     await expect(english).toBeChecked();
     await expect(english).toHaveCSS("height", "32px");
-    await expect(english).toHaveCSS("font-size", "13px");
+    await expect(english).toHaveCSS("font-size", "12px");
     await expect(english.locator("svg")).toHaveCSS("width", "16px");
     const submenu = english.locator('xpath=ancestor::*[@role="menu"][1]');
     await expect(submenu).toHaveCSS("width", "168px");
@@ -645,7 +652,8 @@ test("Workspace toolbar browses paginated members and opens workspace settings",
     await expect(more).toBeHidden();
     const option = menu.getByRole("menuitemradio", { name: "Menu workspace 0", exact: true });
     await expect(option).toHaveCSS("height", "32px");
-    await expect(option).toHaveCSS("font-size", "13px");
+    await expect(option).toHaveCSS("font-size", "12px");
+    await expect(option).toHaveCSS("line-height", "16px");
     const last = menu.getByRole("menuitemradio").last();
     const id = await last.getAttribute("data-workspace-id");
     expect(id).toBeTruthy();
