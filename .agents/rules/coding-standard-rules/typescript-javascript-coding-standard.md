@@ -67,37 +67,36 @@ const output = "\ufeff" + content;  // 这里的转义是字节顺序标记。�
 | --- | --- | --- |
 | 模块 | `import * as foo from "...";` | TypeScript 导入 |
 | 具名 | `import {SomeThing} from "...";` | TypeScript 导入 |
-| 默认 | `import SomeThing from "...";` | 仅用于其他要求默认导入的外部代码 |
+| 默认 | `import SomeThing from "...";` | 用于外部模块或工具接口提供的默认导出 |
 | 副作用 | `import "...";` | 仅用于导入加载时产生副作用的库（例如自定义元素） |
 
 ```
-// 正例在命名空间导入和具名导入之间按使用频率选择，而不是两种写法混在同一段依赖里。
-import * as ng from "@angular/core";
-import {Foo} from "./foo";
+// 需要调用文件系统模块的多个方法时保留模块名，读取同包解析器时直接导入此处使用的单个函数。
+import * as fs from "node:fs/promises";
+import { parse } from "./parse.js";
 
-// 只有外部模块强制要求默认导入时才用默认导入，本仓库自己的模块一律用具名导出，本例就是这样。
-import Button from "Button";
+// 工具配置入口需要默认导出，测试复用同一份配置时按默认导入读取，避免再维护一份配置副本。
+import config from "./tool.config.js";
 
 // 这些导入是为了加载时的副作用，例如注册自定义元素，不是为了使用它们导出的符号，本例就是这样。
-import "jasmine";
-import "@polymer/paper-button";
+import "./register_elements.js";
 ```
 
 
-TypeScript 代码必须使用路径导入其他 TypeScript 代码。路径允许相对（以 `.` 或 `..` 开头），也允许根植于基目录（例如 `root/path/to/file`）。引用同一逻辑项目内的文件时，必须使用相对导入（`./foo`），禁止绝对导入 `path/to/foo`。必须限制父级步数（`../../../`）。
+同包导入使用相对路径，并按所属 `tsconfig` 的模块解析方式书写。NodeNext ESM 的相对路径必须带扩展名。输出供 Node 加载时使用实际产物扩展名，例如 `.js`；由 TypeScript 直接加载、且项目配置允许时可以使用 `.ts`。Web 的 Bundler 解析允许省略扩展名。跨包依赖使用公开的包名及其声明的子路径。
 
 ```
-import {Symbol1} from "path/from/root";
-import {Symbol2} from "../parent/file";
-import {Symbol3} from "./sibling";
+import { validateSchema } from "@veriq/contracts";
+import { normalize } from "../parent/normalize.js";
+import { parse } from "./parse.js";
 ```
 
 
-命名空间导入和具名导入都允许。文件中频繁使用的符号，或名字清楚的符号（例如 Jasmine 的 `describe` 和 `it`），必须使用具名导入。需要时必须用 `as` 改成更清楚的名字。从大型 API 使用许多不同符号时，必须使用命名空间导入。对 `Model` 或 `Controller` 这类常见名字，必须使用命名空间导入，禁止在导入行里排列一长串别名。
+命名空间导入和具名导入都允许。对名称清楚的常用符号（例如 Vitest 的 `describe` 和 `it`）使用具名导入，必要时用 `as` 明确含义。大量使用同一 API，或需要区分 `Model`、`Controller` 等常见名称时，使用命名空间导入。
 
 ```
 // 正例直接具名导入 describe、it 和 expect，调用点不再重复模块名。
-import {describe, it, expect} from "./testing";
+import { describe, expect, it } from "vitest";
 
 describe("foo", () => {
     it("bar", () => {
@@ -116,21 +115,11 @@ let item: tableview.Item|undefined;
 ```
 
 
-Apps JSPB proto 必须使用具名导入，即使导入行很长。
-
-```
-// 从 proto 文件只导入这次用到的消息，构建才能按消息裁剪，而不是把整份 proto 拉进来。
-import {Foo, Bar} from "./foo.proto";
-
-function copyFooBar(foo: Foo, bar: Bar) {...}
-```
-
-
 名字冲突必须通过命名空间导入或重命名导出本身解决。需要时允许 `import {SomeThing as SomeOtherThing}`。必须重命名的情况是：避免与其他导入符号冲突、导入的符号名是生成的、导入的符号本身名字不清楚（例如把 RxJS 的 `from` 重命名为 `observableFrom`）。
 
 ### 导出
 
-所有代码必须使用具名导出。禁止默认导出。必须用文件作用域做命名空间，禁止把常量和辅助函数塞进类里以便一起导出。
+手写模块 API 使用具名导出。Vite、Playwright 等工具的配置或加载接口要求默认导出时，入口可以使用默认导出。使用文件作用域组织模块成员，禁止把常量和辅助函数塞进类里以便一起导出。
 
 ```
 export const SOME_CONSTANT = ...
@@ -262,7 +251,7 @@ let [, b,, d] = someArray;
 
 ```
 for (const x in someObj) {
-    if (!someObj.hasOwnProperty(x)) continue;
+    if (!Object.hasOwn(someObj, x)) continue;
     // 过滤掉原型链上的键之后，循环变量才确定是 someObj 自己的属性，而不是继承来的名字。
 }
 // 这里是 for-of，不是 for-in，遍历的是键的列表而不是对象的枚举协议。
@@ -411,18 +400,18 @@ class Foo {
 
 不影响可读性时，必须使用模块局部函数，禁止私有静态方法。
 
-禁止依赖静态方法的动态分派。静态方法只允许在定义它的基类本身上调用。禁止在可能是构造函数或子类构造函数的变量上调用静态方法，除非该方法用 `@nocollapse` 定义。禁止在自己没有定义该方法的子类上调用。静态上下文中禁止使用 `this`。
+静态方法通过声明该方法的类调用。只有外部接口明确约定静态多态时，才通过构造器变量或子类进行调用。
 
-构造函数调用必须使用圆括号，即使不传递参数。禁止空构造函数，也禁止只委托给父类的构造函数。带参数属性、可见性修饰符或参数装饰器的构造函数即使函数体为空也必须保留。用于禁止实例化的私有构造函数必须保留。构造函数上下都必须与周围代码用一个空行隔开。
+构造函数调用必须使用圆括号，即使不传递参数。禁止空构造函数，也禁止只委托给父类的构造函数。带参数属性或可见性修饰符的构造函数即使函数体为空也必须保留。用于禁止实例化的私有构造函数必须保留。构造函数上下都必须与周围代码用一个空行隔开。
 
 ```
 class Foo {
     myField = 10;
 
-    constructor(private readonly ctorParam) {}
+    constructor(private readonly ctorParam: { getThing(): number }) {}
 
     doThing() {
-        console.log(ctorParam.getThing() + myField);
+        console.log(this.ctorParam.getThing() + this.myField);
     }
 }
 ```
@@ -433,11 +422,7 @@ class DefaultConstructor {
 }
 
 class ParameterProperties {
-    constructor(private myService) {}
-}
-
-class ParameterDecorators {
-    constructor(@SideEffectDecorator myService) {}
+    constructor(private myService: Service) {}
 }
 
 class NoInstantiation {
@@ -493,7 +478,7 @@ class Foo {
 ```
 
 
-从其包含类的词法作用域之外使用的属性，禁止使用 `private`。例外：只从模板使用的 Angular 组件属性允许 `private`。其余必须使用合适的 `protected` 或 `public`。禁止用 `obj["foo"]` 绕过可见性。
+从包含类的词法作用域之外使用的属性，应按实际调用边界使用 `protected` 或 `public`。禁止用 `obj["foo"]` 绕过可见性。
 
 允许读取器和设置器。读取器必须是纯函数：结果一致，禁止改变可观察状态。被隐藏的属性必须用完整单词作前缀或后缀，例如 `internal` 或 `wrapped`。使用这些私有属性时必须通过访问器取值。一个属性至少要有一个并非平凡的访问器。禁止只为了隐藏属性而定义直通访问器；必须把属性公开，或做成 `readonly`。禁止用 `Object.defineProperty` 定义读取器和设置器。
 
@@ -540,7 +525,7 @@ class Foo {
 ```
 
 
-禁止直接操作 `prototype`。禁止混入，以及修改内置对象的原型。例外：框架代码（例如 Polymer 或 Angular）需要使用 `prototype` 时允许，禁止为了避免这样做而采取更糟的变通办法。
+禁止直接操作 `prototype` 或修改内置对象的原型，优先使用组合或正常继承。确需对接外部框架协议时，须明确接口要求并限定影响范围，内置对象原型仍不得修改。
 
 ### 函数
 
@@ -613,12 +598,12 @@ myPromise.then((v) => void console.log(v));
 ```
 
 
-函数表达式和函数声明禁止使用 `this`，除非它们专门用来重新绑定 `this`。必须使用箭头函数或显式参数。禁止 `f.bind(this)`、`goog.bind(f, this)` 和 `const self = this`。
+函数需要使用外层接收者时，使用捕获 `this` 的箭头函数或显式参数。对接明确传入动态接收者的外部 API 时，可使用显式 `this` 类型。
 
 ```
 // 正例用箭头函数直接写 document.body，不依赖调用时绑定的 this。
 document.body.onclick = () => { document.body.textContent = "hello"; };
-// 也可以把目标元素当成显式参数，再用 bind 传入 body，调用点能看见 this 被固定成谁。
+// 这里的箭头函数接收显式 DOM 参数，bind 固定的是第一个参数，调用时无须读取动态接收者。
 const setTextFn = (e: HTMLElement) => { e.textContent = "hello"; };
 document.body.onclick = setTextFn.bind(null, document.body);
 ```
@@ -628,7 +613,7 @@ document.body.onclick = setTextFn.bind(null, document.body);
 
 ```
 // 正例用箭头函数只把数值传进格式化函数，数组下标不会再占据那个可选的小数位参数，本例就是这样。
-const strs = [1.23, 4.56, 7.89].map((n) => googFormat.numericValueToString(n));
+const strs = [1.23, 4.56, 7.89].map((n) => formatNumber(n));
 // 正例保留原来的小数，因为格式化函数只收到数值，没有收到 map 附带的数组下标。
 
 // 这个局部函数的参数就是回调会收到的元素，可以安全地直接交给 filter，不必再包一层。
@@ -661,29 +646,42 @@ class DelayHandler {
 不需要卸载处理函数时，事件处理函数必须使用箭头函数。需要卸载时，必须使用属性箭头函数，以捕获 `this` 并提供稳定引用。禁止在安装事件处理函数的表达式里使用 `bind`。
 
 ```
-// 事件处理函数可以是调用点的箭头函数，也可以是为了稍后移除而保存下来的属性箭头，本例就是这样。
-class Component {
+/**
+ * 组件在监听期间将自身的点击标为待保存，并在退出页面时阻止默认行为，卸载时会解除两处监听。
+ */
+class Component extends EventTarget {
+    /**
+     * 绑定自身的点击和窗口退出处理器，每个事件保留固定引用，重复绑定同一实例不会增加监听数量。
+     */
     onAttached() {
-        // 这个点击事件由组件自己发出，组件销毁时监听会一起消失，不必再单独调用移除函数，本例就是这样。
-        this.addEventListener("click", () => {
-            this.listener();
-        });
-        // listener 是稳定的函数引用，之后可以用同一个引用从 window 上摘掉监听。
-        window.addEventListener("onbeforeunload", this.listener);
+        this.addEventListener("click", this.listener);
+        window.addEventListener("beforeunload", this.beforeUnload);
     }
+
+    /**
+     * 使用绑定时的两个函数引用移除监听，让组件可以停止跟踪点击，也避免窗口继续持有已卸载的组件。
+     */
     onDetached() {
-        // 事件来自 window。不移除的话，已绑定的 listener 会一直抓住组件实例，组件无法被回收。
-        window.removeEventListener("onbeforeunload", this.listener);
+        this.removeEventListener("click", this.listener);
+        window.removeEventListener("beforeunload", this.beforeUnload);
     }
-    // 存在属性里的箭头函数在初始化时就绑定了 this，所以同一个属性引用可以用来添加和移除监听。
-    private listener = () => {
-        confirm("Do you want to exit the page?");
-    }
+
+    private readonly listener = () => {
+        this.hasUnsavedChanges = true;
+    };
+
+    private hasUnsavedChanges = false;
+
+    private readonly beforeUnload = (event: BeforeUnloadEvent) => {
+        if (this.hasUnsavedChanges) {
+            event.preventDefault();
+        }
+    };
 }
 ```
 
 
-可选函数参数允许默认初始化器。初始化器禁止任何可观察的副作用，并且必须保持简单。禁止把可变对象或会改变外部状态的表达式当作默认值。必须少用默认参数。有不止一小撮没有自然顺序的可选参数时，必须用解构。
+可选参数允许使用简单且无外部副作用的默认初始化器。禁止复用共享可变对象作默认值；`[]` 或 `{}` 会在每次使用默认值时重新创建。多个无自然顺序的可选参数使用对象解构。
 
 ```
 function process(name: string, extraContext: string[] = []) {}
@@ -698,7 +696,7 @@ function variadic(array: string[], ...numbers: number[]) {}
 ```
 
 
-函数体的开头和结尾禁止空行。函数体内允许少量使用一个空行来形成逻辑分组。生成器必须把 `*` 贴在 `function` 和 `yield` 上，即 `function* foo()` 和 `yield* iter`。单参数箭头函数左侧的圆括号不是强制格式。剩余参数或展开语法中的 `...` 后面禁止空格。
+函数体的开头和结尾禁止空行。函数体内允许少量使用一个空行来形成逻辑分组。生成器使用 `function* foo()` 和 `yield* iter`。按 Prettier 的 `arrowParens: "always"` 给单参数箭头函数加圆括号。剩余参数或展开语法中的 `...` 后面禁止空格。
 
 ```
 function myFunction(...elements: number[]) {}
@@ -716,7 +714,7 @@ myFunction(...array, ...iterable, ...generator());
 
 普通字符串字面量必须用双引号（`"`）界定，与 Prettier 的 `singleQuote: false` 一致。字符串包含双引号字符时，允许用单引号界定，以避免转义该引号。
 
-禁止在普通字符串字面量或模板字符串字面量中使用续行（在字面量内部用反斜杠结束一行）。必须改成拼接。拆开会妨碍搜索时，允许使用一条很长的字符串。
+禁止在普通字符串字面量或模板字符串字面量中使用反斜杠续行。需要断行时可使用拼接，保持运行时字符串内容，并遵守[显示列宽硬上限](../coding-standard.md#11-显示列宽的统一计算)。
 
 ```
 const LONG_STRING = "This is a very very very very very very long string. " +
@@ -839,7 +837,7 @@ while ((x = someFunction())) {
 ```
 
 
-必须用 `for (... of someArr)` 迭代数组。`Array.prototype.forEach` 和普通 `for` 循环允许。`for`-`in` 只允许用于字典式对象。禁止用 `for (... in ...)` 迭代数组。`for`-`in` 中必须使用 `Object.prototype.hasOwnProperty` 排除原型属性。必须使用带 `Object.keys`、`Object.values` 或 `Object.entries` 的 `for`-`of`，禁止 `for`-`in`，除非没有这些替代。
+迭代数组优先使用 `for`-`of`，也允许 `forEach` 和计数循环。迭代字典式对象优先使用 `Object.keys`、`Object.values` 或 `Object.entries`。确需使用 `for`-`in` 时，以 `Object.hasOwn` 排除原型属性，避免空原型或同名自有属性影响判断。
 
 ```
 for (const x of someArr) {
@@ -858,7 +856,7 @@ for (const [i, x] of someArr.entries()) {
 
 ```
 for (const key in obj) {
-    if (!obj.hasOwnProperty(key)) continue;
+    if (!Object.hasOwn(obj, key)) continue;
     doWork(key, obj[key]);
 }
 for (const key of Object.keys(obj)) {
@@ -875,9 +873,9 @@ for (const [key, value] of Object.entries(obj)) {
 
 只有当作者和评审者都认为，不加括号代码也不会被误读，而且加上括号也不会让代码更好读时，才允许省略可选的分组括号。禁止在 `delete`、`typeof`、`void`、`return`、`throw`、`case`、`in`、`of` 或 `yield` 后面的整个表达式外再加不必要的括号。
 
-出现异常情况时必须使用异常。原生 `Error` 不够用时必须定义并使用自定义异常。必须抛出异常，禁止传入错误容器引用，也禁止返回带 error 属性的对象。
+意外执行故障通常以 `Error` 传播，需要稳定分类时使用具体错误类型。函数或传输契约可使用带判别字段的成功和失败结果，例如 Runtime IPC 的 `{ ok: false, error: "ATTEMPT_IPC_FAILED" }`。调用方必须检查判别字段，且失败关闭路径不得返回成功结果。
 
-实例化异常时必须使用 `new Error()`，禁止直接调用 `Error()`。禁止抛出原始值（字符串、数字、`null` 或 `undefined`），也禁止抛出不是 `Error` 或其子类实例的对象。这条限制适用于所有可能抛出其参数的 API，包括 `Promise.reject` 和 `AbortSignal` 的 `abort` 方法。不带参数调用 `AbortController#abort` 或 `AbortSignal.abort` 允许，因为默认会创建 `DOMException` 并赋给 `reason`。
+实例化异常时使用 `new Error()` 或具体子类。抛出异常、调用 `Promise.reject` 或显式传入中止原因时，使用 `Error` 或其子类的实例。实例方法 `AbortController#abort` 和静态方法 `AbortSignal.abort` 均可省略参数，此时 `reason` 是名称为 `AbortError` 的 `DOMException`。
 
 ```
 throw new Error("Foo is not a valid bar.");
@@ -895,72 +893,69 @@ new Promise((resolve) => resolve());
 new Promise((resolve, reject) => void reject(new Error("oh noes!")));
 Promise.reject(new Error("oh noes!"));
 // 下面几行把同一条规则用在中止信号上，原因必须是 Error，或者不传原因，不要传字符串。
-new AbortController().abort();  // 中止时可以不给原因，调用方只需要知道信号已经中止，不必再伪造一条错误文本，本例就是这样。
+// 此处只有取消动作，没有其他故障；省略原因后，接收方可以按标准 AbortError 区分这次取消。
+new AbortController().abort();
 AbortSignal.abort();
 new AbortController().abort(new Error("my custom abort error"));
 AbortSignal.abort(new Error("my other custom abort error"));
 ```
 
 
-捕获错误时必须假定所有抛出的错误都是 `Error` 的实例。禁止防御性地处理非 `Error` 类型，除非能够确凿地知道被调用的 API 会抛出非 `Error`。那时必须加注释，具体指出这些非 `Error` 从哪里来。禁止对大多数代码里不会出现的问题反复做同样的防御。
+捕获值按 `unknown` 处理，只有收窄后才读取错误属性。只就地处理已知错误。其余 `Error` 可原样传播，非 `Error` 捕获值通过新异常的 `cause` 保留。需要记录或转换为失败结果时，遵守[失败关闭规则](../coding-standard.md#5-错误处理与失败关闭)。
 
 ```
 try {
     badApiThrowingStrings();
-} catch (e: unknown) {
-    // 这个 API 明确会抛出字符串而不是 Error，只有在这种已经证实的情况下才按字符串处理。
-    if (typeof e === "string") { ... }
+} catch (error: unknown) {
+    // 此外部接口可能抛出字符串。保留原有 Error 的栈，并把其他失败值放进 cause 供上层诊断。
+    if (error instanceof Error) {
+        throw error;
+    }
+    throw new Error("External operation failed", { cause: error });
 }
 ```
 
 
 ```
-function assertIsError(e: unknown): asserts e is Error {
-    if (!(e instanceof Error)) throw new Error("e is not an Error");
-}
+type ParseResult = { ok: true; value: number } | { ok: false; code: "INVALID_INPUT" };
 
-try {
-    doSomething();
-} catch (e: unknown) {
-    // 进入 catch 后先收窄成 Error。不要为字符串或其他值写分支，除非这个 API 明确会抛出它们。
-    assertIsError(e);
-    displayError(e.message);
-    // 处理完日志之后可以把原来的 Error 继续抛出，让上层保留最初的调用栈，本例就是这样。
-    throw e;
-}
-```
-
-
-空的 `catch` 极少正确。确实完全不采取行动时，必须用注释说明为什么合理。禁止用空 `catch` 吞掉测试里的失败。必须改用 `assertThrows()`。
-
-```
+function parseInput(input: string): ParseResult {
     try {
-        return handleNumericResponse(response);
-    } catch (e: unknown) {
-        // 数值解析失败时落到文本处理。catch 里故意不改响应，只是换一条解析路径继续。
-    }
-    return handleTextResponse(response);
-```
-
-
-`ErrorOptions` 的 `cause` 必须用 `Error` 的子类型初始化。`cause` 的初始化器是类型为 `unknown` 的 `catch` 变量时，允许省略类型检查。禁止把一个 `Error` 对象直接当作 `ErrorOptions` 参数传入。
-
-```
-try {
-    ...
-} catch (e: unknown) {
-    if (e instanceof Error) {
-        throw new Error("Something went wrong", {cause: e});
+        return { ok: true, value: parseNumber(input) };
+    } catch (error: unknown) {
+        // 只有已知的输入错误才转换成失败结果，其他故障保留原因并中止解析，避免误报成调用方输入有误。
+        if (error instanceof InvalidInputError) {
+            return { ok: false, code: "INVALID_INPUT" };
+        }
+        throw new Error("Input parsing failed", { cause: error });
     }
 }
 ```
 
+
+只有在明确识别可恢复失败后才允许回退，并记录触发条件与降级语义。测试用 `expect(fn).toThrow()` 或 `await expect(promise).rejects.toThrow()` 检验实际失败。
+
+```
+try {
+    return handleNumericResponse(response);
+} catch (error: unknown) {
+    // 只有响应明确采用文本格式时才能切换解析器，其他失败带上原始原因交给调用方继续处理。
+    if (!(error instanceof TextResponseError)) {
+        throw new Error("Numeric response could not be parsed", { cause: error });
+    }
+    logger.info("Numeric response used text format");
+}
+return handleTextResponse(response);
+```
+
+
+包装异常时用 `{ cause: error }` 保留原始捕获值。`ErrorOptions.cause` 接受 `unknown`，包括外部抛出的非 `Error` 值。对外日志和响应仅包含已知安全的信息。
+
 ```
 try {
     ...
 } catch (e: unknown) {
-    // 新的 Error 把原来的值放进 cause，这里不必再判断 e 是不是 Error 的子类。
-    throw new Error("Something went wrong", {cause: e});
+    throw new Error("Operation failed", { cause: e });
 }
 ```
 
@@ -1065,11 +1060,12 @@ const x = (z as Foo).length;
 必须限制 `try` 块里的代码量。不会抛出的行必须移出 `try`/`catch`。不会抛异常的内联调用允许留在里面。例外：`try` 块在循环内部时，允许把 `try` 块加宽到覆盖整个循环。
 
 ```
-let result;
+let result: Awaited<ReturnType<typeof methodThatMayThrow>>;
 try {
-    result = methodThatMayThrow();
+    result = await methodThatMayThrow();
 } catch (error: unknown) {
-    // 这里省掉了和本条规则无关的语句，读者只需要看留下的那几行就能判断写法是否符合要求。
+    // 输出只在调用成功后交给后续步骤。错误路径保留上游原因，并在使用结果前明确结束当前操作。
+    throw new Error("Could not load result", { cause: error });
 }
 use(result);
 ```
@@ -1077,19 +1073,14 @@ use(result);
 
 ### 装饰器
 
-禁止定义新的装饰器。只允许使用框架定义的装饰器：Angular（例如 `@Component`、`@NgModule`）和 Polymer（例如 `@property`）。装饰器必须紧挨在它所装饰的符号前面，中间禁止空行。
+优先使用框架或工具提供的装饰器。使用前确认框架和所属 `tsconfig` 支持同一套语义。仓库 TypeScript 5.9 配置未开启旧式 `experimentalDecorators`，标准装饰器不支持参数装饰器。装饰器和被装饰的声明必须相邻，中间禁止空行。
 
 ```
 /**
  * 文档注释要写在装饰器前面，这样编辑器在装饰器元数据旁边也能显示这段说明，本例就是这样。
  */
-@Component({...})  // 装饰器和类声明之间不要插空行，空行会让文档注释和类看起来不再相连，本例就是这样。
-class MyComp {
-    @Input() myField: string;  // 字段的装饰器可以和字段写在同一行，字段名仍然紧跟在装饰器后面，不必为了短装饰器换行。
-
-    @Input()
-    myOtherField: string;  // 装饰器参数变长时可以单独占一行，字段声明再换到下一行，两种写法不要在无故时混用。
-}
+@registered
+class RegisteredComponent {}
 ```
 
 
@@ -1210,8 +1201,7 @@ class Teapot {
 ```
 // 名字必须跟着外部契约走时，只在最初的声明上抑制命名检查，并写明为什么不能改成驼峰。
 declare interface ServerResponse {
-    // 这个字段必须叫 error_code 才能对上外部契约，所以只抑制下一行的命名检查，并把原因写在指令上面。
-    // tslint:disable-next-line:enforce-name-casing
+    // 外部响应的字段名固定为 error_code，保留原名让解析结果可直接按该契约校验，避免引入额外转换。
     error_code: number;
 }
 
@@ -1348,16 +1338,15 @@ interface User extends FoodPreferences {
 ```
 
 
-禁止使用 `any`，除非不能提供更具体的类型、不能使用 `unknown`，也不能用带记录的静态检查抑制来代替。正当使用 `any`（例如测试里的模拟对象）时，必须加上抑制静态检查警告的注释，并记录为什么正当。使用 `unknown` 之后，必须用类型守卫收窄，禁止在收窄前解引用属性。
+优先使用具体类型或 `unknown` 配合收窄，避免用 `any` 绕过已知的静态错误。确无可表达类型的第三方边界应把 `any` 限制在最小范围并说明理由。测试替身优先实现被测对象实际依赖的窄接口。
 
 ```
-// 这个测试只需要 BookService 的一部分。缺方法时测试会明显失败，所以这里有意做成不安全的部分替身。
-// tslint:disable-next-line:no-any
-const mockBookService = ({get() { return mockBook; }} as any) as BookService;
-// 这个测试不会触碰购物车，用 any 占住构造参数只是为了满足签名，不代表购物车可以被随便替换。
-// tslint:disable-next-line:no-any
-// 购物车参数在这个测试里不会被读取，保留空值只是为了把构造函数的参数位置填上，本例就是这样。
-const component = new MyComponent(mockBookService, null as any);
+// 读取书目只依赖 get 方法，替身按同一窄接口声明，签名改变时类型检查会指出测试和接口的差异。
+const mockBookService: Pick<BookService, "get"> = {
+    get() {
+        return mockBook;
+    },
+};
 ```
 
 
@@ -1425,11 +1414,11 @@ const [leftHalf, rightHalf] = splitInHalf("my string");
 
 ## 工具链要求
 
-所有 TypeScript 文件都必须使用标准工具链通过类型检查。
+按所属包的 `tsc` 项目执行类型检查，并通过仓库的 Biome 和 Prettier 检查。遵循各包的实际检查范围，例如 Web 的包级门禁对测试运行 lint，默认 `tsconfig` 只纳入 `src` 和 `vite.config.ts`。需要证明其它文件的类型时，使用覆盖相应文件的类型检查项目。
 
-禁止 `@ts-ignore`、`@ts-expect-error` 和 `@ts-nocheck`。单元测试中允许 `@ts-expect-error`，但禁止把它当作通常做法，因为它会抑制所有错误。必须改成转换成期望的类型或 `any` 并加上解释性注释，或抑制静态检查警告并记录原因。
+生产代码禁止用 `@ts-ignore`、`@ts-expect-error` 和 `@ts-nocheck` 跳过类型检查。修正类型、声明或运行时校验。需要验证编译器拒绝特定用法的单元测试，可以在目标行使用 `@ts-expect-error` 并说明预期失败原因；应确认该用例确实由 `tsc` 检查。
 
-必须遵守任何适用的全局或框架本地一致性规则，包括 tsetse 和 tsec。
+工具指令是否被编译器或排版器识别，与注释审计是否按功能代码计量分别判定。现行 TypeScript/JavaScript 计量仅支持符合动态导入位置及拼法要求的 `/* @vite-ignore */`，其他真实注释继续按普通规则处理。见[工具语法计量规格](../../../docs/specs/tool-syntax-accounting.md)。
 
 ## 注释与文档
 
@@ -1479,13 +1468,14 @@ function doSomething(arg: number) { … }
 
 ```
 /**
- * 这一段演示参数和返回说明过长时如何换行，续行不要再和上一行的行尾做水平对齐，本例就是这样。
- * @param foo 这个参数的说明超过一行，换行后的文字放在下一行，并相对标签缩进四个空格。
- * @return 返回值的说明同样可能超过一行，续行遵循同一缩进，不要和上一行的文字尾部对齐。
+ * 按每箱五件换算全部货箱的件数，调用方应先排除未装满的货箱，返回值仅用于满箱货物的汇总。
+ * @param boxCount 已装满的货箱数量。
+ *     未装满的货箱应单独盘点，再把相应件数加到结果中。
+ * @return 满箱货物对应的总件数。
  */
-exports.method = function(foo) {
-    return 5;
-};
+export function countBoxedItems(boxCount: number): number {
+    return boxCount * 5;
+}
 ```
 
 
@@ -1499,11 +1489,11 @@ function add(left: number, right: number) { ... }
 ```
 
 
-必须为所有顶层导出写 `/** JSDoc */`。禁止仅仅复述属性或参数的名字。目的不能从名字立即看出来的属性和方法，无论是否导出，都必须写文档；是否立即明显由评审者判断。例外：只为了被工具消费而导出的符号，例如 `@NgModule` 类，不需要注释。
+为顶层导出、公开方法、公开类、公开接口以及类型定义提供符合总则的中文 JSDoc。工具加载入口同样适用。说明接口行为或边界，避免复述名字。关键内部路径也须留下必要说明。
 
-类的 JSDoc 必须说明如何以及何时使用该类，以及正确使用所需的额外考虑。构造函数上允许省略文字描述。
+类的 JSDoc 必须说明何时使用该类和正确使用所需的条件。公开构造函数按公开 API 要求提供符合总则的中文说明。
 
-方法描述、参数和返回值从该方法其余的 JSDoc，或从方法名和类型签名就能看出来时，允许省略。方法描述必须使用中文。方法的 JSDoc 仍须遵守[正文长度](../coding-standard.md#12-注释正文长度)与[显示列宽](../coding-standard.md#11-显示列宽的统一计算)要求。必须描述方法做什么。禁止照抄英文的 “This method …” 前缀。
+方法提供中文说明，并遵守[正文长度](../coding-standard.md#12-注释正文长度)与[显示列宽](../coding-standard.md#11-显示列宽的统一计算)要求。参数和返回值标签只在增加类型签名未提供的信息时使用。
 
 参数属性必须用 JSDoc 的 `@param` 注解写文档。禁止在 `@param` 或 `@return` 里声明类型。禁止在已经使用 `implements`、`enum`、`private`、`override` 等关键字的代码上再写对应的 JSDoc 标签。
 
@@ -1571,13 +1561,10 @@ someFunction(obviousParam, /* shouldRender= */ true, /* name= */ "hello");
 
 ```
 /**
- * 这个组件把模板里的 bar 渲染出来，文档要放在装饰器之前，编辑器才能在选择器旁显示说明。
+ * 这个组件在加载阶段登记到组件注册表，调用方在创建实例前可查询登记结果，由注册表决定何时创建实例。
  */
-@Component({
-    selector: "foo",
-    template: "bar",
-})
-export class FooComponent {}
+@registered
+export class RegisteredComponent {}
 ```
 
 
@@ -1591,6 +1578,6 @@ export class FooComponent {}
 
 已弃用的方法、类或接口必须用 `@deprecated` 标记。弃用注释必须包含简单、清楚的说明，告诉人们如何修复调用点。
 
-构建过程生成的源代码不要求符合本指南。任何会从手写源代码引用的生成标识符都必须遵守命名要求。这类标识符允许包含下划线。
+生成源码遵守总则的显示列宽、适用的块注释排版和公开契约命名要求。修改生成器并重新生成。由外部契约决定的标识符保持契约规定的拼写。注释覆盖率排除范围以总则的实际审计规则为准。
 
 代码必须导入它使用的库。

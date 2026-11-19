@@ -62,6 +62,9 @@ Prettier、Black/Pyink、Ruff 的行宽参数只是排版目标，不能保证�
 - 测试注释以行为说明为主，不要灌水。
 - 机械检查：`scripts/comment_audit.py`（正文/覆盖率）、`scripts/comment_blocks.py`（块排版）与 `scripts/line_width.py`（显示列宽）。自动通过不代替人工质量审查。
 
+在仓库根运行 `uv run --project apps/srv --frozen --no-sync python scripts/comment_audit.py --output /tmp/veriq-comment-audit.json`。
+注释审计独立于 `pnpm lint`。报告须覆盖全部应计源码，注释覆盖率严格大于 40%，并通过正文检查。
+
 经成熟解析器确认上下文且有实际工具行为证据的固定词元按功能代码计量，贡献 `C=0`，原文保留在非空物理代码行 `K`。
 词元和同行普通说明均须满足显示列宽，普通说明继续独立计量和检查正文。排版器保留的 pragma 前缀没有计量效力。
 已支持词元和资格条件见[工具语法计量规格](../../docs/specs/tool-syntax-accounting.md)。
@@ -85,7 +88,7 @@ Python 的 `#` 和三引号文档串保持本语言语法，不改成 C 风格�
 行内类型注解、编译器/格式化指令等工具语法保持原位置，避免自动分号或指令语义变化。
 字符串、模板、正则及有意测试注释文本的夹具内容不属于源码真实注释，不能靠正则全文替换。
 
-运行 `python3 scripts/comment_blocks.py` 或 `pnpm lint:comments` 检查所有源码中的此类块。
+在仓库根运行 `pnpm lint:comments`，通过锁定的 Python 环境调用 `scripts/comment_blocks.py` 检查所有源码中的此类块。
 生成源码也须检查；修复生成器并重新生成，禁止手改生成文件。
 块排版与正文长度、内容质量、注释覆盖率分别检查，不能用新增分隔符空行抬高覆盖率。
 
@@ -118,6 +121,7 @@ Python 的 `#` 和三引号文档串保持本语言语法，不改成 C 风格�
 - [ ] 已运行显示列宽检查，代码、导入与注释的每个物理行均符合[显示列宽要求](#11-显示列宽的统一计算)
 - [ ] 触及语言的 lint/format/typecheck 已通过
 - [ ] 公开 API 与关键路径有合格中文注释，符合[正文长度](#12-注释正文长度)及[显示列宽](#11-显示列宽的统一计算)要求
+- [ ] 涉及源码或计量工具时，已独立运行注释审计，报告计量完整，注释覆盖率严格大于 40%，正文检查通过
 - [ ] 日志为英文且无敏感信息
 - [ ] 未手改不可变生成物；契约变更已重新生成
 - [ ] 未引入与 PY/TS 指南或本总则冲突的风格例外
@@ -128,18 +132,26 @@ Python 的 `#` 和三引号文档串保持本语言语法，不改成 C 风格�
 
 ### 9.1 分层与方向
 
-允许的依赖方向（概念上）：
+主要源码依赖方向如下。
 
 ```text
-apps/web, apps/desktop(renderer)
-        ↓
-packages/ui, packages/contracts
-        ↓
-apps/srv (控制面)  ←HTTP→  apps/runtime / desktop(agent)
-                                ↓
-                     packages/compiler, packages/runner-sdk
+apps/web、apps/desktop → packages/ui、packages/contracts
+apps/desktop → apps/web、apps/runtime
+apps/desktop → packages/compiler、packages/runner-sdk
+apps/runtime → packages/compiler、packages/runner-sdk、packages/contracts
+packages/compiler、packages/runner-sdk → packages/contracts
 ```
 
+HTTP 调用方向如下。
+
+```text
+Web、桌面宿主 → apps/srv（平台 API）
+云端 Runtime、桌面 Agent → apps/srv（领取、心跳、回报）
+apps/srv → 获批 HTTP 数据源
+Runtime 执行引擎 → 被测系统及其 fixture 服务
+```
+
+- 控制面在 Python 中校验共享 Schema，不依赖前端或执行包运行。HTTP 调用方与服务端按契约交互。
 - 控制面 **不得** 依赖 Playwright、Chrome、Electron、桌面原生模块才能启动或完成核心 API。
 - Web/Desktop UI **不得** 直连数据库或读取服务端私有密钥存储。
 - `packages/contracts` 保持无业务副作用；生成类型可被各端依赖，但契约包不反向依赖 apps。
@@ -149,9 +161,9 @@ apps/srv (控制面)  ←HTTP→  apps/runtime / desktop(agent)
 
 | 模块 | 应做 | 不应做 |
 | --- | --- | --- |
-| `apps/srv` | 认证、Workspace、队列、契约校验、静态托管 | 跑浏览器测试、内嵌 Node 执行引擎 |
+| `apps/srv` | 认证、Workspace、队列、契约校验、静态托管、获批 HTTP 数据源读取 | 跑浏览器测试、内嵌 Node 执行引擎 |
 | `apps/runtime` | 领取任务、编译执行、本地持久化、停止证明 | 实现第二套结果协议或绕过 fencing |
-| `apps/desktop` | GUI、白名单 IPC、本地打包资源 | 用远程网页代替离线 GUI；把 Electron Node 当测试引擎 |
+| `apps/desktop` | GUI、白名单 IPC、本地打包资源与历史报告读取 | 用远程网页代替本地 GUI，或把 Electron Node 当测试引擎 |
 | `packages/compiler` | DSL → 不可变 TS | 执行测试或访问用户密钥 |
 | `packages/runner-sdk` | 确定性执行与事件 | 产品级重试策略（重试归 VeriQ） |
 
@@ -185,6 +197,8 @@ apps/srv (控制面)  ←HTTP→  apps/runtime / desktop(agent)
 
 约束 DSL、校验、编译、发布与执行快照，保证可复现执行并防止「改生成物」或「跑最新草稿」破坏确定性。
 
+[工作区数据集与联网执行](../../docs/specs/veriq-datasets.md)确定首版只交付联网执行。F12 离线任务、签名离线包的产品交付、离线结果导入及对应验收退出 MVP。生产入口仅提供联网执行、历史离线包元数据和历史报告读取，旧协议及持久数据保留用于兼容。数据集无离线导出例外或管理员开关。适用边界见[契约说明](../../docs/contracts.md)。
+
 ### 10.1 源与产物
 
 | 类型 | 可变性 | 规则 |
@@ -192,7 +206,7 @@ apps/srv (控制面)  ←HTTP→  apps/runtime / desktop(agent)
 | DSL / 资源草稿 | 可编辑 | 经校验与权限控制；不直接当作生产执行真源 |
 | 已发布版本 | 不可变 | 禁止原地修改；变更走新版本 |
 | 编译生成的 TypeScript | 不可变产物 | 禁止手改后提交充源码；只通过编译器生成 |
-| 执行快照 | 冻结 | 冻结资产、引擎、环境、数据、角色、浏览器等身份 |
+| 执行快照 | 冻结 | 冻结资产、引擎、环境、数据版本与行键、角色和浏览器等执行身份 |
 
 ### 10.2 校验与发布
 
@@ -203,13 +217,13 @@ apps/srv (控制面)  ←HTTP→  apps/runtime / desktop(agent)
 
 ### 10.3 执行确定性
 
-- Runner 执行已发布快照与锁定引擎，不得隐式改用草稿或工作区「最新文件」。
-- Playwright 产品路径 `retries=0`；平台重试另计且语义为 `UNSTABLE`。
+- Runner 执行已冻结的快照，使用锁定引擎。正式运行使用已发布资产。联网 DEBUG 可使用经可信 Runtime 验证的不可变草稿候选，验证成功后才生成可执行清单。验证失败按真实终态结束，禁止回退到可变草稿或工作区最新文件。详见[统一队列与验证边界](../../docs/decisions/0010-unified-fenced-execution.md)。
+- Playwright 产品路径 `retries=0`。整用例重试及聚合结果按[重试规则](#126-重试)处理。
 - 断言真值来自版本化预期，禁止把当次实际值写回并冒充基线（除非明确的基线更新流程且经审核）。
 
 ### 10.4 引擎与依赖闭包
 
-- 执行依赖版本化；离线包携带已声明闭包并验签。
+- 执行依赖版本化。历史签名离线包的兼容验证继续核对签名、清单、精确闭包与文件摘要，信任根须独立建立。历史验证不开放首版新签发、下载、导入或执行入口。详见[历史离线包的信任边界](../../docs/decisions/0016-offline-bundle-boundaries.md)。
 - 引擎候选与晋升身份不可覆盖；桌面升级不得静默替换测试引擎。
 - Node 24 执行引擎与 Electron 内嵌运行时分离。
 
@@ -217,13 +231,16 @@ apps/srv (控制面)  ←HTTP→  apps/runtime / desktop(agent)
 
 - Fixture 准备/清理幂等；崩溃可补偿。
 - 业务身份与平台登录身份分离；清理失败影响 outcome（不得无声忽略）。
+- 联网执行时静态行正文及 HTTP 映射值经当前授权通道进入受控执行进程内存。生成源码、下载产物、验证与执行工作目录、IPC 持久缓存、SQLite、日志和本地报告均不得存入数据正文。可能回显无法可靠脱敏数据的截图、Trace 或其他证据按任务禁止采集。
+- 以冻结版本和摘要校验数据，受控临时内存超限须返回明确错误。正常结束、失败、取消、租约到期和崩溃恢复均须核验清理及进程状态。含正文的历史编译包必须从原冻结依赖重新验证为兼容的联网产物后才可执行。详见[联网数据集本地生命周期](../../docs/specs/veriq-datasets.md#本地数据生命周期)。
 
 ### 10.6 检查清单
 
 - [ ] 未手改生成 TS 或已发布版本内容
 - [ ] 执行路径绑定快照 hash/引擎身份
 - [ ] 校验失败与回执失败均失败关闭
-- [ ] 离线闭包与签名要求已考虑
+- [ ] 涉及历史离线包时已保留闭包与签名校验，未开放首版离线执行、签发、下载或导入路径
+- [ ] 联网数据集正文未进入本地持久产物，清理和证据策略符合规格
 
 ## 11. 审计与执行事件
 
@@ -238,11 +255,11 @@ apps/srv (控制面)  ←HTTP→  apps/runtime / desktop(agent)
 - 资产发布、归档、权限相关配置变更
 - Runtime 授权/撤销、服务令牌创建与作废
 - 维护任务触发、证据保留期变更
-- 敏感导出与离线包签发
+- 敏感导出。历史离线包签发相关审计保留用于兼容核对，首版不得为补齐审计点恢复签发入口。
 
 要求：
 
-- 记录操作者身份类型、Workspace、对象 ID、结果、时间（UTC）
+- 记录操作者身份类型、对象 ID、结果及 UTC 时间。Workspace 范围内记录真实 Workspace。登录、登出及安装级事件无 Workspace 时可缺省该字段，不得虚构所属空间或将全局事件写入任意租户。
 - 消息英文；不含秘密原文
 - 审计写入失败不得导致「操作成功但完全无痕」的默示成功——关键安全操作须失败关闭或同步告警策略（按规格）
 
@@ -255,7 +272,7 @@ apps/srv (控制面)  ←HTTP→  apps/runtime / desktop(agent)
 
 ### 11.3 可靠性
 
-- 关键终态（finish、取消完成、导入完成）以持久化状态为权威，事件流为派生视图。
+- 关键终态（finish、取消完成及历史离线导入的保留结果）以持久化状态为权威，事件流为派生视图。
 - 允许「事件晚到」但必须与 fencing/幂等规则一致；晚到旧代事件不得覆盖新代。
 - 不得为了推送方便而绕过服务层直接改库。
 
@@ -283,7 +300,7 @@ apps/srv (控制面)  ←HTTP→  apps/runtime / desktop(agent)
 | 未结束 Run | 10 | 超出须拒绝或按重叠策略处理，不得静默无限排队膨胀 |
 | 在线全局浏览器上下文 | 4 | 控制面调度上限 |
 | 单 Workspace 浏览器上下文 | 2 | 空间隔离上限 |
-| 离线本机并发 | 1 | 本机离线执行 |
+| 历史离线本机并发 | 1 | 兼容核对时沿用的旧边界，首版不开放离线执行 |
 | 心跳 | 10s | Agent → 控制面 |
 | 租约 | 60s | 执行权的有效期 |
 | Playwright `retries` | 0 | 产品路径 |
@@ -300,28 +317,31 @@ apps/srv (控制面)  ←HTTP→  apps/runtime / desktop(agent)
 ### 12.3 租约与 fencing
 
 - 心跳与租约使用产品默认预算。租约过期即失效，不得复活执行权。
+- 领取只分配 `LEASED` Attempt。激活前可经授权下载分配到的制品，以验证不可变闭包。须确认显式激活后才可派生 Worker，或开始业务认证、fixture 和其他业务副作用。用同一 `clientRequestId` 恢复尚未激活的领取时，轮换令牌和 fencing，使旧证明立即失效，且保留原截止时间。已激活的领取返回冲突，不另授执行权。见[统一围栏执行决策](../../docs/decisions/0010-unified-fenced-execution.md#adr-0010--unified-queue-and-verified-execution-boundaries)。
+- 设备身份与租约、fencing 证明有效，但请求者已失去授权时，心跳返回 `cancelRequested` 且不续租。设备身份或租约、fencing 证明无效时，心跳须失败关闭。
 - 所有变更执行中状态的写入须校验 lease / fencing；迟到或旧 fencing 的回报必须拒绝或隔离，不得覆盖新代结果。
 
 ### 12.4 幂等
 
-- 外部触发、结果导入、维护批次、制品上传完成回执等须支持幂等键或等价去重。
-- 写入前先按业务键查询。副作用未知时遵守「重试」的限制。
-- 离线导入不得覆盖在线 Attempt 权威记录；重复导入须安全且可识别。
+- 外部触发、维护批次、制品上传完成回执等须支持幂等键或等价去重。将幂等键绑定已授权主体、作用域与请求内容，使用持久唯一约束和原子事务处理并发。
+- 副作用未知时先按业务键或幂等键核对已存状态，继续遵守[重试规则](#126-重试)。单独的先查后写不能充当去重保护。
+- 历史离线导入的幂等与来源语义须保留，历史记录不得覆盖在线 Attempt 权威记录。重复导入的安全性仅在历史协议兼容夹具中核对，首版不恢复生产写入路径。
 
 ### 12.5 容量、隔离与背压
 
-- 按产品默认预算限制未结束 Run、全局与单 Workspace 浏览器并发及离线本机并发。
+- 按产品默认预算限制未结束 Run、全局与单 Workspace 浏览器并发。历史离线本机并发仅用于核对旧路径语义。
 - 逻辑取消、超时或 PID 不存在都不足以证明进程已停止。停止未确认、失联或进程状态未知时须占用隔离容量，禁止当作空闲释放。
 - 仅浏览器任务占用浏览器容量；编译/清理使用各自配额，不得混用导致误限流或误放行。
 - 队列与上传须有背压，可拒绝、延迟或返回 `hasMore`。禁止无限缓冲导致 OOM。
-- 制品与日志磁盘占用受保留期与容量配置约束。写满时须失败关闭并告警，禁止静默丢关键证据却报 `PASSED`。
+- 制品与日志磁盘占用受保留期与容量配置约束。写满时须失败关闭并告警，禁止静默丢关键证据却报 `PASSED`。后续经授权过期的原始证据不改写历史结果或完整性。保留期维护须继续保护固定引用与安全围栏，见[报告证据保留决策](../../docs/decisions/0014-report-evidence-storage.md)。
 - 达到上限导致浏览器上下文创建失败时须返回明确错误，禁止卡住 claim 循环。
 
 ### 12.6 重试
 
 - Playwright 与整用例重试遵守产品默认预算。整用例重试使用新 Context、新 fixture 和新工作目录。
-- 重试后通过记 `UNSTABLE`，默认门禁不通过。
+- 首次失败后仅在重试通过时产生 `UNSTABLE` 重试结果。该结果由 Job、CaseExecution 和 Run 汇总，仍按既定优先级保留更严重的结果，默认门禁不通过。保留各次 Attempt 的真实结果，Attempt 不使用 `UNSTABLE`。
 - 不可重试错误（鉴权、契约、签名、明确业务断言失败等）不得自动整用例重试。
+- 即使是可重试的瞬时失败，自动整用例重试仍须有已声明 fixture 的可信清理成功证明（`cleanupSnapshotSha256`，清理状态 `SUCCEEDED`），或同时具备可信的 `hasPotentialWrites:false` 与 `READ_ONLY_OBSERVED`。证据不足时保留原终态并记录 `RETRY_SAFETY_UNCONFIRMED`。具体准入见[联网执行契约](../../docs/contracts.md#t10--online-node-agent-and-physical-execution)。
 - 副作用未知，或超时后停止状态未知时，禁止盲目重试，以免重复外部写入。
 - 超时后须区分可重试的瞬时失败、不可重试失败与停止或副作用未知。超时后停止或副作用未知时须隔离。
 
@@ -329,7 +349,7 @@ apps/srv (控制面)  ←HTTP→  apps/runtime / desktop(agent)
 
 - 每个可能阻塞的 I/O、锁等待、子进程、浏览器操作、HTTP 出站调用都必须有**显式超时**和超时后的失败关闭路径。按「重试」判定是否可重试，按「容量、隔离与背压」处理停止未确认的容量。
 - 禁止用固定 `sleep` 充当同步或「等待系统稳定」。
-- 多层超时应有包含关系，外层（Attempt/租约）≥ 内层（单步/单次 HTTP）。禁止内层无限等待、只靠外层租约碰巧打断且无清理。
+- Attempt 总预算与单步或单次 HTTP 超时应有包含关系，并为收尾保留有界时间。在线租约是由有效心跳续期的独立授权窗口，不是 Attempt 的总时限。Runtime 使用单调时钟看门狗，在租约到期或取消后停止并清理。内层操作须有自己的上限和清理路径，不能只靠租约中断。见[统一队列与验证边界](../../docs/decisions/0010-unified-fenced-execution.md)和[Agent 监督](../../docs/decisions/0011-agent-supervision.md)。
 
 ### 12.8 超时预算类别
 
@@ -364,7 +384,7 @@ apps/srv (控制面)  ←HTTP→  apps/runtime / desktop(agent)
 - 租约过期后的迟到 finish
 - fencing 旧值上报
 - 取消与完成乱序
-- 重复触发 / 重复导入
+- 重复触发。历史离线导入的去重和在线记录保护在兼容夹具中核对。
 - 停止证明缺失时容量未释放
 - 容量上限与拒绝路径
 - 关键超时与边界路径，至少覆盖出站超时、停止观察超时和维护批次边界
@@ -389,10 +409,10 @@ apps/srv (控制面)  ←HTTP→  apps/runtime / desktop(agent)
 ### 13.1 命名与存储约定
 
 - 全部平台物理表以 `veriq_` 开头；Alembic `version_table = "veriq_alembic_version"`。
-- 主键/对外 ID 使用 UUID 字符串；时间戳存 UTC（`DATETIME(6)` 量级按规格），显示默认 Asia/Shanghai。
+- 平台实体 ID 使用 UUID 字符串。物理主键按已批准的领域键设计，关联表可用组合键，内容寻址可使用 Workspace 与摘要的组合键，安装单例可使用固定内部键。时间戳存 UTC（`DATETIME(6)` 量级按规格），显示默认 Asia/Shanghai。
 - InnoDB + utf8mb4；连接 `time_zone='+00:00'`。
 - UUID 与机器 key 使用区分大小写的排序策略；普通文本使用已声明的 Unicode 排序。
-- 业务状态、租约等用独立列；DSL/快照/差异用 JSON，禁止把关键检索条件只塞进无法索引的大 JSON（除非规格明确）。
+- 业务状态、租约等用独立列，DSL、快照和差异用 JSON。禁止把关键检索条件只塞进无法索引的大 JSON，规格另有明确规定时除外。联网执行的本机持久数据边界见[Fixture 与数据](#105-fixture-与数据)。
 
 ### 13.2 完整性与约束
 
@@ -423,12 +443,12 @@ apps/srv (控制面)  ←HTTP→  apps/runtime / desktop(agent)
 
 ### 13.6 本地与离线存储
 
-- Runtime 本地 SQLite 表仍用 `veriq_` 前缀与受限文件权限。
+- Runtime 本地 SQLite 表仍用 `veriq_` 前缀与受限文件权限。联网流程可以持久保存任务状态和授权报告，禁止持久化执行数据集正文。历史本地记录限兼容读取、核对及按规格清理。
 - 本地库崩溃恢复、WAL/同步模式与代际 CAS 按既有 ADR/实现约定，不得随意改成「关闭安全选项换速度」。
 
 ### 13.7 检查清单
 
-- [ ] 新表/列命名与 UTC/UUID 约定正确
+- [ ] 新表/列命名、UTC、平台实体 UUID 与已批准物理主键约定正确
 - [ ] 唯一约束与归属校验到位
 - [ ] 迁移可审阅、可回滚或有显式风险说明
 - [ ] 队列/容量路径具备原子性
@@ -442,7 +462,7 @@ apps/srv (控制面)  ←HTTP→  apps/runtime / desktop(agent)
 - 仓库许可证为 **AGPL-3.0**；不得擅自更换项目许可证。
 - 优先成熟、维护活跃、文档清晰的库；禁止重复造轮子实现密码学、浏览器等待、Cron、迁移框架、通用报告引擎。
 - 产品依赖禁止 `latest` 或无上界的浮动主版本；保持精确钉死。
-- JavaScript：pnpm workspace、`saveExact`、冻结锁文件安装、遵守 engine/peer 严格策略。
+- JavaScript 使用 pnpm workspace。根 `package.json` 锁定 pnpm **11.25.0**，`pnpm-workspace.yaml` 保留 `saveExact`、严格 engine/peer 与获批的安装策略。CI 与发行使用冻结锁文件安装。
 - Python：只在 `apps/srv/pyproject.toml` 声明控制面依赖，并以对应锁文件解析。
 
 ### 14.2 许可兼容
@@ -454,14 +474,14 @@ apps/srv (控制面)  ←HTTP→  apps/runtime / desktop(agent)
 | 网络 copyleft | AGPL 依赖引入须特别审查是否扩大传染面 |
 | 禁止默认合入 | 未知许可、专有不可分发、缺失许可证 |
 
-引入或升级前须记录：包名、版本、声明许可、用途边界、是否有已知高危漏洞。
+新增或升级前须在 ADR 中记录包名、精确版本、声明许可、用途边界及安全理由，包括已知高危漏洞的核查结果。未知或自定义许可必须事先获批。
 
 ### 14.3 安全与维护信号
 
-- 不得引入带未修复 **critical/high** 漏洞且无缓解措施的依赖。
+- 不得引入受尚未修复的高危或严重 CVE 影响的依赖。记录公告适用性和缓解情况，缓解措施不构成放行适用且未修复漏洞的例外。详见[安全规范](./security-standard.md)。
 - 偏好近期有维护、issue 有响应的包；对长期停滞项目需书面理由。
 - 注意传递依赖风险；锁文件变更须审阅传递树中的异常新增。
-- 不得为图省事关闭完整性校验、随意放宽最小发布年龄或允许任意 lifecycle 脚本，除非 ADR 批准。
+- 放宽最小发布年龄、停用完整性校验或 engine/peer 严格模式，均须书面批准和 ADR。生命周期脚本仅按已批准的允许列表开放。
 
 ### 14.4 与锁定基线的关系
 
@@ -469,17 +489,17 @@ apps/srv (控制面)  ←HTTP→  apps/runtime / desktop(agent)
 
 - Python 3.12、Tornado 6.6.1、SQLAlchemy 2、MySQL 8.4
 - React 18、Vite 6、Tailwind 3、react-router-dom 7.18.5
-- Node 24、pnpm 主版本策略、Playwright 引擎身份
+- Node 24、精确 pnpm 11.25.0、Playwright 引擎身份
 - Electron 与桌面打包工具链
 
-补丁级更新仍须跑相关测试，并在提交说明中写清动机（安全修复 / bugfix）。
+补丁级更新同样须事先记录 ADR、运行相关测试，并在提交说明中写清动机（安全修复或缺陷修正）。触及锁定基线的更新一并取得显式批准。
 
 ### 14.5 变更流程
 
 1. 明确需求与是否已有仓库内可复用依赖。
-2. 评估许可、漏洞、维护、传递依赖体积与平台支持。
+2. 评估许可、漏洞、维护、传递依赖体积与平台支持。在变更前记录 ADR，锁定基线或需特批的许可按上文取得批准。
 3. 写入精确版本；更新锁文件。
-4. 需要时更新 ADR、`THIRD_PARTY_NOTICES` / SBOM 流程输入。
+4. 同步锁定基线记录及受影响的 `THIRD_PARTY_NOTICES` / SBOM 流程输入。
 5. 跑相关 `check`/`test`；说明是否影响 Runtime 闭包或 wheelhouse。
 
 ### 14.6 禁止事项
@@ -492,8 +512,8 @@ apps/srv (控制面)  ←HTTP→  apps/runtime / desktop(agent)
 ### 14.7 检查清单
 
 - [ ] 精确版本已钉死；锁文件已更新
-- [ ] 许可已评估并记录
-- [ ] 无未缓解高危漏洞
+- [ ] 新增或升级前的 ADR 已记录许可、版本及安全理由
+- [ ] 无适用且尚未修复的高危或严重漏洞
 - [ ] 基线族变更已获批准并有 ADR
 - [ ] 相关测试与 SBOM/NOTICE 义务已考虑
 
@@ -517,7 +537,7 @@ apps/srv (控制面)  ←HTTP→  apps/runtime / desktop(agent)
 
 - 人类可读产品名统一为 **VeriQ**；技术标识小写。
 - 规格、计划、API/GUI 标题、生成文档中的产品名大小写不得写成 `veriq` 充作品牌名。
-- 日志与对外错误码可用英文；中文用户文档保持术语表一致（Workspace、Run、Attempt、Runtime 等保留约定译法或原文）。
+- 日志消息须使用英文，机器可读错误码使用稳定标识。中文用户文档保持术语表一致（Workspace、Run、Attempt、Runtime 等保留约定译法或原文）。
 - 计划中的命令须实际跑通后才可标为「已验证可用」。
 - 不得删除已知限制来制造「文档上已完成」。
 - 进度类内容只放 plans/milestones，不写入 AGENTS 类长期契约。
@@ -525,12 +545,12 @@ apps/srv (控制面)  ←HTTP→  apps/runtime / desktop(agent)
 
 ### 15.3 源契约与生成流程
 
-- 对外契约以 `packages/contracts` 的 Schema / OpenAPI 为准。设备内部协议（claim / heartbeat / events / artifact-upload / finish）与结果导入协议同属受控契约面。
+- 对外契约以 `packages/contracts` 的规范 JSON Schema 与 OpenAPI 为准。共享传输定义以规范 Schema 为源，HTTP 路由、鉴权和 API 传输约定以 OpenAPI 为源。设备内部协议（claim / heartbeat / events / artifact-upload / finish）及历史结果导入兼容协议同属受控契约面。后者不代表首版提供导入入口。
 - 禁止在 handlers 或客户端手写与契约漂移的「临时字段」，也禁止只改一侧手写类型或只改实现而不更新契约。
 
 1. 先改 Schema / OpenAPI 源（及必要的规范叙述）。
-2. 运行正式 generate，更新 Python / TS 生成类型与样例。桌面派生 Schema 与主契约保持同步生成，禁止长期分叉。
-3. 同步 Python / TS 校验与兼容测试。
+2. 运行 `pnpm contracts:generate`，更新 `packages/contracts/src/types.generated.ts` 与 `packages/contracts/src/api.generated.ts`。涉及桌面允许的操作或其校验引用时，另用 `node apps/desktop/scripts/generate-operations.mjs` 同步 `operations.generated.json`、`operations.generated.ts` 和 `validation.generated.json`。保持显式允许列表，新增服务端端点不自动开放给桌面。
+3. 同步共享正反样例以及 Python / TS 校验和兼容测试。Python wheel 打包并加载共享 Schema，用于运行时校验。现有生成命令只生成上述产物，样例和 Python 类型或校验代码按变更同步维护。
 4. 更新 `docs/contracts.md` 或引用该契约的规格段落。
 
 ### 15.4 版本与兼容性等级
@@ -540,16 +560,17 @@ apps/srv (控制面)  ←HTTP→  apps/runtime / desktop(agent)
 
 | 变更类型 | 示例 | 要求 |
 | --- | --- | --- |
-| 可加性 | 新增可选字段、新增枚举值（旧客户端可忽略） | 须更新契约与样例，并注明忽略策略 |
+| 可加性 | 新增旧消费者已允许的可选内容，或只向明确支持该扩展的消费者发送新值 | 须更新契约与样例，注明兼容策略并验证新旧生产者和消费者组合 |
 | 行为收紧 | 更严格校验、失败关闭更严 | 须在规格中说明，并评估旧客户端及旧 Runtime |
 | 破坏性 | 删字段、改类型、改鉴权、改幂等语义 | 须单独批准，采用版本策略或并行窗口，说明迁移策略，并在审查中显式标出 |
 
-- 服务端默认忽略未知字段，规格明确要求拒绝时除外。客户端不得因多余字段崩溃。
-- 新增枚举值须保证前进兼容。删除枚举值或改变其含义视为破坏性变更。
+- 固定结构的请求、响应、IPC 及结果文档按声明的契约拒绝未知字段。已命名的开放映射和业务 JSON 按其 Schema 接受开放字段。处理校验失败时须返回可诊断错误，客户端不得崩溃或冒充成功。
+- 新增可选字段、枚举值或联合分支前，须验证已部署的严格消费者能否接受。旧消费者会拒绝时，须通过明确版本或能力协商保持旧传输兼容，或按破坏性变更处理。删除枚举值或改变其含义视为破坏性变更。
+- 样例与兼容测试须覆盖未知字段、未知枚举值、联合判别及跨语言校验的一致性。详见[契约与生成决定](../../docs/decisions/0003-engineering-baseline.md#contractsource-and-packaging-decision)。
 
 ### 15.5 鉴权与作用域
 
-- 每个新端点声明身份类型（用户会话 / 服务令牌 / 设备令牌）与 Workspace 作用域。
+- 每个新端点须显式声明认证方式与作用域。Workspace 范围端点须验证身份及当前空间授权。安装级或明确批准的公开端点须写明其范围、访问条件及可暴露信息，例如经批准的健康探针。禁止为安装级操作虚构 Workspace。
 - 维护与触发接口保持幂等、有界，响应包含处理计数与 `hasMore`（若适用）。
 - 禁止新增无认证「调试后门」。临时探针不得进入发行分支。
 
@@ -579,7 +600,7 @@ ADR 应写清背景、决策、后果与替代方案，状态（selected / super
 - [ ] 行为变更已落到规格或 ADR（如需要）
 - [ ] Schema / OpenAPI 源、生成物（含生成类型和桌面派生 Schema）、实现与样例一致
 - [ ] 已判定兼容性等级并说明旧客户端和旧 Runtime 的影响。破坏性变更已单独批准，且有迁移策略
-- [ ] 鉴权与 Workspace 作用域完整
+- [ ] 已明确认证或公开条件与作用域，Workspace 路径执行当前空间授权
 - [ ] 产品名与术语符合约定
 - [ ] 无密钥、无把进度写入长期契约文档
 
@@ -610,14 +631,14 @@ ADR 应写清背景、决策、后果与替代方案，状态（selected / super
 
 ### 16.4 指标与健康
 
-- 控制面提供真实健康检查：依赖（如 DB）失败不得报健康。
+- 控制面提供独立的 liveness 和 readiness。`/health/live` 只报告进程存活，不依赖数据库。`/health/ready` 检查已纳入就绪条件的关键依赖，数据库故障时返回 `503` / `degraded`，不暴露异常或连接串。见[生产静态托管与健康检查决策](../../docs/decisions/0019-production-static-inventory.md)。
 - 队列、租约回收、维护任务应能观测处理量、`hasMore`、失败计数；禁止只靠人工翻日志判断积压。
 - 桌面/Agent 诊断信息可导出，但须脱敏且不自动上传密钥。
 
 ### 16.5 用户与运维可见性
 
 - UI/报告须区分：业务失败、清理失败、失联、取消、证据不全、停止未确认等，不得全部显示为「失败」。
-- `UNSTABLE`、`INCOMPLETE`、`WORKER_LOST` 等 outcome 不得在展示层被折叠成普通 FAILED 而丢失语义。
+- `UNSTABLE`、`INCOMPLETE` 和 `ERROR` 保持契约定义的 outcome。失联为 `ERROR`，并保留 `WORKER_LOST` 原因码。展示须保留结果、原因及停止事实，不得将其合并为普通 `FAILED` 或把原因码当成 outcome。
 
 ### 16.6 检查清单
 
@@ -642,23 +663,26 @@ ADR 应写清背景、决策、后果与替代方案，状态（selected / super
 
 ### 17.2 SSRF 与 URL 安全
 
-- 由用户或 Workspace 配置的 URL（环境地址、Webhook、Provider Endpoint、制品 URL 等）必须校验协议与目标；默认禁止指向链路本地、云元数据等危险地址（按部署模式可配置但须安全默认）。
+- 由用户或 Workspace 配置的 URL（环境地址、Webhook、Provider Endpoint、制品 URL 等）须按该调用的已批准策略验证协议、来源、连接目标和重定向。链路本地与云元数据目标禁止通过部署配置放开。企业私网仅在具体规范允许的范围内，经显式批准后按目标放行。
 - 禁止把未校验的用户 URL 直接交给服务端请求库「代抓」。
 - 重定向跟随策略须受限；不得通过跳转绕过允许列表。
 - 文件/制品下载路径由服务端生成与鉴权，不接受任意本地路径或未签名外链充作内部制品。
+- 联网数据集由控制面通过获批 HTTPS 连接读数据，按配置的数值地址连接，并使用批准域名进行 TLS 校验及设置 Host。企业私网例外仅涵盖明确批准的 RFC1918 或 ULA 目标。禁用重定向和环境代理，只有显式 `retry_reads` 允许 GET 连接失败后重试一次。连接范围、凭据和读取预算见[HTTP 数据源契约](../../docs/contracts.md#http-数据集定义与预览)。
 
 ### 17.3 AI 与第三方 Provider
 
 - 未配置 Provider 时主路径仍可用；测试默认无真实密钥。
 - 出站调用受预算、超时与审计记录约束；失败不得拖垮队列。
-- 禁止将完整设备 token、DB 密码或未审核草稿自动外发并发布回资产库。
+- 只发送获授权且有界的任务相关脱敏内容。设备 token、数据库密码、业务凭据及其引用、Provider 密钥和原始证据禁止进入模型上下文。Provider 密钥只在批准的传输鉴权边界使用。
+- `/ai` 审核与生成流程在发送前预览脱敏上下文，并由用户审核自由输入材料。对话 Agent 的普通轮次按当前成员身份、会话归属和预算发送获准的会话内容与脱敏投影。保存计划或触发运行前须展示结构化提议，由用户明确确认当前已审阅的提议，再复核会话归属、动作权限与提议新鲜度。详见[对话测试 Agent 规格](../../docs/specs/conversational-test-agent.md)。
+- 模型输出须通过规范 Schema 和引用校验。边界建议与失败分析仅供人工判断。显式人工接受才可通过资源服务创建或更新 CASE 草稿，并重查权限、修订和引用。资产发布仍由人按既有授权、Runtime 验证及回执流程执行，禁止自动应用、自动发布或在执行时改写断言真值。见[AI Provider 边界](../../docs/decisions/0015-ai-provider-boundaries.md)和[AI 使用说明](../../docs/ai.md)。
 - Provider SDK 经适配器接入；禁止在业务层散落裸 SDK 调用与硬编码密钥。
 
 ### 17.4 对象存储与制品
 
 - S3/兼容存储凭据仅存服务端安全配置；最小权限桶策略。
 - 上传完成以服务端校验与清单为准；客户端不得宣称「已上传成功」绕过校验。
-- 公共读桶不是默认；下载经授权与短时许可机制（按规格）。
+- 公共读桶不是默认。下载须检查当前授权与对象归属，设备拉取冻结执行制品还须验证有效的 Attempt 租约、fencing 及闭包成员。按契约使用相应授权机制和适用的短时许可，禁止暴露原始存储键或绕过授权的传输路径。见[制品传输与授权](../../docs/contracts.md)。
 
 ### 17.5 外部调度与 Webhook
 
@@ -669,7 +693,7 @@ ADR 应写清背景、决策、后果与替代方案，状态（selected / super
 ### 17.6 Runtime 访问被测系统
 
 - 被测前后端地址来自环境快照与域名约束；执行不得随意扩权访问未声明主机。
-- 本地离线仍需被测系统可达；不得为「方便」关闭域名约束。
+- 首版的本机 Runtime 同时需要连接平台和被测系统，平台失联后停止领取并按租约取消、清理。禁止为方便执行关闭域名约束。旧离线路径的被测系统可达条件仅用于历史兼容。
 - 代理/证书配置须显式、可诊断，且不得削弱 TLS 校验作为默认。
 
 ### 17.7 检查清单

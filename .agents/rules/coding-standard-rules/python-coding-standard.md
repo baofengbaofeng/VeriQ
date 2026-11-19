@@ -6,7 +6,7 @@
 - 代码、导入语句和注释均须遵守[显示列宽要求](../coding-standard.md#11-显示列宽的统一计算)。
 - 注释，包括文档字符串和行内说明，使用中文。产品名 VeriQ 和技术标识允许保持原文。
 - 注释须遵守[正文长度要求](../coding-standard.md#12-注释正文长度)。说明这段代码在做什么，禁止用口号凑长度。
-- 静态检查必须使用 pylint，并配合 pylintrc。格式化必须使用 Black 或 Pyink。
+- 静态检查必须使用 pylint，并配合 `apps/srv/pylintrc`。正常发行还检查 Ruff、严格 mypy、Black 和 Ruff 格式。命令和检查范围以[发行入口](../../../scripts/build_release.py)为准，工具设置见 `apps/srv/pyproject.toml` 和 `apps/srv/pylintrc`。
 
 ## 1 背景
 
@@ -18,11 +18,11 @@ Python 程序必须遵守本文件的必须项，禁止本文件的禁止项。�
 
 必须用 pylintrc 对代码运行 pylint。
 
-不恰当的警告必须抑制，以免其他问题被淹没。抑制必须使用行级 `pylint: disable`。禁止使用已废弃的 `pylint: disable-msg`。Google 专用警告以 `g-` 开头。符号名看不出原因时，必须另写说明。
+确认是误报或外部接口要求后，优先使用范围最窄的 pylint 抑制，并在相邻位置说明具体原因。pylint 指令继续按普通注释计量，排版保留指令不赋予计量豁免。已批准的固定工具词元及资格见[工具语法计量规格](../../../docs/specs/tool-syntax-accounting.md)。
 
 ```
-# WSGI 要求方法名保持 do_PUT 这种协议拼写，因此只在这一行关掉 invalid-name，不把方法改成蛇形。
-def do_PUT(self):  # pylint: disable=invalid-name
+# BaseHTTPRequestHandler 根据 HTTP 方法名分派到 do_PUT，名称由基类约定，因此只在此处抑制命名诊断。
+def do_PUT(self) -> None:  # pylint: disable=invalid-name
     ...
 ```
 
@@ -37,16 +37,16 @@ def viking_cafe_order(spam: str, beans: str, eggs: str | None = None) -> str:
 
 ### 2.2 导入
 
-`import` 只用于导入包和模块，禁止导入单个类型、类或函数。下列模块中用于静态分析和类型检查的符号除外：`typing`、`collections.abc`、`typing_extensions`。
+一般优先导入包或模块，使调用点可看出符号来源。允许直接导入类型标注所需的符号，以及仓库既有的框架基类、装饰器和其他惯用公开 API。`from __future__` 按语言规定使用。
 
 必须使用下列形式之一：
 
 - `import x`，用于导入包和模块。
-- `from x import y`，其中 `x` 是包前缀，`y` 是不带前缀的模块名。
+- `from x import y`，用于明确来源的子模块或允许直接导入的符号。
 - `from x import y as z`，仅当要导入两个都叫 `y` 的模块、`y` 与当前模块顶层名字冲突、`y` 与公共 API 的常见参数名冲突（例如 `features`）、`y` 长得不方便，或在上下文里 `y` 太笼统。
 - `import y as z` 仅当 `z` 是标准缩写（例如 `import numpy as np`）。
 
-禁止相对导入。即使模块在同一个包里，也必须使用完整包名。
+同一已安装包内允许显式相对导入，并保持同一模块的导入风格一致。跨包依赖使用绝对导入。禁止依靠当前工作目录解析本地文件。
 
 ```
 from sound.effects import echo
@@ -57,7 +57,7 @@ echo.EchoFilter(input, output, delay=0.7, atten=4)
 
 ### 2.3 包
 
-所有新代码必须按模块的完整路径导入每个模块。禁止假定主程序所在目录位于 `sys.path`。`import jodie` 必须视为名为 `jodie` 的第三方或顶层包，而不是本地的 `jodie.py`。
+新代码通过完整包路径或同包内的显式相对路径导入模块。禁止假定主程序所在目录位于 `sys.path`。`import jodie` 寻找的是顶层模块或包，不能用来表达同包依赖。
 
 ```
 # 这里用完整模块名 absl.flags 引用旗标，读者不用猜 flags 是从哪一个包导入的。
@@ -80,10 +80,10 @@ _FOO = flags.DEFINE_string(...)
 
 允许使用异常，并且必须遵守下列条件：
 
-- 合适时必须使用内置异常类。编程错误（例如违反前置条件）必须使用 `ValueError`。
+- 合适时必须使用内置异常类。参数类型错误用 `TypeError`，类型正确但取值违反前置条件时用 `ValueError`。
 - 禁止用 `assert` 代替条件判断或前置条件校验。`assert` 不得成为应用逻辑的关键部分。删掉 `assert` 之后代码必须仍然成立。`assert` 中的条件不保证会被求值。基于 pytest 的测试里，用 `assert` 核对预期是必须的做法。
 - 库或包定义自己的异常时，必须继承已有的异常类。异常名必须以 `Error` 结尾，并且不得重复（禁止 `foo.FooError` 这种重复）。
-- 禁止使用笼统的 `except:`，也禁止捕获 `Exception` 或 `StandardError`，除非重新抛出该异常，或在程序里建立隔离点：异常不继续传播，而是被记录并抑制，例如在线程最外层拦住异常，避免线程崩溃。
+- 优先捕获能明确处理的异常类型。宽泛捕获只在需要重新抛出或在明确的隔离边界将错误转成失败结果时使用。隔离边界按[失败关闭规则](../coding-standard.md#5-错误处理与失败关闭)记录安全的英文日志并保留明确失败语义。
 - `try` 块必须缩到最小。
 - 无论 `try` 块是否抛出异常都要运行的代码，必须放在 `finally`。
 
@@ -179,7 +179,7 @@ for k, v in adict.items(): ...
 
 需要时必须使用生成器。生成器函数的文档字符串必须使用 `Yields:`，禁止使用 `Returns:`。
 
-生成器管理昂贵资源时必须强制清理，并且必须用上下文管理器包住生成器（PEP 533）。
+生成器管理昂贵资源时，必须明确资源所有权，并通过上下文管理器保证提前退出也会触发清理。Python 3.12 的普通 `for` 不保证提前退出时关闭生成器。
 
 ### 2.10 Lambda 函数
 
@@ -305,7 +305,7 @@ VeriQ 的 Python 解释器只使用 3.12。`generator_stop` 在 3.12 已是语�
 
 ### 2.21 带类型注解的代码
 
-必须用类型提示给 Python 代码加注解。构建时必须用 pyrefly 这类类型检查工具检查代码。可行时类型注解必须写在源文件里。第三方或扩展模块的注解必须放在存根 `.pyi` 文件里。
+类型注解优先写入源码。常规发行对服务源码、构建脚本及发行辅助模块运行仓库配置的严格 mypy。需要为缺少类型信息的第三方接口或扩展模块提供独立注解时，使用 `.pyi` 类型存根。
 
 ```
 def func(a: int) -> list[int]:
@@ -316,7 +316,7 @@ a: SomeType = some_func()
 ```
 
 
-添加或修改公共 API 时必须加上类型注解，并在构建系统里启用类型检查。无法采用时，必须在 BUILD 文件或代码里加上带 TODO 的注释，或链接到描述阻碍的缺陷。
+添加或修改公共 API 时必须加上类型注解。依赖缺少类型信息时，先考虑已有存根、窄类型包装或运行时校验。无法消除的单行诊断处理见[忽略类型](#3197-忽略类型)。
 
 ## 3 Python 风格规则
 
@@ -499,7 +499,7 @@ spam(ham[1], {'eggs': 2}, [])
 ```
 
 
-二元运算符两侧必须各留一个空格，用于赋值（`=`）、比较（`==`、`<`、`>`、`!=`、`<>`、`<=`、`>=`、`in`、`not in`、`is`、`is not`）和布尔运算（`and`、`or`、`not`）。算术运算符（`+`、`-`、`*`、`/`、`//`、`%`、`**`、`@`）两侧的空格没有统一要求。
+赋值、比较和二元布尔运算符两侧必须留空格。用 `not` 作一元布尔运算时，在其后留一个空格。算术运算符周围的空格以仓库格式化工具的结果为准。
 
 ```
 x == 1
@@ -529,7 +529,7 @@ dictionary = {
 
 ### 3.7 Shebang 行
 
-大多数 `.py` 文件禁止以 `#!` 行开头。只有打算直接执行的文件必须有 shebang。程序的主文件必须以 `#!/usr/bin/env python3` 开头以支持虚拟环境，或按 PEP 394 以 `#!/usr/bin/python3` 开头。
+由 `python`、`python -m` 或包入口调用的 `.py` 模块无需 shebang。仓库内优先用这些入口保持 Python 3.12 环境。确需由操作系统直接执行的 Python 文件，应先为 shebang 明确经批准的计量方案。现行[工具语法计量规格](../../../docs/specs/tool-syntax-accounting.md)只将 Shell shebang 作为功能代码处理，Python shebang 仍走普通注释检查。
 
 ### 3.8 注释与文档字符串
 
@@ -658,21 +658,27 @@ def read_from_remote_filesystem(url: str) -> Iterator[RemoteFile]:
 
 ##### 3.8.3.1 被覆盖的方法
 
-覆盖基类方法的方法如果标了 `@override`，不需要文档字符串，除非覆盖方法的行为实质收紧了基类契约，或需要提供细节（例如额外副作用）。那时必须有至少说明这些差异的文档字符串。没有 `@override` 时必须自己写文档字符串。禁止只写“见父类”。
+覆盖基类方法时使用 `@override`。公开覆盖方法仍须提供符合总则的中文说明。说明此实现遵守的可观察行为、限制或副作用，并将重复的通用契约细节留在基类。需要解释的关键内部路径也应按总则记录。
 
 ```
 from typing import override
 
-class Parent:
-    def do_something(self):
-        """父类方法的契约写在这里。子类若只是原样继承，就不必再抄一遍同一段说明文字，本例就是这样。
-        """
 
-# 子类方法标了 override，行为没有收紧父类契约，因此不再重复父类的文档字符串。
+class Parent:
+    """提供只读的范围计数，让调用方按条目数量准备空间，具体条目集合由实现选择并管理。"""
+
+    def count_items(self) -> int:
+        """返回当前在处理范围内的条目数，调用方可以使用这个数分配结果容量，读取计数不会改变集合。"""
+        return 0
+
+
 class Child(Parent):
+    """处理两个预先确定的条目，使用固定处理范围供调用方准备结果容量，无需查询外部数据。"""
+
     @override
-    def do_something(self):
-        pass
+    def count_items(self) -> int:
+        """返回预先选定的两个条目，计数反映这个子类的固定处理范围，多次读取不会刷新或修改条目。"""
+        return 2
 ```
 
 
@@ -764,16 +770,16 @@ employee_table = ''.join(items)
 ```
 
 
-一个文件内的字符串引号必须一致，选定 `'` 或 `"` 后必须坚持。为避免反斜杠转义字符串内部的引号，允许在某个字符串上使用另一种引号。
+普通字符串使用双引号，遵循仓库的 Black 和 Ruff 格式输出。为减少转义而保留的单引号以两者实际检查结果为准。
 
 ```
-Python('Why are you hiding your eyes?')
+Python("Why are you hiding your eyes?")
 Gollum("I'm scared of lint errors.")
 Narrator('"Good!" thought a happy Python reviewer.')
 ```
 
 
-多行字符串必须使用 `"""`，禁止 `'''`。例外：普通字符串使用 `'` 时，项目允许对所有非文档字符串的多行字符串使用 `'''`。文档字符串无论如何都必须使用 `"""`。
+多行字符串和文档字符串使用 `"""`。
 
 多行字符串不得把额外空格嵌进字符串。不能接受前导空格时，必须使用拼接的单行字符串，或使用带 `textwrap.dedent()` 的多行字符串。字符串字面量内部的反斜杠换行是转义，不违反禁止显式续行的规定。
 
@@ -954,7 +960,7 @@ if foo: bar(foo)
 
 名字必须具有描述性。这包括函数、类、变量、属性、文件以及任何其他具名实体。禁止缩写。禁止使用对项目外读者含糊或陌生的缩写，也禁止删掉单词内部的字母来缩写。
 
-文件必须使用 `.py` 扩展名。禁止连字符。
+Python 源文件使用 `.py` 扩展名，类型存根使用 `.pyi`。禁止连字符。
 
 #### 3.16.1 禁止的名字
 
@@ -990,7 +996,7 @@ CapWords 中的首字母缩写必须全部大写，因此 `HTTPServerError`，�
 
 #### 3.16.3 文件命名
 
-Python 文件名必须有 `.py` 扩展名，并且不得包含连字符（`-`）。希望可执行文件不带扩展名也能访问时，必须使用符号链接，或一个包含 `exec "$0.py" "$@"` 的简单 bash 包装。
+Python 源文件命名为 `lower_with_under.py`，类型存根使用对应的 `lower_with_under.pyi`。无扩展名的命令优先通过包入口提供。
 
 #### 3.16.4 命名表
 
@@ -1057,9 +1063,9 @@ if __name__ == '__main__':
 #### 3.19.1 一般规则
 
 - 不要求给 `self` 或 `cls` 加注解。正确的类型信息需要时必须使用 `Self`。
-- 不要求给 `__init__` 的返回值加注解。
-- 任何其他变量或返回类型不应当被表达时，必须使用 `Any`。
-- 不要求给模块里的所有函数加注解。
+- `__init__` 应明确标注 `-> None`。所用检查器已能确定返回为 `None` 时，以仓库严格 mypy 的检查结果为准。
+- 优先使用能描述真实约束的类型，仅在类型信息确实无法取得时使用 `Any`，并限制其传播范围。
+- 严格 mypy 覆盖的模块中，内部函数也必须符合完整签名的检查要求。实际检查范围以发行入口和项目配置为准。
 - 必须给公共 API 加注解。
 - 容易出现类型相关错误的代码、难以理解的代码，以及从类型角度看已经稳定的代码，必须加注解。
 
@@ -1146,17 +1152,28 @@ def my_method(
 
 ```
 from __future__ import annotations
+from collections.abc import Sequence
+
 
 class MyClass:
     def __init__(self, stack: Sequence[MyClass], item: OtherClass) -> None:
+        self.stack = stack
+        self.item = item
+
 
 class OtherClass:
     ...
 ```
 
 ```
+from collections.abc import Sequence
+
+
 class MyClass:
-    def __init__(self, stack: Sequence['MyClass'], item: 'OtherClass') -> None:
+    def __init__(self, stack: Sequence["MyClass"], item: "OtherClass") -> None:
+        self.stack = stack
+        self.item = item
+
 
 class OtherClass:
     ...
@@ -1175,7 +1192,7 @@ def func(a: int = 0) -> int:
 
 #### 3.19.5 NoneType
 
-如果参数可以是 `None`，就必须声明。Python 3.12 代码必须使用 `|` 联合类型表达式。较旧的 `Optional` 和 `Union` 语法仍然允许。
+如果参数可以是 `None`，就必须声明。新写的 Python 3.12 联合类型使用 `|`；旧有的 `Optional` 和 `Union` 与 Python 3.12 兼容。
 
 必须使用显式的 `X | None`。禁止把 `a: str = None` 当作 `a: str | None = None`。禁止 `Union[None, str]` 这种把 `None` 放在前面的写法。
 
@@ -1206,12 +1223,9 @@ _ShortName: TypeAlias = other_module.SignificantlyInconvenientlyLongName
 
 #### 3.19.7 忽略类型
 
-允许用 `# type: ignore` 关闭一行上的类型检查。`pyrefly` 的针对特定错误的关闭必须写成 `# pyrefly: ignore[错误名]`。禁止用整段函数的检查关闭代替单行抑制。
+无法用类型或运行时校验表达的边界才使用 mypy 单行抑制。使用 `# type: ignore[错误码]` 限定实际诊断，并在相邻位置写明此处的依据。整段禁用检查和裸 `ignore` 会遮住无关诊断。
 
-```
-# 这一行的属性访问是类型检查器的误报，只抑制 attribute-error，不要把整段函数的检查都关掉。
-# pyrefly: ignore[attribute-error]
-```
+当前注释审计只将满足精确词元及行尾位置条件的 `# type: ignore[no-any-return]` 和 `# type: ignore[arg-type]` 按功能代码计量。mypy 接受的其他指令继续按普通注释处理。同行与相邻的普通说明仍须符合总则。资格、示例与计量见[工具语法计量规格](../../../docs/specs/tool-syntax-accounting.md#python-行尾类型检查指令)。
 
 
 #### 3.19.8 给变量标注类型
@@ -1223,7 +1237,7 @@ a: Foo = SomeUndecoratedFunction()
 ```
 
 
-代码库里可能仍留有行尾的 `# type: ` 注释，但 Python 3.12 代码禁止再新增这种旧式写法。
+Python 3.12 中变量的声明使用现代注解语法。旧式赋值类型注释 `name = value  # type: T` 与上一节的 mypy 诊断抑制属于不同语法。
 
 #### 3.19.9 元组与列表
 
@@ -1315,9 +1329,11 @@ from typing import Any, Generic, cast, TYPE_CHECKING
 ```
 from collections.abc import Sequence
 
-def transform_coordinates(original: Sequence[tuple[float, float]]) ->
-        Sequence[tuple[float, float]]:
-    ...
+
+def transform_coordinates(
+    original: Sequence[tuple[float, float]],
+) -> Sequence[tuple[float, float]]:
+    return [(y, x) for x, y in original]
 ```
 
 
@@ -1325,31 +1341,36 @@ def transform_coordinates(original: Sequence[tuple[float, float]]) ->
 
 必须重构代码以允许顶层导入。只有类型检查所需、且必须在运行时避免的额外导入，才允许条件导入。这类导入必须放在 `if TYPE_CHECKING:` 块里，并且：
 
-- 条件导入的类型在 Python 3.12 下必须以字符串引用，因为注解表达式在运行时会被求值。
+- 条件导入的类型使用字符串注解或 `from __future__ import annotations` 推迟注解求值。如果框架会在运行时解析注解，须安排所需的真实类型在求值时可用。
 - 这里只允许定义仅用于类型标注的实体，包括别名。
 - 该块必须紧接在所有普通导入之后。
 - 类型导入列表中禁止空行。
 - 必须把这个列表当作普通导入列表来排序。
 
 ```
-import typing
-if typing.TYPE_CHECKING:
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
     import sketch
-def f(x: "sketch.Sketch"): ...
+
+
+def f(x: "sketch.Sketch") -> None:
+    ...
 ```
 
 
 #### 3.19.14 循环依赖
 
-由类型标注引起的循环依赖必须重构掉。必须用 `Any` 替换造成循环依赖导入的模块，用有意义的名字设置别名，并使用本模块中的真实类型名。别名定义必须与最后一条导入空开一行。使用处必须以字符串注解引用该类型。
+先将共享类型移入双方都能正常导入的模块。只有静态检查需要的类型可以用上一节的 `TYPE_CHECKING` 导入保留精确类型信息。运行时需要解析注解时，保证目标类型在解析作用域中可用。
 
 ```
-from typing import Any
+from typing import TYPE_CHECKING
 
-some_mod = Any  # some_mod.py 会导入本模块，这里用字符串注解避开两个模块在导入时互相等待。
-...
+if TYPE_CHECKING:
+    from example import some_mod
 
-def my_method(self, var: "some_mod.SomeType") -> None:
+
+def my_method(var: "some_mod.SomeType") -> None:
     ...
 ```
 

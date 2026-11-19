@@ -24,6 +24,7 @@
 | 文件 | 用途 | 何时阅读 |
 | --- | --- | --- |
 | [docs/specs/veriq-1.0.md](./docs/specs/veriq-1.0.md) | 产品与技术规格 | 编码前，以及行为与规格可能不一致时 |
+| [docs/specs/veriq-datasets.md](./docs/specs/veriq-datasets.md) | 工作区数据集与当前 MVP 联网执行范围 | 改动数据集、执行模式或历史离线兼容路径时 |
 | [docs/specs/desktop.md](./docs/specs/desktop.md) | 桌面图形客户端规格 | 改动 Electron 桌面或本地 GUI 时 |
 | [docs/specs/macos-controlled-stop.md](./docs/specs/macos-controlled-stop.md) | macOS 受控进程停止 | 改动 macOS 进程停止或停止回执时 |
 | [docs/specs/macos-mvp-scope.md](./docs/specs/macos-mvp-scope.md) | Mac 平台范围、兼容性与接续记录 | 改动 Mac 桌面或 Runtime 目标时 |
@@ -71,7 +72,7 @@
 - 规范包布局：
   - `apps/srv` — Tornado 控制服务（`veriq_server`）；Python 依赖只写在 `apps/srv/pyproject.toml` 及其锁文件
   - `apps/web` — React 管理台（`@veriq/web`）
-  - `apps/runtime` — Agent / CLI / 离线执行（`@veriq/runtime`）
+  - `apps/runtime` — 联网 Agent / CLI，含历史离线兼容代码（`@veriq/runtime`）
   - `apps/desktop` — Electron 图形客户端（`@veriq/desktop`）
   - `packages/contracts` — JSON Schema、OpenAPI、生成类型
   - `packages/compiler`、`packages/runner-sdk`、`packages/ui` — 编译器、Playwright SDK、共享 UI
@@ -82,7 +83,7 @@
 - 控制服务提供 API、认证、Workspace 授权、队列与生产静态资源。控制服务不运行浏览器测试。生产控制面运行时不需要 Node，也不需要 Chrome/Playwright。
 - 云端与本地 Runtime 共用同一套 Node 24 执行引擎、编译器、Runner SDK 与结果协议。Electron 内嵌的 Node/Chromium 不是测试引擎；桌面升级不得静默更改已锁定的 Playwright 浏览器工具链。
 - DSL 为可编辑源码；生成的 TypeScript 为不可变产物。全部执行依赖须版本化。运行须冻结资产、引擎、环境、数据、角色与浏览器快照。禁止执行漂移的最新草稿，也禁止把现场实际值复制为断言真值。
-- Workspace 是资源与授权边界。嵌套引用、下载、事件、导出与导入均须校验 `workspace_id` 与成员身份。系统管理员不是隐式 Workspace 成员，也不隐式拥有私人设备派单权。
+- Workspace 是资源与授权边界。嵌套引用、下载、事件、导出与导入均须校验 `workspace_id` 及对应操作的授权。员工入口核对当前成员身份、角色与操作权限。服务和设备入口核对当前主体、令牌用途与授权范围，涉及设备时还须核对当前设备绑定与所有者授权。系统管理员不是隐式 Workspace 成员，也不隐式拥有私人设备派单权。
 - 个人 Runtime 默认私有；共享须所有者显式授权。权限撤销必须阻断后续领取、下载与上传。离线设备与已下载数据无法保证立即被远程回收。
 - Electron：启用 `contextIsolation`，关闭 renderer 的 Node 集成，在适用处启用 sandbox；preload 仅暴露白名单类型化 IPC。设备 token、密钥、进程派生与任意文件系统访问不得暴露给 renderer。禁止开放无认证的本地 HTTP 控制端口。
 - Mac Electron 主进程直接加载已核验的 Darwin Node-API 插件，用于私有配置和有限的 Cookie 文件操作。禁止另做独立的 Node 文件代理。仅在清单、宿主、架构以及目标加载与签名检查通过后绑定。Renderer 保持隔离，独立的文件型 Keychain 助手保持不变。这一选择不授权真实的 Keychain、Cookie、会话或信任库操作。
@@ -117,7 +118,7 @@
 | 未结束 Run 上限 | 10 |
 | 在线全局浏览器上下文 | 4 |
 | 单 Workspace 浏览器上下文 | 2 |
-| 离线本机并发 | 1 |
+| 离线本机并发（历史默认值，非 MVP） | 1 |
 | 心跳 | 10s |
 | 租约 | 60s |
 | Playwright `retries` | 0 |
@@ -142,6 +143,8 @@
 - 时间戳以 UTC 存储；除非具体产品界面另行定义，默认显示时区为 Asia/Shanghai。平台实体 ID 使用 UUID 字符串。
 
 ## 离线与 AI
+
+当前 MVP 采用联网执行。以下离线包、离线执行与离线结果导入要求仅适用于历史协议与兼容核对。当前范围见[工作区数据集与联网执行](./docs/specs/veriq-datasets.md)。
 
 - 离线包为已签名的依赖闭包与只读快照。包内不得携带密码、Cookie 或设备 token。签名证明包内容的来源与完整性，不证明本地结果不可伪造。
 - 离线指无需连接控制平台；被测系统仍须可达。离线不包含双向编辑同步。

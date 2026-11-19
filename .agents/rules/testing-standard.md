@@ -22,7 +22,7 @@
 
 ## 3. Playwright 与产品重试语义
 
-- 产品执行路径：Playwright `retries = 0`；整用例重试至多 1 次且由 VeriQ 编排；重试后通过记 `UNSTABLE`。
+- 产品执行路径使用 Playwright `retries = 0`。整用例重试由 VeriQ 编排，至多 1 次，须满足[重试准入与清理条件](./coding-standard.md#126-重试)。重试通过时仅在 Job、CaseExecution 和 Run 的结果归约中计入 `UNSTABLE`，各次 Attempt 均保留真实结果。
 - 工程测试配置不得擅自打开宽泛重试来吞 flaky；确需重试须有书面理由，且不得改变产品语义断言。
 - 禁止 `waitForTimeout` 类固定 sleep 作为同步手段；使用条件等待与确定性事件。
 - 禁止「强制点击 / 强制可见」掩盖定位或权限问题。
@@ -41,14 +41,15 @@
 - 跨 Workspace 访问拒绝
 - 租约过期、fencing 冲突、迟到回报
 - 停止证明缺失/范围错误 → 不释放容量
-- 签名失败、撤销状态、重复导入幂等
+- 签名失败、撤销状态
+- 触及历史离线结果导入协议或兼容性夹具时，覆盖重复导入幂等。离线结果导入已退出 MVP，范围见[工作区数据集与联网执行](../../docs/specs/veriq-datasets.md)。
 - 无认证触发/维护接口
 - Electron 非白名单 IPC / 错误 sender
 
 ## 6. 覆盖率与质量门禁
 
 - 除非任务明确收窄范围，Python 与核心 TypeScript 包行覆盖率目标 **≥ 75%**。
-- 注释覆盖率机械门禁 **> 40%**（见编码规范）；与行覆盖率分开统计。
+- `scripts/comment_audit.py` 检查全仓注释覆盖率机械门禁 **> 40%**（见编码规范），与测试行覆盖率分别统计。根目录 `pnpm lint` 含列宽、块注释排版与 Biome lint 检查，注释覆盖率须单独运行审计。
 - 关键路径（认证、授权、租约、停止、签名、凭证）即使行覆盖达标，仍须有专项行为测试。
 - 默认发行门禁应跑完整相关测试；`--skip-tests` 类出口必须带原因且不得伪装成已验证发行。
 
@@ -62,22 +63,26 @@
 ## 8. 本地常用命令（以仓库脚本为准）
 
 ```sh
-# 契约与包测试（示例）
+# 根目录工作区包测试与检查
 pnpm test
 pnpm check
-uv run --project apps/srv pytest -c apps/srv/pyproject.toml -q
 
-# 注释门禁（示例）
-python scripts/comment_audit.py --output /tmp/veriq-comment-audit.json
+# 服务端测试（示例）
+uv run --project apps/srv python -m pytest -c apps/srv/pyproject.toml apps/srv/tests -q
+
+# 注释覆盖率门禁（先完成冻结的全组 Python 依赖同步）
+uv run --project apps/srv --frozen --no-sync python scripts/comment_audit.py --output /tmp/veriq-comment-audit.json
 ```
 
-具体过滤参数、包 filter 与 CI 任务名以 `README.md` / `docs/development.md` 为准。
+根目录 `pnpm test` 运行契约、编译器、Runner SDK 与 Runtime 测试。根目录 `pnpm check` 执行上述包及桌面的 TypeScript 检查，并校验契约生成文件是否同步。服务端测试、Web 独立检查及 Web 和桌面端到端测试须分别运行对应命令。
+
+依赖同步、过滤参数、包 filter 与 CI 任务名见[仓库 README](../../README.md)和[开发指南](../../docs/development.md)。
 
 ## 9. 检查清单
 
 - [ ] 新行为有 RED→GREEN 证据
 - [ ] 断言针对可观察结果；含必要负例
-- [ ] 无 sleep/假报告/擅自重试吞 flaky
+- [ ] 无固定 sleep 用于同步或掩盖问题，无假报告或擅自重试吞 flaky
 - [ ] 无模型密钥依赖；缺夹具未静默假绿
 - [ ] 覆盖率与关键路径专项测试满足要求
 
