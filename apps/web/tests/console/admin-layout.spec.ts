@@ -377,6 +377,26 @@ async function expectCenteredCreateDialog(page: Page, dialog: Locator) {
     expect(box.y + box.height / 2).toBeCloseTo(viewport.height / 2, 0);
     expect(box.width).toBe(Math.min(400, viewport.width - 32));
     expect(box.y).toBeGreaterThanOrEqual(16);
+    await expect(dialog).toHaveCSS("border-radius", "16px");
+    const title = dialog.getByRole("heading", { name: "Add workspace" });
+    await expect(title).toHaveCSS("font-size", "16px");
+    await expect(title).toHaveCSS("font-weight", "600");
+    await expect(dialog.getByLabel("Key")).toHaveCSS("height", "36px");
+    await expect(dialog.getByLabel("Name")).toHaveCSS("height", "36px");
+    const cancel = dialog.getByRole("button", { name: "Cancel", exact: true });
+    const create = dialog.getByRole("button", { name: "Create Workspace", exact: true });
+    const cancelBox = await cancel.boundingBox();
+    const createBox = await create.boundingBox();
+    const nameBox = await dialog.getByLabel("Name").boundingBox();
+    if (!cancelBox || !createBox || !nameBox) throw new Error("Missing form actions or field");
+    expect((await title.boundingBox())?.x).toBe(nameBox.x);
+    expect(cancelBox.y).toBe(createBox.y);
+    expect(createBox.x - (cancelBox.x + cancelBox.width)).toBe(8);
+    expect(createBox.x + createBox.width).toBeCloseTo(nameBox.x + nameBox.width, 0);
+    await expect(cancel).toHaveCSS("border-style", "solid");
+    expect(await cancel.evaluate((node) => getComputedStyle(node).backgroundColor)).not.toBe(
+        await create.evaluate((node) => getComputedStyle(node).backgroundColor),
+    );
 }
 
 test("header creates and retains an authorized workspace across navigation", async ({ page }) => {
@@ -453,6 +473,12 @@ test("header creates and retains an authorized workspace across navigation", asy
     await expect(page.getByRole("menuitemradio", { name: "English" })).toBeChecked();
     await page.getByRole("menuitemradio", { name: "中文" }).press("Enter");
     await expectWorkspaceGroup(page, "当前工作区", 12);
+    const add = header.getByRole("button", { name: "添加工作区" });
+    await add.press("Enter");
+    const localized = page.getByRole("dialog", { name: "添加工作区" });
+    await expect(localized).toHaveAccessibleDescription("使用唯一标识，以英文字母或下划线开头。");
+    await localized.getByRole("button", { name: "取消", exact: true }).click();
+    await expect(add).toBeFocused();
     await expect(workspacePicker(page)).toHaveAttribute("data-workspace-id", ids[1]);
     await profile.press("Enter");
     await menu.getByRole("menuitem", { name: /^语言/ }).press("ArrowRight");
@@ -774,6 +800,18 @@ test("Workspace toolbar browses paginated members and opens workspace settings",
     const dialog = page.getByRole("dialog", { name: "Add workspace" });
     await expectCenteredCreateDialog(page, dialog);
     await expect(dialog).toHaveCSS("background-color", "rgb(26, 34, 49)");
+    const posts: string[] = [];
+    page.on("request", (request) => {
+        if (request.method() === "POST" && request.url().endsWith("/workspaces")) posts.push(request.url());
+    });
+    await dialog.getByLabel("Key").fill(`cancel-${randomUUID()}`);
+    await dialog.getByLabel("Name").fill("Canceled workspace");
+    await dialog.getByRole("button", { name: "Cancel", exact: true }).press("Enter");
+    await expect(dialog).toBeHidden();
+    await expect(add).toBeFocused();
+    expect(posts).toHaveLength(0);
+    await add.press("Enter");
+    await expect(dialog.getByLabel("Key")).toHaveValue("");
     await dialog.getByRole("button", { name: "Create Workspace" }).focus();
     await page.keyboard.press("Tab");
     await expect(dialog.getByRole("button", { name: "Close" })).toBeFocused();
