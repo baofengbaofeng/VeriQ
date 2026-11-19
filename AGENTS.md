@@ -43,16 +43,14 @@
 | [`.agents/rules/security-standard.md`](./.agents/rules/security-standard.md) | 认证授权、密钥、IPC、签名与供应链 | 改动安全相关路径时 |
 | [`.agents/rules/testing-standard.md`](./.agents/rules/testing-standard.md) | TDD、假绿禁令、覆盖率与平台测试 | 编写或审查测试时 |
 | [`.agents/rules/review-standard.md`](./.agents/rules/review-standard.md) | 审查职责、必查项与拒绝标准 | 审查代码或规格时 |
-| [`.agents/rules/documentation-contract-standard.md`](./.agents/rules/documentation-contract-standard.md) | 规格、ADR 与跨语言契约一致性 | 修改规格、ADR 或契约时 |
+| [`.agents/rules/documentation-contract-standard.md`](./.agents/rules/documentation-contract-standard.md) | 规格、ADR、跨语言契约一致性与 API 兼容性 | 修改规格、ADR、用户文档或公共 HTTP、IPC、结果协议等契约时 |
 | [`.agents/rules/dependency-license-standard.md`](./.agents/rules/dependency-license-standard.md) | 依赖钉死、许可与漏洞 | 选取或升级依赖时 |
 | [`.agents/rules/error-handling-observability-standard.md`](./.agents/rules/error-handling-observability-standard.md) | 失败关闭、错误码、日志脱敏与健康信号 | 设计错误处理或日志时 |
-| [`.agents/rules/concurrency-idempotency-state-standard.md`](./.agents/rules/concurrency-idempotency-state-standard.md) | 租约、fencing、幂等、容量隔离与重试 | 改动队列、租约或结果写入时 |
+| [`.agents/rules/concurrency-idempotency-state-standard.md`](./.agents/rules/concurrency-idempotency-state-standard.md) | 租约、fencing、幂等、容量隔离、重试、超时与背压 | 改动队列、租约或结果写入，或设定并发、超时、批次预算时 |
 | [`.agents/rules/database-migration-standard.md`](./.agents/rules/database-migration-standard.md) | 表前缀、UTC/UUID、迁移与事务原子性 | 设计表或编写迁移时 |
-| [`.agents/rules/api-compatibility-evolution-standard.md`](./.agents/rules/api-compatibility-evolution-standard.md) | 契约兼容等级、鉴权表面与 IPC 版本 | 变更公共 HTTP、IPC 或结果协议时 |
 | [`.agents/rules/architecture-boundary-extensibility-standard.md`](./.agents/rules/architecture-boundary-extensibility-standard.md) | 分层依赖、控制面与执行面、扩展点 | 新增模块或调整依赖方向时 |
 | [`.agents/rules/native-cross-platform-standard.md`](./.agents/rules/native-cross-platform-standard.md) | 进程停止范围、凭据、路径与能力声明 | 改动各操作系统上的进程、凭据或停止证明时 |
 | [`.agents/rules/release-rollback-configuration-standard.md`](./.agents/rules/release-rollback-configuration-standard.md) | 产物完整性、晋升、安全默认与回滚 | 构建发行物或设定配置默认时 |
-| [`.agents/rules/performance-timeout-budget-standard.md`](./.agents/rules/performance-timeout-budget-standard.md) | 容量默认、超时类别、背压；禁止用 sleep 当同步 | 设定并发、超时或批次预算时 |
 | [`.agents/rules/privacy-data-retention-standard.md`](./.agents/rules/privacy-data-retention-standard.md) | 数据分类、证据授权、保留期与脱敏 | 处理用户数据、证据或日志时 |
 | [`.agents/rules/outbound-network-integration-standard.md`](./.agents/rules/outbound-network-integration-standard.md) | SSRF、Provider、对象存储与出站超时重试 | 新增或修改出站调用时 |
 | [`.agents/rules/audit-event-standard.md`](./.agents/rules/audit-event-standard.md) | 审计点、事件顺序、fencing 与订阅授权 | 记录审计或发出执行事件时 |
