@@ -12,7 +12,6 @@ import { allocateScratch, retireScratch } from "../src/execution/storage.ts";
 import fs from "node:fs/promises";
 import { syncBuiltinESMExports } from "node:module";
 import { spawnSync } from "node:child_process";
-import { EventEmitter, once } from "node:events";
 
 /**
  * 恢复夹具把正式日志和未发布临时对象真实写入同一私有目录，transport只记录对账声明；进程存在时仍由真实原生守护排空，任
@@ -241,507 +240,315 @@ for (const failure of ["write", "rename"]) {
     });
 }
 
-for (const condition of [
-    "owned",
-    "replacement",
-    "symlink",
-    "unknown",
-    "historical",
-    "legacy-allocation",
-    "missing-permit",
-    "replaced-permit",
-    "relocated",
-]) {
-    test("scratch recovery verifies ownership and physical stop: " + condition, async () => {
-        const root = await mkdtemp(join(tmpdir(), "vq-data-recover-"));
-        const f = await fixture(root),
-            id = randomUUID(),
-            work = join(root, "work", id);
-        const tmp = await mkdtemp(join(tmpdir(), "veriq-a-"));
-        const outside = await mkdtemp(join(tmpdir(), "vq-data-other-"));
-        try {
-            await mkdir(work, { mode: 0o700, recursive: true });
-            const modules = join(work, "node_modules");
-            const allocation = await allocateScratch(root, work, tmp);
-            if (condition === "legacy-allocation") delete allocation.retirementPermit;
-            if (condition === "missing-permit" || condition === "replaced-permit") {
-                const permit = join(root, "scratch-retirements", allocation.owner);
-                const original = await readFile(permit);
-                await fs.rename(permit, permit + "-original");
-                if (condition === "replaced-permit") await writeFile(permit, original, { mode: 0o600 });
-            }
-            const record = {
-                ...f.record(id, condition === "unknown" ? "RUNNING" : "ALLOCATED"),
-                work,
-                ...(condition === "historical" ? {} : { allocation }),
-            };
-            const journal = join(f.directory, id + ".json");
-            await writeFile(journal, JSON.stringify(record), { mode: 0o600 });
-            await writeFile(join(tmp, "old-copy"), "synthetic old data");
-            await writeFile(join(outside, "keep"), "belongs to another task");
-            if (condition === "replacement" || condition === "symlink") {
-                await fs.rename(work, work + "-old");
-                if (condition === "replacement") await mkdir(work, { mode: 0o700 });
-                else await symlink(outside, work);
-            }
-            if (condition === "relocated") await fs.rename(tmp, join(outside, "relocated"));
-            await f.supervisor.recover();
-            const persisted = JSON.parse(await readFile(journal, "utf8"));
-            assert.equal(persisted.dataCleanup, condition === "unknown" ? "STOP_UNCONFIRMED" : "OWNERSHIP_UNCONFIRMED");
-            if (condition === "owned") {
-                assert.deepEqual((await readdir(tmp)).sort(), [
-                    ".veriq-owner",
-                    ".veriq-retired",
-                    ".veriq-retirement-inventory",
-                    "old-copy",
-                ]);
-                assert.equal(await readFile(join(tmp, "old-copy"), "utf8"), "");
-                assert.deepEqual((await readdir(modules)).sort(), [".veriq-retired", ".veriq-retirement-inventory"]);
-                await writeFile(join(tmp, "operator-copy"), "keep");
-                await f.supervisor.recover();
-                assert.equal(JSON.parse(await readFile(journal, "utf8")).dataCleanup, "OWNERSHIP_UNCONFIRMED");
-                assert.equal(await readFile(join(tmp, "operator-copy"), "utf8"), "keep");
-                assert((await lstat(work)).isDirectory());
-            } else {
-                const source = condition === "relocated" ? join(outside, "relocated") : tmp;
-                assert.equal(await readFile(join(source, "old-copy"), "utf8"), "synthetic old data");
-            }
-            assert.equal(await readFile(join(outside, "keep"), "utf8"), "belongs to another task");
-            assert(!JSON.stringify(persisted).includes("synthetic old data"));
-        } finally {
-            for (const dir of [tmp, outside, root]) await rm(dir, { recursive: true, force: true });
-        }
-    });
-}
-
-test("recovery verifies the original physical target of the operating system temporary alias", async () => {
-    const root = await mkdtemp(join(tmpdir(), "vq-tmp-alias-")),
-        id = randomUUID(),
-        work = join(root, "work", id),
-        alias = join(root, "os-tmp");
-    try {
-        await mkdir(work, { recursive: true });
-        for (const name of ["original", "replacement"]) await mkdir(join(root, name));
-        await symlink(join(root, "original"), alias, "junction");
-        const tmp = await mkdtemp(join(alias, "veriq-a-"));
-        const record = { work, allocation: await allocateScratch(root, work, tmp) };
-        const stop = {
-            attemptId: id,
-            processStopped: true,
-            processStopScope: "NO_PROCESS_SPAWNED" as const,
-            reason: "NO_PROCESS_SPAWNED",
-            stoppedAt: new Date().toISOString(),
-        };
-        await fs.unlink(alias);
-        await symlink(join(root, "replacement"), alias, "junction");
-        assert.equal(await retireScratch(root, alias, record, stop), "OWNERSHIP_UNCONFIRMED");
-        assert((await lstat(join(work, "node_modules"))).isDirectory());
-        await fs.unlink(alias);
-        await symlink(join(root, "original"), alias, "junction");
-        assert.equal(await retireScratch(root, alias, record, stop), "OWNERSHIP_UNCONFIRMED");
-        assert.deepEqual((await readdir(tmp)).sort(), [
-            ".veriq-owner",
-            ".veriq-retired",
-            ".veriq-retirement-inventory",
-        ]);
-    } finally {
-        await rm(root, { recursive: true, force: true });
-    }
-});
-
 /**
- * 初始日志绑定一次真实目录分配，测试从已确认未派生的状态进入正式恢复入口；独立许可和目录内的回执可分别注入故障。
+ * 夹具使用新分配的真实目录和所有者标记，以便恢复入口从持久日志判断停止状态，并直接检查两棵树里的文件字节。
  */
-async function scratchJournal(root: string, tmp: string) {
-    const f = await fixture(root),
-        id = randomUUID(),
-        work = join(root, "work", id);
+async function scratchFixture(root: string, tmp: string) {
+    const f = await fixture(root);
+    const id = randomUUID();
+    const work = join(root, "work", id);
     await mkdir(work, { recursive: true, mode: 0o700 });
-    const allocation = await allocateScratch(root, work, tmp),
-        journal = join(f.directory, id + ".json");
-    await writeFile(journal, JSON.stringify({ ...f.record(id), work, allocation }), { mode: 0o600 });
+    const allocation = await allocateScratch(root, work, tmp);
     return {
         f,
-        journal,
+        id,
+        work,
+        allocation,
+        journal: join(f.directory, `${id}.json`),
         modules: join(work, "node_modules"),
-        permit: join(root, "scratch-retirements", allocation.owner),
     };
 }
 
-test("startup never adopts replacement files after both retirement markers disappear", async () => {
-    const root = await mkdtemp(join(tmpdir(), "vq-recovery-retry-")),
-        tmp = await mkdtemp(join(tmpdir(), "veriq-a-"));
-    try {
-        const { f, journal, modules } = await scratchJournal(root, tmp);
-        for (const dir of [modules, tmp]) await writeFile(join(dir, "copy"), "original bytes");
-        await f.supervisor.recover();
-        assert.equal(JSON.parse(await readFile(journal, "utf8")).dataCleanup, "OWNERSHIP_UNCONFIRMED");
-        for (const dir of [modules, tmp]) {
-            const original = join(dir, "copy");
-            assert.equal(await readFile(original, "utf8"), "");
-            await fs.unlink(join(dir, ".veriq-retired"));
-            await fs.unlink(join(dir, ".veriq-retirement-inventory"));
-            await fs.rename(original, join(dir, "previous-copy"));
-            await writeFile(original, "operator replacement bytes");
-        }
-        const restarted = new ExecutionSupervisor(f.options);
-        assert.equal((await restarted.recover())[0]?.processStopScope, "NO_PROCESS_SPAWNED");
-        for (const dir of [modules, tmp]) {
-            assert.equal(await readFile(join(dir, "copy"), "utf8"), "operator replacement bytes");
-            assert(!(await readdir(dir)).some((name) => name.startsWith(".veriq-retire")));
-        }
-        assert.equal(JSON.parse(await readFile(journal, "utf8")).dataCleanup, "OWNERSHIP_UNCONFIRMED");
-    } finally {
-        await rm(root, { recursive: true, force: true });
-        await rm(tmp, { recursive: true, force: true });
-    }
-});
-
-test("a crash after the first truncation cannot authorize a new inventory before any cleanup result", async () => {
-    const root = await mkdtemp(join(tmpdir(), "vq-retirement-interrupted-")),
-        tmp = await mkdtemp(join(tmpdir(), "veriq-a-"));
-    try {
-        const { f, journal, modules } = await scratchJournal(root, tmp),
-            file = join(modules, "copy");
-        await writeFile(file, "original bytes");
-        const script = `
-            import { open } from "node:fs/promises";
-            import { ExecutionSupervisor } from "./src/execution/supervisor.ts";
-            const root = process.argv[1], handle = await open(root), proto = Object.getPrototypeOf(handle);
-            const truncate = proto.truncate;
-            await handle.close();
-            proto.truncate = async function(size) {
-                await truncate.call(this, size);
-                process.exit(74);
-            };
-            await new ExecutionSupervisor({root, client: {request: async () => {}}}).recover();
-        `;
-        const child = spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "-e", script, root], {
-            encoding: "utf8",
-            timeout: 15000,
-        });
-        assert.equal(child.error, undefined);
-        assert.equal(child.status, 74, child.stderr);
-        assert.equal(JSON.parse(await readFile(journal, "utf8")).dataCleanup, undefined);
-        assert.equal(await readFile(file, "utf8"), "");
-        await fs.unlink(join(modules, ".veriq-retirement-inventory"));
-        await fs.rename(file, file + "-old");
-        await writeFile(file, "operator replacement bytes");
-        await writeFile(join(tmp, "new"), "later bytes in the untouched second tree");
-        await f.supervisor.recover();
-        assert.equal(await readFile(file, "utf8"), "operator replacement bytes");
-        assert.equal(await readFile(join(tmp, "new"), "utf8"), "later bytes in the untouched second tree");
-        assert.equal(JSON.parse(await readFile(journal, "utf8")).dataCleanup, "OWNERSHIP_UNCONFIRMED");
-    } finally {
-        await rm(root, { recursive: true, force: true });
-        await rm(tmp, { recursive: true, force: true });
-    }
-});
-
-test("a failed retirement start sync leaves both trees intact across recovery", async (context) => {
-    const root = await mkdtemp(join(tmpdir(), "vq-retirement-sync-")),
-        tmp = await mkdtemp(join(tmpdir(), "veriq-a-"));
-    try {
-        const { f, journal, modules, permit } = await scratchJournal(root, tmp);
-        for (const dir of [modules, tmp]) await writeFile(join(dir, "copy"), "intact bytes");
-        const handle = await open(permit),
-            prototype = Object.getPrototypeOf(handle),
-            sync = prototype.sync;
-        await handle.close();
-        let rejected = 0;
-        context.mock.method(prototype, "sync", async function (this: typeof handle) {
-            if ((await fs.realpath("/proc/self/fd/" + this.fd)) === permit) {
-                rejected++;
-                throw new Error("RETIREMENT_START_SYNC_FAILED");
-            }
-            return sync.call(this);
-        });
-        await f.supervisor.recover();
-        assert.equal(rejected, 1);
-        context.mock.restoreAll();
-        await new ExecutionSupervisor(f.options).recover();
-        for (const dir of [modules, tmp]) {
-            assert.equal(await readFile(join(dir, "copy"), "utf8"), "intact bytes");
-            assert(!(await readdir(dir)).some((name) => name.startsWith(".veriq-retire")));
-        }
-        assert.equal(JSON.parse(await readFile(journal, "utf8")).dataCleanup, "OWNERSHIP_UNCONFIRMED");
-    } finally {
-        context.mock.restoreAll();
-        await rm(root, { recursive: true, force: true });
-        await rm(tmp, { recursive: true, force: true });
-    }
-});
-
-test("two recoveries observing the same unused permit can retire the task only once", async (context) => {
-    const root = await mkdtemp(join(tmpdir(), "vq-retirement-race-")),
-        tmp = await mkdtemp(join(tmpdir(), "veriq-a-"));
-    const gate = new EventEmitter(),
-        waiting = once(gate, "waiting"),
-        resume = once(gate, "resume");
-    let pending: ReturnType<ExecutionSupervisor["recover"]> | undefined;
-    try {
-        const { f, permit } = await scratchJournal(root, tmp),
-            file = join(tmp, "copy");
-        await writeFile(file, "owned bytes");
-        const handle = await open(permit),
-            prototype = Object.getPrototypeOf(handle),
-            write = prototype.write;
-        await handle.close();
-        let arrivals = 0;
-        context.mock.method(prototype, "write", async function (this: typeof handle, ...args: unknown[]) {
-            if ((await fs.realpath("/proc/self/fd/" + this.fd)) === permit && ++arrivals === 1) {
-                gate.emit("waiting");
-                await resume;
-            }
-            return write.apply(this, args);
-        });
-        pending = f.supervisor.recover();
-        await Promise.race([waiting, pending.then(() => assert.fail("permit write was never reached"))]);
-        await new ExecutionSupervisor(f.options).recover();
-        assert.equal(await readFile(file, "utf8"), "");
-        await fs.unlink(join(tmp, ".veriq-retirement-inventory"));
-        await fs.unlink(join(tmp, ".veriq-retired"));
-        await fs.rename(file, file + "-old");
-        await writeFile(file, "operator replacement bytes");
-        gate.emit("resume");
-        await pending;
-        assert.equal(arrivals, 2);
-        assert.equal(await readFile(file, "utf8"), "operator replacement bytes");
-        assert(!(await readdir(tmp)).some((name) => name.startsWith(".veriq-retire")));
-    } finally {
-        gate.emit("resume");
+for (const condition of ["owned", "replaced-work", "linked-work", "unknown", "historical", "relocated-tmp"]) {
+    test(`scratch recovery keeps ordinary task files: ${condition}`, async () => {
+        const root = await mkdtemp(join(tmpdir(), "vq-data-recover-"));
+        const tmp = await mkdtemp(join(tmpdir(), "veriq-a-"));
         try {
-            await pending;
-        } finally {
-            context.mock.restoreAll();
-            await rm(root, { recursive: true, force: true });
-            await rm(tmp, { recursive: true, force: true });
-        }
-    }
-});
+            const { f, id, work, allocation, journal, modules } = await scratchFixture(root, tmp);
+            const outside = join(root, "outside");
+            await mkdir(outside);
+            await writeFile(join(outside, "keep"), "external sentinel bytes");
+            await writeFile(join(modules, "copy"), "original dependency bytes");
+            await writeFile(join(tmp, "copy"), "original scratch bytes");
+            const state = condition === "unknown" ? "RUNNING" : "ALLOCATED";
+            const record = { ...f.record(id, state), work, ...(condition === "historical" ? {} : { allocation }) };
+            await writeFile(journal, JSON.stringify(record), { mode: 0o600 });
 
-for (const layer of ["top", "nested"])
-    test("destructive traversal preserves a replaced " + layer + " directory", async (context) => {
-        const root = await mkdtemp(join(tmpdir(), "vq-boundary-"));
-        const id = randomUUID(),
-            work = join(root, "work", id),
-            tmp = await mkdtemp(join(root, "veriq-a-"));
-        try {
-            await mkdir(work, { recursive: true });
-            const allocation = await allocateScratch(root, work, tmp);
-            const target = layer === "top" ? tmp : join(tmp, "nested");
-            if (layer === "nested") await mkdir(target);
-            await writeFile(join(target, "owned"), "owned");
-            let swapped = false,
-                enumerations = 0;
-            const realReaddir = fs.readdir;
-            context.mock.method(fs, "readdir", async (path: string, options: Parameters<typeof fs.readdir>[1]) => {
-                if (!swapped && (await fs.realpath(path)) === target && ++enumerations === (layer === "top" ? 2 : 1)) {
-                    await fs.rename(target, join(root, "relocated"));
-                    await mkdir(target);
-                    await writeFile(join(target, "foreign"), "keep");
-                    swapped = true;
+            const movedWork = join(root, "moved-work");
+            const movedTmp = join(outside, "moved-tmp");
+            if (condition === "replaced-work" || condition === "linked-work") {
+                await fs.rename(work, movedWork);
+                if (condition === "replaced-work") {
+                    await mkdir(join(work, "node_modules"), { recursive: true });
+                    await writeFile(join(modules, "copy"), "replacement dependency bytes");
+                } else {
+                    await symlink(outside, work);
                 }
-                return realReaddir(path, options);
-            });
-            syncBuiltinESMExports();
-            const result = await retireScratch(
-                root,
-                root,
-                { work, allocation },
-                {
-                    attemptId: id,
-                    processStopped: true,
-                    processStopScope: "NO_PROCESS_SPAWNED",
-                    reason: "NO_PROCESS_SPAWNED",
-                    stoppedAt: new Date().toISOString(),
-                },
-            );
-            assert(swapped);
-            assert.equal(await readFile(join(target, "foreign"), "utf8"), "keep");
-            assert.equal(await readFile(join(root, "relocated/owned"), "utf8"), "owned");
-            assert.equal(result, "OWNERSHIP_UNCONFIRMED");
-        } finally {
-            context.mock.restoreAll();
-            syncBuiltinESMExports();
-            await rm(root, { recursive: true, force: true });
-        }
-    });
+            }
+            if (condition === "relocated-tmp") {
+                await fs.rename(tmp, movedTmp);
+                await mkdir(tmp);
+                await writeFile(join(tmp, "copy"), "replacement scratch bytes");
+            }
 
-for (const targetType of ["file", "directory"]) {
-    test("last name mutation cannot remove or overwrite a foreign " + targetType, async (context) => {
-        const root = await mkdtemp(join(tmpdir(), "vq-last-operation-")),
-            id = randomUUID(),
-            work = join(root, "work", id),
-            tmp = await mkdtemp(join(root, "veriq-a-"));
-        try {
-            await mkdir(work, { recursive: true });
-            const allocation = await allocateScratch(root, work, tmp),
-                target = join(tmp, "victim");
-            if (targetType === "file") await writeFile(target, "old-data");
-            else await mkdir(target);
-            let swapped = false;
-            const swap = async () => {
-                await fs.rename(target, join(root, "old"));
-                if (targetType === "file") await writeFile(target, "foreign");
-                else await mkdir(target);
-                swapped = true;
-            };
-            for (const method of ["unlink", "rmdir"] as const) {
-                const original = fs[method];
-                context.mock.method(fs, method, async (path: string) => {
-                    if (!swapped && (await fs.realpath(path)) === target) await swap();
-                    return original(path);
-                });
+            const [receipt] = await f.supervisor.recover();
+            const stopped = condition !== "unknown";
+            assert.equal(receipt?.processStopped, stopped);
+            assert.equal(receipt?.processStopScope, stopped ? "NO_PROCESS_SPAWNED" : undefined);
+            const persisted = JSON.parse(await readFile(journal, "utf8"));
+            assert.equal(persisted.dataCleanup, stopped ? "OWNERSHIP_UNCONFIRMED" : "STOP_UNCONFIRMED");
+            const originalModules =
+                condition === "replaced-work" || condition === "linked-work"
+                    ? join(movedWork, "node_modules")
+                    : modules;
+            const originalTmp = condition === "relocated-tmp" ? movedTmp : tmp;
+            assert.equal(await readFile(join(originalModules, "copy"), "utf8"), "original dependency bytes");
+            assert.equal(await readFile(join(originalTmp, "copy"), "utf8"), "original scratch bytes");
+            assert.deepEqual(await readdir(originalModules), ["copy"]);
+            assert.deepEqual((await readdir(originalTmp)).sort(), [".veriq-owner", "copy"]);
+            assert.equal(await readFile(join(outside, "keep"), "utf8"), "external sentinel bytes");
+            if (condition === "replaced-work") {
+                assert.equal(await readFile(join(modules, "copy"), "utf8"), "replacement dependency bytes");
             }
-            const probe = await open(join(tmp, "fixture-fd"), "w"),
-                proto = Object.getPrototypeOf(probe);
-            await probe.close();
-            const truncate = proto.truncate;
-            context.mock.method(proto, "truncate", async function (this: typeof probe, size: number) {
-                if (!swapped && targetType === "file" && (await fs.realpath("/proc/self/fd/" + this.fd)) === target)
-                    await swap();
-                return truncate.call(this, size);
-            });
-            syncBuiltinESMExports();
-            const status = await retireScratch(
-                root,
-                root,
-                { work, allocation },
-                {
-                    attemptId: id,
-                    processStopped: true,
-                    processStopScope: "NO_PROCESS_SPAWNED",
-                    reason: "NO_PROCESS_SPAWNED",
-                    stoppedAt: new Date().toISOString(),
-                },
-            );
-            if (targetType === "directory") assert((await lstat(target)).isDirectory());
-            else {
-                assert(swapped);
-                assert.equal(await readFile(target, "utf8"), "foreign");
-                assert.equal(await readFile(join(root, "old"), "utf8"), "");
+            if (condition === "linked-work") assert.equal(await fs.readlink(work), outside);
+            if (condition === "relocated-tmp") {
+                assert.equal(await readFile(join(tmp, "copy"), "utf8"), "replacement scratch bytes");
             }
-            assert.equal(status, "OWNERSHIP_UNCONFIRMED");
+            assert(!JSON.stringify(persisted).includes("original scratch bytes"));
+
+            if (condition === "owned") {
+                assert.equal(Object.hasOwn(allocation, "retirementPermit"), false);
+                await assert.rejects(lstat(join(root, "scratch-retirements")), { code: "ENOENT" });
+                await writeFile(join(tmp, "operator-copy"), "later operator bytes");
+                const [again] = await new ExecutionSupervisor(f.options).recover();
+                assert.equal(again?.processStopScope, "NO_PROCESS_SPAWNED");
+                assert.equal(JSON.parse(await readFile(journal, "utf8")).dataCleanup, "OWNERSHIP_UNCONFIRMED");
+                assert.equal(await readFile(join(tmp, "copy"), "utf8"), "original scratch bytes");
+                assert.equal(await readFile(join(tmp, "operator-copy"), "utf8"), "later operator bytes");
+            }
         } finally {
-            context.mock.restoreAll();
-            syncBuiltinESMExports();
+            await rm(tmp, { recursive: true, force: true });
             await rm(root, { recursive: true, force: true });
         }
     });
 }
 
-test("partial retirement preserves hardlinks, symlinks and later writes to an already retired member", async () => {
-    const root = await mkdtemp(join(tmpdir(), "vq-partial-")),
-        id = randomUUID();
-    const work = join(root, "work", id),
-        tmp = await mkdtemp(join(root, "veriq-a-"));
-    try {
-        await mkdir(work, { recursive: true });
-        const allocation = await allocateScratch(root, work, tmp);
-        const foreign = join(root, "outside"),
-            owned = join(tmp, "owned");
-        await writeFile(foreign, "external bytes");
-        await fs.link(foreign, join(tmp, "hardlink"));
-        await fs.symlink(foreign, join(tmp, "symlink"));
-        await writeFile(owned, "original data");
-        const stop = {
-            attemptId: id,
-            processStopped: true,
-            processStopScope: "NO_PROCESS_SPAWNED" as const,
-            reason: "NO_PROCESS_SPAWNED",
-            stoppedAt: new Date().toISOString(),
-        };
-        assert.equal(await retireScratch(root, root, { work, allocation }, stop), "OWNERSHIP_UNCONFIRMED");
-        assert.equal(await readFile(owned, "utf8"), "");
-        await writeFile(owned, "later operator bytes");
-        assert.equal(await retireScratch(root, root, { work, allocation }, stop), "OWNERSHIP_UNCONFIRMED");
-        assert.equal(await readFile(owned, "utf8"), "later operator bytes");
-        assert.equal(await readFile(foreign, "utf8"), "external bytes");
-        assert.equal(await fs.readlink(join(tmp, "symlink")), foreign);
-    } finally {
-        await rm(root, { recursive: true, force: true });
-    }
-});
+for (const formerState of ["ready", "missing", "replaced", "interrupted", "receipts", "markers-removed"]) {
+    test(`recovery preserves legacy scratch and retirement artifacts: ${formerState}`, async () => {
+        const root = await mkdtemp(join(tmpdir(), "vq-legacy-retirement-"));
+        const tmp = await mkdtemp(join(tmpdir(), "veriq-a-"));
+        try {
+            const { f, id, work, allocation, journal, modules } = await scratchFixture(root, tmp);
+            const permitDirectory = join(root, "scratch-retirements");
+            const permit = join(permitDirectory, allocation.owner);
+            const oldPermit = `${permit}-old`;
+            const ready = ["ready", "missing", "replaced"].includes(formerState);
+            const permitBytes = ready ? "READY\n" : "READY\nSTARTED\n";
+            await mkdir(permitDirectory, { recursive: true, mode: 0o700 });
+            await writeFile(permit, permitBytes, { mode: 0o600 });
+            const identity = await lstat(permit, { bigint: true });
+            const historicalAllocation = {
+                ...allocation,
+                retirementPermit: {
+                    dev: String(identity.dev),
+                    ino: String(identity.ino),
+                    birth: String(identity.birthtimeNs),
+                },
+            };
+            if (formerState === "missing" || formerState === "replaced") await fs.rename(permit, oldPermit);
+            if (formerState === "replaced") await writeFile(permit, "READY\n", { mode: 0o600 });
+            const record = { ...f.record(id), work, allocation: historicalAllocation };
+            await writeFile(journal, JSON.stringify(record), { mode: 0o600 });
 
-test("undecodable and valid sibling names cannot alias a retirement proof", async () => {
-    const root = await mkdtemp(join(tmpdir(), "vq-name-proof-")),
-        id = randomUUID();
-    const work = join(root, "work", id),
-        tmp = await mkdtemp(join(root, "veriq-a-"));
-    try {
-        await mkdir(work, { recursive: true });
-        const allocation = await allocateScratch(root, work, tmp);
-        const candidate = Buffer.concat([Buffer.from(tmp + "/"), Buffer.from([255])]);
-        await writeFile(candidate, "preserve");
-        await writeFile(join(tmp, "\uFFFD"), "different");
-        const result = await retireScratch(
-            root,
-            root,
-            { work, allocation },
-            {
-                attemptId: id,
-                processStopped: true,
-                processStopScope: "NO_PROCESS_SPAWNED",
-                reason: "NO_PROCESS_SPAWNED",
-                stoppedAt: new Date().toISOString(),
-            },
-        );
-        assert.equal(result, "OWNERSHIP_UNCONFIRMED");
-        assert.equal(await readFile(candidate, "utf8"), "preserve");
-    } finally {
-        await fs.unlink(Buffer.concat([Buffer.from(tmp + "/"), Buffer.from([255])])).catch(() => {});
-        await rm(root, { recursive: true, force: true });
-    }
-});
-
-test("separate retirement receipts cannot prove both mutable trees empty at the same time", async (context) => {
-    const root = await mkdtemp(join(tmpdir(), "vq-cross-root-"));
-    const id = randomUUID(),
-        work = join(root, "work", id),
-        tmp = await mkdtemp(join(root, "veriq-a-"));
-    try {
-        await mkdir(work, { recursive: true });
-        const allocation = await allocateScratch(root, work, tmp);
-        const modules = join(work, "node_modules"),
-            first = join(modules, "original"),
-            second = join(tmp, "original");
-        await writeFile(first, "known modules bytes");
-        await writeFile(second, "known scratch bytes");
-        const probe = await open(second, "r"),
-            proto = Object.getPrototypeOf(probe),
-            truncate = proto.truncate;
-        await probe.close();
-        context.mock.method(proto, "truncate", async function (this: typeof probe, size: number) {
-            if ((await fs.realpath("/proc/self/fd/" + this.fd)) === second) {
-                assert((await lstat(join(modules, ".veriq-retired"))).isFile());
-                await writeFile(join(modules, "new-foreign-file"), "preserve these later bytes");
+            const inventory = ".veriq-retirement-inventory";
+            const done = ".veriq-retired";
+            const receiptBytes = `${allocation.owner}:${"abcd".repeat(16)}`;
+            const dependencyMarkers: string[] = [];
+            const temporaryMarkers: string[] = [];
+            const trees = [
+                [modules, dependencyMarkers],
+                [tmp, temporaryMarkers],
+            ] as const;
+            if (formerState === "interrupted") {
+                dependencyMarkers.push(inventory);
+                await writeFile(join(modules, "already-truncated"), "");
             }
-            return truncate.call(this, size);
-        });
-        const result = await retireScratch(
-            root,
-            root,
-            { work, allocation },
-            {
-                attemptId: id,
-                processStopped: true,
-                processStopScope: "NO_PROCESS_SPAWNED",
-                reason: "NO_PROCESS_SPAWNED",
-                stoppedAt: new Date().toISOString(),
-            },
-        );
-        assert.equal(await readFile(first, "utf8"), "");
-        assert.equal(await readFile(second, "utf8"), "");
-        assert.equal(await readFile(join(modules, "new-foreign-file"), "utf8"), "preserve these later bytes");
-        for (const dir of [modules, tmp])
-            assert.equal(
-                await readFile(join(dir, ".veriq-retired"), "utf8"),
-                await readFile(join(dir, ".veriq-retirement-inventory"), "utf8"),
-            );
-        assert.equal(result, "OWNERSHIP_UNCONFIRMED");
+            if (formerState === "receipts") {
+                dependencyMarkers.push(done, inventory);
+                temporaryMarkers.push(done, inventory);
+            }
+            for (const [dir, markers] of trees) {
+                if (formerState === "markers-removed") {
+                    await writeFile(join(dir, "previous-copy"), "bytes written after the old pass");
+                }
+                for (const marker of markers) {
+                    await writeFile(join(dir, marker), receiptBytes, { mode: 0o600 });
+                }
+                await writeFile(join(dir, "copy"), "intact task bytes");
+            }
+            const expectedModules = (await readdir(modules)).sort();
+            const expectedTmp = (await readdir(tmp)).sort();
+
+            for (const supervisor of [f.supervisor, new ExecutionSupervisor(f.options)]) {
+                const [receipt] = await supervisor.recover();
+                assert.equal(receipt?.processStopScope, "NO_PROCESS_SPAWNED");
+                const persisted = JSON.parse(await readFile(journal, "utf8"));
+                assert.equal(persisted.dataCleanup, "OWNERSHIP_UNCONFIRMED");
+                assert.deepEqual(persisted.allocation, historicalAllocation);
+                for (const [dir, markers] of trees) {
+                    assert.equal(await readFile(join(dir, "copy"), "utf8"), "intact task bytes");
+                    for (const marker of markers) {
+                        assert.equal(await readFile(join(dir, marker), "utf8"), receiptBytes);
+                    }
+                    if (formerState === "markers-removed") {
+                        assert.equal(
+                            await readFile(join(dir, "previous-copy"), "utf8"),
+                            "bytes written after the old pass",
+                        );
+                    }
+                }
+                assert.deepEqual((await readdir(modules)).sort(), expectedModules);
+                assert.deepEqual((await readdir(tmp)).sort(), expectedTmp);
+                if (formerState === "interrupted") {
+                    assert.equal(await readFile(join(modules, "already-truncated"), "utf8"), "");
+                }
+                if (formerState === "missing") {
+                    await assert.rejects(lstat(permit), { code: "ENOENT" });
+                } else {
+                    assert.equal(await readFile(permit, "utf8"), permitBytes);
+                }
+                if (formerState === "missing" || formerState === "replaced") {
+                    assert.equal(await readFile(oldPermit, "utf8"), "READY\n");
+                }
+            }
+        } finally {
+            await rm(tmp, { recursive: true, force: true });
+            await rm(root, { recursive: true, force: true });
+        }
+    });
+}
+
+/**
+ * 直接验证暂存处置时使用对应真实分配的已有未派生回执形状，另外的恢复测试覆盖从日志与进程记录推导停止证明。
+ */
+function unspawnedReceipt(attemptId: string) {
+    return {
+        attemptId,
+        processStopped: true,
+        processStopScope: "NO_PROCESS_SPAWNED" as const,
+        reason: "NO_PROCESS_SPAWNED",
+        stoppedAt: new Date().toISOString(),
+    };
+}
+
+test("retirement keeps both physical targets of a changed operating system temporary alias", async () => {
+    const root = await mkdtemp(join(tmpdir(), "vq-tmp-alias-"));
+    const original = join(root, "original");
+    const replacement = join(root, "replacement");
+    const alias = join(root, "os-tmp");
+    try {
+        await mkdir(original);
+        await mkdir(replacement);
+        await symlink(original, alias, "junction");
+        const tmp = await mkdtemp(join(alias, "veriq-a-"));
+        const { id, work, allocation, modules } = await scratchFixture(root, tmp);
+        const originalTmp = join(original, allocation.temporaryName);
+        const replacementTmp = join(replacement, allocation.temporaryName);
+        await mkdir(replacementTmp);
+        await writeFile(join(originalTmp, "copy"), "original scratch bytes");
+        await writeFile(join(replacementTmp, "copy"), "replacement scratch bytes");
+        await writeFile(join(modules, "copy"), "original dependency bytes");
+        for (const target of [replacement, original]) {
+            await fs.unlink(alias);
+            await symlink(target, alias, "junction");
+            const status = await retireScratch(root, alias, { work, allocation }, unspawnedReceipt(id));
+            assert.equal(status, "OWNERSHIP_UNCONFIRMED");
+            assert.equal(await readFile(join(originalTmp, "copy"), "utf8"), "original scratch bytes");
+            assert.equal(await readFile(join(replacementTmp, "copy"), "utf8"), "replacement scratch bytes");
+            assert.equal(await readFile(join(modules, "copy"), "utf8"), "original dependency bytes");
+        }
     } finally {
-        context.mock.restoreAll();
         await rm(root, { recursive: true, force: true });
+    }
+});
+
+for (const memberType of ["file", "directory"]) {
+    test(`retirement keeps relocated and replacement nested ${memberType} bytes`, async () => {
+        const root = await mkdtemp(join(tmpdir(), "vq-scratch-replaced-"));
+        try {
+            const tmp = await mkdtemp(join(root, "veriq-a-"));
+            const { id, work, allocation } = await scratchFixture(root, tmp);
+            const nested = join(tmp, "nested");
+            await mkdir(nested);
+            const original = join(nested, "member");
+            const relocated = join(root, "relocated");
+            if (memberType === "directory") await mkdir(original);
+            const originalFile = memberType === "directory" ? join(original, "child") : original;
+            const relocatedFile = memberType === "directory" ? join(relocated, "child") : relocated;
+            await writeFile(originalFile, "original member bytes");
+            await fs.rename(original, relocated);
+            if (memberType === "directory") await mkdir(original);
+            await writeFile(originalFile, "replacement member bytes");
+            const status = await retireScratch(root, root, { work, allocation }, unspawnedReceipt(id));
+            assert.equal(status, "OWNERSHIP_UNCONFIRMED");
+            assert.equal(await readFile(originalFile, "utf8"), "replacement member bytes");
+            assert.equal(await readFile(relocatedFile, "utf8"), "original member bytes");
+        } finally {
+            await rm(root, { recursive: true, force: true });
+        }
+    });
+}
+
+test("retirement keeps multiple hardlinks, symlinks and ordinary siblings", async () => {
+    const root = await mkdtemp(join(tmpdir(), "vq-scratch-links-"));
+    try {
+        const tmp = await mkdtemp(join(root, "veriq-a-"));
+        const { id, work, allocation } = await scratchFixture(root, tmp);
+        const foreign = join(root, "outside");
+        const owned = join(tmp, "owned");
+        const hardlinks = [join(tmp, "hardlink-a"), join(tmp, "hardlink-b")];
+        const link = join(tmp, "symlink");
+        await writeFile(foreign, "external bytes");
+        for (const hardlink of hardlinks) {
+            await fs.link(foreign, hardlink);
+        }
+        await fs.symlink(foreign, link);
+        await writeFile(owned, "original data");
+        const record = { work, allocation };
+        const stop = unspawnedReceipt(id);
+        assert.equal(await retireScratch(root, root, record, stop), "OWNERSHIP_UNCONFIRMED");
+        assert.equal(await readFile(owned, "utf8"), "original data");
+        await writeFile(owned, "later operator bytes");
+        assert.equal(await retireScratch(root, root, record, stop), "OWNERSHIP_UNCONFIRMED");
+        assert.equal(await readFile(owned, "utf8"), "later operator bytes");
+        for (const name of [foreign, ...hardlinks, link]) {
+            assert.equal(await readFile(name, "utf8"), "external bytes");
+        }
+        assert.equal((await lstat(foreign)).nlink, 3);
+        assert.equal(await fs.readlink(link), foreign);
+    } finally {
+        await rm(root, { recursive: true, force: true });
+    }
+});
+
+test("retirement keeps undecodable and valid sibling names with distinct bytes", async () => {
+    const root = await mkdtemp(join(tmpdir(), "vq-scratch-names-"));
+    const tmp = await mkdtemp(join(root, "veriq-a-"));
+    const undecodable = Buffer.concat([Buffer.from(`${tmp}/`), Buffer.from([255])]);
+    try {
+        const { id, work, allocation } = await scratchFixture(root, tmp);
+        const valid = join(tmp, "�");
+        await writeFile(undecodable, "undecodable name bytes");
+        await writeFile(valid, "valid name bytes");
+        const status = await retireScratch(root, root, { work, allocation }, unspawnedReceipt(id));
+        assert.equal(status, "OWNERSHIP_UNCONFIRMED");
+        assert.equal(await readFile(undecodable, "utf8"), "undecodable name bytes");
+        assert.equal(await readFile(valid, "utf8"), "valid name bytes");
+    } finally {
+        try {
+            await fs.unlink(undecodable);
+        } finally {
+            await rm(root, { recursive: true, force: true });
+        }
     }
 });

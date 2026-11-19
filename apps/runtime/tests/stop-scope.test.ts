@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, realpath, rename, rm, unlink, writeFile, open } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, realpath, rename, rm, writeFile, open } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
@@ -13,7 +13,8 @@ import type { OfflineResultV1 } from "@veriq/contracts";
 import { canonicalBytes, validateSchema } from "@veriq/contracts";
 import { sha256 } from "../src/execution/release.ts";
 import { developmentExecutionPaths } from "../src/execution/paths.ts";
-import { ProcessSupervisor } from "../src/execution/processes.ts";
+import { ProcessSupervisor, type StopReceipt } from "../src/execution/processes.ts";
+import { retireScratch } from "../src/execution/storage.ts";
 
 /**
  * 每个用例使用独立的真实 SQLite 档案及最小历史结果，范围声明必须由被测停止路径生成；夹具自身不提前填写停止字段，也不借
@@ -454,31 +455,60 @@ test("online completion copies the actual kernel scope and persists its stop rec
     }
 });
 
-test("completion finally preserves replacement data inserted after retirement and before finish returns", async () => {
+test("online completion preserves original scratch and a replacement written during finish", async () => {
     const root = await mkdtemp(join(tmpdir(), "vq-online-retirement-"));
+    let bytesAtFinish: string | undefined;
     try {
         const fixture = await online(root, async (path, id) => {
-            const dir = join(root, "work", id, "node_modules"),
-                file = join(dir, "copy");
+            const file = join(root, "work", id, "node_modules", "copy");
             if (path.endsWith("/activate")) await writeFile(file, "original bytes");
             if (path.endsWith("/finish")) {
-                assert.equal(await readFile(file, "utf8"), "");
-                await unlink(join(dir, ".veriq-retirement-inventory"));
-                await unlink(join(dir, ".veriq-retired"));
-                await rename(file, file + "-old");
+                bytesAtFinish = await readFile(file, "utf8");
+                await rename(file, `${file}-old`);
                 await writeFile(file, "operator replacement bytes");
             }
         });
         const result = await fixture.run();
+        assert.equal(bytesAtFinish, "original bytes");
         assert.equal(result.completion?.businessOutcome, "PASSED", JSON.stringify(result.stop));
+        assert.equal(result.stop.processStopped, true);
         assert.equal(result.stop.processStopScope, "FULL_DESCENDANT_TREE");
         const id = fixture.claim.attemptId;
-        assert.equal(
-            await readFile(join(root, "work", id, "node_modules", "copy"), "utf8"),
-            "operator replacement bytes",
-        );
-        const journal = JSON.parse(await readFile(join(root, "attempts", id + ".json"), "utf8"));
+        const modules = join(root, "work", id, "node_modules");
+        assert.equal(await readFile(join(modules, "copy"), "utf8"), "operator replacement bytes");
+        assert.equal(await readFile(join(modules, "copy-old"), "utf8"), "original bytes");
+        assert.deepEqual((await readdir(modules)).sort(), ["copy", "copy-old"]);
+        const journal = JSON.parse(await readFile(join(root, "attempts", `${id}.json`), "utf8"));
         assert.equal(journal.dataCleanup, "OWNERSHIP_UNCONFIRMED");
+        assert.deepEqual(journal.stop, result.stop);
+    } finally {
+        await rm(root, { recursive: true, force: true });
+    }
+});
+
+test("scratch retention status requires confirmed stop with the platform scope", async () => {
+    const root = await mkdtemp(join(tmpdir(), "vq-scratch-scope-"));
+    const stop: StopReceipt = {
+        attemptId: randomUUID(),
+        processStopped: true,
+        processStopScope: "FULL_DESCENDANT_TREE",
+        reason: "TEST_STOP",
+        stoppedAt: new Date().toISOString(),
+    };
+    const record = { work: join(root, "work", stop.attemptId) };
+    const report = { ...record, dataCleanup: "REPORT_RETAINED" as const };
+    const invalidStops: StopReceipt[] = [
+        { ...stop, processStopped: false },
+        { ...stop, processStopScope: "CONTROLLED_WORKER_BROWSER" },
+        { attemptId: stop.attemptId, processStopped: true, reason: stop.reason, stoppedAt: stop.stoppedAt },
+    ];
+    try {
+        assert.equal(await retireScratch(root, root, record, stop), "OWNERSHIP_UNCONFIRMED");
+        assert.equal(await retireScratch(root, root, report, stop), "REPORT_RETAINED");
+        for (const invalid of invalidStops) {
+            assert.equal(await retireScratch(root, root, record, invalid), "STOP_UNCONFIRMED");
+            assert.equal(await retireScratch(root, root, report, invalid), "STOP_UNCONFIRMED");
+        }
     } finally {
         await rm(root, { recursive: true, force: true });
     }
