@@ -7914,9 +7914,7 @@
         "/internal/v1/attempts/{attemptId}/datasets/http": {
             "post": {
                 "operationId": "fetchHttpDataset",
-                "tags": [
-                    "attempts"
-                ],
+                "tags": ["attempts"],
                 "security": [
                     {
                         "DeviceToken": []
@@ -8071,9 +8069,7 @@
         "/internal/v1/attempts/{attemptId}/datasets/static": {
             "post": {
                 "operationId": "fetchStaticDataset",
-                "tags": [
-                    "attempts"
-                ],
+                "tags": ["attempts"],
                 "security": [
                     {
                         "DeviceToken": []
@@ -12219,13 +12215,17 @@
             "EnvironmentV1": { "$ref": "../schemas/platform-v1.schema.json#/$defs/EnvironmentV1" },
             "ResourceDocumentV1": { "$ref": "../schemas/platform-v1.schema.json#/$defs/ResourceDocumentV1" },
             "AssetVersionV1": { "$ref": "../schemas/platform-v1.schema.json#/$defs/AssetVersionV1" },
-            "ConnectedDatasetV2": {"$ref": "../schemas/platform-v1.schema.json#/$defs/ConnectedDatasetV2"},
-            "ConnectedSourceSnapshotV2": {"$ref": "../schemas/platform-v1.schema.json#/$defs/ConnectedSourceSnapshotV2"},
-            "ConnectedExecutionSnapshotV2": {"$ref": "../schemas/platform-v1.schema.json#/$defs/ConnectedExecutionSnapshotV2"},
-            "HttpDatasetSelection": {"$ref": "../schemas/platform-v1.schema.json#/$defs/HttpDatasetSelection"},
-            "HttpDatasetSample": {"$ref": "../schemas/platform-v1.schema.json#/$defs/HttpDatasetSample"},
-            "HttpDatasetResponse": {"$ref": "../schemas/platform-v1.schema.json#/$defs/HttpDatasetResponse"},
-            "StaticDatasetSelection": {"$ref": "../schemas/platform-v1.schema.json#/$defs/StaticDatasetSelection"},
+            "ConnectedDatasetV2": { "$ref": "../schemas/platform-v1.schema.json#/$defs/ConnectedDatasetV2" },
+            "ConnectedSourceSnapshotV2": {
+                "$ref": "../schemas/platform-v1.schema.json#/$defs/ConnectedSourceSnapshotV2"
+            },
+            "ConnectedExecutionSnapshotV2": {
+                "$ref": "../schemas/platform-v1.schema.json#/$defs/ConnectedExecutionSnapshotV2"
+            },
+            "HttpDatasetSelection": { "$ref": "../schemas/platform-v1.schema.json#/$defs/HttpDatasetSelection" },
+            "HttpDatasetSample": { "$ref": "../schemas/platform-v1.schema.json#/$defs/HttpDatasetSample" },
+            "HttpDatasetResponse": { "$ref": "../schemas/platform-v1.schema.json#/$defs/HttpDatasetResponse" },
+            "StaticDatasetSelection": { "$ref": "../schemas/platform-v1.schema.json#/$defs/StaticDatasetSelection" },
             "AssetSnapshotV1": { "$ref": "../schemas/platform-v1.schema.json#/$defs/AssetSnapshotV1" },
             "SnapshotV1": { "$ref": "../schemas/platform-v1.schema.json#/$defs/SnapshotV1" },
             "ExecutionSnapshotV1": { "$ref": "../schemas/platform-v1.schema.json#/$defs/ExecutionSnapshotV1" },
