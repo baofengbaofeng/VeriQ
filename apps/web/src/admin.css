@@ -722,9 +722,28 @@ tbody tr:hover td {
     font-weight: 500;
 }
 .vq-workspace-form input {
+    font-weight: 500;
     height: 36px;
     padding-inline: 10px;
     border-radius: 8px;
+}
+/*
+ * 创建工作区时以标签和输入底色提示焦点，字段沿用原有边框；强制配色仍使用系统焦点轮廓。
+ */
+@media (forced-colors: none) {
+    [data-theme="dark"] .vq-workspace-form {
+        --vq-workspace-input-border: var(--vq-border);
+    }
+    .vq-workspace-form label:focus-within {
+        color: var(--vq-profile-heading);
+        font-weight: 700;
+    }
+    :root .vq-workspace-form input:focus {
+        background-color: var(--vq-hover);
+        border-color: var(--vq-workspace-input-border, #d6dce6);
+        outline: none;
+        box-shadow: none;
+    }
 }
 .vq-workspace-form-actions {
     display: flex;
