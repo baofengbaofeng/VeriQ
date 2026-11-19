@@ -471,22 +471,9 @@ export class ExecutionSupervisor {
         const executionPaths = this.options.execution ?? developmentExecutionPaths();
         const workParent = this.workDirectory();
         const work = join(workParent, claim.attemptId);
-        await privateDirectory(workParent);
-        await mkdir(work, { mode: 0o700 });
-        await privateDirectory(work);
-        const brokerDirectory = this.source ? await createDarwinBrokerDirectory() : undefined;
-        let tmp: string;
-        try {
-            tmp = await mkdtemp(join(this.temporaryDirectory(), "veriq-a-"));
-            if (this.source) this.source.native.openPrivateDirectory(tmp, false).close();
-        } catch (error) {
-            await brokerDirectory?.close();
-            throw error;
-        }
         const record: AttemptJournal = {
             claim,
             state: "ALLOCATED",
-            allocation: await allocateScratch(this.options.root, work, tmp),
             work,
             ...(assignment.claimRequestId ? { claimRequestId: assignment.claimRequestId } : {}),
         };
@@ -501,10 +488,25 @@ export class ExecutionSupervisor {
             await this.journal(record);
             journalCommitted = true;
         };
+        // 首次提交先保存用于恢复的原始领取与待定标识；提交成功后才允许创建工作目录和本次尝试的暂存。
+        await commit();
+        await privateDirectory(workParent);
+        await mkdir(work, { mode: 0o700 });
+        await privateDirectory(work);
+        const brokerDirectory = this.source ? await createDarwinBrokerDirectory() : undefined;
+        let tmp: string;
+        try {
+            tmp = await mkdtemp(join(this.temporaryDirectory(), "veriq-a-"));
+            if (this.source) this.source.native.openPrivateDirectory(tmp, false).close();
+        } catch (error) {
+            await brokerDirectory?.close();
+            throw error;
+        }
+        record.allocation = await allocateScratch(this.options.root, work, tmp);
         try {
             await commit();
         } catch (error) {
-            // 持久分配尚未确认，保留这个空的私有暂存目录，避免按可能已替换的路径递归删除。
+            // 补写分配身份失败时保留已建的工作目录与暂存以供恢复核对，避免按可能已被替换的路径删除现场。
             await brokerDirectory?.close();
             throw error;
         }
