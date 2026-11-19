@@ -212,8 +212,8 @@ function LanguageMenu() {
     const choices = (
         <DropdownMenu.SubContent
             className="vq-menu vq-language-menu"
-            sideOffset={4}
-            alignOffset={-3}
+            sideOffset={3}
+            alignOffset={-2}
             collisionPadding={8}
             onEscapeKeyDown={(event) => {
                 event.preventDefault();
@@ -281,7 +281,7 @@ function UserMenu({ onLogout }: { onLogout: () => void }) {
             <DropdownMenu.Portal>
                 <DropdownMenu.Content
                     className="vq-menu vq-profile-menu"
-                    sideOffset={12}
+                    sideOffset={6}
                     collisionPadding={8}
                     onKeyDown={(event) => {
                         // 子菜单关闭后，根层监听的交接可能跨越下一次按键；只补接发自当前菜单且尚未处理的退出键。

@@ -128,15 +128,11 @@
     background: transparent;
     font-weight: 500;
 }
-.vq-user-trigger .vq-user-name {
-    font-size: 13px;
-    line-height: 18px;
-    font-weight: 500;
-}
+.vq-user-trigger .vq-user-name,
 .vq-menu-identity strong,
 :is(.vq-profile-menu, .vq-language-menu, .vq-workspace-menu) .vq-menu-item {
-    font-size: 14px;
-    line-height: 20px;
+    font-size: 13px;
+    line-height: 18px;
     font-weight: 500;
 }
 .vq-user-trigger .vq-avatar {
@@ -155,16 +151,17 @@
 .vq-profile-menu,
 .vq-language-menu,
 .vq-workspace-menu {
-    width: min(260px, calc(100vw - 16px));
+    width: 200px;
+    max-width: calc(100vw - 16px);
     min-width: 0;
     max-height: var(--radix-dropdown-menu-content-available-height);
     overflow: auto;
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    padding: 12px;
+    gap: 2px;
+    padding: 8px;
     border: 1px solid var(--vq-profile-border);
-    border-radius: 16px;
+    border-radius: 12px;
     background: var(--vq-popup);
     color: var(--vq-profile-body);
     box-shadow:
@@ -174,11 +171,8 @@
 .vq-menu-identity {
     display: grid;
     gap: 2px;
-    padding: 8px 12px;
+    padding: 4px 8px;
     overflow-wrap: anywhere;
-}
-.vq-menu-identity strong {
-    font-weight: 500;
 }
 .vq-menu-identity span {
     font-size: 12px;
@@ -186,29 +180,33 @@
     color: var(--vq-profile-muted);
 }
 :is(.vq-profile-menu, .vq-language-menu, .vq-workspace-menu) .vq-menu-item {
-    padding: 10px 12px;
-    gap: 12px;
+    min-height: 32px;
+    padding: 5px 8px;
+    gap: 8px;
     color: var(--vq-profile-body);
-    border-radius: 8px;
+    border-radius: 6px;
     font-weight: 500;
     cursor: pointer;
 }
-.vq-profile-menu .vq-nav-icon {
-    width: 24px;
-    height: 24px;
-    flex-basis: 24px;
+.vq-profile-menu .vq-nav-icon,
+.vq-language-menu .vq-nav-icon {
+    width: 16px;
+    height: 16px;
+    flex-basis: 16px;
 }
 :is(.vq-profile-menu, .vq-language-menu, .vq-workspace-menu) .vq-menu-item:is([data-highlighted], [data-state="open"]) {
     background: var(--vq-hover);
 }
 .vq-profile-menu .vq-menu-separator {
-    margin: 6px -12px;
+    margin: 4px -8px;
     border-color: var(--vq-profile-border);
 }
 .vq-locale-badge {
     margin-inline-start: auto;
-    margin-inline-end: 4px;
-    padding: 4px 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 5px;
     border-radius: 999px;
     border: 1px solid var(--vq-profile-border);
     font-size: 12px;
@@ -218,11 +216,8 @@
     background: var(--vq-canvas);
 }
 .vq-language-menu {
-    width: min(224px, calc(100vw - 16px));
-    padding: 8px;
-}
-.vq-language-menu .vq-menu-item {
-    gap: 8px;
+    width: 168px;
+    padding: 6px;
 }
 .vq-language-menu .vq-menu-item::before {
     content: "";
@@ -244,11 +239,6 @@
 .vq-profile-menu .vq-sign-out[data-highlighted] {
     background: #fef3f2;
     color: #b42318;
-}
-.vq-profile-menu .vq-sign-out .vq-nav-icon {
-    width: 20px;
-    height: 20px;
-    flex-basis: 20px;
 }
 [data-theme="dark"] .vq-theme-toggle {
     background: #1d2939;
@@ -280,14 +270,9 @@
     min-width: 0 !important;
 }
 .vq-language-inline .vq-language-menu {
-    width: min(224px, 100%);
+    max-width: 100%;
     max-height: none;
     margin-inline: auto;
-}
-.vq-locale-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
 }
 .vq-profile-menu .vq-locale-badge .vq-nav-icon,
 .vq-language-menu .vq-nav-icon {
@@ -295,14 +280,9 @@
     overflow: hidden;
 }
 .vq-profile-menu .vq-locale-badge .vq-nav-icon {
-    width: 14px;
-    height: 14px;
-    flex-basis: 14px;
-}
-.vq-language-menu .vq-nav-icon {
-    width: 20px;
-    height: 20px;
-    flex-basis: 20px;
+    width: 12px;
+    height: 12px;
+    flex-basis: 12px;
 }
 .vq-content:has(.vq-account) {
     background: var(--vq-canvas);
@@ -625,6 +605,8 @@
     background: var(--vq-hover);
 }
 .vq-workspace-menu {
+    width: max(160px, var(--radix-dropdown-menu-trigger-width));
+    padding: 6px;
     z-index: 50;
     overflow-wrap: anywhere;
 }
@@ -637,7 +619,7 @@
     margin-inline-start: auto;
 }
 .vq-workspace-menu [role="group"] {
-    max-height: 360px;
+    max-height: 256px;
     min-height: 0;
     overflow-y: auto;
 }

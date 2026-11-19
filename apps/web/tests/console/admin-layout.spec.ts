@@ -5,7 +5,7 @@
 
 import { chooseWorkspace, openWorkspaceMenu, workspaceOption, workspacePicker } from "../support/console-controls";
 import { randomUUID } from "node:crypto";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { createResource, editorScope } from "../editor-fixture";
 import { installed } from "../support/install-console";
 
@@ -41,6 +41,15 @@ async function expectCompactBanner(page: Page, count: number) {
         expect(box.x).toBeGreaterThanOrEqual(0);
         expect(box.x + box.width).toBeLessThanOrEqual(viewport);
     }
+}
+
+/**
+ * 工作区菜单按触发器的实际宽度排版，极窄时保留可读下限；直接测量浮层以覆盖浏览器定位后的尺寸。
+ */
+async function expectWorkspaceMenuWidth(page: Page, menu: Locator) {
+    const trigger = await workspacePicker(page).boundingBox();
+    if (!trigger) throw new Error("Workspace trigger has no visible bounding box");
+    expect((await menu.boundingBox())?.width).toBeCloseTo(Math.max(trigger.width, 160), 0);
 }
 
 test("server console follows the approved layout", async ({ page }) => {
@@ -414,9 +423,13 @@ test("TailAdmin profile dimensions and theme persist through real navigation", a
     await expect(archived).toHaveAttribute("aria-pressed", "true");
     await profile.press("Enter");
     const menu = page.getByRole("menu");
-    await expect(menu).toHaveCSS("width", "260px");
-    await expect(menu).toHaveCSS("border-radius", "16px");
-    await expect(menu).toHaveCSS("padding", "12px");
+    await expect(menu).toHaveCSS("width", "200px");
+    await expect(menu).toHaveCSS("border-radius", "12px");
+    await expect(menu).toHaveCSS("padding", "8px");
+    for (const action of await menu.getByRole("menuitem").all()) {
+        await expect(action).toHaveCSS("font-size", "13px");
+        await expect(action).toHaveCSS("height", "32px");
+    }
     await expect(menu).toHaveCSS("background-color", "rgb(30, 38, 53)");
     await expect(menu.getByText("browser-admin@example.com")).toBeVisible();
     const logout = menu.getByRole("menuitem", { name: "Sign out" });
@@ -497,7 +510,12 @@ test("TailAdmin banner sizes and nested language choices preserve the resource d
     await page.setViewportSize({ width: 320, height: 740 });
     await expect(banner).toHaveCSS("height", "65px");
     const workspaces = await openWorkspaceMenu(page);
-    await expect(workspaces.getByRole("menuitem", { name: "More Workspaces" })).toBeVisible();
+    await expectWorkspaceMenuWidth(page, workspaces);
+    const longOption = workspaces.getByRole("menuitemradio", { name: scope.key, exact: true });
+    await expect(longOption).toBeChecked();
+    expect((await longOption.boundingBox())?.height).toBeGreaterThan(32);
+    expect(await longOption.evaluate((row) => row.scrollWidth <= row.clientWidth)).toBe(true);
+    await expect(workspaces.getByRole("menuitem", { name: "More Workspaces" })).toBeInViewport();
     await page.keyboard.press("Escape");
     await expect(toggle).toHaveCSS("width", "32px");
     await expectCompactBanner(page, 5);
@@ -518,12 +536,15 @@ test("TailAdmin banner sizes and nested language choices preserve the resource d
     await user.press("Enter");
     const language = page.getByRole("menuitem", { name: /Language/ });
     await expect(language).toContainText("EN");
-    await expect(language.locator(".vq-locale-badge svg")).toHaveCSS("width", "14px");
+    await expect(language.locator(".vq-locale-badge svg")).toHaveCSS("width", "12px");
     await language.press("ArrowRight");
     const english = page.getByRole("menuitemradio", { name: "English", exact: true });
     await expect(english).toBeChecked();
-    await expect(english.locator("svg")).toHaveCSS("width", "20px");
+    await expect(english).toHaveCSS("height", "32px");
+    await expect(english).toHaveCSS("font-size", "13px");
+    await expect(english.locator("svg")).toHaveCSS("width", "16px");
     const submenu = english.locator('xpath=ancestor::*[@role="menu"][1]');
+    await expect(submenu).toHaveCSS("width", "168px");
     const bounds = await submenu.boundingBox();
     expect(bounds?.x).toBeGreaterThanOrEqual(0);
     expect(bounds && bounds.x + bounds.width).toBeLessThanOrEqual(320);
@@ -580,6 +601,10 @@ test("Workspace toolbar browses paginated members and opens workspace settings",
     const trigger = header.getByRole("button", { name: /^Workspace:/ });
     await trigger.press("Enter");
     const menu = page.getByRole("menu", { name: /^Workspace:/ });
+    await expectWorkspaceMenuWidth(page, menu);
+    const group = menu.getByRole("group");
+    expect((await group.boundingBox())?.height).toBeLessThanOrEqual(256);
+    expect(await group.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
     const selected = menu.getByRole("menuitemradio", { checked: true });
     await expect(selected).toHaveCount(1);
     const first = await selected.getAttribute("data-workspace-id");
@@ -587,6 +612,9 @@ test("Workspace toolbar browses paginated members and opens workspace settings",
     await expect(trigger).toBeFocused();
     await trigger.press("ArrowDown");
     const more = menu.getByRole("menuitem", { name: "More Workspaces", exact: true });
+    await page.setViewportSize({ width: 1280, height: 240 });
+    await expect(more).toBeInViewport({ ratio: 1 });
+    expect((await group.boundingBox())?.height).toBeLessThan(240);
     await page.route(
         (url) => url.pathname === "/api/v1/workspaces" && url.searchParams.has("cursor"),
         (r) => r.abort("failed"),
@@ -594,7 +622,8 @@ test("Workspace toolbar browses paginated members and opens workspace settings",
     );
     await more.press("Enter");
     const retry = menu.getByRole("menuitem", { name: "Retry more workspaces" });
-    await expect(retry).toBeVisible();
+    await expect(retry).toBeInViewport();
+    await expect(retry).toHaveCSS("height", "32px");
     const radios = menu.getByRole("menuitemradio");
     for (let action = retry; ; action = more) {
         const before = new Set(
@@ -614,6 +643,9 @@ test("Workspace toolbar browses paginated members and opens workspace settings",
         if (!data.nextCursor) break;
     }
     await expect(more).toBeHidden();
+    const option = menu.getByRole("menuitemradio", { name: "Menu workspace 0", exact: true });
+    await expect(option).toHaveCSS("height", "32px");
+    await expect(option).toHaveCSS("font-size", "13px");
     const last = menu.getByRole("menuitemradio").last();
     const id = await last.getAttribute("data-workspace-id");
     expect(id).toBeTruthy();
