@@ -32,32 +32,18 @@
 | 文件 | 用途 | 何时阅读 |
 | --- | --- | --- |
 | [`.agents/rules/README.md`](./.agents/rules/README.md) | 专项规范目录 | 需要判断该打开哪一份规则时 |
-| [Coding Standard](./.agents/rules/coding-standard.md) | 跨语言编码要求、与产品约束冲突时的优先规则及工程章节 | 编写或审查源码，或处理下列工程主题时 |
+| [Coding Standard](./.agents/rules/coding-standard.md#目录) | 跨语言编码要求、与产品约束冲突时的优先规则及工程细则，涵盖执行预算、结果归约、调度与 AI | 编写或审查源码，或处理相关工程主题时 |
 | [`.agents/rules/coding-standard-rules/python-coding-standard.md`](./.agents/rules/coding-standard-rules/python-coding-standard.md) | Python 语言与风格详本。文首 VeriQ 改编是规范性的 | 编写或审查 Python 时 |
 | [`.agents/rules/coding-standard-rules/typescript-javascript-coding-standard.md`](./.agents/rules/coding-standard-rules/typescript-javascript-coding-standard.md) | TypeScript 与 JavaScript 风格详本。VeriQ 格式规则是规范性的 | 编写或审查 TypeScript 或 JavaScript 时 |
 | [`.agents/rules/commit-standard.md`](./.agents/rules/commit-standard.md) | 提交边界、消息与代理不 push | 准备提交时 |
-| [`.agents/rules/security-standard.md`](./.agents/rules/security-standard.md) | 认证授权、密钥、IPC、签名与供应链 | 改动安全相关路径时 |
+| [`.agents/rules/security-standard.md`](./.agents/rules/security-standard.md) | 认证授权、密钥、IPC、签名、历史离线兼容、停止证明与供应链 | 改动安全相关路径时 |
 | [`.agents/rules/testing-standard.md`](./.agents/rules/testing-standard.md) | TDD、假绿禁令、覆盖率与平台测试 | 编写或审查测试时 |
 | [`.agents/rules/review-standard.md`](./.agents/rules/review-standard.md) | 审查职责、必查项与拒绝标准 | 审查代码或规格时 |
-| [原生与跨平台要求](./.agents/rules/release-standard.md#2-原生与跨平台要求) | 进程停止范围、凭据、路径与能力声明 | 改动各操作系统上的进程、凭据或停止证明时 |
-| [发行、配置与回滚](./.agents/rules/release-standard.md#1-发行配置与回滚) | 产物完整性、晋升、安全默认与回滚 | 构建发行物或设定配置默认时 |
+| [原生与跨平台要求](./.agents/rules/release-standard.md#2-原生与跨平台要求) | 目标平台、进程停止范围、凭据、路径与能力声明 | 改动平台目标、进程、凭据或停止证明时 |
+| [发行、配置与回滚](./.agents/rules/release-standard.md#1-发行配置与回滚) | 产物完整性、晋升、安全默认、回滚及[外部调度接入](./docs/integration/外部调度接入.md) | 构建发行物、设定配置默认或改动维护接口时 |
 | [`.agents/rules/privacy-standard.md`](./.agents/rules/privacy-standard.md) | 数据分类、证据授权、保留期与脱敏 | 处理用户数据、证据或日志时 |
 
 编写 Python 时遵守 [Coding Standard](./.agents/rules/coding-standard.md) 与 [Python 编码规范](./.agents/rules/coding-standard-rules/python-coding-standard.md)。编写 TypeScript/JavaScript 时遵守同一总则与 [TypeScript/JavaScript 编码规范](./.agents/rules/coding-standard-rules/typescript-javascript-coding-standard.md)。语言指南与总则冲突时，以总则和本文件中的不可协商基线为准；总则与语言指南已经写明的数字和工具名，不得用本文件以外的旧稿覆盖。
-
-### 工程章节
-
-| 章节 | 用途 | 何时阅读 |
-| --- | --- | --- |
-| [9. 架构边界与扩展性](./.agents/rules/coding-standard.md#9-架构边界与扩展性) | 分层依赖、控制面与执行面、扩展点 | 新增模块或调整依赖方向时 |
-| [10. 资产编译与不可变产物](./.agents/rules/coding-standard.md#10-资产编译与不可变产物) | DSL、发布、快照与引擎确定性 | 处理 DSL、编译或执行快照时 |
-| [11. 审计与执行事件](./.agents/rules/coding-standard.md#11-审计与执行事件) | 审计点、事件顺序、fencing 与订阅授权 | 记录审计或发出执行事件时 |
-| [12. 并发、幂等、状态与超时预算](./.agents/rules/coding-standard.md#12-并发幂等状态与超时预算) | 租约、fencing、幂等、容量隔离、重试、超时与背压 | 改动队列、租约或结果写入，或设定并发、超时、批次预算时 |
-| [13. 数据库与迁移](./.agents/rules/coding-standard.md#13-数据库与迁移) | 表前缀、UTC/UUID、迁移与事务原子性 | 设计表或编写迁移时 |
-| [14. 依赖与许可](./.agents/rules/coding-standard.md#14-依赖与许可) | 依赖钉死、许可与漏洞 | 选取或升级依赖时 |
-| [15. 文档、契约与 API 兼容性](./.agents/rules/coding-standard.md#15-文档契约与-api-兼容性) | 规格、ADR、跨语言契约一致性与 API 兼容性 | 修改规格、ADR、用户文档或公共 HTTP、IPC、结果协议等契约时 |
-| [16. 错误处理与可观测性](./.agents/rules/coding-standard.md#16-错误处理与可观测性) | 失败关闭、错误码、日志脱敏与健康信号 | 设计错误处理或日志时 |
-| [17. 出站网络与外部集成](./.agents/rules/coding-standard.md#17-出站网络与外部集成) | SSRF、Provider、对象存储与出站超时重试 | 新增或修改出站调用时 |
 
 ## 产品标识与仓库布局
 
@@ -67,7 +53,7 @@
 - 规范包布局：
   - `apps/srv` — Tornado 控制服务（`veriq_server`）；Python 依赖只写在 `apps/srv/pyproject.toml` 及其锁文件
   - `apps/web` — React 管理台（`@veriq/web`）
-  - `apps/runtime` — 联网 Agent / CLI，含历史离线兼容代码（`@veriq/runtime`）
+  - `apps/runtime` — Agent / CLI（`@veriq/runtime`）。首版仅提供联网执行。离线包、离线执行和结果导入仅供历史兼容核对，离线不包含双向编辑同步。见[生产路由范围](./docs/公共契约.md#联网任务的证据与恢复)。
   - `apps/desktop` — Electron 图形客户端（`@veriq/desktop`）
   - `packages/contracts` — JSON Schema、OpenAPI、生成类型
   - `packages/compiler`、`packages/runner-sdk`、`packages/ui` — 编译器、Playwright SDK、共享 UI
@@ -82,51 +68,8 @@
 - 个人 Runtime 默认私有；共享须所有者显式授权。权限撤销必须阻断后续领取、下载与上传。离线设备与已下载数据无法保证立即被远程回收。
 - Electron：启用 `contextIsolation`，关闭 renderer 的 Node 集成，在适用处启用 sandbox；preload 仅暴露白名单类型化 IPC。设备 token、密钥、进程派生与任意文件系统访问不得暴露给 renderer。禁止开放无认证的本地 HTTP 控制端口。
 - Mac Electron 主进程直接加载已核验的 Darwin Node-API 插件，用于私有配置和有限的 Cookie 文件操作。禁止另做独立的 Node 文件代理。仅在清单、宿主、架构以及目标加载与签名检查通过后绑定。Renderer 保持隔离，独立的文件型 Keychain 助手保持不变。这一选择不授权真实的 Keychain、Cookie、会话或信任库操作。
+- macOS 受控停止须观察受控 Worker 与 Chrome 退出。停止不确定时须隔离并交人工恢复。单独关闭 Context 不构成完整的受控停止回执。macOS 不承诺任意游离后代的内核级清理。
 - 优先复用成熟库；禁止自行实现密码学原语、浏览器等待、Cron 引擎、schema/迁移框架或通用报告引擎。
-
-## 平台与进程停止
-
-| 目标 | 要求 | 优先级 | 约束 |
-| --- | --- | --- | --- |
-| macOS Intel x64 | 必须 | 最高 | 最低 macOS 15（Sequoia）；Mac 测试使用宿主原生 Chrome；禁止用 Linux 虚拟机浏览器代替；须真实架构验证，仅 Rosetta 不足 |
-| macOS Apple Silicon arm64 | 必须 | 最高 | 同 Intel Mac |
-| Windows 11 x64 | 必须 | 较低 | 仍须交付完整桌面与 Runtime |
-| Ubuntu 24.04 x64 | 必须 | 较低 | 仍须交付完整桌面与 Runtime |
-| 服务端 Linux x64 | 必须 | 服务端基线 | 前端构建后暂存并打入 Python wheel；控制面运行时无 Node/Chrome |
-
-进程停止回执必须携带明确的 `processStopScope`：
-
-| 范围 | 适用平台 | 含义 |
-| --- | --- | --- |
-| `FULL_DESCENDANT_TREE` | Linux / Windows | 经核实的全后代排空 |
-| `CONTROLLED_WORKER_BROWSER` | macOS | 观察到受控 Worker 与 Chrome 退出；不确定则隔离，并交人工恢复 |
-| `NO_PROCESS_SPAWNED` | 各平台 | 持久状态证明未派生执行进程 |
-
-- macOS 不承诺任意游离后代的内核级清理。禁止将 Mac 受控停止证据改写为 Linux/Windows 的 `DRAINED` 或全树证明。
-- PID 消失、窗口关闭、Context 关闭或 CLI 退出码单独均不构成完整的受控停止回执。
-- 过期或未知进程占用隔离容量；逻辑取消、超时或 PID 缺失不得伪装成停止成功。
-
-## 执行默认值
-
-| 参数 | 默认值 |
-| --- | --- |
-| 未结束 Run 上限 | 10 |
-| 在线全局浏览器上下文 | 4 |
-| 单 Workspace 浏览器上下文 | 2 |
-| 离线本机并发（历史默认值，非 MVP） | 1 |
-| 心跳 | 10s |
-| 租约 | 60s |
-| Playwright `retries` | 0 |
-| 整用例重试 | 至多 1 次，由 VeriQ 负责（新 Context、新 fixture、新工作目录） |
-| 该次重试后通过 | `UNSTABLE`（默认门禁不通过） |
-
-结果归约顺序：`ERROR > INCOMPLETE > FAILED > CANCELLED > UNSTABLE > SKIPPED > PASSED`。须保留底层业务、清理与证据事实，禁止只存最高优先级标签。
-
-## 调度与维护
-
-- 产品内部不设 Cron。外部调度通过经认证、幂等的 HTTP 触发与维护接口唤醒。
-- 维护接口必须使用受限身份、有界批次、幂等语义，并在仍有剩余工作时返回处理数量与 `hasMore`。
-- Agent 轮询与心跳不是 Cron，仍属于统一执行协议的一部分。
 
 ## 打包与运行环境
 
@@ -136,15 +79,6 @@
 - 桌面产物按 `darwin/x64`、`darwin/arm64`、`win32/x64`、`linux/x64` 分别构建与验收。共享业务代码不能替代各平台的凭据库、进程监督、原生文件系统与生命周期适配。
 - 本地 Runtime 持久化使用锁定的 Node 24 内置 SQLite，表名仍用 `veriq_` 前缀。桌面与 Runtime 不得要求终端用户安装 Python 或 MySQL。
 - 时间戳以 UTC 存储；除非具体产品界面另行定义，默认显示时区为 Asia/Shanghai。平台实体 ID 使用 UUID 字符串。
-
-## 离线与 AI
-
-当前 MVP 采用联网执行。以下离线包、离线执行与离线结果导入要求仅适用于历史协议与兼容核对。生产路由范围见[联网任务的证据与恢复](./docs/公共契约.md#联网任务的证据与恢复)。
-
-- 离线包为已签名的依赖闭包与只读快照。包内不得携带密码、Cookie 或设备 token。签名证明包内容的来源与完整性，不证明本地结果不可伪造。
-- 离线指无需连接控制平台；被测系统仍须可达。离线不包含双向编辑同步。
-- 结果导入走独立的离线导入路径：须幂等、带来源标识，且不得覆盖在线 Attempt 的权威记录。
-- AI 为可选辅助。自动化测试必须在无模型凭证时仍可运行。未配置 Provider 时，确定性执行须完整可用。AI 输出须经校验与人工审核，严禁自动发布。协议模拟成功不等于 Provider 验收通过。
 
 ## 锁定的工程基线
 
@@ -183,6 +117,7 @@
 完整测试要求见 [测试规范](./.agents/rules/testing-standard.md)。提交边界见 [提交规范](./.agents/rules/commit-standard.md)。安全底线见 [安全规范](./.agents/rules/security-standard.md)。
 
 - 行为变更优先采用 TDD：先观察到 RED，再实现到 GREEN。断言真实可观察行为，不测源码文本字符串是否匹配。
+- 纯文档变更须核对受影响的链接、锚点和示例，并报告实际检查的范围。
 - 迭代时跑聚焦测试；移交提交或集成前跑相关更完整套件。每一次失败与阻塞都必须如实报告。
 - 禁止用 sleep、强制点击、宽泛吞异常、弱化断言、假 UI、假报告，或在缺少必需夹具（MySQL、浏览器、原生工具链）时静默跳过，来掩盖失败。
 - 保持 API、Schema、OpenAPI、生成类型、样例与文档一致。修改契约后须重新生成，并运行拥有这些产物的包级 `check` 与 `test`。细则见 [文档、契约与 API 兼容性](./.agents/rules/coding-standard.md#15-文档契约与-api-兼容性)。
