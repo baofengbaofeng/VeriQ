@@ -1,0 +1,21 @@
+{
+    "schemaVersion": "2.0",
+    "shape": "TABLE",
+    "fields": { "label": { "type": "string", "required": true, "nullable": false } },
+    "source": {
+        "kind": "HTTP",
+        "connectionRef": "00000000-0000-4000-8000-000000000001",
+        "environmentVersionId": "00000000-0000-4000-8000-000000000002",
+        "method": "GET",
+        "path": "/items",
+        "query": [
+            { "name": "q", "value": "first" },
+            { "name": "q", "value": "" }
+        ],
+        "headers": {},
+        "parameters": {},
+        "body": null,
+        "auth": { "kind": "NONE" },
+        "mapping": { "rows": "/items", "key": "/id", "values": { "label": "/name" } }
+    }
+}

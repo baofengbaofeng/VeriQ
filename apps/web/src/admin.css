@@ -1,0 +1,760 @@
+/*
+ * 服务端入口在共享样式后加载本主题，使渲染到 body 的 Radix 弹层也能使用相同字号、颜色与焦点标记。
+ * 桌面入口继续单独打包原有共享样式。
+ */
+:root {
+    --vq-brand: #3645b8;
+    --vq-brand-dark: #2e3b9e;
+    --vq-brand-soft: #e8ecff;
+    --vq-brand-text: #192436;
+    --vq-border: #e1e6ed;
+    --vq-field: #f5f7fa;
+    --vq-rail: #f4f6f9;
+    --vq-secondary: #475467;
+    --vq-muted: #5e6a7d;
+    --vq-focus-outline: #737373;
+    --vq-field-outline: transparent;
+    --vq-sidebar-width: 190px;
+    --vq-topbar-height: 77px;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--vq-brand-text);
+    background: white;
+}
+.vq-shell,
+.vq-content,
+.panel {
+    background: white;
+}
+.vq-topbar {
+    --vq-banner-control-size: 32px;
+    padding: 16px 24px;
+    min-height: var(--vq-topbar-height);
+    height: auto;
+    gap: 6px;
+}
+.vq-topbar :is(a, button, select) {
+    height: var(--vq-banner-control-size);
+}
+.vq-brand {
+    --vq-banner-control-size: 42px;
+    width: var(--vq-banner-control-size);
+    justify-content: center;
+    font-size: 14px;
+}
+.vq-user-trigger {
+    gap: 7px;
+    padding: 5px 8px;
+    border: 0;
+    border-radius: 6px;
+}
+.vq-user-name {
+    font-size: 13px;
+    max-width: 16ch;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+}
+.vq-avatar {
+    color: #38449d;
+}
+.vq-topbar .veriq-language {
+    gap: 4px;
+    font-weight: 450;
+}
+.vq-sidebar {
+    padding: 12px 8px;
+    background: var(--vq-rail);
+}
+.vq-nav {
+    gap: 3px;
+}
+.vq-mobile-menu {
+    display: none;
+}
+.vq-nav-icon {
+    flex: 0 0 16px;
+}
+.vq-nav-item,
+.vq-nav-sub,
+.vq-mobile-menu {
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    margin: 0;
+    padding: 6px 8px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--vq-secondary);
+    text-align: start;
+    font-size: 13px;
+    font-weight: 550;
+}
+.vq-nav-item {
+    display: flex;
+    min-height: 34px;
+}
+.vq-nav-sub {
+    display: block;
+    min-height: 31px;
+    font-weight: 450;
+}
+.vq-nav-group {
+    margin: 0;
+}
+.vq-nav-item[aria-expanded] .vq-nav-icon:last-child {
+    margin-inline-start: auto;
+}
+.vq-nav-item[aria-expanded="false"] .vq-nav-icon:last-child {
+    transform: rotate(-90deg);
+}
+.vq-nav-children {
+    margin-inline-start: 15px;
+    padding-inline-start: 9px;
+    border-inline-start: 1px solid #dbe1ec;
+}
+.vq-nav :is(a, button):hover,
+.vq-topbar-workspaces :is(button, a):hover {
+    background: #e9edf3;
+}
+.vq-nav [aria-current="page"] {
+    background: var(--vq-brand-soft);
+    color: var(--vq-brand-dark);
+    font-weight: 650;
+}
+.vq-content-inner {
+    max-width: none;
+    margin: 0;
+    padding: 15px 18px;
+}
+.panel {
+    min-width: 0;
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    box-shadow: none;
+}
+.vq-standalone {
+    max-width: none;
+    margin: 16px;
+    padding: 0;
+}
+h1,
+.vq-sheet-title {
+    font-size: 14px;
+    line-height: 1.4;
+    font-weight: 680;
+}
+h1 {
+    margin: 0 0 12px;
+}
+h2,
+h3,
+h4,
+h5,
+.vq-section h3,
+.report-assertion h5 {
+    font-size: 13px;
+    line-height: 1.4;
+}
+h2 {
+    margin: 18px 0 8px;
+}
+.vq-section h3 {
+    margin: 0 0 8px;
+}
+p {
+    line-height: 1.45;
+    color: var(--vq-secondary);
+}
+a {
+    color: var(--vq-brand);
+}
+small,
+dt,
+.vq-field-hint,
+.vq-sheet-desc,
+.vq-tooltip {
+    font-size: 12px;
+}
+small,
+dt,
+.vq-field-hint,
+.vq-sheet-desc {
+    color: var(--vq-muted);
+}
+.vq-menu-item,
+.vq-select-item {
+    font-size: 13px;
+}
+form {
+    gap: 10px 14px;
+    margin: 10px 0 14px;
+    grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+}
+.panel form,
+.vq-ai fieldset,
+.panel > dl,
+.vq-dialog,
+.vq-editor-fields,
+.vq-item {
+    border: 1px solid var(--vq-border);
+    border-radius: 8px;
+    padding: 12px;
+    background: var(--vq-field);
+}
+/*
+ * 计划、Runtime 和凭据区域复用原生字段分组，默认最小宽度会被长 UUID 撑开；组内控件仍按可用列宽折行。
+ */
+.panel fieldset {
+    min-width: 0;
+    border: 1px solid var(--vq-border);
+    border-radius: 8px;
+    padding: 12px;
+    background: var(--vq-field);
+}
+.panel fieldset legend {
+    color: var(--vq-secondary);
+    font-weight: 600;
+}
+.panel form > :is(h2, h3, p, [role="alert"], [role="status"]) {
+    grid-column: 1 / -1;
+    margin: 0;
+}
+.panel label:has(> input:is([type="checkbox"], [type="radio"])) {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.panel input:is([type="checkbox"], [type="radio"]) {
+    width: auto;
+    accent-color: var(--vq-brand);
+}
+.vq-ai {
+    max-width: none;
+}
+.report-assertion {
+    overflow-x: auto;
+}
+.panel pre {
+    max-width: 100%;
+    overflow-x: auto;
+}
+.table-scroll {
+    max-width: 100%;
+    overflow-x: auto;
+}
+.panel > .table-scroll {
+    border: 1px solid var(--vq-border);
+    border-radius: 8px;
+}
+.panel > dl {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 6px 14px;
+}
+.panel > dl dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+label,
+.vq-field {
+    min-width: 0;
+    gap: 4px;
+}
+input,
+select,
+textarea,
+.vq-input,
+.vq-select-trigger {
+    min-width: 0;
+    max-width: 100%;
+    padding: 6px 8px;
+    color: var(--vq-brand-text);
+    background: white;
+    border: 1px solid #d6dce6;
+    border-radius: 6px;
+    font-size: 13px;
+}
+input:not([type="checkbox"], [type="radio"]),
+select,
+.vq-select-trigger {
+    min-height: 34px;
+}
+textarea {
+    font: inherit;
+}
+button {
+    padding: 6px 10px;
+    border-color: var(--vq-button-fill, var(--vq-brand));
+    background: var(--vq-button-fill, var(--vq-brand));
+}
+button:not(:disabled):hover {
+    filter: brightness(0.96);
+}
+.vq-btn-primary {
+    border-color: var(--vq-brand);
+}
+.vq-secondary,
+.vq-btn-secondary {
+    background: white;
+    border-color: #d6dce6;
+    color: var(--vq-secondary);
+}
+.vq-danger,
+.vq-btn-danger {
+    background: #fff3f0;
+    border-color: #c46c63;
+}
+.vq-btn-ghost,
+.vq-sheet-close,
+.vq-hint-icon {
+    background: transparent;
+}
+.vq-sheet-close,
+.vq-hint-icon {
+    color: var(--vq-secondary);
+}
+.vq-user-trigger {
+    background: transparent;
+}
+.vq-section {
+    margin: 12px 0;
+    padding: 12px 0;
+    border-color: var(--vq-border);
+}
+.vq-fields,
+.vq-editor-fields {
+    gap: 10px 14px;
+}
+.vq-actions {
+    gap: 6px 8px;
+    margin: 8px 0;
+}
+.vq-sheet-header,
+.vq-sheet-body {
+    padding: 12px 16px;
+}
+.vq-sheet-wide {
+    width: min(1000px, 96vw);
+}
+.vq-dialog {
+    background: white;
+}
+.vq-tooltip {
+    color: white;
+}
+/*
+ * 键盘操作使用与控件略有间隔的轮廓，Agent 的选中底色和菜单项高亮仍由各组件提供。
+ */
+:focus-visible,
+input:focus-visible,
+.vq-input:focus-visible,
+.vq-agent :is(button, a):focus-visible {
+    --vq-field-outline: var(--vq-focus-outline);
+    outline: 2px solid var(--vq-focus-outline);
+    outline-offset: 3px;
+}
+input:focus:not(:focus-visible) {
+    outline: none;
+}
+
+/*
+ * 输入域的中性边框沿用当前明暗主题，键盘仍保留有间距的焦点轮廓；字段错误及原生选中反馈由控件自身呈现。
+ */
+:root
+    :is(
+        input:not(
+            [type="checkbox"],
+            [type="radio"],
+            [type="file"],
+            [type="range"],
+            [type="color"],
+            [type="button"],
+            [type="submit"],
+            [type="reset"],
+            [type="image"]
+        ),
+        textarea,
+        select,
+        .vq-select-trigger
+    ):focus:where(:not(:user-invalid, [aria-invalid="true"])) {
+    border-color: var(--vq-focus-outline);
+    box-shadow: none;
+    outline: 2px solid var(--vq-field-outline);
+    outline-offset: 2px;
+}
+/*
+ * Monaco 将查找框等组合控件的焦点绘制在外层容器上，Web 入口复用同一颜色，并沿用编辑器自身的轮廓形状。
+ */
+:root :is(.monaco-editor, .monaco-diff-editor, .monaco-component) {
+    --vscode-focusBorder: var(--vq-focus-outline);
+    --vscode-list-focusOutline: var(--vq-focus-outline);
+}
+:root:where([data-theme="dark"]) {
+    --vq-focus-outline: #a3a3a3;
+}
+@media (forced-colors: active) {
+    :root {
+        --vq-focus-outline: Highlight;
+        --vq-field-outline: Highlight;
+    }
+}
+table,
+th,
+td,
+td button {
+    font-size: 12px;
+}
+th,
+td {
+    text-align: start;
+    padding: 6px 11px;
+    border-bottom: 1px solid var(--vq-border);
+}
+th {
+    height: 32px;
+    background: var(--vq-field);
+    color: var(--vq-secondary);
+    font-weight: 650;
+}
+td {
+    height: 38px;
+}
+td button {
+    margin: 2px;
+    padding: 4px 6px;
+    white-space: nowrap;
+}
+.vq-library-table td {
+    white-space: nowrap;
+}
+tbody tr:hover td {
+    background: #fafbfe;
+}
+.vq-crumb,
+.vq-card-heading small {
+    font-size: 12px;
+    color: var(--vq-muted);
+}
+.vq-crumb {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-bottom: 5px;
+}
+.vq-crumb button,
+.vq-library-table td button {
+    border: 0;
+    padding: 0;
+    margin: 0;
+    color: var(--vq-brand);
+    background: transparent;
+    font-weight: 550;
+}
+.vq-crumb button:hover,
+.vq-library-table td button:hover {
+    text-decoration: underline;
+}
+.vq-page-heading,
+.vq-card-heading,
+.vq-library-toolbar,
+.vq-workspace-context,
+.vq-create-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.vq-page-heading,
+.vq-card-heading {
+    justify-content: space-between;
+}
+.vq-page-heading {
+    min-height: 34px;
+    margin-bottom: 12px;
+}
+.vq-page-heading h1,
+.vq-card-heading h2,
+.vq-card-heading small {
+    margin: 0;
+}
+.vq-library-toolbar,
+.vq-library-fields {
+    padding: 10px 12px;
+    border: 1px solid var(--vq-border);
+    border-radius: 8px;
+    background: var(--vq-field);
+}
+.vq-library-toolbar {
+    margin-bottom: 12px;
+    gap: 10px 16px;
+}
+.vq-library-toolbar label,
+.vq-workspace-context label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+    color: var(--vq-secondary);
+}
+.vq-library-toolbar select,
+.vq-workspace-context select {
+    width: auto;
+    max-width: min(28ch, 60vw);
+}
+.vq-topbar .veriq-language select {
+    min-height: var(--vq-banner-control-size);
+    padding: 2px 6px;
+    min-width: 0;
+    width: auto;
+    border-color: transparent;
+}
+.vq-library-table {
+    min-width: 0;
+    overflow: hidden;
+    border-radius: 8px;
+    border: 1px solid var(--vq-border);
+}
+.vq-card-heading {
+    padding: 8px 11px;
+    min-height: 40px;
+}
+.vq-library-table > :is(p, button, [role="alert"]) {
+    margin: 8px 11px;
+}
+.vq-library-table tbody tr:last-child td {
+    border-bottom: none;
+}
+.vq-library-table td:nth-child(2) {
+    font-family: ui-monospace, monospace;
+    color: var(--vq-muted);
+}
+.vq-state {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    color: #475569;
+    background: #edf1f5;
+}
+.vq-state::before {
+    content: "";
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: currentColor;
+}
+.vq-state[data-status="PUBLISHED"] {
+    color: #12654d;
+    background: #e5f5ed;
+}
+.vq-state[data-status="DRAFT"] {
+    color: #79520e;
+    background: #fdf2d9;
+}
+.panel .vq-library-form {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+}
+.vq-library-fields h2 {
+    margin: 0 0 10px;
+}
+.vq-library-fields > div {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 14px;
+}
+.vq-resource-key {
+    grid-column: 1/-1;
+}
+.vq-create-actions {
+    justify-content: flex-end;
+}
+@media (max-width: 700px) {
+    .vq-shell-body {
+        flex-direction: column;
+    }
+    .vq-sidebar {
+        flex: 0 0 auto;
+        width: 100%;
+        padding: 0;
+        border: 0;
+        border-bottom: 1px solid var(--vq-border);
+    }
+    .vq-mobile-menu {
+        display: flex;
+        min-height: 36px;
+    }
+    .vq-mobile-menu[aria-expanded="false"] + nav {
+        display: none;
+    }
+    .vq-nav {
+        padding: 0 8px 8px;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        align-items: start;
+    }
+    .vq-content-inner {
+        padding: 12px;
+    }
+    .vq-actions label {
+        min-width: min(160px, 100%);
+    }
+}
+@media (max-width: 480px) {
+    .vq-user-name {
+        max-width: 12ch;
+    }
+    .vq-library-fields > div,
+    .vq-fields,
+    form {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .vq-content {
+        overflow: visible;
+    }
+    .vq-ai label {
+        min-width: 0;
+    }
+}
+@media (pointer: coarse) {
+    input:not([type="checkbox"], [type="radio"]),
+    textarea,
+    .vq-input {
+        font-size: 16px;
+    }
+    .vq-nav :is(a, button),
+    .vq-mobile-menu,
+    .vq-page-heading button,
+    .vq-create-actions button {
+        min-height: 44px;
+    }
+}
+
+.vq-topbar-workspaces {
+    --vq-workspace-controls-gap: 6px;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    gap: var(--vq-workspace-controls-gap);
+}
+.vq-topbar-workspaces button {
+    border: 1px solid var(--vq-border);
+    color: var(--vq-secondary);
+    background: white;
+}
+
+.vq-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.vq-menu-item[data-highlighted] {
+    background: var(--vq-brand-soft);
+}
+.vq-menu-item [data-state="checked"] {
+    margin-inline-start: auto;
+}
+.vq-menu-separator {
+    border-top: 1px solid var(--vq-border);
+    margin: 4px 0;
+}
+.vq-workspace-overlay {
+    background: rgb(16 24 40 / 45%);
+    backdrop-filter: blur(3px);
+}
+[data-theme="dark"] .vq-workspace-overlay {
+    background: rgb(0 0 0 / 62%);
+}
+.vq-workspace-dialog {
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: min(400px, calc(100vw - 32px));
+    max-height: calc(100dvh - 32px);
+    overflow-y: auto;
+    padding: clamp(16px, 4vw, 24px);
+    border-radius: 16px;
+    box-shadow:
+        0 12px 24px -4px rgb(16 24 40 / 16%),
+        0 4px 8px -2px rgb(16 24 40 / 8%);
+}
+.vq-workspace-dialog .vq-card-heading {
+    min-height: 28px;
+    padding: 0;
+}
+.vq-workspace-dialog h2 {
+    color: var(--vq-profile-heading);
+    font-size: 16px;
+    font-weight: 600;
+}
+.vq-workspace-dialog .vq-sheet-close {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border-radius: 50%;
+    color: var(--vq-profile-muted);
+}
+.vq-workspace-dialog .vq-sheet-close:hover {
+    background: var(--vq-hover);
+}
+.vq-workspace-key-hint {
+    margin: 4px 0 0;
+    color: var(--vq-profile-muted);
+    font-size: 13px;
+    line-height: 18px;
+}
+.vq-workspace-form {
+    margin: 16px 0 0;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+}
+.vq-workspace-form label {
+    gap: 6px;
+    color: var(--vq-profile-body);
+    font-weight: 500;
+}
+.vq-workspace-form input {
+    font-weight: 500;
+    height: 36px;
+    padding-inline: 10px;
+    border-radius: 8px;
+}
+/*
+ * 创建工作区时以标签和输入底色提示焦点，字段沿用原有边框；强制配色仍使用系统焦点轮廓。
+ */
+@media (forced-colors: none) {
+    [data-theme="dark"] .vq-workspace-form {
+        --vq-workspace-input-border: var(--vq-border);
+    }
+    .vq-workspace-form label:focus-within {
+        color: var(--vq-profile-heading);
+        font-weight: 700;
+    }
+    :root .vq-workspace-form input:focus {
+        background-color: var(--vq-hover);
+        border-color: var(--vq-workspace-input-border, #d6dce6);
+        outline: none;
+        box-shadow: none;
+    }
+}
+.vq-workspace-form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding-top: 4px;
+}
+.vq-workspace-form-actions button {
+    min-height: 34px;
+    margin: 0;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-weight: 500;
+}

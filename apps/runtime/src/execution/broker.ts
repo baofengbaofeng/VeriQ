@@ -1,0 +1,299 @@
+/**
+ * 本文件实现 Attempt 私有 Unix 套接字代理：仅校验一次性 nonce 授权控制消息：绝不向工作进程转发任何设备凭证。
+ */
+
+import { createServer, type Server, type Socket } from "node:net";
+import { chmod, unlink, mkdtemp, lstat, rmdir } from "node:fs/promises";
+import { randomBytes, createHash, randomUUID } from "node:crypto";
+import { resolve, dirname } from "node:path";
+import { darwinNative, type DarwinPrivateDirectory } from "../native/darwin.ts";
+import { windowsNative } from "../native/windows.ts";
+import { validateSchema, type HttpDatasetSelection } from "@veriq/contracts";
+/**
+ * Mac 业务调用显式申请系统固定短临时根下的独占目录，B 锚点与随机 owner 标记共同约束关闭清理；只删除同一 inode
+ * 的自有标记和空目录，陌生成员、路径替换或未关闭 socket 都保留原现场，不静默规范化任何用户配
+ * 置路径。
+ */
+export async function createDarwinBrokerDirectory(): Promise<{
+    path: string;
+    close(): Promise<void>;
+}> {
+    if (process.platform !== "darwin") throw new Error("DARWIN_NATIVE_PLATFORM_REQUIRED");
+    const path = await mkdtemp("/private/tmp/veriq-broker-");
+    const directory = darwinNative().openPrivateDirectory(path, false);
+    let identity: Awaited<ReturnType<typeof lstat>>;
+    const marker = randomBytes(32);
+    try {
+        identity = await lstat(path);
+        directory.replace(".owner", `.${randomUUID()}.tmp`, marker, 64);
+    } catch (error) {
+        directory.close();
+        throw error;
+    }
+    let closed = false;
+    return {
+        path,
+        async close() {
+            if (closed) return;
+            closed = true;
+            try {
+                const current = await lstat(path);
+                if (
+                    current.dev !== identity.dev ||
+                    current.ino !== identity.ino ||
+                    !current.isDirectory() ||
+                    current.isSymbolicLink()
+                )
+                    throw new Error("IPC_DIRECTORY_CHANGED");
+                const entries = directory.entries(2);
+                if (
+                    entries.overflow ||
+                    entries.names.length !== 1 ||
+                    entries.names[0] !== ".owner" ||
+                    !directory.read(".owner", 64).equals(marker)
+                )
+                    throw new Error("IPC_DIRECTORY_CHANGED");
+                directory.remove(".owner", 64);
+                await rmdir(path);
+            } finally {
+                directory.close();
+            }
+        },
+    };
+}
+/**
+ * 公开类 AttemptBroker 监听 Attempt 私有 Unix 套接字：用一次性 nonce 授权单行 JSON 控制消息。
+ * 超限或失配时销毁连接且不转发设备凭证。
+ */
+export class AttemptBroker {
+    readonly nonce = randomBytes(32).toString("hex");
+    private server: Server | undefined;
+    private closed = false;
+    private sockets = new Set<Socket>();
+    private nativeServer: { close(): void } | undefined;
+    readonly path: string;
+    private parent: DarwinPrivateDirectory | undefined;
+    private socketIdentity: { dev: number; ino: number } | undefined;
+    constructor(
+        path: string,
+        private receive: (message: Record<string, unknown>) => Promise<unknown>,
+        private readonly socketTimeoutMs = 15000,
+    ) {
+        if (process.platform === "darwin" && (path.includes("\0") || Buffer.byteLength(path, "utf8") >= 104))
+            throw new Error("IPC_PATH_INVALID");
+        this.path =
+            process.platform === "win32"
+                ? "\\\\.\\pipe\\veriq-" +
+                  createHash("sha256")
+                      .update(windowsNative().sid + "\0" + resolve(path).toLowerCase())
+                      .digest("hex")
+                : path;
+        if (!Number.isSafeInteger(socketTimeoutMs) || socketTimeoutMs < 1 || socketTimeoutMs > 60000)
+            throw new Error("IPC_TIMEOUT_INVALID");
+    }
+    private response(value: unknown): string {
+        const frame = JSON.stringify({ ok: true, value }) + "\n";
+        if (Buffer.byteLength(frame) > 65536) throw new Error("IPC_RESPONSE_LIMIT");
+        return frame;
+    }
+    /**
+     * 公开方法 open 创建 Attempt 私有套接字并开始监听：将文件权限收紧为 0600：只接受以换行结束的单行控制消息。
+     */
+    async open() {
+        if (this.closed) throw new Error("IPC_BROKER_CLOSED");
+        /**
+         * Windows 服务端由原生适配器创建受保护且禁止远程连接的首实例管道，TypeScript 仍负责一次性 nonce
+         * 和有限业务分派；原生传输失败不会回退 TCP 或公共默认 ACL，也不会改写 Linux
+         * 的套接字路径。
+         */
+        if (process.platform === "win32") {
+            this.nativeServer = new (windowsNative().PrivatePipeServer)(this.path, (frame, reply) => {
+                void (async () => {
+                    let response: string;
+                    try {
+                        const message = JSON.parse(frame) as Record<string, unknown>;
+                        if (message.nonce !== this.nonce) throw new Error("IPC_UNAUTHORIZED");
+                        response = this.response(await this.receive(message));
+                    } catch {
+                        response = JSON.stringify({ ok: false, error: "ATTEMPT_IPC_FAILED" }) + "\n";
+                    }
+                    try {
+                        reply(response);
+                    } catch {
+                        /*
+                         * 原生端已经关闭或响应超过固定字节预算时必须结束当前请求，不能在异步回调外抛出未处理异常，
+                         * 也不能重新连接后把同一业务命令重复发送给不同的监听实例。
+                         */
+                    }
+                })();
+            });
+            return;
+        }
+        if (process.platform === "darwin") this.parent = darwinNative().openPrivateDirectory(dirname(this.path), false);
+        this.server = createServer((socket) => {
+            this.sockets.add(socket);
+            socket.on("close", () => this.sockets.delete(socket));
+            socket.on("error", () => {});
+            let bytes = 0;
+            const chunks: Buffer[] = [];
+            let handled = false;
+            /**
+             * 单行请求的完整字节帧才是 UTF-8 解码边界，任意 socket 分块可能切开中文或四字节字符；保留既有六十四 KiB
+             * 原始上限，并在认证和业务回调之前拒绝非法编码或不完整 JSON。
+             */
+            socket.on("data", (chunk: Buffer) => {
+                if (handled) return;
+                bytes += chunk.length;
+                if (bytes > 65536) {
+                    socket.destroy();
+                    return;
+                }
+                chunks.push(chunk);
+                if (!chunk.includes(10)) return;
+                handled = true;
+                void (async () => {
+                    try {
+                        const frame = Buffer.concat(chunks, bytes);
+                        const text = new TextDecoder("utf-8", { fatal: true }).decode(
+                            frame.subarray(0, frame.indexOf(10)),
+                        );
+                        const message = JSON.parse(text) as Record<string, unknown>;
+                        if (message.nonce !== this.nonce) throw new Error("IPC_UNAUTHORIZED");
+                        const value = await this.receive(message);
+                        socket.end(this.response(value));
+                    } catch {
+                        socket.end(JSON.stringify({ ok: false, error: "ATTEMPT_IPC_FAILED" }) + "\n");
+                    }
+                })();
+            });
+            socket.setTimeout(this.socketTimeoutMs, () => socket.destroy());
+        });
+        await new Promise<void>((resolve, reject) => {
+            this.server!.once("error", reject);
+            this.server!.listen(this.path, resolve);
+        });
+        await chmod(this.path, 0o600);
+        if (this.parent) {
+            const socket = await lstat(this.path);
+            if (!socket.isSocket() || (socket.mode & 0o777) !== 0o600 || socket.uid !== process.getuid!())
+                throw new Error("IPC_SOCKET_UNSAFE");
+            this.socketIdentity = { dev: socket.dev, ino: socket.ino };
+        }
+    }
+    /**
+     * 公开方法 close 销毁 AttemptBroker 上的活跃连接：关闭监听端点并删除套接字文件：对本不存在的路径错误保持静默。
+     */
+    async close() {
+        if (this.closed) return;
+        this.closed = true;
+        if (process.platform === "win32") {
+            this.nativeServer?.close();
+            this.nativeServer = undefined;
+            return;
+        }
+        for (const socket of this.sockets) socket.destroy();
+        if (this.server) await new Promise<void>((resolve) => this.server!.close(() => resolve()));
+        if (this.parent) {
+            try {
+                const current = await lstat(this.path).catch((error: NodeJS.ErrnoException) => {
+                    if (error.code !== "ENOENT") throw error;
+                });
+                if (current) {
+                    if (
+                        !this.socketIdentity ||
+                        !current.isSocket() ||
+                        current.dev !== this.socketIdentity.dev ||
+                        current.ino !== this.socketIdentity.ino
+                    )
+                        throw new Error("IPC_SOCKET_CHANGED");
+                    await unlink(this.path);
+                }
+            } finally {
+                this.parent.close();
+                this.parent = undefined;
+            }
+            return;
+        }
+        await unlink(this.path).catch((e: NodeJS.ErrnoException) => {
+            if (e.code !== "ENOENT") throw e;
+        });
+    }
+}
+
+/**
+ * 每个 Attempt 独占有界的分片表，读操作只持自己的取消句柄；过期、丢租或消费者结束都会丢弃未发送的字节。
+ */
+export class HttpDatasetTransfers {
+    private readonly live = new Map<
+        string,
+        { controller: AbortController; timer: NodeJS.Timeout; next: number; bytes?: Uint8Array; digest?: string }
+    >();
+    constructor(
+        private readonly fetch: (selection: HttpDatasetSelection, signal: AbortSignal) => Promise<Uint8Array>,
+        private readonly signal: AbortSignal,
+    ) {
+        signal.addEventListener("abort", () => this.close(), { once: true });
+    }
+    private drop(id: string) {
+        const transfer = this.live.get(id);
+        if (!transfer) return;
+        clearTimeout(transfer.timer);
+        transfer.controller.abort();
+        this.live.delete(id);
+    }
+    /**
+     * 工作进程报告取消或监督器完成本次 Attempt 后立即回收全部响应，不等待后续续读或下一次轮询清理。
+     */
+    close() {
+        for (const id of this.live.keys()) this.drop(id);
+    }
+    /**
+     * 首帧携带封闭的读取正文，之后只接受同一标识和精确偏移；上游错误仅保留协议允许的分类，原始正文不会进入 IPC。
+     */
+    async receive(message: Record<string, unknown>) {
+        const id = message.id;
+        if (typeof id !== "string" || validateSchema("Id", id).length) throw new Error("INVALID_DATASET_TRANSFER");
+        if (message.cancel === true) {
+            this.drop(id);
+            return {};
+        }
+        this.signal.throwIfAborted();
+        let transfer = this.live.get(id);
+        if (message.selection !== undefined) {
+            if (transfer || this.live.size >= 4 || validateSchema("HttpDatasetSelection", message.selection).length)
+                throw new Error("INVALID_DATASET_TRANSFER");
+            const state = { controller: new AbortController(), timer: setTimeout(() => this.drop(id), 15000), next: 0 };
+            state.timer.unref();
+            this.live.set(id, state);
+            transfer = state;
+            try {
+                const bytes = await this.fetch(message.selection as HttpDatasetSelection, state.controller.signal);
+                state.controller.signal.throwIfAborted();
+                if (!bytes.length || bytes.length > 3 * 1024 * 1024) throw new Error("DATASET_TRANSFER_LIMIT");
+                transfer.bytes = bytes;
+                transfer.digest = createHash("sha256").update(bytes).digest("hex");
+            } catch (error) {
+                this.drop(id);
+                return {
+                    errorCode:
+                        error instanceof Error && !validateSchema("ProtectedExecutionErrorCode", error.message).length
+                            ? error.message
+                            : "DATASET_READ_ERROR",
+                };
+            }
+        } else if (!transfer || message.offset !== transfer.next) throw new Error("INVALID_DATASET_TRANSFER");
+        const bytes = transfer.bytes;
+        if (!bytes) throw new Error("INVALID_DATASET_TRANSFER");
+        const offset = transfer.next;
+        transfer.next = Math.min(offset + 32768, bytes.length);
+        const frame = {
+            id,
+            offset,
+            size: bytes.length,
+            sha256: transfer.digest,
+            part: Buffer.from(bytes.subarray(offset, transfer.next)).toString("base64"),
+        };
+        if (transfer.next === bytes.length) this.drop(id);
+        return frame;
+    }
+}

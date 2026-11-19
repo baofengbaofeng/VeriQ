@@ -1,0 +1,106 @@
+/**
+ * 报告中英文案表，挂到共享 editorI18n 的 reports 命名空间，供 ReportPage useTranslation 读取。
+ * 与资源编辑词条共存同一实例，但 ns 隔离避免键覆盖。
+ */
+
+import { editorI18n } from "../resources/i18n";
+/**
+ * 报告页中文（及双语）词条对象，涵盖门禁、Attempt、脱敏与原始证据提示等 UI 文案。键名变更需同步 en 镜像；增删改任一键
+ * 名时必须同步更新 en 镜像表。
+ * en 镜像同结构；变更键名时需同步两份并检查测试选择器文案。
+ */
+export const zh = {
+    reports: "报告",
+    workspace: "报告空间",
+    history: "运行历史",
+    empty: "此空间没有运行记录。",
+    select: "选择运行查看报告。",
+    loading: "正在加载报告…",
+    moreRuns: "更多运行",
+    moreCases: "更多用例",
+    retry: "重新加载报告与历史",
+    gateAt: "执行时门禁",
+    gateNow: "当前门禁",
+    cases: "用例",
+    firstPass: "首次通过",
+    retryPass: "重试通过",
+    infra: "基础设施错误",
+    attempt: "尝试",
+    noAttempt: "尚无执行尝试。",
+    labelsAbsent: "历史显示标签不可用",
+    environment: "环境与浏览器",
+    business: "业务",
+    cleanup: "清理",
+    evidence: "证据",
+    compensation: "清理补偿",
+    technical: "技术详情",
+    steps: "步骤与断言",
+    expected: "预期",
+    actual: "实际",
+    basis: "预期依据",
+    severity: "严重程度",
+    duration: "耗时",
+    requests: "请求关联",
+    noResult: "无已记录结果",
+    missing: "缺失",
+    withheld: "已脱敏",
+    unavailable: "凭证脱敏上下文不可用，值已隐藏。",
+    moreEvents: "更多事件",
+    restricted: "受限原始证据",
+    rawHelp: "原始证据可能含凭证，仅当前空间所有者或管理员可读取。",
+    traceHelp: "Trace 在本机查看",
+    download: "下载",
+    preview: "预览截图",
+    audit: "空间审计",
+};
+const en: typeof zh = {
+    reports: "Reports",
+    workspace: "Report Workspace",
+    history: "Run history",
+    empty: "No runs in this Workspace.",
+    select: "Select a run to inspect its report.",
+    loading: "Loading report…",
+    moreRuns: "More runs",
+    moreCases: "More cases",
+    retry: "Reload report and history",
+    gateAt: "Gate at execution",
+    gateNow: "Gate now",
+    cases: "Cases",
+    firstPass: "First pass",
+    retryPass: "Retry pass",
+    infra: "Infrastructure errors",
+    attempt: "Attempt",
+    noAttempt: "No Attempt has started.",
+    labelsAbsent: "Historical display labels unavailable",
+    environment: "Environment and browser",
+    business: "Business",
+    cleanup: "Cleanup",
+    evidence: "Evidence",
+    compensation: "Cleanup compensation",
+    technical: "Technical details",
+    steps: "Steps and assertions",
+    expected: "Expected",
+    actual: "Actual",
+    basis: "Expected source",
+    severity: "Severity",
+    duration: "Duration",
+    requests: "Request correlation",
+    noResult: "No recorded result",
+    missing: "Missing",
+    withheld: "Redacted",
+    unavailable: "Values withheld: redaction context unavailable.",
+    moreEvents: "More events",
+    restricted: "Restricted raw evidence",
+    rawHelp: "Raw evidence may contain credentials; current Workspace Owner/Admin access is required.",
+    traceHelp: "View Trace locally:",
+    download: "Download",
+    preview: "Preview screenshot",
+    audit: "Workspace audit",
+};
+editorI18n.addResourceBundle("zh", "reports", zh, true, true);
+editorI18n.addResourceBundle("en", "reports", en, true, true);
+/**
+ * editorI18n 的别名导出，方便报告模块以 reportI18n 引用而不直接依赖 resources/i18n 路径语义。调用方应指定 ns=reports；
+ * 默认 translation ns 仍留给资源编辑器。
+ */
+export { editorI18n as reportI18n };

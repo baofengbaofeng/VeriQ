@@ -1,0 +1,79 @@
+[
+    {
+        "name": "sparse table",
+        "document": {
+            "schemaVersion": "2.0",
+            "shape": "TABLE",
+            "fields": {
+                "code": { "type": "string", "required": true, "nullable": false },
+                "label": { "type": "string", "required": false, "nullable": true }
+            },
+            "source": { "kind": "STATIC", "rows": [{ "key": "first", "values": { "code": "01" } }] }
+        }
+    },
+    {
+        "name": "numeric code",
+        "document": {
+            "schemaVersion": "2.0",
+            "shape": "TABLE",
+            "fields": { "code": { "type": "string", "required": true, "nullable": false } },
+            "source": { "kind": "STATIC", "rows": [{ "key": "first", "values": { "code": 1 } }] }
+        },
+        "issue": { "code": "DATASET_FIELD_TYPE_MISMATCH", "path": "/source/rows/0/values/code" }
+    },
+    {
+        "name": "unresolved parent",
+        "document": {
+            "schemaVersion": "2.0",
+            "shape": "TREE",
+            "fields": {},
+            "source": { "kind": "STATIC", "rows": [{ "key": "leaf", "values": {}, "parentKey": "absent", "order": 0 }] }
+        },
+        "issue": { "code": "DATASET_ORPHAN_NODE", "path": "/source/rows/0/parentKey" }
+    },
+    {
+        "name": "cyclic parent",
+        "document": {
+            "schemaVersion": "2.0",
+            "shape": "TREE",
+            "fields": {},
+            "source": {
+                "kind": "STATIC",
+                "rows": [
+                    { "key": "left", "values": {}, "parentKey": "right", "order": 0 },
+                    { "key": "right", "values": {}, "parentKey": "left", "order": 0 }
+                ]
+            }
+        },
+        "issue": { "code": "DATASET_TREE_CYCLE", "path": "/source/rows/0/parentKey" }
+    },
+    {
+        "name": "tree without order",
+        "document": {
+            "schemaVersion": "2.0",
+            "shape": "TREE",
+            "fields": {},
+            "source": { "kind": "STATIC", "rows": [{ "key": "root", "values": {}, "parentKey": null }] }
+        },
+        "invalidStructure": true
+    },
+    {
+        "name": "table with tree metadata",
+        "document": {
+            "schemaVersion": "2.0",
+            "shape": "TABLE",
+            "fields": {},
+            "source": { "kind": "STATIC", "rows": [{ "key": "root", "values": {}, "parentKey": null, "order": 0 }] }
+        },
+        "invalidStructure": true
+    },
+    {
+        "name": "empty reference dataset",
+        "document": {
+            "schemaVersion": "2.0",
+            "shape": "TABLE",
+            "fields": {},
+            "source": { "kind": "STATIC", "rows": [] }
+        }
+    }
+]

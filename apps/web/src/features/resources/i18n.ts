@@ -1,0 +1,137 @@
+/**
+ * 资源/环境编辑器的 i18next 实例与 useTranslation 选项，中英词条覆盖保存校验发布等操作文案。报告 ns 由此实例挂载。
+ * 报告模块通过 addResourceBundle 挂接 reports ns；AI 使用独立实例。
+ */
+
+import i18next, { type i18n } from "i18next";
+import { initReactI18next } from "react-i18next";
+import { initialLanguage } from "../../locales/preference";
+const zh = {
+    kinds: {
+        CASE: "用例",
+        ELEMENT_CATALOG: "元素目录",
+        ASSERTION_TEMPLATE: "断言模板",
+        DATASET: "数据集",
+        FLOW: "流程",
+        FIXTURE: "Fixture",
+        SUITE: "套件",
+        ENVIRONMENT: "环境",
+    },
+    statuses: { DRAFT: "草稿", PUBLISHED: "已发布", ARCHIVED: "已归档" },
+    copyDataset: "复制数据集",
+    copySource: "源工作区",
+    copyVersion: "已发布版本",
+    copySubmit: "创建草稿",
+    copyNoVersions: "此工作区没有已发布的数据集版本。",
+    resources: "资源",
+    columnKey: "标识",
+    columnName: "名称",
+    columnKind: "类型",
+    columnStatus: "状态",
+    environments: "环境",
+    save: "保存草稿",
+    validate: "编译校验",
+    publish: "发布版本",
+    saved: "已保存",
+    loading: "正在加载…",
+    retry: "重试",
+    empty: "此空间没有资源。",
+    create: "创建资源",
+    add: "添加",
+    remove: "删除",
+    up: "上移",
+    down: "下移",
+    json: "JSON 源码",
+    form: "图形表单",
+    apply: "应用 JSON",
+    pendingJson: "JSON 有尚未应用的更改；请应用或放弃后再保存、校验或发布。",
+    discard: "放弃 JSON 更改",
+    invalid: "请修正校验问题",
+    conflict: "草稿已被其他人修改。本地内容已保留；比较远端草稿后重新应用。",
+    readonly: "只读：当前角色、归档状态或本地快照不允许修改。",
+    impact: "引用影响",
+    versions: "不可变版本与差异",
+    source: "实际生成的 TypeScript（只读）",
+    noSource: "发布并选择版本后可查看真实生成文件。",
+    queued: "等待可用的受管理 Runtime 编译；排队不代表校验通过。",
+    success: "编译校验通过",
+    archive: "归档",
+    restore: "恢复",
+    reload: "重新加载远端草稿",
+    keep: "保留本地并采用远端修订号",
+    dirty: "草稿有未保存更改。保存后才能编译校验或发布。",
+    language: "语言",
+};
+const en: typeof zh = {
+    kinds: {
+        CASE: "Case",
+        ELEMENT_CATALOG: "Element catalog",
+        ASSERTION_TEMPLATE: "Assertion template",
+        DATASET: "Dataset",
+        FLOW: "Flow",
+        FIXTURE: "Fixture",
+        SUITE: "Suite",
+        ENVIRONMENT: "Environment",
+    },
+    statuses: { DRAFT: "Draft", PUBLISHED: "Published", ARCHIVED: "Archived" },
+    copyDataset: "Copy dataset",
+    copySource: "Source workspace",
+    copyVersion: "Published version",
+    copySubmit: "Create draft",
+    copyNoVersions: "This workspace has no published dataset versions.",
+    resources: "Resources",
+    columnKey: "Key",
+    columnName: "Name",
+    columnKind: "Kind",
+    columnStatus: "Status",
+    environments: "Environments",
+    save: "Save draft",
+    validate: "Compile and validate",
+    publish: "Publish version",
+    saved: "Saved",
+    loading: "Loading…",
+    retry: "Retry",
+    empty: "No resources in this Workspace.",
+    create: "Create resource",
+    add: "Add",
+    remove: "Remove",
+    up: "Move up",
+    down: "Move down",
+    json: "JSON source",
+    form: "Visual form",
+    apply: "Apply JSON",
+    pendingJson: "Unapplied JSON changes: apply or discard them before saving, validating or publishing.",
+    discard: "Discard JSON changes",
+    invalid: "Correct validation issues",
+    conflict: "The remote draft changed. Your local content is retained; compare before reapplying.",
+    readonly: "Read only: your role, archive state or local snapshot does not allow changes.",
+    impact: "Reference impact",
+    versions: "Immutable versions and diff",
+    source: "Actual generated TypeScript (read only)",
+    noSource: "Publish and select a version to inspect actual generated files.",
+    queued: "Waiting for an available managed compiler Runtime; queued is not validated.",
+    success: "Compilation validated",
+    archive: "Archive",
+    restore: "Restore",
+    reload: "Reload remote draft",
+    keep: "Keep local content with remote revision",
+    dirty: "Unsaved changes. Save before validation or publication.",
+    language: "Language",
+};
+/**
+ * 已初始化的共享编辑器 i18n，默认跟随已校验偏好或浏览器语言，interpolation.escapeValue=false 以允许内嵌标记。
+ * ResourcePage 与 EnvironmentPage 均注入此实例。
+ */
+export const editorI18n: i18n = i18next.createInstance();
+void editorI18n.use(initReactI18next).init({
+    resources: { zh: { translation: zh }, en: { translation: en } },
+    lng: initialLanguage(),
+    fallbackLng: "en",
+    interpolation: { escapeValue: false },
+    initImmediate: false,
+});
+/**
+ * 预置 { i18n: editorI18n }，供 useTranslation(..., useEditorTranslationOptions) 少写样板。
+ * 不要把 aiI18n 混入此对象。
+ */
+export const useEditorTranslationOptions: { i18n: i18n } = { i18n: editorI18n };

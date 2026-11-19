@@ -1,0 +1,138 @@
+/**
+ * 本文件是契约包入口：提供 Ajv 严格校验、可移植 JSON 序列化、JCS 规范字节与资产源投影哈希输入，供调用方理解 as 路径。
+ */
+
+import canonicalizeModule from "canonicalize";
+// canonicalize 2.x 为 CommonJS 导出提供 ESM 默认声明，这里将默认导入收敛为契约层使用的调用签名。
+const canonicalize = canonicalizeModule as unknown as (value: unknown) => string | undefined;
+import { pointerKey } from "./bindings.js";
+import { schemaValidator } from "./validators.js";
+import schema from "../schemas/platform-v1.schema.json" with { type: "json" };
+
+export type * from "./types.generated.js";
+export type { paths as PlatformPaths, components as PlatformComponents } from "./api.generated.js";
+
+/**
+ * 公开接口 ValidationIssue 描述契约校验问题：code 仅 SCHEMA_VIOLATION 或 INVALID_JSON。供各层稳定映射。
+ */
+export interface ValidationIssue {
+    path: string;
+    code: "SCHEMA_VIOLATION" | "INVALID_JSON";
+    message: string;
+}
+
+function portableJson(value: unknown, ancestors = new Set<object>()): boolean {
+    if (value === null || typeof value === "string" || typeof value === "boolean") return true;
+    if (typeof value === "number")
+        return Number.isFinite(value) && (!Number.isInteger(value) || Number.isSafeInteger(value));
+    if (typeof value !== "object" || ancestors.has(value)) return false;
+    const prototype = Object.getPrototypeOf(value);
+    if (!Array.isArray(value) && prototype !== Object.prototype && prototype !== null) return false;
+    ancestors.add(value);
+    try {
+        if (Object.getOwnPropertySymbols(value).length) return false;
+        if (Array.isArray(value)) return Array.from(value).every((item) => portableJson(item, ancestors));
+        return Object.values(value).every((item) => portableJson(item, ancestors));
+    } finally {
+        ancestors.delete(value);
+    }
+}
+
+/**
+ * 不做强制转换、默认填充、删字段或语义引用解析，只报告 schema 违例。公开函数 validateSchema 按 schema
+ * 名对值做严格校验。调用方显式请求属性路径时，缺失和额外的属性名会转义并附加到错误指针。
+ */
+export function validateSchema(schemaName: string, value: unknown, propertyPaths = false): ValidationIssue[] {
+    if (!Object.hasOwn(schema.$defs, schemaName)) throw new Error(`Unknown contract schema: ${schemaName}`);
+    if (!portableJson(value))
+        return [{ path: "", code: "INVALID_JSON", message: "Expected finite, portable JSON values" }];
+    const validate = schemaValidator(schemaName);
+    if (validate(value)) return [];
+    return (validate.errors ?? []).map((error) => ({
+        path:
+            error.instancePath +
+            (propertyPaths && (error.keyword === "required" || error.keyword === "additionalProperties")
+                ? "/" + pointerKey(error.params.missingProperty ?? error.params.additionalProperty)
+                : ""),
+        code: "SCHEMA_VIOLATION",
+        message: error.message ?? error.keyword,
+    }));
+}
+
+/**
+ * 公开函数 validateCaseSchema 特化校验 CaseDslV1：等价于 validateSchema("CaseDslV1", value)。
+ */
+export function validateCaseSchema(value: unknown): ValidationIssue[] {
+    return validateSchema("CaseDslV1", value);
+}
+
+/**
+ * 公开函数 serializeContract 先校验再 JSON 序列化契约对象：有问题时抛出 issues 的 JSON 文本。
+ */
+export function serializeContract(schemaName: string, value: unknown): string {
+    const issues = validateSchema(schemaName, value);
+    if (issues.length) throw new Error(JSON.stringify(issues));
+    return JSON.stringify(value);
+}
+
+/**
+ * 公开函数 parseContract 解析文本并按 schema 名校验：返回未知值：失败抛出 issues JSON。
+ */
+export function parseContract(schemaName: string, text: string): unknown {
+    const value: unknown = JSON.parse(text);
+    const issues = validateSchema(schemaName, value);
+    if (issues.length) throw new Error(JSON.stringify(issues));
+    return value;
+}
+
+/**
+ * 生成 RFC8785/JCS 规范字节并拒绝不可移植 JSON 和孤立代理项；调用方仍须独立核对清单成员的精确字节签名。
+ */
+export function canonicalBytes(value: unknown): Uint8Array {
+    if (!portableJson(value)) throw new Error("Expected portable JSON");
+    const result = canonicalize(value);
+    if (result === undefined) throw new Error("Expected JSON");
+    // JCS 拒绝孤立代理项，而 JSON.stringify 会将它转义，因此编码前须递归检查字符串值和对象键。
+    function unicode(v: unknown): void {
+        if (typeof v === "string" && /[\uD800-\uDFFF]/u.test(v)) throw new Error("Invalid Unicode");
+        if (Array.isArray(v)) v.forEach(unicode);
+        else if (v !== null && typeof v === "object")
+            for (const [k, x] of Object.entries(v)) {
+                unicode(k);
+                unicode(x);
+            }
+    }
+    unicode(value);
+    return new TextEncoder().encode(result);
+}
+
+/**
+ * 与 Python 共享的精确源投影；由调用方 SHA-256。排除 validationTarget、receipt/job 与声称的 sourceHash。
+ * 公开函数 assetSourceBytes 投影资产源的规范字节：排除 validationTarget/receipt 与声称的 sourceHash。
+ * 供调用方自行 SHA-256。
+ */
+export function assetSourceBytes(snapshot: Record<string, unknown>): Uint8Array {
+    return canonicalBytes(
+        Object.fromEntries(
+            [
+                "schemaVersion",
+                "workspaceId",
+                "engineVersion",
+                "entryCaseVersionIds",
+                "assets",
+                ...(Object.hasOwn(snapshot, "authAdapters") ? ["authAdapters"] : []),
+            ].map((key) => [
+                key,
+                key === "authAdapters"
+                    ? [...(snapshot[key] as { versionId: string }[])].sort((a, b) =>
+                          a.versionId < b.versionId ? -1 : a.versionId > b.versionId ? 1 : 0,
+                      )
+                    : snapshot[key],
+            ]),
+        ),
+    );
+}
+
+export * from "./bindings.js";
+export * from "./compiled.js";
+export { datasetFieldTypes, validateDataset } from "./dataset.js";

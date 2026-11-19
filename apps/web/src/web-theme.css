@@ -1,0 +1,708 @@
+/*
+ * 资料页与个人菜单按 TailAdmin 的布局和色板显示，字号继续遵循管理台规范；这些样式只由 Web 入口载入。
+ */
+:root {
+    --vq-surface: #fff;
+    --vq-canvas: #f9fafb;
+    --vq-profile-border: #e4e7ec;
+    --vq-profile-heading: #1d2939;
+    --vq-profile-body: #344054;
+    --vq-profile-muted: #667085;
+    --vq-popup: #fff;
+    --vq-hover: #f2f4f7;
+}
+.vq-header-main {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    gap: 6px;
+}
+.vq-header-tools[hidden] {
+    display: none;
+}
+.vq-header-more {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--vq-banner-control-size);
+    flex: none;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--vq-profile-body);
+}
+.vq-header-more .vq-nav-icon {
+    width: 18px;
+    height: 18px;
+    flex-basis: 18px;
+}
+.vq-header-more:hover,
+.vq-header-more[aria-expanded="true"] {
+    background: var(--vq-hover);
+}
+@media (max-width: 1279.98px) {
+    .vq-topbar {
+        display: block;
+        min-height: 0;
+        border: 0;
+        padding: 0;
+    }
+    .vq-header-main {
+        justify-content: space-between;
+        min-height: 65px;
+        padding: 0 12px;
+        border-bottom: 1px solid var(--vq-profile-border);
+    }
+    .vq-topbar .vq-header-tools {
+        min-height: 76px;
+        justify-content: space-between;
+        padding: 16px 20px;
+        box-shadow: 0 4px 8px rgb(16 24 40 / 6%);
+    }
+    .vq-header-tools:has(.vq-topbar-workspaces) {
+        --vq-header-tools-gap: 10px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        align-content: center;
+        gap: 4px var(--vq-header-tools-gap);
+        padding: 4px 12px;
+    }
+}
+@media (min-width: 1024px) and (max-width: 1279.98px) {
+    .vq-header-main {
+        min-height: 69px;
+    }
+}
+.vq-header-tools {
+    --vq-header-tools-gap: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    margin-inline-start: auto;
+    gap: var(--vq-header-tools-gap);
+    max-width: 100%;
+}
+.vq-header-tools button + button {
+    margin: 0;
+}
+.vq-theme-toggle {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    flex: none;
+    width: var(--vq-banner-control-size);
+    border: 1px solid #d0d5dd;
+    border-radius: 8px;
+    padding: 0;
+    color: var(--vq-profile-body);
+    background: transparent;
+    box-shadow: 0 1px 2px rgb(16 24 40 / 5%);
+}
+.vq-theme-toggle .vq-nav-icon,
+.vq-user-trigger .vq-nav-icon {
+    width: 16px;
+    height: 16px;
+    flex-basis: 16px;
+}
+.vq-header-more:active,
+.vq-theme-toggle:active {
+    transform: translateY(1px);
+}
+.vq-topbar :is(.vq-theme-toggle, .vq-header-more):hover {
+    filter: none;
+}
+.vq-theme-toggle:hover {
+    background: #f9fafb;
+    color: var(--vq-profile-heading);
+}
+.vq-header-tools .vq-user-trigger {
+    padding: 0;
+    gap: 0;
+    color: var(--vq-profile-body);
+    background: transparent;
+    font-weight: 500;
+}
+.vq-user-trigger .vq-user-name {
+    font-size: 13px;
+    line-height: 18px;
+    font-weight: 500;
+}
+.vq-user-trigger .vq-avatar {
+    margin-inline-end: 8px;
+    border-radius: 6px;
+}
+.vq-user-trigger .vq-nav-icon {
+    margin-inline-start: 3px;
+    color: var(--vq-profile-muted);
+    transition: transform 200ms;
+}
+.vq-user-trigger[data-state="open"] .vq-nav-icon {
+    transform: rotate(180deg);
+}
+
+.vq-profile-menu,
+.vq-language-menu,
+.vq-workspace-menu {
+    width: 200px;
+    max-width: calc(100vw - 16px);
+    min-width: 0;
+    max-height: var(--radix-dropdown-menu-content-available-height);
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px;
+    border: 1px solid var(--vq-profile-border);
+    border-radius: 12px;
+    background: var(--vq-popup);
+    color: var(--vq-profile-body);
+    box-shadow:
+        0 12px 16px -4px rgb(16 24 40 / 8%),
+        0 4px 6px -2px rgb(16 24 40 / 3%);
+}
+.vq-menu-identity {
+    display: grid;
+    gap: 2px;
+    padding: 4px 8px;
+    overflow-wrap: anywhere;
+}
+.vq-menu-identity strong,
+:is(.vq-profile-menu, .vq-language-menu, .vq-workspace-menu) .vq-menu-item {
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 500;
+}
+.vq-menu-identity span {
+    font-size: 11px;
+    line-height: 16px;
+    color: var(--vq-profile-muted);
+}
+:is(.vq-profile-menu, .vq-language-menu, .vq-workspace-menu) .vq-menu-item {
+    min-height: 32px;
+    padding: 5px 8px;
+    gap: 8px;
+    color: var(--vq-profile-body);
+    border-radius: 6px;
+    font-weight: 500;
+    cursor: pointer;
+}
+.vq-profile-menu .vq-nav-icon,
+.vq-language-menu .vq-nav-icon {
+    width: 16px;
+    height: 16px;
+    flex-basis: 16px;
+}
+:is(.vq-profile-menu, .vq-language-menu, .vq-workspace-menu) .vq-menu-item:is([data-highlighted], [data-state="open"]) {
+    background: var(--vq-hover);
+}
+.vq-profile-menu .vq-menu-separator {
+    margin: 4px -8px;
+    border-color: var(--vq-profile-border);
+}
+.vq-locale-badge {
+    margin-inline-start: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 5px;
+    border-radius: 999px;
+    border: 1px solid var(--vq-profile-border);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1;
+    color: var(--vq-profile-body);
+    background: var(--vq-canvas);
+}
+.vq-language-menu {
+    width: 168px;
+    padding: 6px;
+}
+.vq-language-menu .vq-menu-item::before {
+    content: "";
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+}
+:is(.vq-language-menu, .vq-workspace-menu) .vq-menu-item[data-state="checked"] {
+    color: #3641f5;
+    background: #ecf3ff;
+}
+.vq-language-menu .vq-menu-item[data-state="checked"]::before {
+    background: #465fff;
+}
+.vq-profile-menu .vq-sign-out {
+    color: #b42318;
+}
+.vq-profile-menu .vq-sign-out[data-highlighted] {
+    background: #fef3f2;
+    color: #b42318;
+}
+[data-theme="dark"] .vq-theme-toggle {
+    background: #1d2939;
+    border-color: #344054;
+    color: #d0d5dd;
+}
+[data-theme="dark"] .vq-theme-toggle:hover {
+    background: rgb(52 64 84 / 50%);
+    color: white;
+}
+[data-theme="dark"] .vq-header-tools .vq-user-trigger {
+    color: #98a2b3;
+}
+[data-theme="dark"] :is(.vq-profile-menu, .vq-language-menu, .vq-workspace-menu) {
+    background: #1e2635;
+}
+[data-theme="dark"] .vq-profile-menu .vq-sign-out {
+    color: #fda29b;
+}
+[data-theme="dark"] .vq-profile-menu .vq-sign-out[data-highlighted] {
+    background: #382427;
+}
+/*
+ * 窄视口将语言选项排在触发项下方，使手指或指针从入口移到选项时无需跨过其他行；父菜单负责滚动。
+ */
+.vq-language-inline > [data-radix-popper-content-wrapper] {
+    position: static !important;
+    transform: none !important;
+    min-width: 0 !important;
+}
+.vq-language-inline .vq-language-menu {
+    max-width: 100%;
+    max-height: none;
+    margin-inline: auto;
+}
+.vq-profile-menu .vq-locale-badge .vq-nav-icon,
+.vq-language-menu .vq-nav-icon {
+    border-radius: 50%;
+    overflow: hidden;
+}
+.vq-profile-menu .vq-locale-badge .vq-nav-icon {
+    width: 12px;
+    height: 12px;
+    flex-basis: 12px;
+}
+.vq-content:has(.vq-account) {
+    background: var(--vq-canvas);
+}
+.vq-content-inner:has(.vq-account) {
+    padding: 16px;
+}
+.vq-account {
+    min-width: 0;
+    color: var(--vq-profile-heading);
+}
+.vq-profile-heading,
+.vq-profile-heading nav {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.vq-profile-heading {
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+.vq-profile-heading h1 {
+    font-size: 16px;
+    margin: 0;
+    font-weight: 600;
+}
+.vq-profile-heading nav {
+    gap: 6px;
+    color: var(--vq-profile-heading);
+}
+.vq-profile-heading nav a {
+    text-decoration: none;
+    color: var(--vq-profile-muted);
+}
+.vq-profile-heading a:hover {
+    text-decoration: underline;
+}
+.vq-profile,
+.vq-profile-card {
+    min-width: 0;
+    border: 1px solid var(--vq-profile-border);
+    border-radius: 16px;
+    padding: 20px;
+}
+.vq-profile {
+    display: grid;
+    gap: 24px;
+    background: var(--vq-surface);
+}
+.vq-profile h2,
+.vq-profile h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+}
+.vq-profile-card > h3 {
+    margin-bottom: 20px;
+}
+.vq-profile-summary {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    text-align: center;
+}
+.vq-profile .vq-avatar {
+    border-radius: 8px;
+}
+.vq-profile .vq-avatar,
+.vq-user-trigger .vq-avatar {
+    border: 1px solid var(--vq-profile-border);
+    font-size: 16px;
+    background: var(--vq-brand-soft);
+    color: var(--vq-brand-dark);
+}
+.vq-profile-meta {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+.vq-profile-meta p {
+    margin: 4px 0 0;
+    color: var(--vq-profile-muted);
+}
+.vq-profile-edit {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    border: 1px solid var(--vq-profile-border);
+    border-radius: 999px;
+    padding: 10px 16px;
+    background: var(--vq-surface);
+    color: var(--vq-profile-body);
+    box-shadow: 0 1px 2px rgb(16 24 40 / 5%);
+}
+.vq-profile-edit:hover {
+    background: var(--vq-hover);
+}
+.vq-profile-card dl {
+    display: grid;
+    gap: 16px;
+    margin: 0;
+}
+.vq-profile-card dt {
+    margin-bottom: 8px;
+    color: var(--vq-profile-muted);
+}
+.vq-profile-card dd {
+    margin: 0;
+    font-weight: 500;
+    overflow-wrap: anywhere;
+}
+.vq-profile-card > label {
+    max-width: 16rem;
+}
+.vq-profile-card form {
+    margin: 0;
+}
+.vq-profile-card form button[type="submit"] {
+    justify-self: start;
+}
+@media (min-width: 1024px) {
+    .vq-content-inner:has(.vq-account),
+    .vq-profile,
+    .vq-profile-card {
+        padding: 24px;
+    }
+    .vq-profile-card dl {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 28px;
+    }
+    .vq-profile-card > h3 {
+        margin-bottom: 24px;
+    }
+    .vq-profile-edit {
+        width: auto;
+    }
+}
+@media (min-width: 1280px) {
+    .vq-profile-summary {
+        flex-direction: row;
+        text-align: start;
+        gap: 20px;
+    }
+    .vq-profile-summary .vq-profile-edit {
+        margin-inline-start: auto;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .vq-user-trigger .vq-nav-icon {
+        transition: none;
+    }
+}
+
+/*
+ * 根节点同时容纳 Web 路由与挂在文档主体的菜单、抽屉和确认框。交互颜色独立于正文，保持高亮、只读和错误可辨。
+ */
+:root[data-theme="dark"] {
+    --vq-surface: #18202f;
+    --vq-canvas: #101828;
+    --vq-popup: #1a2231;
+    --vq-profile-border: #1d2939;
+    --vq-profile-heading: #f2f4f7;
+    --vq-profile-body: #d0d5dd;
+    --vq-profile-muted: #98a2b3;
+    --vq-hover: #263244;
+    --vq-button-fill: #465fff;
+    --vq-brand: #9cb9ff;
+    --vq-brand-dark: #c2d6ff;
+    --vq-brand-soft: #233455;
+    --vq-brand-text: #f2f4f7;
+    --vq-border: #344054;
+    --vq-field: #1d2939;
+    --vq-rail: #182230;
+    --vq-secondary: #d0d5dd;
+    --vq-muted: #98a2b3;
+    background: var(--vq-canvas);
+}
+[data-theme="dark"] :is(.vq-shell, .vq-content, .panel, .vq-topbar) {
+    background: var(--vq-canvas);
+}
+[data-theme="dark"]
+    :is(.vq-sheet, .vq-dialog, .vq-select-content, .vq-item .vq-item, .veriq-skip-link, .report-assertion) {
+    background: var(--vq-popup);
+    color: var(--vq-brand-text);
+}
+[data-theme="dark"]
+    :is(
+        input,
+        select,
+        textarea,
+        .vq-input,
+        .vq-select-trigger,
+        .vq-secondary,
+        .vq-btn-secondary,
+        .vq-topbar-workspaces button,
+        .vq-hint-icon
+    ) {
+    background: var(--vq-surface);
+    color: var(--vq-secondary);
+    border-color: var(--vq-border);
+}
+[data-theme="dark"] :is(.vq-select-item, .vq-field-hint, .vq-select-icon) {
+    color: var(--vq-secondary);
+}
+[data-theme="dark"] :is(.vq-primary, .vq-btn-primary) {
+    background: #465fff;
+    border-color: #6172ff;
+    color: #fff;
+}
+[data-theme="dark"] .vq-topbar-workspaces button {
+    background: var(--vq-surface);
+    color: var(--vq-secondary);
+}
+[data-theme="dark"] :is(.vq-primary, .vq-btn-primary):not(:disabled):hover {
+    background: #3641f5;
+}
+[data-theme="dark"] :is(.vq-danger, .vq-btn-danger, [role="alert"]) {
+    background: #382427;
+    color: #fda29b;
+}
+[data-theme="dark"] :is(.vq-field-required, .vq-agent-field del) {
+    color: #fda29b;
+}
+[data-theme="dark"] :is([role="status"], .vq-agent-field ins) {
+    color: #75e0a7;
+}
+[data-theme="dark"] :is(.vq-nav :is(a, button):hover, tbody tr:hover td) {
+    background: var(--vq-hover);
+}
+[data-theme="dark"] :is(.vq-nav [aria-current="page"], .vq-select-item[data-highlighted]) {
+    background: var(--vq-brand-soft);
+}
+[data-theme="dark"] :is(.vq-ai pre, .report-steps > li, aside:not(.vq-sidebar)) {
+    background: var(--vq-field);
+}
+[data-theme="dark"]
+    :is(
+        .report-case,
+        .report-assertion,
+        .report-assertion td,
+        .report-assertion th,
+        .vq-ai section,
+        .vq-nav-children,
+        .vq-value,
+        .vq-monaco,
+        .vq-sheet-header
+    ) {
+    border-color: var(--vq-border);
+}
+[data-theme="dark"] .vq-state {
+    background: #344054;
+    color: #e4e7ec;
+}
+[data-theme="dark"] .vq-state[data-status="PUBLISHED"] {
+    background: #123b31;
+    color: #a9efc5;
+}
+[data-theme="dark"] .vq-state[data-status="DRAFT"] {
+    background: #423319;
+    color: #fedf89;
+}
+
+[data-theme="dark"] :is(.vq-language-menu, .vq-workspace-menu) .vq-menu-item[data-state="checked"] {
+    color: #9cb9ff;
+    background: rgb(70 95 255 / 15%);
+}
+[data-theme="dark"] .vq-language-menu .vq-menu-item[data-state="checked"]::before {
+    background: #7592ff;
+}
+
+/*
+ * 工作区切换使用 TailAdmin 的轮廓按钮和浮层行；名称可缩短，图标操作保留原生标题与可访问名称。
+ */
+.vq-workspace-caption {
+    flex: none;
+    color: var(--vq-profile-muted);
+    font-size: 14px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.vq-workspace-divider {
+    flex: none;
+    margin-inline-start: calc(var(--vq-header-tools-gap) - var(--vq-workspace-controls-gap));
+    width: 1px;
+    height: 20px;
+    background: var(--vq-border);
+}
+.vq-topbar-workspaces :is(.vq-workspace-picker, .vq-workspace-icon) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin: 0;
+    border: 1px solid #d0d5dd;
+    box-shadow: 0 1px 2px rgb(16 24 40 / 5%);
+    border-radius: 8px;
+    color: var(--vq-profile-body);
+    background: var(--vq-surface);
+}
+.vq-topbar-workspaces .vq-workspace-picker {
+    width: clamp(7rem, 14vw, 14rem);
+    justify-content: space-between;
+    padding: 0 8px;
+    font-size: 13px;
+    font-weight: 500;
+}
+.vq-workspace-picker span,
+.vq-workspace-option-name {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+.vq-workspace-picker svg {
+    width: 12px;
+    height: 12px;
+    flex: none;
+}
+.vq-workspace-icon svg {
+    width: 16px;
+    height: 16px;
+}
+.vq-workspace-picker[data-state="open"] svg {
+    transform: rotate(180deg);
+}
+.vq-topbar-workspaces .vq-workspace-icon {
+    flex: none;
+    width: var(--vq-banner-control-size);
+    padding: 0;
+}
+.vq-topbar-workspaces :is(.vq-workspace-picker, .vq-workspace-icon):hover,
+.vq-topbar-workspaces .vq-workspace-picker[data-state="open"] {
+    background: var(--vq-hover);
+}
+.vq-workspace-menu {
+    width: max(160px, var(--radix-dropdown-menu-trigger-width));
+    padding: 6px;
+    z-index: 50;
+    overflow-wrap: anywhere;
+}
+[data-theme="dark"] .vq-topbar-workspaces :is(.vq-workspace-picker, .vq-workspace-icon) {
+    border-color: var(--vq-border);
+}
+.vq-workspace-check {
+    display: inline-flex;
+    flex: none;
+    margin-inline-start: auto;
+}
+.vq-workspace-menu [role="group"] {
+    max-height: 256px;
+    min-height: 0;
+    overflow-y: auto;
+}
+.vq-workspace-menu > .vq-menu-item {
+    flex-shrink: 0;
+}
+@media (max-width: 560px) {
+    .vq-topbar-workspaces {
+        max-width: calc(100% - var(--vq-banner-control-size) - var(--vq-header-tools-gap));
+    }
+    .vq-topbar-workspaces .vq-workspace-picker {
+        min-width: 0;
+        width: clamp(7rem, 30vw, 11rem);
+    }
+}
+
+/*
+ * 工作区设置沿用 TailAdmin 的图标下划线变体；窄屏允许标签文字折行，键盘焦点仍使用 Web 的中性轮廓。
+ */
+.vq-settings-tabs {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 48px;
+    margin-block: 12px 16px;
+    border-bottom: 1px solid var(--vq-profile-border);
+    --vq-tab-active: #465fff;
+}
+[data-theme="dark"] .vq-settings-tabs {
+    --vq-tab-active: #7592ff;
+}
+.vq-settings-tabs button[role="tab"] {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 48px;
+    margin: 0 0 -1px;
+    padding: 0 12px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    color: var(--vq-profile-muted);
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 18px;
+}
+.vq-settings-tabs button[role="tab"]:hover {
+    color: var(--vq-profile-body);
+}
+.vq-settings-tabs button[aria-selected="true"] {
+    border-color: var(--vq-tab-active);
+    color: var(--vq-tab-active);
+}
+.vq-settings-tabs svg {
+    flex: none;
+}
+@media (max-width: 480px) {
+    .vq-settings-tabs {
+        gap: 2px;
+    }
+    .vq-settings-tabs button[role="tab"] {
+        gap: 4px;
+        padding-inline: 4px;
+    }
+    .vq-workspace-settings .vq-ai :is(label, fieldset) {
+        min-width: 0;
+    }
+}

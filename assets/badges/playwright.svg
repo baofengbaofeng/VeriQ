@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="136" height="25" viewBox="0 0 136 25" role="img" aria-labelledby="title">
+    <title id="title">Playwright 1.65</title>
+    <g fill="#fff" font-family="system-ui, Arial, sans-serif" font-size="14" font-weight="600" text-anchor="middle">
+        <rect width="136" height="25" rx="5" fill="#293c59"/>
+        <path d="M 90 0 H 131 Q 136 0 136 5 V 20 Q 136 25 131 25 H 90 Z" fill="#12646a"/>
+        <text x="45" y="17.5">Playwright</text>
+        <text x="113" y="17.5">1.65</text>
+    </g>
+</svg>

@@ -1,0 +1,30 @@
+[Unit]
+Description=VeriQ control service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=veriq
+Group=veriq
+WorkingDirectory=/var/lib/veriq
+ExecStart=/opt/veriq/current/bin/python -B -m veriq_server --config /etc/veriq/veriq.json serve
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=90
+UMask=0077
+StateDirectory=veriq
+StateDirectoryMode=0700
+ReadOnlyPaths=/opt/veriq /etc/veriq
+ReadWritePaths=/var/lib/veriq
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateDevices=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target
