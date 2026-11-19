@@ -3,38 +3,107 @@
  * 桌面入口继续单独打包原有共享样式。
  */
 :root {
-    --vq-brand: #3645b8;
-    --vq-brand-dark: #2e3b9e;
-    --vq-brand-soft: #e8ecff;
-    --vq-brand-text: #192436;
-    --vq-border: #e1e6ed;
-    --vq-field: #f5f7fa;
-    --vq-rail: #f4f6f9;
-    --vq-secondary: #475467;
-    --vq-muted: #5e6a7d;
+    --vq-brand: #465fff;
+    --vq-brand-dark: #3641f5;
+    --vq-brand-soft: #ecf3ff;
+    --vq-brand-soft-strong: #dde9ff;
+    --vq-brand-text: #1d2939;
+    --vq-border: #e4e7ec;
+    --vq-field: #f9fafb;
+    --vq-rail: #f2f4f7;
+    --vq-secondary: #344054;
+    --vq-muted: #667085;
+    --vq-surface: #ffffff;
+    --vq-canvas: #f9fafb;
+    --vq-hover: #f2f4f7;
     --vq-focus-outline: #737373;
     --vq-field-outline: transparent;
-    --vq-sidebar-width: 190px;
-    --vq-topbar-height: 77px;
-    font-size: 13px;
-    line-height: 1.45;
-    color: var(--vq-brand-text);
-    background: white;
+    --vq-sidebar-width: 280px;
+    --vq-sidebar-collapsed-width: 88px;
+    --vq-header-height: 72px;
+    font-family:
+        ui-sans-serif,
+        system-ui,
+        -apple-system,
+        "Segoe UI",
+        Roboto,
+        "Helvetica Neue",
+        Arial,
+        "PingFang SC",
+        "Microsoft YaHei",
+        sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--vq-secondary);
+    background: var(--vq-canvas);
 }
-.vq-shell,
-.vq-content,
+/*
+ * 外壳改为横向两列：左列侧栏全高，右列头部与内容纵向排列，为侧栏折叠与内容区留出独立滚动空间。
+ */
+.vq-shell {
+    display: flex;
+    flex-direction: row;
+    min-height: 100vh;
+    background: var(--vq-canvas);
+}
+/*
+ * 左侧栏通栏全高并固定在视口左侧，宽度由令牌控制，折叠态通过 data-collapsed 收窄为图标栏宽度。
+ */
+.vq-sidebar {
+    width: var(--vq-sidebar-width);
+    flex: 0 0 var(--vq-sidebar-width);
+    background: var(--vq-surface);
+    border-right: 1px solid var(--vq-border);
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+}
+.vq-sidebar[data-collapsed="true"] {
+    width: var(--vq-sidebar-collapsed-width);
+    flex-basis: var(--vq-sidebar-collapsed-width);
+}
+/*
+ * 右列承载 sticky 头部与可滚动内容，采用纵向弹性布局，使头部在内容滚动时始终停留在顶部。
+ */
+.vq-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+.vq-header {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    height: var(--vq-header-height);
+    padding: 0 24px;
+    background: var(--vq-surface);
+    border-bottom: 1px solid var(--vq-border);
+}
+.vq-content {
+    flex: 1;
+    min-width: 0;
+}
+.vq-content-inner {
+    max-width: 1536px;
+    margin: 0 auto;
+    padding: 24px;
+}
+@media (max-width: 768px) {
+    .vq-content-inner {
+        padding: 16px;
+    }
+}
+/*
+ * 面板作为内容卡片保留白色底，外壳与内容区改用画布色，以区分页面背景与可交互内容区域。
+ */
 .panel {
     background: white;
-}
-.vq-topbar {
-    --vq-banner-control-size: 32px;
-    padding: 16px 24px;
-    min-height: var(--vq-topbar-height);
-    height: auto;
-    gap: 6px;
-}
-.vq-topbar :is(a, button, select) {
-    height: var(--vq-banner-control-size);
 }
 .vq-brand {
     --vq-banner-control-size: 42px;
@@ -61,10 +130,6 @@
 .vq-topbar .veriq-language {
     gap: 4px;
     font-weight: 450;
-}
-.vq-sidebar {
-    padding: 12px 8px;
-    background: var(--vq-rail);
 }
 .vq-nav {
     gap: 3px;
@@ -122,11 +187,6 @@
     background: var(--vq-brand-soft);
     color: var(--vq-brand-dark);
     font-weight: 650;
-}
-.vq-content-inner {
-    max-width: none;
-    margin: 0;
-    padding: 15px 18px;
 }
 .panel {
     min-width: 0;
@@ -504,13 +564,6 @@ tbody tr:hover td {
     width: auto;
     max-width: min(28ch, 60vw);
 }
-.vq-topbar .veriq-language select {
-    min-height: var(--vq-banner-control-size);
-    padding: 2px 6px;
-    min-width: 0;
-    width: auto;
-    border-color: transparent;
-}
 .vq-library-table {
     min-width: 0;
     overflow: hidden;
@@ -577,16 +630,6 @@ tbody tr:hover td {
     justify-content: flex-end;
 }
 @media (max-width: 700px) {
-    .vq-shell-body {
-        flex-direction: column;
-    }
-    .vq-sidebar {
-        flex: 0 0 auto;
-        width: 100%;
-        padding: 0;
-        border: 0;
-        border-bottom: 1px solid var(--vq-border);
-    }
     .vq-mobile-menu {
         display: flex;
         min-height: 36px;
@@ -599,9 +642,6 @@ tbody tr:hover td {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
         align-items: start;
-    }
-    .vq-content-inner {
-        padding: 12px;
     }
     .vq-actions label {
         min-width: min(160px, 100%);
