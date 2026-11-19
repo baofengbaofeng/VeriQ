@@ -8,34 +8,19 @@
 
 | 文件 | 用途 | 何时阅读或适用 |
 | --- | --- | --- |
-| [Coding Standard](./coding-standard.md) | 规定跨语言编码与工程要求，以及与产品约束冲突时的优先规则。语言细则以专项指南为准。 | 编写或审查源码、查阅跨语言约定，或处理下列工程章节对应的主题时。 |
-| [commit-standard.md](./commit-standard.md) | 规范 Git 提交的内容边界、消息格式与代理协作约束，保证历史可审阅、可回滚、可追溯。 | 准备提交、写提交消息，或处理代理协作中的提交边界时。 |
-| [原生与跨平台要求](./release-standard.md#原生与跨平台要求) | 约束桌面与 Runtime 在各操作系统上的进程、凭据、文件系统与停止证明，避免用单一平台假设冒充全平台正确。 | 改动各操作系统上的进程、凭据、文件系统或停止证明时。 |
-| [privacy-standard.md](./privacy-standard.md) | 约束用户数据、证据、日志与备份中的敏感信息处理及保留期，降低泄漏与合规风险。 | 处理用户数据、证据、日志、备份或保留期时。 |
-| [发行、配置与回滚](./release-standard.md#发行配置与回滚) | 约束服务端、桌面与引擎发行物的完整性、可追溯与安全默认配置，降低错误发布与不可回滚的风险。 | 构建发行物、准备回滚或设定配置默认时。 |
-| [review-standard.md](./review-standard.md) | 规定代码与规格审查的职责、必查项与拒绝标准，避免「看起来绿」的合入。 | 审查代码或规格、给出审查结论时。 |
-| [security-standard.md](./security-standard.md) | 规定认证授权、密钥处理、桌面 IPC、供应链与失败关闭的安全基线。实现细节以规格与 ADR 为准；本文件约束必须与禁止的行为。 | 改动认证授权、密钥、桌面 IPC、供应链或安全失败关闭时。 |
-| [testing-standard.md](./testing-standard.md) | 规定测试分层、TDD 流程、断言诚实性、覆盖率与平台相关验证要求。 | 编写或审查测试、覆盖率或平台验证时。 |
-
-## 《Coding Standard》中的工程章节
-
-| 章节 | 用途 | 何时阅读或适用 |
-| --- | --- | --- |
-| [9. 架构边界与扩展性](./coding-standard.md#9-架构边界与扩展性) | 固定模块职责与依赖方向，使新功能可扩展而不侵蚀控制面与执行面分离。 | 新增模块、调整依赖方向或做扩展时。 |
-| [10. 资产编译与不可变产物](./coding-standard.md#10-资产编译与不可变产物) | 约束 DSL、校验、编译、发布与执行快照，保证可复现执行，并防止改生成物或跑最新草稿破坏确定性。 | 处理 DSL、校验、编译、发布或执行快照时。 |
-| [11. 审计与执行事件](./coding-standard.md#11-审计与执行事件) | 约束审计日志、执行事件流与实时通知的完整性、授权与可靠性，支撑追责与可观测性。 | 记录审计、发出执行事件或提供实时通知时。 |
-| [12. 并发、幂等、状态与超时预算](./coding-standard.md#12-并发幂等状态与超时预算) | 约束队列领取、租约、fencing、取消与结果写入，明确容量、重试、超时与背压要求。 | 实现或修改队列领取、租约、fencing、取消或结果写入，设定并发、超时或批次预算，或评估阻塞与资源占用时。 |
-| [13. 数据库与迁移](./coding-standard.md#13-数据库与迁移) | 约束 MySQL 模式设计、Alembic 迁移与数据完整性，保障可演进与生产安全。 | 设计表结构、编写迁移或处理数据完整性时。 |
-| [14. 依赖与许可](./coding-standard.md#14-依赖与许可) | 规定第三方依赖的选取、钉死、许可兼容与变更流程，降低供应链与合规风险。 | 选取、钉死、升级依赖，或判断许可兼容时。 |
-| [15. 文档、契约与 API 兼容性](./coding-standard.md#15-文档契约与-api-兼容性) | 规定规格、ADR、用户文档与跨语言契约的维护方式，以及公共 HTTP、IPC 与结果协议的兼容性要求。 | 修改规格、ADR、用户文档，或变更跨语言契约、公共 HTTP、IPC 或结果协议时。 |
-| [16. 错误处理与可观测性](./coding-standard.md#16-错误处理与可观测性) | 提升故障可诊断性与失败关闭的一致性，避免静默失败和敏感信息泄漏。 | 设计错误处理、失败关闭、日志或可观测信号时。 |
-| [17. 出站网络与外部集成](./coding-standard.md#17-出站网络与外部集成) | 约束控制面、Runtime 与桌面发起的外部调用和集成点，防止 SSRF、凭证泄漏与不可控重试风暴。 | 新增或修改出站调用与外部集成时。 |
+| [Coding Standard](./coding-standard.md) | 跨语言编码与工程要求，涵盖架构、契约、并发、依赖与外部集成等主题。 | 编写或审查源码时阅读，工程主题按[文档目录](./coding-standard.md#目录)查找。 |
+| [Commit Standard](./commit-standard.md) | Git 提交边界、消息格式与代理协作约束。 | 准备提交或写提交消息时。 |
+| [Privacy Standard](./privacy-standard.md) | 数据分类、访问控制、保留期与脱敏。 | 处理用户数据、证据、日志或备份时。 |
+| [Release Standard](./release-standard.md) | 发行物完整性、安全配置与回滚，以及目标平台验收、进程与凭据要求。 | 构建发行物、准备回滚或配置默认值时查阅[发行、配置与回滚](./release-standard.md#发行配置与回滚)。涉及目标平台验收、进程、凭据、文件系统或停止证明时查阅[原生与跨平台要求](./release-standard.md#原生与跨平台要求)。 |
+| [Review Standard](./review-standard.md) | 审查职责、必查项与拒绝标准。 | 审查代码或规格、给出审查结论时。 |
+| [Security Standard](./security-standard.md) | 认证授权、密钥、桌面 IPC、签名、供应链与失败关闭的安全基线。 | 改动安全相关路径时。 |
+| [Testing Standard](./testing-standard.md) | 测试分层、TDD、断言诚实性、覆盖率与平台验证。 | 编写或审查测试、评估覆盖率或进行平台验证时。 |
 
 ## `coding-standard-rules/` 下的语言指南
 
-这两份是语言细则。`coding-standard.md` 写明跨语言强制约定，并要求语言细节以专项指南为准。
+跨语言强制约定见《Coding Standard》，语言细节以以下指南为准。
 
 | 文件 | 用途 | 何时阅读或适用 |
 | --- | --- | --- |
-| [python-coding-standard.md](./coding-standard-rules/python-coding-standard.md) | Python 风格指南，列出 Python 程序应当遵守和应当避免的做法。文首的 VeriQ 改编是规范性的，与 Google 原文不一致时以改编为准。 | 编写或审查 Python 源码的语言用法和风格时。 |
-| [typescript-javascript-coding-standard.md](./coding-standard-rules/typescript-javascript-coding-standard.md) | TypeScript 与 JavaScript 风格指南。术语采用 RFC 2119。示例只说明规则，示例中的可选格式不是额外规范。文中的 VeriQ 格式规则是规范性的，与 Google 原文不一致时以该节为准。 | 编写或审查 TypeScript 或 JavaScript 源码的风格时。 |
+| [Python Coding Standard](./coding-standard-rules/python-coding-standard.md) | Python 语言与风格细则，文首的 VeriQ 改编是规范性的。 | 编写或审查 Python 源码时。 |
+| [TypeScript and JavaScript Coding Standard](./coding-standard-rules/typescript-javascript-coding-standard.md) | TypeScript 与 JavaScript 风格细则，文中的 VeriQ 格式规则是规范性的。 | 编写或审查 TypeScript 或 JavaScript 源码时。 |
