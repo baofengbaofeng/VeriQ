@@ -274,7 +274,7 @@ function UserMenu({ onLogout }: { onLogout: () => void }) {
     return (
         <DropdownMenu.Root open={open} onOpenChange={setOpen} modal={false}>
             <DropdownMenu.Trigger ref={trigger} className="vq-user-trigger">
-                <Avatar name={user.displayName} size={44} fontSize={16} />
+                <Avatar name={user.displayName} size={32} fontSize={13} />
                 <span className="vq-user-name">{user.displayName}</span>
                 <Icon name="account-chevron" />
             </DropdownMenu.Trigger>
@@ -365,7 +365,7 @@ function TopBar({ onLogout }: { onLogout: () => void }) {
             <div className="vq-header-main">
                 <div className="vq-topbar-workspaces">
                     <Link to="/" className="vq-brand">
-                        <img src={brand} width="28" height="28" alt="VeriQ" />
+                        <img src={brand} width="22" height="22" alt="VeriQ" />
                     </Link>
                     {user && <WorkspaceControls />}
                 </div>

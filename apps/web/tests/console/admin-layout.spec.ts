@@ -22,6 +22,22 @@ async function signIn(page: Page) {
     await expect(page.getByRole("heading", { level: 1, name: "Profile", exact: true })).toBeVisible();
 }
 
+/**
+ * 直接测量 Banner 内当前可见的全部交互元素，覆盖粗指针和移动设备各展开状态。
+ */
+async function expectCompactBanner(page: Page, count: number) {
+    const controls = page.getByRole("banner").locator("a:visible, button:visible, select:visible, input:visible");
+    await expect(controls).toHaveCount(count);
+    const viewport = await page.evaluate(() => document.documentElement.clientWidth);
+    for (const control of await controls.all()) {
+        const box = await control.boundingBox();
+        if (!box) throw new Error("Banner control has no visible bounding box");
+        expect(box.height).toBeLessThanOrEqual(32);
+        expect(box.x).toBeGreaterThanOrEqual(0);
+        expect(box.x + box.width).toBeLessThanOrEqual(viewport);
+    }
+}
+
 test("server console follows the approved layout", async ({ page }) => {
     await signIn(page);
     await page.goto("/admin/users");
@@ -42,6 +58,9 @@ test("server console follows the approved layout", async ({ page }) => {
         right = box.x + box.width;
     }
     await expect(header).toHaveCSS("height", "77px");
+    await expectCompactBanner(page, 6);
+    await expect(controls[2]).toHaveCSS("width", "32px");
+    await expect(controls[3]).toHaveCSS("width", "32px");
     await expect(controls[0]).toHaveText("");
     await expect(controls[0]).toHaveCSS("font-size", "14px");
     const sidebar = page.getByRole("complementary");
@@ -175,15 +194,11 @@ test("workspace title and import action share a row", async ({ page }) => {
 test.describe("desktop touch console", () => {
     test.use({ hasTouch: true, viewport: { width: 1280, height: 800 } });
 
-    test("desktop touch header stays 77px with 44px targets", async ({ page }) => {
+    test("desktop touch header stays 77px with compact controls", async ({ page }) => {
         await signIn(page);
         const header = page.getByRole("banner");
         await expect(header).toHaveCSS("height", "77px");
-        for (const control of await header.locator("a, button, select").all()) {
-            const box = await control.boundingBox();
-            expect(box?.height).toBeGreaterThanOrEqual(44);
-            expect(box?.width).toBeGreaterThanOrEqual(44);
-        }
+        await expectCompactBanner(page, 6);
     });
 });
 
@@ -369,11 +384,11 @@ test("TailAdmin profile dimensions and theme persist through real navigation", a
     const banner = page.getByRole("banner");
     const theme = banner.getByRole("button", { name: "Dark mode", exact: true });
     await expect(theme).toBeVisible();
-    await expect(theme).toHaveCSS("width", "44px");
-    await expect(theme).toHaveCSS("height", "44px");
+    await expect(theme).toHaveCSS("width", "32px");
+    await expect(theme).toHaveCSS("height", "32px");
     await expect(theme).toHaveAttribute("aria-pressed", "false");
     const profile = banner.getByRole("button", { name: "Browser Administrator", exact: true });
-    await expect(profile.locator(".vq-avatar")).toHaveCSS("width", "44px");
+    await expect(profile.locator(".vq-avatar")).toHaveCSS("width", "32px");
     await page.getByRole("button", { name: "New resource", exact: true }).click();
     await page.getByLabel("Name", { exact: true }).fill("Unsubmitted resource");
     await theme.click();
@@ -447,9 +462,9 @@ test("TailAdmin banner sizes and nested language choices preserve the resource d
     await expect(banner).toHaveCSS("height", "77px");
     const theme = banner.getByRole("button", { name: "Dark mode" });
     const user = banner.getByRole("button", { name: "Browser Administrator" });
-    await expect(theme).toHaveCSS("border-radius", "10px");
-    await expect(user.locator(".vq-avatar")).toHaveCSS("border-radius", "8px");
-    await expect(user.getByText("Browser Administrator")).toHaveCSS("font-size", "14px");
+    await expect(theme).toHaveCSS("border-radius", "8px");
+    await expect(user.locator(".vq-avatar")).toHaveCSS("border-radius", "6px");
+    await expect(user.getByText("Browser Administrator")).toHaveCSS("font-size", "13px");
     for (let i = 0; i < 26; i++) {
         const response = await page.request.post("/api/v1/workspaces", {
             headers: scope.headers,
@@ -460,6 +475,9 @@ test("TailAdmin banner sizes and nested language choices preserve the resource d
     await page.goto("/resources?section=assets#draft");
     const picker = workspacePicker(page);
     await chooseWorkspace(page, scope.workspaceId);
+    const width = (await picker.boundingBox())?.width;
+    expect(width).toBeGreaterThan(100);
+    expect(width).toBeLessThanOrEqual(182);
     await page.getByRole("button", { name: "New resource", exact: true }).click();
     await page.getByLabel("Name", { exact: true }).fill("Keep draft across languages");
     const draftNode = await page.getByLabel("Name", { exact: true }).elementHandle();
@@ -476,9 +494,16 @@ test("TailAdmin banner sizes and nested language choices preserve the resource d
     const workspaces = await openWorkspaceMenu(page);
     await expect(workspaces.getByRole("menuitem", { name: "More Workspaces" })).toBeVisible();
     await page.keyboard.press("Escape");
-    await expect(toggle).toHaveCSS("width", "40px");
+    await expect(toggle).toHaveCSS("width", "32px");
+    await expectCompactBanner(page, 5);
     await toggle.click();
     await expect(user).toBeVisible();
+    await expect(banner).toHaveCSS("height", "141px");
+    await expectCompactBanner(page, 7);
+    for (const name of [picker.locator("span"), user.locator(".vq-user-name")]) {
+        await expect(name).toHaveCSS("text-overflow", "ellipsis");
+        expect(await name.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
+    }
     await user.click();
     await expect(page.getByRole("menu")).toBeVisible();
     await toggle.click();
@@ -520,6 +545,7 @@ test("TailAdmin banner sizes and nested language choices preserve the resource d
     await guestToggle.click();
     await banner.getByRole("combobox", { name: "语言" }).selectOption("en");
     await expect(banner.getByRole("button", { name: "Dark mode" })).toBeVisible();
+    await expectCompactBanner(page, 4);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
 });
 
