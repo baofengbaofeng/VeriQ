@@ -12,7 +12,7 @@
     --vq-rail: #f4f6f9;
     --vq-secondary: #475467;
     --vq-muted: #5e6a7d;
-    --vq-focus-outline: #75839a;
+    --vq-focus-outline: #737373;
     --vq-field-outline: transparent;
     --vq-sidebar-width: 190px;
     --vq-topbar-height: 77px;
@@ -355,7 +355,7 @@ input:focus:not(:focus-visible) {
 }
 
 /*
- * 输入域使用 TailAdmin 的浅色边框与外晕，不改变盒模型；不覆盖无效字段或原生选择按钮的状态。
+ * 输入域的中性边框沿用当前明暗主题，键盘仍保留有间距的焦点轮廓；字段错误及原生选中反馈由控件自身呈现。
  */
 :root
     :is(
@@ -374,10 +374,20 @@ input:focus:not(:focus-visible) {
         select,
         .vq-select-trigger
     ):focus:where(:not(:user-invalid, [aria-invalid="true"])) {
-    border-color: #9cb9ff;
-    box-shadow: 0 0 0 4px rgb(70 95 255 / 10%);
+    border-color: var(--vq-focus-outline);
+    box-shadow: none;
     outline: 2px solid var(--vq-field-outline);
     outline-offset: 2px;
+}
+/*
+ * Monaco 将查找框等组合控件的焦点绘制在外层容器上，Web 入口复用同一颜色，并沿用编辑器自身的轮廓形状。
+ */
+:root :is(.monaco-editor, .monaco-diff-editor, .monaco-component) {
+    --vscode-focusBorder: var(--vq-focus-outline);
+    --vscode-list-focusOutline: var(--vq-focus-outline);
+}
+:root:where([data-theme="dark"]) {
+    --vq-focus-outline: #a3a3a3;
 }
 @media (forced-colors: active) {
     :root {
