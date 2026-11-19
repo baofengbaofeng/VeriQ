@@ -1,12 +1,12 @@
 /**
- * 顶栏使用成员空间菜单和现有 Sheet。创建操作绑定当前登录身份，账户卸载后忽略旧结果，空间切换不打断请求。
+ * 顶栏提供成员空间菜单和居中的新建对话框。创建操作绑定当前登录身份，账户卸载后忽略旧结果，空间切换不打断请求。
  */
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
+import * as Dialog from "@radix-ui/react-dialog";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Link } from "react-router-dom";
 import icons from "../../admin-icons.svg?no-inline";
 import { api, ApiError, type Workspace } from "../../api";
-import { Sheet } from "../../components";
 import { tx } from "../../locale";
 import { useWorkspaceDirectory } from "./WorkspaceDirectory";
 
@@ -148,7 +148,6 @@ export function WorkspaceControls({ visible }: { visible: boolean }) {
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState("");
     const request = useRef(0);
-    const trigger = useRef<HTMLButtonElement>(null);
     async function submit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         const values = new FormData(event.currentTarget);
@@ -173,26 +172,31 @@ export function WorkspaceControls({ visible }: { visible: boolean }) {
         }
     }
     return (
-        <>
-            {visible && <WorkspaceMenu />}
-            <button
-                className="vq-workspace-icon"
-                aria-label={tx("Add workspace")}
-                aria-haspopup="dialog"
-                aria-expanded={open}
-                title={tx("Add workspace")}
-                ref={trigger}
-                type="button"
-                onClick={() => {
+        <Dialog.Root
+            open={open}
+            onOpenChange={(next) => {
+                if (next) {
                     setError("");
                     setBusy(false);
-                    setOpen(true);
-                }}
-            >
-                <svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20">
-                    <path d="M10 4v12M4 10h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
-            </button>
+                } else {
+                    request.current += 1;
+                }
+                setOpen(next);
+            }}
+        >
+            {visible && <WorkspaceMenu />}
+            <Dialog.Trigger asChild>
+                <button
+                    className="vq-workspace-icon"
+                    aria-label={tx("Add workspace")}
+                    title={tx("Add workspace")}
+                    type="button"
+                >
+                    <svg aria-hidden="true" width="20" height="20" viewBox="0 0 20 20">
+                        <path d="M10 4v12M4 10h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                </button>
+            </Dialog.Trigger>
             <Link
                 className="vq-workspace-icon"
                 to="/workspaces"
@@ -203,30 +207,36 @@ export function WorkspaceControls({ visible }: { visible: boolean }) {
                     <use href={`${icons}#settings`} />
                 </svg>
             </Link>
-            <Sheet
-                open={open}
-                title={tx("Add workspace")}
-                fallbackFocus={trigger}
-                onOpenChange={(next) => {
-                    if (!next) request.current += 1;
-                    setOpen(next);
-                }}
-            >
-                <form className="vq-workspace-form" onSubmit={(event) => void submit(event)}>
-                    <label>
-                        {tx("Key")}
-                        <input name="key" required pattern={String.raw`[A-Za-z_][A-Za-z0-9_.\-]*`} maxLength={160} />
-                    </label>
-                    <label>
-                        {tx("Name")}
-                        <input name="name" required maxLength={160} />
-                    </label>
-                    {error && <p role="alert">{tx(error)}</p>}
-                    <button type="submit" disabled={busy}>
-                        {tx("Create Workspace")}
-                    </button>
-                </form>
-            </Sheet>
-        </>
+            <Dialog.Portal>
+                <Dialog.Overlay className="vq-overlay" />
+                <Dialog.Content className="vq-dialog vq-workspace-dialog" aria-describedby={undefined}>
+                    <div className="vq-card-heading">
+                        <Dialog.Title className="vq-sheet-title">{tx("Add workspace")}</Dialog.Title>
+                        <Dialog.Close className="vq-sheet-close" aria-label={tx("Close")}>
+                            ×
+                        </Dialog.Close>
+                    </div>
+                    <form className="vq-workspace-form" onSubmit={(event) => void submit(event)}>
+                        <label>
+                            {tx("Key")}
+                            <input
+                                name="key"
+                                required
+                                pattern={String.raw`[A-Za-z_][A-Za-z0-9_.\-]*`}
+                                maxLength={160}
+                            />
+                        </label>
+                        <label>
+                            {tx("Name")}
+                            <input name="name" required maxLength={160} />
+                        </label>
+                        {error && <p role="alert">{tx(error)}</p>}
+                        <button type="submit" disabled={busy}>
+                            {tx("Create Workspace")}
+                        </button>
+                    </form>
+                </Dialog.Content>
+            </Dialog.Portal>
+        </Dialog.Root>
     );
 }
