@@ -922,7 +922,8 @@ tbody tr:hover td {
  */
 .vq-hamburger,
 .vq-icon-button,
-.vq-theme-toggle {
+.vq-theme-toggle,
+.vq-header-more {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -940,7 +941,8 @@ tbody tr:hover td {
  */
 .vq-hamburger:hover,
 .vq-icon-button:hover,
-.vq-theme-toggle:hover {
+.vq-theme-toggle:hover,
+.vq-header-more:hover {
     background: var(--vq-hover);
     color: var(--vq-brand-text);
 }
@@ -958,4 +960,35 @@ tbody tr:hover td {
  */
 .vq-header-tools .vq-user-trigger {
     border: 0;
+}
+/*
+ * 窄屏收起工具组时用 hidden 属性彻底退出布局与键盘顺序，作者样式显式恢复浏览器默认的隐藏语义。
+ */
+.vq-header-tools[hidden] {
+    display: none;
+}
+/*
+ * 窄屏头部允许换行：折叠、工作区与更多按钮留在首行，展开的工具组独占第二行，保持 72 像素基准高度且不横向溢出。
+ */
+@media (max-width: 1024px) {
+    .vq-header {
+        flex-wrap: wrap;
+        height: auto;
+        min-height: var(--vq-header-height);
+        row-gap: 8px;
+    }
+    .vq-header > .vq-header-tools {
+        flex-basis: 100%;
+        margin-inline-start: 0;
+        justify-content: flex-end;
+    }
+}
+/*
+ * 手机宽度收紧头部内边距与控件间距，让汉堡、工作区切换和“更多”按钮在单行内排布。
+ */
+@media (max-width: 560px) {
+    .vq-header {
+        padding-inline: 12px;
+        gap: 6px;
+    }
 }

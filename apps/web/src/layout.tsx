@@ -364,6 +364,7 @@ function UserMenu({ onLogout }: { onLogout: () => void }) {
 /*
  * 顶部栏只占据右列：登录后左端汉堡按钮折叠侧栏，中段保留工作区切换，右端依次放置主题、通知与账户操作；访客没有侧栏，
  * 左端改显横向品牌标识，语言选择仍直接暴露在工具区，避免把访客引向不可用的账户菜单。
+ * 窄屏保留一个“更多”按钮收起右侧工具组，工作区切换始终可见，展开后工具组独占一行，避免横向溢出。
  */
 function Header({
     collapsed,
@@ -375,6 +376,28 @@ function Header({
     onLogout: () => void;
 }) {
     const { user } = useContext(Auth);
+    const [breakpoint] = useState(() => window.matchMedia("(max-width: 1024px)"));
+    const [compact, setCompact] = useState(breakpoint.matches);
+    const [expanded, setExpanded] = useState(false);
+    const toolsId = useId();
+    const more = useRef<HTMLButtonElement>(null);
+    const actions = useRef<HTMLDivElement>(null);
+    useLayoutEffect(() => {
+        const synchronize = () => setCompact(breakpoint.matches);
+        breakpoint.addEventListener("change", synchronize);
+        return () => breakpoint.removeEventListener("change", synchronize);
+    }, [breakpoint]);
+    // 回到宽屏后合上临时展开的工具组，保留桌面端始终内联的初始状态。
+    useEffect(() => {
+        if (!compact) setExpanded(false);
+    }, [compact]);
+    const collapsible = Boolean(user) && compact;
+    const toolsVisible = !collapsible || expanded;
+    function toggleTools() {
+        // 收起前把仍在工具组内的焦点交给“更多”按钮，避免控件隐藏后焦点落回文档根。
+        if (expanded && actions.current?.contains(document.activeElement)) more.current?.focus();
+        setExpanded(!expanded);
+    }
     return (
         <header className="vq-header">
             {user ? (
@@ -394,7 +417,20 @@ function Header({
                 </Link>
             )}
             {user && <WorkspaceControls visible />}
-            <div className="vq-header-tools">
+            {collapsible && (
+                <button
+                    ref={more}
+                    type="button"
+                    className="vq-header-more"
+                    aria-label={tx("Toggle application menu")}
+                    aria-controls={toolsId}
+                    aria-expanded={expanded}
+                    onClick={toggleTools}
+                >
+                    <Icon name="horizontal-dots" />
+                </button>
+            )}
+            <div ref={actions} className="vq-header-tools" id={toolsId} hidden={!toolsVisible}>
                 <ThemeToggle />
                 {user ? (
                     <>
