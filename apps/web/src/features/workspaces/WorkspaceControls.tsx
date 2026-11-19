@@ -208,14 +208,19 @@ export function WorkspaceControls({ visible }: { visible: boolean }) {
                 </svg>
             </Link>
             <Dialog.Portal>
-                <Dialog.Overlay className="vq-overlay" />
-                <Dialog.Content className="vq-dialog vq-workspace-dialog" aria-describedby={undefined}>
+                <Dialog.Overlay className="vq-overlay vq-workspace-overlay" />
+                <Dialog.Content className="vq-dialog vq-workspace-dialog">
                     <div className="vq-card-heading">
-                        <Dialog.Title className="vq-sheet-title">{tx("Add workspace")}</Dialog.Title>
+                        <Dialog.Title>{tx("Add workspace")}</Dialog.Title>
                         <Dialog.Close className="vq-sheet-close" aria-label={tx("Close")}>
-                            ×
+                            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16">
+                                <path d="m4 4 8 8m0-8-8 8" stroke="currentColor" strokeWidth="1.5" />
+                            </svg>
                         </Dialog.Close>
                     </div>
+                    <Dialog.Description className="vq-workspace-key-hint">
+                        {tx("Workspace key guidance")}
+                    </Dialog.Description>
                     <form className="vq-workspace-form" onSubmit={(event) => void submit(event)}>
                         <label>
                             {tx("Key")}
@@ -231,9 +236,14 @@ export function WorkspaceControls({ visible }: { visible: boolean }) {
                             <input name="name" required maxLength={160} />
                         </label>
                         {error && <p role="alert">{tx(error)}</p>}
-                        <button type="submit" disabled={busy}>
-                            {tx("Create Workspace")}
-                        </button>
+                        <div className="vq-workspace-form-actions">
+                            <Dialog.Close type="button" className="vq-btn-secondary">
+                                {tx("Cancel")}
+                            </Dialog.Close>
+                            <button type="submit" className="vq-btn-primary" disabled={busy}>
+                                {tx("Create Workspace")}
+                            </button>
+                        </div>
                     </form>
                 </Dialog.Content>
             </Dialog.Portal>

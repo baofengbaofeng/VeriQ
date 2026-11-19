@@ -5,6 +5,10 @@
 export const workspacesMessages: Record<string, readonly [string, string]> = {
     "(Archived)": ["（已归档）", "(Archived)"],
     Key: ["标识", "Key"],
+    "Workspace key guidance": [
+        "使用唯一标识，以英文字母或下划线开头。",
+        "Use a unique key that starts with A–Z, a–z, or an underscore.",
+    ],
     "Loading Workspaces…": ["正在加载工作区…", "Loading Workspaces…"],
     "Retry Workspaces": ["重试工作区列表", "Retry Workspaces"],
     "AI settings": ["AI 设置", "AI settings"],
