@@ -52,6 +52,39 @@ async function expectWorkspaceMenuWidth(page: Page, menu: Locator) {
     expect((await menu.boundingBox())?.width).toBeCloseTo(Math.max(trigger.width, 160), 0);
 }
 
+/**
+ * 核对不同语言和视口中工作区说明、操作及分隔线的实际坐标，确保整组同行且不会挤到主题按钮下方。
+ */
+async function expectWorkspaceGroup(page: Page, name: string) {
+    const banner = page.getByRole("banner");
+    const caption = banner.getByText(name, { exact: true });
+    await expect(caption).toBeVisible();
+    const divider = banner.locator(".vq-workspace-divider");
+    await expect(divider).toHaveAttribute("aria-hidden", "true");
+    await expect(divider).toHaveCSS("width", "1px");
+    await expect(divider).toHaveCSS("height", "20px");
+    const controls = [
+        caption,
+        workspacePicker(page),
+        ...(await banner.locator(".vq-workspace-icon").all()),
+        divider,
+        banner.locator(".vq-theme-toggle"),
+    ];
+    let right: number | undefined;
+    let center: number | undefined;
+    for (const control of controls) {
+        const box = await control.boundingBox();
+        if (!box) throw new Error("Workspace group element has no visible bounds");
+        if (right !== undefined) {
+            expect(box.x - right).toBeGreaterThan(0);
+            expect(box.x - right).toBeLessThanOrEqual(12);
+        }
+        center ??= box.y + box.height / 2;
+        expect(box.y + box.height / 2).toBeCloseTo(center, 0);
+        right = box.x + box.width;
+    }
+}
+
 test("server console follows the approved layout", async ({ page }) => {
     await signIn(page);
     await page.goto("/admin/users");
@@ -65,6 +98,8 @@ test("server console follows the approved layout", async ({ page }) => {
         header.getByRole("button", { name: "Dark mode" }),
         profile,
     ];
+    await expectWorkspaceGroup(page, "Workspace");
+    await expect(header.locator(".vq-workspace-divider")).toHaveCSS("background-color", "rgb(225, 230, 237)");
     const viewport = await page.evaluate(() => document.documentElement.clientWidth);
     let right = 0;
     await controls[0].focus();
@@ -75,7 +110,7 @@ test("server console follows the approved layout", async ({ page }) => {
         if (!box) throw new Error("Header control has no visible bounding box");
         expect(box.x).toBeGreaterThanOrEqual(right);
         if (index === 1) expect(box.x).toBeGreaterThan(viewport / 2);
-        if (index > 1) expect(box.x - right).toBeLessThanOrEqual(12);
+        if (control === profile) expect(box.x - right).toBeLessThanOrEqual(12);
         right = box.x + box.width;
     }
     expect(viewport - right).toBeLessThanOrEqual(24);
@@ -427,6 +462,7 @@ test("TailAdmin profile dimensions and theme persist through real navigation", a
     await theme.click();
     await expect(theme).toHaveAttribute("aria-pressed", "true");
     await expect(page.locator("html")).toHaveCSS("color-scheme", "dark");
+    await expect(banner.locator(".vq-workspace-divider")).toHaveCSS("background-color", "rgb(52, 64, 84)");
     const resourceName = page.getByLabel("Name", { exact: true });
     await expect(resourceName).toHaveValue("Unsubmitted resource");
     await expect(resourceName).toHaveCSS("background-color", "rgb(24, 32, 47)");
@@ -559,13 +595,10 @@ test("TailAdmin banner sizes and nested language choices preserve the resource d
     await expect(user).toBeVisible();
     await expect(banner).toHaveCSS("height", "141px");
     await expectCompactBanner(page, 7);
-    const gear = await banner.getByRole("link", { name: "Workspace settings" }).boundingBox();
+    await expectWorkspaceGroup(page, "Workspace");
     const themeBox = await theme.boundingBox();
     const account = await user.boundingBox();
-    if (!gear || !themeBox || !account) throw new Error("Expanded Banner controls must have visible bounds");
-    expect(themeBox.y).toBe(gear.y);
-    expect(themeBox.x - gear.x - gear.width).toBeGreaterThanOrEqual(0);
-    expect(themeBox.x - gear.x - gear.width).toBeLessThanOrEqual(12);
+    if (!themeBox || !account) throw new Error("Expanded Banner controls must have visible bounds");
     expect(account.y).toBeGreaterThanOrEqual(themeBox.y + themeBox.height);
     for (const name of [picker.locator("span"), user.locator(".vq-user-name")]) {
         await expect(name).toHaveCSS("text-overflow", "ellipsis");
@@ -602,6 +635,7 @@ test("TailAdmin banner sizes and nested language choices preserve the resource d
     await language.click();
     await page.getByRole("menuitemradio", { name: "中文", exact: true }).click();
     await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
+    await expectWorkspaceGroup(page, "当前工作区");
     await expect(page.getByRole("menu")).toHaveCount(0);
     await expect(picker).toHaveAttribute("data-workspace-id", scope.workspaceId);
     expect(page.url()).toMatch(/\/resources\?section=assets#draft$/);
@@ -617,6 +651,8 @@ test("TailAdmin banner sizes and nested language choices preserve the resource d
     await banner.getByRole("combobox", { name: "语言" }).selectOption("en");
     await expect(banner.getByRole("button", { name: "Dark mode" })).toBeVisible();
     await expectCompactBanner(page, 4);
+    await expect(banner.locator(".vq-workspace-divider")).toHaveCount(0);
+    await expect(banner.getByText("Workspace", { exact: true })).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
 });
 
