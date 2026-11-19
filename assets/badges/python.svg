@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="104" height="25" viewBox="0 0 104 25" role="img" aria-labelledby="title">
+    <title id="title">Python 3.12</title>
+    <g fill="#fff" font-family="system-ui, Arial, sans-serif" font-size="14" font-weight="600" text-anchor="middle">
+        <rect width="104" height="25" rx="5" fill="#293c59"/>
+        <path d="M 61 0 H 99 Q 104 0 104 5 V 20 Q 104 25 99 25 H 61 Z" fill="#12646a"/>
+        <text x="31" y="17.5">Python</text>
+        <text x="82.5" y="17.5">3.12</text>
+    </g>
+</svg>

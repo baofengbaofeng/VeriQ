@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="86" height="25" viewBox="0 0 86 25" role="img" aria-labelledby="title">
+    <title id="title">React 18</title>
+    <g fill="#fff" font-family="system-ui, Arial, sans-serif" font-size="14" font-weight="600" text-anchor="middle">
+        <rect width="86" height="25" rx="5" fill="#293c59"/>
+        <path d="M 52 0 H 81 Q 86 0 86 5 V 20 Q 86 25 81 25 H 52 Z" fill="#12646a"/>
+        <text x="26" y="17.5">React</text>
+        <text x="69" y="17.5">18</text>
+    </g>
+</svg>

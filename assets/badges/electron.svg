@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="112" height="25" viewBox="0 0 112 25" role="img" aria-labelledby="title">
+    <title id="title">Electron 45</title>
+    <g fill="#fff" font-family="system-ui, Arial, sans-serif" font-size="14" font-weight="600" text-anchor="middle">
+        <rect width="112" height="25" rx="5" fill="#293c59"/>
+        <path d="M 77 0 H 107 Q 112 0 112 5 V 20 Q 112 25 107 25 H 77 Z" fill="#12646a"/>
+        <text x="38.5" y="17.5">Electron</text>
+        <text x="94.5" y="17.5">45</text>
+    </g>
+</svg>
