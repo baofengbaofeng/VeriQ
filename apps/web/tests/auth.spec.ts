@@ -1,3 +1,4 @@
+import { signOut, profileButton } from "./support/console-controls";
 import { test, expect, type APIResponse, type Page, type Route } from "@playwright/test";
 import { writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
@@ -236,7 +237,7 @@ test("real setup, login, account, administration and one-time reset", async ({ p
         fullPage: true,
         mask: [page.getByLabel("Reset link")],
     });
-    await page.getByRole("button", { name: "Sign out", exact: true }).click();
+    await signOut(page);
     await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
     await page.goto(link);
     await expect(page.getByRole("heading", { name: "Choose a new password" })).toBeVisible();
@@ -398,7 +399,7 @@ test("real setup, login, account, administration and one-time reset", async ({ p
         const createUserSubmit = createUserForm.getByRole("button");
         await expect(createUserSubmit).toHaveText("Working…");
         await expect(createUserSubmit).toBeDisabled();
-        await page.getByRole("button", { name: "Sign out", exact: true }).click();
+        await signOut(page);
         await outgoingLogout.held;
         logoutIntentEvents.push({ event: "outgoing-logout-held-before-backend" });
         const updateDelivered = page.waitForResponse(
@@ -422,7 +423,7 @@ test("real setup, login, account, administration and one-time reset", async ({ p
         logoutIntentEvents.push({ event: "logout-forwarded-to-real-backend" });
         expect((await completedLogout).status()).toBe(200);
         await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
-        await expect(page.getByRole("button", { name: "Sign out", exact: true })).toHaveCount(0);
+        await expect(profileButton(page)).toHaveCount(0);
         logoutIntentEvents.push({ event: "signed-out-ui-confirmed" });
     };
     await withCleanup(verifyLogoutIntent, async () => {
@@ -447,7 +448,7 @@ test("real setup, login, account, administration and one-time reset", async ({ p
         .click();
     await expect(page.getByRole("row", { name: "browser-admin@example.com" })).toContainText("System administrator");
     pendingAdminRecovery = undefined;
-    await page.getByRole("button", { name: "Sign out", exact: true }).click();
+    await signOut(page);
     await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
     await page.getByRole("textbox", { name: "Email" }).fill("browser-admin@example.com");
     await page.getByLabel("Password").fill("Browser password 123!");
@@ -494,7 +495,7 @@ test("real setup, login, account, administration and one-time reset", async ({ p
         const expired = page.waitForResponse(
             (response) => new URL(response.url()).pathname === "/api/v1/auth/session" && response.status() === 401,
         );
-        await page.getByRole("button", { name: "Sign out", exact: true }).click();
+        await signOut(page);
         expect((await logout).status()).toBe(200);
         await expired;
         await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
@@ -542,7 +543,7 @@ test("real setup, login, account, administration and one-time reset", async ({ p
         { times: 1 },
     );
     await page.getByRole("button", { name: "Browser User", exact: true }).click();
-    await page.getByRole("menuitem", { name: "Account", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Settings", exact: true }).click();
     await expect(page.getByRole("button", { name: "Retry sessions" })).toBeVisible();
     await page.getByRole("button", { name: "Retry sessions" }).click();
     await expect(page.getByRole("list").getByRole("listitem")).toHaveCount(1);
@@ -551,7 +552,7 @@ test("real setup, login, account, administration and one-time reset", async ({ p
     const verifySessionOwnership = async () => {
         await page.getByLabel("Sessions per page").selectOption("1");
         expect((await sessionBarrier.held).status()).toBe(200);
-        await page.getByRole("button", { name: "Sign out", exact: true }).click();
+        await signOut(page);
         await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
         await page.getByRole("textbox", { name: "Email" }).fill("browser-second-admin@example.com");
         await page.getByLabel("Password").fill("Second password 123!");
@@ -598,7 +599,7 @@ test("real setup, login, account, administration and one-time reset", async ({ p
         .getByRole("button", { name: "Remove admin", exact: true })
         .click();
     await expect(page.getByRole("heading", { name: "Access restricted" })).toBeVisible();
-    await page.getByRole("button", { name: "Sign out", exact: true }).click();
+    await signOut(page);
     await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
 
     /**
@@ -633,7 +634,7 @@ test("real setup, login, account, administration and one-time reset", async ({ p
         await page.getByLabel("Sessions per page").selectOption("1");
         await oldRead.held;
         newerLoginEvents.push({ event: "old-sessions-get-held-before-backend" });
-        await page.getByRole("button", { name: "Sign out", exact: true }).click();
+        await signOut(page);
         const realLogout = await oldLogoutResponse.held;
         expect(realLogout.status).toBe(200);
         newerLoginEvents.push({
@@ -682,6 +683,7 @@ test("real setup, login, account, administration and one-time reset", async ({ p
         // 继续执行真实界面写入以同时验证新身份 Cookie、内存 CSRF 和 Origin，不能只点击密码输入框便宣称会话仍有效；写入
         // 完成后再次使用当前传输读取会话确认身份。
         await page.getByRole("link", { name: "Workspaces", exact: true }).click();
+        await page.getByRole("button", { name: "Add workspace", exact: true }).click();
         await page.getByLabel("Key").fill(`session-owner-${randomUUID()}`);
         await page.getByLabel("Name").first().fill("Session owner write");
         const creation = page.waitForResponse(

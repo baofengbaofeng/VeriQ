@@ -2,6 +2,7 @@
  * VeriQ 的作用域测试直接挂载产品 Provider 与真实 QueryClient，并以已提交信号、订阅关闭及查询取消为观察依据；页面测试仅
  * 延迟真实服务器响应，不构造资源或替换权限数据。
  */
+import { signOut, workspacePicker } from "./support/console-controls";
 import { randomUUID } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -191,7 +192,7 @@ test("actual Provider preserves scopes and releases the latest committed scope",
  * 三个入口先完成导航与真实列表查询，再用合成可见性事件触发现有焦点刷新；持有当前入口的新响应后切换空间并保留草稿，
  * 此处不把入口交接时淘汰的请求误认为稳定页面的刷新，也不声明操作系统焦点验收。
  */
-test("three GUI entry selectors retain manual selection across real list refetch", async ({ page }, testInfo) => {
+test("three GUI routes retain manual selection across real directory refetch", async ({ page }, testInfo) => {
     const protocolEvents: WorkspaceOwnershipEvent[] = [];
     const requestIds = new WeakMap<Request, number>();
     const pendingLists = new Set<Request>();
@@ -380,6 +381,7 @@ test("three GUI entry selectors retain manual selection across real list refetch
             await expect(page.getByText("No Workspaces yet.", { exact: true })).toBeVisible();
             const ids: string[] = [];
             for (const name of ["Alpha", "Beta"]) {
+                await page.getByRole("button", { name: "Add workspace", exact: true }).click();
                 await page.getByLabel("Key").fill("w2b-" + name.toLowerCase());
                 await page
                     .locator("form")
@@ -390,7 +392,7 @@ test("three GUI entry selectors retain manual selection across real list refetch
                     .fill("W2B " + name);
                 await page.getByRole("button", { name: "Create Workspace" }).click();
                 await expect(page.getByRole("article")).toContainText("W2B " + name);
-                ids.push(await page.getByLabel("Current Workspace").inputValue());
+                ids.push(await workspacePicker(page).inputValue());
             }
             const membership = (await (await page.request.get("/api/v1/workspaces")).json()).data;
             expect(membership.items.map((workspace: { id: string }) => workspace.id).sort()).toEqual([...ids].sort());
@@ -402,11 +404,10 @@ test("three GUI entry selectors retain manual selection across real list refetch
                     link: "Workspaces",
                     pathname: "/workspaces",
                     heading: "Workspaces",
-                    picker: "Current Workspace",
                     input: page
                         .locator("form")
                         .filter({
-                            has: page.getByRole("button", { name: "Create Workspace", exact: true }),
+                            has: page.getByRole("button", { name: "Rename Workspace", exact: true }),
                         })
                         .getByLabel("Name", { exact: true }),
                 },
@@ -414,14 +415,12 @@ test("three GUI entry selectors retain manual selection across real list refetch
                     link: "Runtimes",
                     pathname: "/runtimes",
                     heading: "Runtimes",
-                    picker: "Workspace",
                     input: page.getByLabel("Approval code"),
                 },
                 {
                     link: "Plans",
                     pathname: "/execution-plans",
                     heading: "Execution plans",
-                    picker: "Plan Workspace",
                     input: page.getByLabel("Plan name"),
                 },
             ]) {
@@ -439,7 +438,7 @@ test("three GUI entry selectors retain manual selection across real list refetch
                 await expect(heading).toBeVisible();
                 if (navigationList) expect(await (await navigationList).finished()).toBeNull();
                 const panel = page.locator("section.panel").filter({ has: heading });
-                const selector = panel.getByRole("combobox", { name: entry.picker, exact: true });
+                const selector = workspacePicker(page);
                 const input = entry.input.and(panel.locator("input, select"));
                 await expect(selector.locator(`option[value="${alpha}"]`)).toHaveText("W2B Alpha");
                 await expect(selector.locator(`option[value="${beta}"]`)).toHaveText("W2B Beta");
@@ -458,7 +457,8 @@ test("three GUI entry selectors retain manual selection across real list refetch
                     ownedPicker.evaluate(
                         (element, title) =>
                             element.isConnected &&
-                            element.closest("section.panel")?.querySelector("h1")?.textContent?.trim() === title,
+                            !!element.closest("header") &&
+                            document.querySelector("main h1")?.textContent?.trim() === title,
                         entry.heading,
                     );
                 expect(await pickerIsCurrent()).toBe(true);
@@ -575,15 +575,15 @@ test("three GUI entry selectors retain manual selection across real list refetch
                 );
             }
             await markPhase("Plans:session reset");
-            await page.getByRole("combobox", { name: "Plan Workspace" }).selectOption(beta);
+            await workspacePicker(page).selectOption(beta);
             await page.getByLabel("Plan name").fill("Beta unsaved Plan");
-            await page.getByRole("button", { name: "Sign out", exact: true }).click();
+            await signOut(page);
             await page.getByRole("textbox", { name: "Email" }).fill(actorEmail);
             await page.getByLabel("Password").fill("Workspace password 123!");
             await page.getByRole("button", { name: "Sign in" }).click();
             await expect(page.locator("dl")).toBeVisible();
             await page.getByRole("link", { name: "Plans", exact: true }).click();
-            await expect(page.getByRole("combobox", { name: "Plan Workspace" })).toHaveValue(alpha);
+            await expect(workspacePicker(page)).toHaveValue(alpha);
             await expect(page.getByLabel("Plan name")).toHaveValue("");
         },
         async () => {

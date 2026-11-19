@@ -44,7 +44,7 @@ async function selectRuntimeWorkspace(page: Page, workspaceId: string) {
         if (seenCursors.has(nextCursor)) throw new Error("Workspace pagination repeated a cursor");
         seenCursors.add(nextCursor);
         if (pageNumber === 99) break;
-        const more = page.getByRole("button", { name: "Load more Workspaces", exact: true });
+        const more = page.getByRole("button", { name: "More Workspaces", exact: true });
         await expect(more).toBeEnabled();
         const nextPage = page.waitForResponse((candidate) => {
             const url = new URL(candidate.url());

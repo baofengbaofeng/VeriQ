@@ -1,3 +1,4 @@
+import { signOut, workspacePicker } from "./support/console-controls";
 import { test, expect } from "@playwright/test";
 
 test("real Workspace selection, invitation acceptance and member permissions", async ({ page, browser }) => {
@@ -53,7 +54,7 @@ test("real Workspace selection, invitation acceptance and member permissions", a
         },
     });
     expect(isolated.status(), await isolated.text()).toBe(201);
-    await page.getByRole("button", { name: "Sign out", exact: true }).click();
+    await signOut(page);
     await page.getByRole("textbox", { name: "Email" }).fill("workspace-operator@example.com");
     await page.getByLabel("Password").fill("Workspace operator password 123!");
     await page.getByRole("button", { name: "Sign in" }).click();
@@ -61,6 +62,7 @@ test("real Workspace selection, invitation acceptance and member permissions", a
     expect((await page.request.get("/api/v1/workspaces/" + unrelatedId)).status()).toBe(403);
     await page.getByRole("link", { name: "Workspaces", exact: true }).click();
     await expect(page.getByText("No Workspaces yet.", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Add workspace", exact: true }).click();
     await page.getByLabel("Key").fill("browser-alpha");
     await page
         .locator("form")
@@ -69,7 +71,8 @@ test("real Workspace selection, invitation acceptance and member permissions", a
         .fill("Browser Alpha");
     await page.getByRole("button", { name: "Create Workspace" }).click();
     await expect(page.getByRole("article")).toContainText("Browser Alpha");
-    const alpha = await page.getByLabel("Current Workspace").inputValue();
+    const alpha = await workspacePicker(page).inputValue();
+    await page.getByRole("button", { name: "Add workspace", exact: true }).click();
     await page.getByLabel("Key").fill("browser-beta");
     await page
         .locator("form")
@@ -78,8 +81,8 @@ test("real Workspace selection, invitation acceptance and member permissions", a
         .fill("Browser Beta");
     await page.getByRole("button", { name: "Create Workspace" }).click();
     await expect(page.getByRole("article")).toContainText("Browser Beta");
-    const beta = await page.getByLabel("Current Workspace").inputValue();
-    await page.getByLabel("Current Workspace").selectOption(alpha);
+    const beta = await workspacePicker(page).inputValue();
+    await workspacePicker(page).selectOption(alpha);
     await expect(page.getByRole("article")).toContainText("Browser Alpha");
     await page.getByLabel("Email").fill("workspace-viewer@example.com");
     await page.locator('select[name="role"]').selectOption("VIEWER");
@@ -146,7 +149,7 @@ test("real Workspace selection, invitation acceptance and member permissions", a
     });
     await page.getByRole("button", { name: "Refresh Workspace" }).click();
     await oldReceived;
-    await page.getByLabel("Current Workspace").selectOption(beta);
+    await workspacePicker(page).selectOption(beta);
     expect((await abortedOld).failure()?.errorText).toContain("ERR_ABORTED");
     releaseOld();
     await page.unroute(oldPath);
@@ -180,6 +183,8 @@ test("real Workspace selection, invitation acceptance and member permissions", a
     await existingPage.getByLabel("Password").fill("Existing password 123!");
     await existingPage.getByRole("button", { name: "Accept invitation" }).click();
     await expect(existingPage.getByRole("status")).toContainText("Invitation accepted");
+    await existingPage.getByRole("link", { name: "Workspaces", exact: true }).click();
+    await expect(workspacePicker(existingPage)).toHaveValue(beta);
     await existingContext.close();
     await page.getByRole("button", { name: "Archive Workspace" }).click();
     await expect(page.getByRole("article")).toContainText("Archived");
@@ -188,7 +193,7 @@ test("real Workspace selection, invitation acceptance and member permissions", a
         path: "../../.superpowers/sdd/veriq-1/evidence/t03/workspace.png",
         fullPage: true,
     });
-    await page.getByRole("button", { name: "Sign out", exact: true }).click();
+    await signOut(page);
     await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
     await page.getByRole("textbox", { name: "Email" }).fill("workspace-viewer@example.com");
     await page.getByLabel("Password").fill("Viewer password 123!");
@@ -196,6 +201,6 @@ test("real Workspace selection, invitation acceptance and member permissions", a
     await expect(page.locator("dl")).toContainText("Workspace Viewer");
     await page.getByRole("link", { name: "Workspaces", exact: true }).click();
     await expect(page.getByRole("article")).toContainText("Browser Alpha");
-    await expect(page.getByLabel("Current Workspace").getByRole("option", { name: /Browser Beta/ })).toHaveCount(0);
+    await expect(workspacePicker(page).getByRole("option", { name: /Browser Beta/ })).toHaveCount(0);
     await viewerContext.close();
 });

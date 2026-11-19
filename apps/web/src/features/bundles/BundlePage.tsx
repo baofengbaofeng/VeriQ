@@ -8,54 +8,24 @@ import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { Auth } from "../../auth-context";
-import { api } from "../../api";
 import { Panel } from "../../ui";
+import { useWorkspaceDirectory, WorkspaceStatus } from "../workspaces/WorkspaceDirectory";
 import { useWorkspace } from "../workspaces/WorkspaceContext";
 import { CloudResourceAdapter, type Resource, type Version } from "../resources/adapters";
 import { CloudBundleAdapter, type BundleAdapter } from "./adapters";
 /**
- * 拉取工作区列表并默认选中首项，再把 selected 与 adapter 交给 BundleWorkspaceView。自身不持有导出表单状态，避免与空间
- * 切换竞态。
+ * 为当前授权空间绑定导出适配器与取消信号；空间切换后重新挂载表单，避免旧导出结果覆盖新空间。
  */
 export function BundlePage() {
     useAppLocale();
-    const { user } = useContext(Auth),
-        { selected, select, signal } = useWorkspace();
-    const workspaces = useInfiniteQuery({
-        queryKey: ["workspaces", user?.id],
-        queryFn: ({ pageParam, signal }) => api.workspaces(pageParam, signal),
-        initialPageParam: undefined as string | undefined,
-        getNextPageParam: (p) => p.nextCursor ?? undefined,
-        enabled: !!user,
-    });
-    const items = workspaces.data?.pages.flatMap((p) => p.items) ?? [];
-    // 离线包入口只在空间尚未选定时采用首项，列表引用更新不改变手动选择；适配器仍按空间标识缓存，使同空间的版本篮子与环
-    // 境选择继续由原有子组件持有。
-    const firstWorkspaceId = items[0]?.id;
-    useEffect(() => {
-        if (!selected && firstWorkspaceId) select(firstWorkspaceId);
-    }, [firstWorkspaceId, selected, select]);
+    const { user } = useContext(Auth);
+    const { workspace } = useWorkspaceDirectory();
+    const { selected, signal } = useWorkspace();
     const adapter = useMemo(() => new CloudBundleAdapter(selected), [selected]);
     if (!user) return <Navigate to="/login" />;
-    const workspace = items.find((w) => w.id === selected);
     return (
         <Panel title={tx("离线包 / Offline bundles")}>
-            <label>
-                {tx("空间 / Workspace")}
-                <select aria-label={tx("Bundle Workspace")} value={selected} onChange={(e) => select(e.target.value)}>
-                    {items.map((w) => (
-                        <option key={w.id} value={w.id}>
-                            {w.name}
-                        </option>
-                    ))}
-                </select>
-            </label>
-            {workspaces.error && <p role="alert">{workspaces.error.message}</p>}
-            {workspaces.hasNextPage && (
-                <button type="button" onClick={() => void workspaces.fetchNextPage()}>
-                    {tx("更多空间 / More Workspaces")}
-                </button>
-            )}
+            <WorkspaceStatus />
             {workspace && (
                 <BundleWorkspaceView
                     key={user.id + selected}

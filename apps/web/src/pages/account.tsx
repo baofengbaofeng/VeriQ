@@ -8,6 +8,7 @@ import { tx, useAppLocale } from "../locale";
 import { useState, useContext, useEffect, useLayoutEffect, useCallback, useRef } from "react";
 import { Navigate } from "react-router-dom";
 import { api, type AccountSessions } from "../api";
+import { Avatar } from "../components";
 import { Auth } from "../auth-context";
 import { Notice, Field, useAction, values, Panel } from "../ui";
 /**
@@ -70,95 +71,108 @@ export function Account() {
     };
     return (
         <Panel title={tx("Your account")}>
-            <dl>
-                <dt>{tx("Display name")}</dt>
-                <dd>{user.displayName}</dd>
-                <dt>{tx("Email")}</dt>
-                <dd>{user.email}</dd>
-                <dt>{tx("Permission")}</dt>
-                <dd>{user.systemAdmin ? tx("System administrator") : tx("User")}</dd>
-            </dl>
-            <h2>{tx("Change password")}</h2>
-            <form
-                onSubmit={(e) => {
-                    const v = values(e);
-                    void a.run(async () => {
-                        await api.password({
-                            currentPassword: v.currentPassword,
-                            newPassword: v.newPassword,
-                        });
-                        await signedOut();
-                    });
-                }}
-            >
-                <Field name="currentPassword" label={tx("Current password")} type="password" />
-                <Field
-                    name="newPassword"
-                    label={tx("New password (at least 12 characters)")}
-                    type="password"
-                    minLength={12}
-                    longHint={tx("至少 12 个字符，建议混用字母、数字与符号。")}
-                />
-                <button type="submit" disabled={a.busy}>
-                    {tx("Change password and sign out")}
-                </button>
-            </form>
-            <h2>{tx("Active sessions")}</h2>
-            <label>
-                {tx("Sessions per page")}
-                <select value={limit} disabled={a.busy} onChange={(e) => setLimit(Number(e.target.value))}>
-                    {[1, 10, 25, 50, 100].map((value) => (
-                        <option key={value} value={value}>
-                            {value}
-                        </option>
-                    ))}
-                </select>
-            </label>
-            {!sessions ? (
-                a.error ? (
-                    <div>
-                        <p>{tx("Sessions could not be loaded.")}</p>
-                        <button type="button" onClick={() => void a.run(() => loadSessions())} disabled={a.busy}>
-                            {tx("Retry sessions")}
+            <div className="vq-profile">
+                <section className="vq-profile-card vq-profile-summary">
+                    <Avatar name={user.displayName} size={36} />
+                    <dl>
+                        <dt>{tx("Display name")}</dt>
+                        <dd>{user.displayName}</dd>
+                        <dt>{tx("Email")}</dt>
+                        <dd>{user.email}</dd>
+                        <dt>{tx("Permission")}</dt>
+                        <dd>{user.systemAdmin ? tx("System administrator") : tx("User")}</dd>
+                    </dl>
+                </section>
+                <section className="vq-profile-card">
+                    <h2>{tx("Change password")}</h2>
+                    <form
+                        onSubmit={(e) => {
+                            const v = values(e);
+                            void a.run(async () => {
+                                await api.password({
+                                    currentPassword: v.currentPassword,
+                                    newPassword: v.newPassword,
+                                });
+                                await signedOut();
+                            });
+                        }}
+                    >
+                        <Field name="currentPassword" label={tx("Current password")} type="password" />
+                        <Field
+                            name="newPassword"
+                            label={tx("New password (at least 12 characters)")}
+                            type="password"
+                            minLength={12}
+                            longHint={tx("至少 12 个字符，建议混用字母、数字与符号。")}
+                        />
+                        <button type="submit" disabled={a.busy}>
+                            {tx("Change password and sign out")}
                         </button>
-                    </div>
-                ) : (
-                    <p role="status">{tx("Loading sessions…")}</p>
-                )
-            ) : sessions.items.length === 0 ? (
-                <p>{tx("No active sessions.")}</p>
-            ) : (
-                <ul>
-                    {sessions.items.map((s) => (
-                        <li key={s.id}>
-                            {s.current ? tx("This session") : tx("Other session")} {tx(" · Expires")}{" "}
-                            {new Date(s.expiresAt).toLocaleString()}
-                        </li>
-                    ))}
-                </ul>
-            )}
-            {sessions?.nextCursor && (
-                <button
-                    type="button"
-                    disabled={a.busy}
-                    onClick={() => void a.run(() => loadSessions(sessions.nextCursor!))}
-                >
-                    {a.busy ? tx("Loading sessions…") : tx("Load more sessions")}
-                </button>
-            )}
-            <button
-                type="button"
-                disabled={a.busy}
-                onClick={() =>
-                    void a.run(async () => {
-                        await api.revokeOwn();
-                        await signedOut();
-                    })
-                }
-            >
-                {tx("Revoke all sessions and sign out")}
-            </button>
-            <Notice error={a.error} />
+                    </form>
+                </section>
+                <section className="vq-profile-card">
+                    <h2>{tx("Active sessions")}</h2>
+                    <label>
+                        {tx("Sessions per page")}
+                        <select value={limit} disabled={a.busy} onChange={(e) => setLimit(Number(e.target.value))}>
+                            {[1, 10, 25, 50, 100].map((value) => (
+                                <option key={value} value={value}>
+                                    {value}
+                                </option>
+                            ))}
+                        </select>
+                    </label>
+                    {!sessions ? (
+                        a.error ? (
+                            <div>
+                                <p>{tx("Sessions could not be loaded.")}</p>
+                                <button
+                                    type="button"
+                                    onClick={() => void a.run(() => loadSessions())}
+                                    disabled={a.busy}
+                                >
+                                    {tx("Retry sessions")}
+                                </button>
+                            </div>
+                        ) : (
+                            <p role="status">{tx("Loading sessions…")}</p>
+                        )
+                    ) : sessions.items.length === 0 ? (
+                        <p>{tx("No active sessions.")}</p>
+                    ) : (
+                        <ul>
+                            {sessions.items.map((s) => (
+                                <li key={s.id}>
+                                    {s.current ? tx("This session") : tx("Other session")} {tx(" · Expires")}{" "}
+                                    {new Date(s.expiresAt).toLocaleString()}
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                    {sessions?.nextCursor && (
+                        <button
+                            type="button"
+                            disabled={a.busy}
+                            onClick={() => void a.run(() => loadSessions(sessions.nextCursor!))}
+                        >
+                            {a.busy ? tx("Loading sessions…") : tx("Load more sessions")}
+                        </button>
+                    )}
+                    <button
+                        type="button"
+                        disabled={a.busy}
+                        onClick={() =>
+                            void a.run(async () => {
+                                await api.revokeOwn();
+                                await signedOut();
+                            })
+                        }
+                    >
+                        {tx("Revoke all sessions and sign out")}
+                    </button>
+                </section>
+                <Notice error={a.error} />
+            </div>
         </Panel>
     );
 }
