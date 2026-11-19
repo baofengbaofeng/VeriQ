@@ -608,6 +608,10 @@
     height: 12px;
     flex: none;
 }
+.vq-workspace-icon svg {
+    width: 16px;
+    height: 16px;
+}
 .vq-workspace-picker[data-state="open"] svg {
     transform: rotate(180deg);
 }
@@ -615,10 +619,6 @@
     flex: none;
     width: var(--vq-banner-control-size);
     padding: 0;
-}
-.vq-workspace-icon svg {
-    width: 16px;
-    height: 16px;
 }
 .vq-topbar-workspaces :is(.vq-workspace-picker, .vq-workspace-icon):hover,
 .vq-topbar-workspaces .vq-workspace-picker[data-state="open"] {
