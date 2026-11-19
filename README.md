@@ -1,5 +1,8 @@
 <p align="center">
-    <img src="assets/branding/veriq-logo.svg" alt="VeriQ 项目标志" width="132">
+    <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="assets/branding/verifyquality-logo-dark.svg">
+        <img src="assets/branding/verifyquality-logo-light.svg" alt="VerifyQuality（VeriQ 项目标志）" width="360">
+    </picture>
 </p>
 
 # VeriQ
