@@ -35,10 +35,15 @@
 - Update the Web route wrappers for Workspaces, Runtimes, Resources, Environments, Agent, AI, Reports and Execution Plans.
 - Update `apps/web/src/pages/account.tsx` and actual browser specs whose controls move. Keep scoped view adapters and desktop entry compatible.
 
-- [ ] Add a real browser case for a single header workspace selector, selecting and retaining a workspace across routes, and creating a workspace from a different page.
-- [ ] Assert the user menu actions, the settings route, login-state isolation and working keyboard focus. Include an authorized deep link and manual switch back to the other workspace.
-- [ ] Run the focused browser regression on the old implementation and capture the intended failure.
-- [ ] Move the provider and directory into the authenticated shell. Keep deep-link authorization, paging and scope cancellation.
-- [ ] Move the creation flow and account actions to the header. Arrange the current profile, password and session controls into Profile-style cards.
-- [ ] Update callers in existing lifecycle, authorization, locale, resources and report tests to use the new controls. Run focused and related suites, Web checks and both build entries.
-- [ ] Commit and request independent code review, then verify the merged result against the latest `dev` before pushing.
+- [x] Add a real browser case for a single header workspace selector, selecting and retaining a workspace across routes, and creating a workspace from a different page.
+- [x] Assert the user menu actions, the settings route, login-state isolation and working keyboard focus. Include an authorized deep link and manual switch back to the other workspace.
+- [x] Run the focused browser regression on the old implementation and capture the intended failure.
+- [x] Move the provider and directory into the authenticated shell. Keep deep-link authorization, paging and scope cancellation.
+- [x] Move the creation flow and account actions to the header. Arrange the current profile, password and session controls into Profile-style cards.
+- [x] Update callers in existing lifecycle, authorization, locale, resources and report tests to use the new controls. Run focused and related suites, Web checks and both build entries.
+- [x] Commit and request independent code review, then verify the feature against the latest `dev` before merging.
+
+## 验证记录
+
+- 浏览器回归覆盖顶栏、窄屏、邀请、认证、资源编辑、计划直达、报告分页和 Runtime 操作。25 项场景中有 24 项在同一批次通过。账号流程达到 30 秒测试上限，独立复跑通过。
+- Web 的 56 项单元测试、类型检查、Lint 和格式检查均通过。Web 与桌面构建通过，生产 HTTPS 浏览器用例通过。
