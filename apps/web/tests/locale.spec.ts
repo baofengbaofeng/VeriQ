@@ -47,7 +47,7 @@ test("editor and AI locale events synchronize without replacing unsaved resource
         const { editorI18n } = await import(/* @vite-ignore */ modulePath);
         await editorI18n.changeLanguage("zh");
     });
-    await expect(page.getByRole("combobox", { name: "语言", exact: true, includeHidden: true })).toHaveValue("zh");
+    await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
     await expect(page.getByRole("link", { name: "工作区", exact: true, includeHidden: true })).toBeVisible();
     const localizedName = page.getByLabel("数据行 key", { exact: true });
     await expect(localizedName).toHaveValue("unsaved_localized_row");
@@ -57,7 +57,7 @@ test("editor and AI locale events synchronize without replacing unsaved resource
         const { aiI18n } = await import(/* @vite-ignore */ modulePath);
         await aiI18n.changeLanguage("en");
     });
-    await expect(page.getByLabel("Language")).toHaveValue("en");
+    await expect(page.locator("html")).toHaveAttribute("lang", "en");
     await expect(page.getByRole("link", { name: "Workspaces", exact: true, includeHidden: true })).toBeVisible();
     await expect(name).toHaveValue("unsaved_localized_row");
     expect(await name.evaluate((current, retained) => current === retained, node)).toBe(true);

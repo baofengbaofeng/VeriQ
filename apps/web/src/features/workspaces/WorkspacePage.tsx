@@ -5,12 +5,13 @@
  */
 
 import { tx, useAppLocale } from "../../locale";
-import { useContext, useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError, type Member, type Workspace } from "../../api";
 import { Auth } from "../../auth-context";
 import { Field, Notice, Panel, useAction, values } from "../../ui";
+import { useWorkspaceDirectory, WorkspaceStatus } from "./WorkspaceDirectory";
 import { useWorkspace } from "./WorkspaceContext";
 import { SampleWorkspaceWizard } from "../examples/SampleWorkspaceWizard";
 
@@ -19,35 +20,18 @@ const message = (error: Error | null) =>
     error instanceof ApiError ? error.message : error ? "Unable to load Workspace data. Please retry." : "";
 
 /**
- * 拥有空间列表、成员与邀请分页 UI 状态；写操作调用 create/rename/archive/invite/updateMember。选择变更经
- * useWorkspace.select，确保下游 Runtime/Resource
- * 页看到同一作用域。
+ * 管理顶栏选择的空间及其成员与邀请；样例向导创建空间后通知目录，保留分页操作和成员权限判断。
  */
 export function WorkspacePage() {
     useAppLocale();
     const { user } = useContext(Auth),
-        { selected, select, signal } = useWorkspace(),
-        client = useQueryClient(),
-        a = useAction();
+        { workspace, choose } = useWorkspaceDirectory(),
+        client = useQueryClient();
     const [sampleOpen, setSampleOpen] = useState(false);
     const sampleTrigger = useRef<HTMLButtonElement>(null);
     useEffect(() => {
         if (sampleOpen) document.getElementById("sample-wizard-title")?.focus();
     }, [sampleOpen]);
-    const workspaces = useInfiniteQuery({
-        queryKey: ["workspaces", user?.id],
-        queryFn: ({ pageParam, signal }) => api.workspaces(pageParam, signal),
-        initialPageParam: undefined as string | undefined,
-        getNextPageParam: (page) => page.nextCursor ?? undefined,
-        enabled: !!user,
-    });
-    const items = workspaces.data?.pages.flatMap((page) => page.items) ?? [];
-    // 空间管理页仅在未选择时采用首项，列表重取或续页不能替换用户正在查看的详情；手动选择即使暂时不在已加载页中，也由既
-    // 有占位选项和详情查询维持归属。
-    const firstWorkspaceId = items[0]?.id;
-    useEffect(() => {
-        if (!selected && firstWorkspaceId) select(firstWorkspaceId);
-    }, [firstWorkspaceId, selected, select]);
     if (!user) return <Navigate to="/login" />;
     return (
         <Panel
@@ -65,57 +49,17 @@ export function WorkspacePage() {
             }
         >
             <p>{tx("One project is one Workspace. Membership controls access to its resources.")}</p>
-            {workspaces.isPending && <p role="status">{tx("Loading Workspaces…")}</p>}
-            {workspaces.error && (
-                <>
-                    <Notice error={message(workspaces.error)} />
-                    <button type="button" onClick={() => void workspaces.refetch()}>
-                        {tx("Retry Workspaces")}
-                    </button>
-                </>
-            )}
-            {workspaces.isSuccess && !items.length && <p>{tx("No Workspaces yet.")}</p>}
-            {!!items.length && (
-                <label>
-                    {tx("Current Workspace")}
-                    <select value={selected} onChange={(e) => select(e.target.value)}>
-                        <option value="" disabled>
-                            {tx("Select Workspace")}
-                        </option>
-                        {selected && !items.some((ws) => ws.id === selected) && (
-                            <option value={selected}>{tx("Selected Workspace")}</option>
-                        )}
-                        {items.map((ws) => (
-                            <option key={ws.id} value={ws.id}>
-                                {ws.name}
-                                {ws.archived ? tx(" (Archived)") : ""}
-                            </option>
-                        ))}
-                    </select>
-                </label>
-            )}
-            {workspaces.hasNextPage && (
-                <button
-                    type="button"
-                    disabled={workspaces.isFetchingNextPage}
-                    onClick={() => void workspaces.fetchNextPage()}
-                >
-                    {tx("Load more Workspaces")}
-                </button>
-            )}
+            <WorkspaceStatus />
             {sampleOpen && (
                 <div id="sample-workspace-panel">
                     <SampleWorkspaceWizard
                         workspaceId={
-                            items.some(
-                                (item) =>
-                                    item.id === selected && !item.archived && ["OWNER", "ADMIN"].includes(item.role),
-                            )
-                                ? selected
+                            workspace && !workspace.archived && ["OWNER", "ADMIN"].includes(workspace.role)
+                                ? workspace.id
                                 : undefined
                         }
                         onWorkspaceCreated={(id) => {
-                            select(id);
+                            choose(id);
                             void client.invalidateQueries({ queryKey: ["workspaces", user.id] });
                         }}
                         onClose={() => {
@@ -125,35 +69,7 @@ export function WorkspacePage() {
                     />
                 </div>
             )}
-            <h2>{tx("Create Workspace")}</h2>
-            <form
-                onSubmit={(e) => {
-                    const v = values(e);
-                    const form = e.currentTarget;
-                    void a.run(async () => {
-                        const ws = await api.createWorkspace({ key: v.key, name: v.name }, signal);
-                        await client.invalidateQueries({
-                            queryKey: ["workspaces", user.id],
-                        });
-                        select(ws.id);
-                        form.reset();
-                    });
-                }}
-            >
-                <label>
-                    {tx("Key")}
-                    <input name="key" required pattern="[A-Za-z_][A-Za-z0-9_.-]*" maxLength={160} />
-                </label>
-                <label>
-                    {tx("Name")}
-                    <input name="name" required maxLength={160} />
-                </label>
-                <button type="submit" disabled={a.busy}>
-                    {tx("Create Workspace")}
-                </button>
-            </form>
-            <Notice error={a.error} />
-            {selected && <WorkspaceDetail key={user.id + selected} id={selected} identity={user.id} />}
+            {workspace && <WorkspaceDetail key={user.id + workspace.id} id={workspace.id} identity={user.id} />}
         </Panel>
     );
 }
@@ -186,6 +102,7 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
     const refresh = async () => {
         await client.invalidateQueries({ queryKey: key });
         await client.invalidateQueries({ queryKey: ["workspaces", identity] });
+        await client.invalidateQueries({ queryKey: ["directory-entry", identity, id] });
     };
     if (detail.isPending) return <p role="status">{tx("Loading Workspace…")}</p>;
     if (detail.error)
@@ -481,31 +398,62 @@ function MemberRow({
 }
 
 /**
- * 独立路由页：提交邀请令牌调用 api.acceptInvitation，成功后刷新 Auth 并进入工作区。令牌无效时展示 ApiError。
- * 不依赖 WorkspaceProvider 的 selected；接受后用户才获得该空间成员资格。
+ * 邀请令牌由身份作用域外的组件持有，使内联登录后的同一提交得以继续；其它身份变化或离开页面会使旧提交失效。
  */
-export function AcceptInvitation() {
+export function AcceptInvitation({
+    entry,
+    render,
+}: {
+    entry?: string;
+    render: (content?: React.ReactNode) => React.ReactNode;
+}) {
     useAppLocale();
-    const { user, refresh } = useContext(Auth),
-        a = useAction();
-    const [token] = useState(() => {
-        const value = new URLSearchParams(window.location.hash.slice(1)).get("token") ?? "";
-        window.history.replaceState(null, "", window.location.pathname);
-        return value;
-    });
-    const [newAccount, setNewAccount] = useState(false),
-        [accepted, setAccepted] = useState(false);
-    return (
+    const { user, refresh } = useContext(Auth);
+    const [token, setToken] = useState("");
+    const [newAccount, setNewAccount] = useState(false);
+    const [accepted, setAccepted] = useState(false);
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState("");
+    const generation = useRef(0);
+    const identity = user?.id;
+    const previousUser = useRef(identity);
+    const inlineLogin = useRef<string>();
+    useLayoutEffect(() => {
+        if (identity !== previousUser.current && (!identity || inlineLogin.current !== identity)) {
+            generation.current++;
+            setAccepted(false);
+            setError("");
+            setBusy(false);
+        }
+        previousUser.current = identity;
+        inlineLogin.current = undefined;
+    }, [identity]);
+    useLayoutEffect(() => {
+        if (entry) {
+            setToken(new URLSearchParams(window.location.hash.slice(1)).get("token") ?? "");
+            window.history.replaceState(window.history.state, "", window.location.pathname + window.location.search);
+        } else setToken("");
+        setNewAccount(false);
+        setAccepted(false);
+        setBusy(false);
+        setError("");
+        return () => {
+            generation.current++;
+            inlineLogin.current = undefined;
+        };
+    }, [entry]);
+    if (!entry) return render();
+    return render(
         <Panel title={tx("Accept Workspace invitation")}>
             {!token ? (
                 <Notice error="Invitation link is missing its token. Ask for a new link." />
             ) : accepted ? (
-                <p role="status">
+                <InvitationStatus>
                     {tx("Invitation accepted.")}{" "}
                     {user
                         ? tx("Open Workspaces to view your membership.")
                         : tx("Sign in with your account to open the Workspace.")}
-                </p>
+                </InvitationStatus>
             ) : (
                 <>
                     <p>
@@ -521,10 +469,16 @@ export function AcceptInvitation() {
                     <form
                         onSubmit={(e) => {
                             const v = values(e);
-                            void a.run(async () => {
+                            const current = ++generation.current;
+                            setBusy(true);
+                            setError("");
+                            void (async () => {
                                 if (!newAccount && !user) {
-                                    await api.login({ email: v.email, password: v.password });
+                                    const session = await api.login({ email: v.email, password: v.password });
+                                    if (generation.current !== current) return;
+                                    inlineLogin.current = session.user.id;
                                     await refresh();
+                                    if (generation.current !== current) return;
                                 }
                                 await api.acceptInvitation(
                                     newAccount
@@ -535,8 +489,19 @@ export function AcceptInvitation() {
                                           }
                                         : { token },
                                 );
-                                setAccepted(true);
-                            });
+                                if (generation.current === current) setAccepted(true);
+                            })()
+                                .catch((cause) => {
+                                    if (generation.current === current)
+                                        setError(
+                                            cause instanceof ApiError
+                                                ? cause.message
+                                                : "Unable to reach VeriQ. Please try again.",
+                                        );
+                                })
+                                .finally(() => {
+                                    if (generation.current === current) setBusy(false);
+                                });
                         }}
                     >
                         {newAccount ? (
@@ -561,13 +526,25 @@ export function AcceptInvitation() {
                                 <Field name="password" label={tx("Current account password")} type="password" />
                             </>
                         )}
-                        <button type="submit" disabled={a.busy}>
+                        <button type="submit" disabled={busy}>
                             {tx("Accept invitation")}
                         </button>
                     </form>
                 </>
             )}
-            <Notice error={a.error} />
-        </Panel>
+            <Notice error={error} />
+        </Panel>,
     );
+}
+
+/**
+ * 接受邀请后刷新当前身份的目录，内联登录导致的身份切换在提交之前已经完成，令牌由外层持续持有。
+ */
+function InvitationStatus({ children }: { children: React.ReactNode }) {
+    const client = useQueryClient();
+    const { user } = useContext(Auth);
+    useEffect(() => {
+        if (user) void client.invalidateQueries({ queryKey: ["workspaces", user.id] });
+    }, [client, user]);
+    return <p role="status">{children}</p>;
 }

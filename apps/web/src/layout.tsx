@@ -9,7 +9,7 @@ import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Auth } from "./auth-context";
 import { tx, useAppLocale } from "./locale";
 import { LanguageControl } from "./locale-ui";
-import { Avatar } from "./components";
+import { WorkspaceControls } from "./features/workspaces/WorkspaceControls";
 
 import adminIcons from "./admin-icons.svg?no-inline";
 import brand from "../../../assets/branding/veriq-logo.svg";
@@ -146,10 +146,6 @@ function Sidebar() {
                 {tx("Menu")}
             </button>
             <nav className="vq-nav" id="vq-navigation" aria-label={tx("Main navigation")}>
-                <NavLink className="vq-nav-item" to="/account" onClick={close}>
-                    <Icon name="account" />
-                    {tx("Account")}
-                </NavLink>
                 {renderGroup(authoring)}
                 {renderGroup(execution)}
                 <NavLink className="vq-nav-item" to="/reports" onClick={close}>
@@ -162,24 +158,54 @@ function Sidebar() {
     );
 }
 /**
- * 用户头像菜单：头像加姓名作为触发器，展开后显示邮箱与前往账号页的入口；退出保持为横幅内的独立按钮。
+ * 登录菜单在 Portal 中提供语言单选项和账户操作，键盘上下文与焦点恢复由 Radix 的菜单原语持有。
  */
-function UserMenu() {
-    useAppLocale();
+function UserMenu({ onLogout }: { onLogout: () => void }) {
+    const { language, setLanguage } = useAppLocale();
     const { user } = useContext(Auth);
     const navigate = useNavigate();
+    const { pathname } = useLocation();
+    const leaving = useRef(false);
     if (!user) return null;
     return (
         <DropdownMenu.Root>
             <DropdownMenu.Trigger className="vq-user-trigger">
-                <Avatar name={user.displayName} size={28} />
                 <span className="vq-user-name">{user.displayName}</span>
+                <Icon name="chevron" />
             </DropdownMenu.Trigger>
             <DropdownMenu.Portal>
-                <DropdownMenu.Content className="vq-menu" sideOffset={8} align="end">
-                    <DropdownMenu.Label className="vq-menu-label">{user.email}</DropdownMenu.Label>
-                    <DropdownMenu.Item className="vq-menu-item" onSelect={() => navigate("/account")}>
-                        {tx("Account")}
+                <DropdownMenu.Content
+                    className="vq-menu"
+                    sideOffset={8}
+                    align="end"
+                    onCloseAutoFocus={(event) => {
+                        if (leaving.current) event.preventDefault();
+                        leaving.current = false;
+                    }}
+                >
+                    <DropdownMenu.Label className="vq-menu-label">{tx("Language")}</DropdownMenu.Label>
+                    <DropdownMenu.RadioGroup value={language} onValueChange={setLanguage} aria-label={tx("Language")}>
+                        {(["zh", "en"] as const).map((value) => (
+                            <DropdownMenu.RadioItem className="vq-menu-item" key={value} value={value}>
+                                {value === "zh" ? "中文" : "English"}{" "}
+                                <DropdownMenu.ItemIndicator aria-hidden="true">✓</DropdownMenu.ItemIndicator>
+                            </DropdownMenu.RadioItem>
+                        ))}
+                    </DropdownMenu.RadioGroup>
+                    <DropdownMenu.Separator className="vq-menu-separator" />
+                    <DropdownMenu.Item
+                        className="vq-menu-item"
+                        onSelect={() => {
+                            leaving.current = pathname !== "/account";
+                            void navigate("/account");
+                        }}
+                    >
+                        <Icon name="settings" />
+                        {tx("Settings")}
+                    </DropdownMenu.Item>
+                    <DropdownMenu.Item className="vq-menu-item" onSelect={onLogout}>
+                        <Icon name="logout" />
+                        {tx("Sign out")}
                     </DropdownMenu.Item>
                 </DropdownMenu.Content>
             </DropdownMenu.Portal>
@@ -188,33 +214,20 @@ function UserMenu() {
 }
 
 /**
- * 顶部横幅：左为品牌标识，右为个人资料、语言、退出与设置按钮；未登录时不渲染用户区域。
+ * 品牌图标及成员空间操作组成横幅左区，右区按身份展示个人菜单或访客语言选择器，保持单一空间入口。
  */
 function TopBar({ onLogout }: { onLogout: () => void }) {
     useAppLocale();
     const { user } = useContext(Auth);
     return (
         <header className="vq-topbar">
-            <Link to="/" className="vq-brand">
-                <img src={brand} width="28" height="28" alt="" />
-                <span className="vq-brand-name">VeriQ</span>
-            </Link>
-            <div className="vq-topbar-actions">
-                {user && <UserMenu />}
-                <LanguageControl />
-                {user ? (
-                    <>
-                        <button type="button" className="vq-btn vq-btn-secondary" onClick={onLogout}>
-                            <Icon name="logout" />
-                            {tx("Sign out")}
-                        </button>
-                        <Link className="vq-settings" to="/account">
-                            <Icon name="settings" />
-                            {tx("Settings")}
-                        </Link>
-                    </>
-                ) : null}
+            <div className="vq-topbar-workspaces">
+                <Link to="/" className="vq-brand">
+                    <img src={brand} width="28" height="28" alt="VeriQ" />
+                </Link>
+                {user && <WorkspaceControls />}
             </div>
+            {user ? <UserMenu onLogout={onLogout} /> : <LanguageControl />}
         </header>
     );
 }

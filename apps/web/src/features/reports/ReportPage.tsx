@@ -18,8 +18,8 @@ import { Navigate, useSearchParams } from "react-router-dom";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Auth } from "../../auth-context";
-import { api } from "../../api";
 import { Panel } from "../../ui";
+import { useWorkspaceDirectory, WorkspaceStatus } from "../workspaces/WorkspaceDirectory";
 import { useWorkspace } from "../workspaces/WorkspaceContext";
 import { CloudReportAdapter, type ReportAdapter, type RunReport, type ReportEvent } from "./adapters";
 import { reportI18n } from "./i18n";
@@ -29,84 +29,21 @@ const shown = (value: unknown) => (typeof value === "string" ? value : JSON.stri
 const object = (value: unknown): Record<string, unknown> =>
     value !== null && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 /**
- * 工作区选择与默认首项逻辑；把 adapter 交给 ReportWorkspaceView。未登录直接 Navigate 登录页。不缓存所选 runId 跨空间，
- * 防止串读其他空间报告。
+ * 报告历史跟随顶栏空间，链接中的运行标识只交给已确认授权的目标；身份、空间或运行变化会重建视图。
  */
 export function ReportPage() {
     useAppLocale();
-    const t = useLabels(),
-        { user } = useContext(Auth),
-        { selected, select, signal } = useWorkspace();
-    const workspaces = useInfiniteQuery({
-        queryKey: ["workspaces", user?.id],
-        queryFn: ({ pageParam, signal }) => api.workspaces(pageParam, signal),
-        initialPageParam: undefined as string | undefined,
-        getNextPageParam: (p) => p.nextCursor ?? undefined,
-        enabled: !!user,
-    });
+    const { user } = useContext(Auth);
+    const { workspace, requested } = useWorkspaceDirectory();
+    const { selected, signal } = useWorkspace();
+    const t = useLabels();
     const [params] = useSearchParams();
-    const requestedWorkspace = params.get("workspaceId");
-    const requestedRun = params.get("runId") ?? "";
-    const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    const listed = workspaces.data?.pages.flatMap((p) => p.items) ?? [];
-    const listedTarget = listed.find((w) => w.id === requestedWorkspace);
-    const deepLink = !!requestedWorkspace && uuid.test(requestedWorkspace) && uuid.test(requestedRun);
-    // 携带具体 Run 的入口应直接找到工作区，即使其不在首屏。服务端员工接口专门核验链接目标的当前成员资格。
-    const target = useQuery({
-        queryKey: ["report-workspace-target", user?.id, requestedWorkspace],
-        queryFn: ({ signal }) => api.workspace(requestedWorkspace ?? "", signal),
-        enabled: !!user && deepLink && !listedTarget,
-    });
-    const items = target.data && !listedTarget ? [...listed, target.data] : listed;
-    const firstWorkspaceId = listed[0]?.id;
-    const availableRequestedId = listedTarget?.id ?? target.data?.id;
-    const findingTarget = deepLink && !availableRequestedId && target.isPending;
-    // 普通 Workspace 链接仍沿用列表分页选择；具体 Run 链接则在目标授权返回前保持空白，避免打开不相关的历史。
-
-    useEffect(() => {
-        if (availableRequestedId) select(availableRequestedId);
-    }, [availableRequestedId, select]);
-    useEffect(() => {
-        if (!selected && !availableRequestedId && firstWorkspaceId && !findingTarget) select(firstWorkspaceId);
-    }, [selected, availableRequestedId, firstWorkspaceId, findingTarget, select]);
+    const initialRunId = requested ? (params.get("runId") ?? "") : "";
     const adapter = useMemo(() => new CloudReportAdapter(selected), [selected]);
     if (!user) return <Navigate to="/login" />;
-    const workspace = items.find((w) => w.id === selected);
-    const initialRunId = selected === requestedWorkspace ? requestedRun : "";
     return (
         <Panel title={t("reports")}>
-            <label>
-                {t("workspace")}
-                <select aria-label={tx("Report Workspace")} value={selected} onChange={(e) => select(e.target.value)}>
-                    {items.map((w) => (
-                        <option key={w.id} value={w.id}>
-                            {w.name}
-                        </option>
-                    ))}
-                </select>
-            </label>
-            {(workspaces.isPending || findingTarget) && <p role="status">{t("loading")}</p>}
-            {target.error && <p role="alert">{target.error.message}</p>}
-            {workspaces.isSuccess && !items.length && (
-                <p>{tx("请先创建或加入工作区 / Create or join a Workspace first.")}</p>
-            )}
-            {workspaces.error && (
-                <div>
-                    <p role="alert">{workspaces.error.message}</p>
-                    <button type="button" onClick={() => void workspaces.refetch()}>
-                        {t("retry")}
-                    </button>
-                </div>
-            )}
-            {workspaces.hasNextPage && (
-                <button
-                    type="button"
-                    disabled={workspaces.isFetchingNextPage}
-                    onClick={() => void workspaces.fetchNextPage()}
-                >
-                    {tx("更多空间 / More Workspaces")}
-                </button>
-            )}
+            <WorkspaceStatus />
             {workspace && (
                 <ReportWorkspaceView
                     initialRunId={initialRunId}

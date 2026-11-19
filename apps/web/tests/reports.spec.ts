@@ -1,3 +1,4 @@
+import { chooseLanguage, workspacePicker } from "./support/console-controls";
 import { test, expect, type Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import type { PlatformComponents } from "@veriq/contracts";
@@ -41,11 +42,11 @@ test("reports show real Workspace history and clear scope on switch", async ({ p
     expect(a.status()).toBe(201);
     expect(b.status()).toBe(201);
     await page.getByRole("link", { name: "Reports", exact: true }).click();
-    await page.getByLabel("Language").selectOption("en");
+    await chooseLanguage(page, "en");
     await expect(page.getByRole("heading", { name: "Reports", exact: true })).toBeVisible();
-    await page.getByLabel("Report Workspace").selectOption((await a.json()).data.id);
+    await workspacePicker(page).selectOption((await a.json()).data.id);
     await expect(page.getByText("No runs in this Workspace.", { exact: true })).toBeVisible();
-    await page.getByLabel("Report Workspace").selectOption((await b.json()).data.id);
+    await workspacePicker(page).selectOption((await b.json()).data.id);
     await expect(page.getByText("No runs in this Workspace.", { exact: true })).toBeVisible();
     await expect(page.getByText("Select a run to inspect its report.", { exact: true })).toBeVisible();
 });
@@ -100,7 +101,7 @@ test("reports discover URL workspace on a later genuine page and retain manual c
     const target = second.items[0];
     const fallback = first.items[0];
     if (!target || !fallback) throw new Error("Expected two populated workspace pages");
-    const selector = page.getByLabel("Report Workspace");
+    const selector = workspacePicker(page);
     // 从会话打开指定 Run 时需要直接验证第二页的工作区，未知 Run 本身仍由真实报告接口拒绝，不能退回别的工作区。
     const missingRun = randomUUID();
     const runPath = `/workspaces/${target.id}/runs/${missingRun}`;
@@ -116,7 +117,7 @@ test("reports discover URL workspace on a later genuine page and retain manual c
     await page.getByRole("button", { name: "More Workspaces", exact: true }).click();
     await expect(selector).toHaveValue(target.id);
     await selector.selectOption(fallback.id);
-    await page.getByLabel("Language").selectOption("en");
+    await chooseLanguage(page, "en");
     await expect(page.getByRole("heading", { name: "Reports", exact: true })).toBeVisible();
     await expect(selector).toHaveValue(fallback.id);
     // 同一个真实列表还覆盖首屏可见目标和缺失目标，页面导航新建选择生命周期；不能假设创建顺序就是服务端排序，所有目标与
@@ -126,8 +127,8 @@ test("reports discover URL workspace on a later genuine page and retain manual c
     const other = first.items.find((item) => item.id !== fallback.id);
     if (!other) throw new Error("Expected a manual alternative workspace");
     await selector.selectOption(other.id);
-    await page.getByLabel("Language").selectOption("zh");
-    const localizedSelector = page.getByLabel("报告工作区", { exact: true });
+    await chooseLanguage(page, "zh");
+    const localizedSelector = workspacePicker(page);
     await expect(localizedSelector).toHaveValue(other.id);
     await page.goto(`/reports?workspaceId=${randomUUID()}`);
     await expect(localizedSelector).toHaveValue(fallback.id);

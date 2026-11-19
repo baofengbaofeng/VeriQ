@@ -5,7 +5,7 @@
  */
 
 import { tx, useAppLocale } from "../../locale";
-import { type ReactNode, useId, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useId, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FormProvider, useForm, useWatch } from "react-hook-form";
@@ -18,6 +18,7 @@ import { api, ApiError, type Workspace } from "../../api";
 import { Auth } from "../../auth-context";
 import { Panel } from "../../ui";
 import { Sheet } from "../../components";
+import { useWorkspaceDirectory, WorkspaceStatus } from "../workspaces/WorkspaceDirectory";
 import { useWorkspace } from "../workspaces/WorkspaceContext";
 import {
     CloudResourceAdapter,
@@ -72,8 +73,7 @@ function useLifetime(parent?: AbortSignal) {
     return signal;
 }
 /**
- * 按 kind 过滤入口（默认全部资源）；挂载工作区选择后渲染 ResourceWorkspaceView。environments 路由传入固定 kind。环境页
- * 可传入固定 kind=ENVIRONMENT 复用同一套列表逻辑。
+ * 资源库与专门的环境页面从全局目录读取空间，按空间身份重建资源视图并传入固定或可筛选的资源类型。
  */
 export function ResourcePage({
     initialKind,
@@ -84,108 +84,40 @@ export function ResourcePage({
 }) {
     useAppLocale();
     const { user } = useContext(Auth),
-        { selected, select } = useWorkspace(),
+        { workspace } = useWorkspaceDirectory(),
         { t } = useTranslation(undefined, useEditorTranslationOptions);
-    const workspaces = useInfiniteQuery({
-        queryKey: ["workspaces", user?.id],
-        queryFn: ({ pageParam, signal }) => api.workspaces(pageParam, signal),
-        initialPageParam: undefined as string | undefined,
-        getNextPageParam: (p) => p.nextCursor ?? undefined,
-        enabled: !!user,
-    });
-    const items = workspaces.data?.pages.flatMap((p) => p.items) ?? [];
-    /**
-     * 默认空间只取首项标识并仅在尚未选择时写入，使真实列表刷新产生的新数组不会覆盖用户已经选择的空间；即使当前列表暂时
-     * 未包含该选择，也保留现有作用域交接规则。
-     */
-    const firstWorkspaceId = items[0]?.id;
-    useEffect(() => {
-        if (!selected && firstWorkspaceId) select(firstWorkspaceId);
-    }, [selected, firstWorkspaceId, select]);
-    // 只记录显式选择的目标空间，带键子树提交后再聚焦新选择器；列表刷新和语言变化没有接续请求。
-    const workspaceSelector = useRef<HTMLSelectElement>(null);
-    const pendingSelectorFocus = useRef<string>();
-    useLayoutEffect(() => {
-        const target = pendingSelectorFocus.current;
-        pendingSelectorFocus.current = undefined;
-        if (target === selected) workspaceSelector.current?.focus({ preventScroll: true });
-    }, [selected]);
     if (!user) return <Navigate to="/login" />;
-    const workspace = items.find((w) => w.id === selected);
-    // 将选择器交给资源库工具栏或新建页标题区，分页游标仍归同一个空间查询所有，切换呈现不会重新请求首屏。
-    const workspaceControls = (
-        <>
-            {!!items.length && (
-                <label>
-                    {tx("Workspace")}
-                    <select
-                        ref={workspaceSelector}
-                        value={selected}
-                        onChange={(event) => {
-                            const next = event.currentTarget.value;
-                            if (!initialKind && next !== selected) pendingSelectorFocus.current = next;
-                            select(next);
-                        }}
-                    >
-                        {items.map((w) => (
-                            <option key={w.id} value={w.id}>
-                                {w.name}
-                                {w.archived ? tx(" (Archived)") : ""}
-                            </option>
-                        ))}
-                    </select>
-                </label>
-            )}
-            {workspaces.hasNextPage && (
-                <Button onClick={() => void workspaces.fetchNextPage()}>{tx("更多空间 / More Workspaces")}</Button>
-            )}
-        </>
+    const view = workspace && (
+        <CloudWorkspace
+            key={user.id + workspace.id}
+            workspace={workspace}
+            library={!initialKind}
+            initialKind={initialKind}
+            extra={extra}
+        />
     );
-    const status = (
-        <>
-            {workspaces.isPending && <p role="status">{t("loading")}</p>}
-            {workspaces.error && <ErrorState error={workspaces.error} retry={() => void workspaces.refetch()} />}
-            {workspaces.isSuccess && !items.length && (
-                <p>{tx("请先创建或加入空间 / Create or join a Workspace first.")}</p>
-            )}
-        </>
-    );
-    if (workspace && !initialKind) {
+    if (workspace && !initialKind)
         return (
             <section className="panel">
-                {status}
-                <CloudWorkspace
-                    key={user.id + workspace.id}
-                    workspace={workspace}
-                    workspaceControls={workspaceControls}
-                    extra={extra}
-                />
+                <WorkspaceStatus />
+                {view}
             </section>
         );
-    }
     return (
         <Panel title={t(initialKind === "ENVIRONMENT" ? "environments" : "resources")}>
-            <div className="vq-actions">{workspaceControls}</div>
-            {status}
-            {workspace && (
-                <CloudWorkspace
-                    key={user.id + workspace.id}
-                    workspace={workspace}
-                    initialKind={initialKind}
-                    extra={extra}
-                />
-            )}
+            <WorkspaceStatus />
+            {view}
         </Panel>
     );
 }
 function CloudWorkspace({
-    workspaceControls,
+    library = false,
     workspace,
     initialKind,
     extra,
 }: {
     workspace: Workspace;
-    workspaceControls?: ReactNode;
+    library?: boolean;
     initialKind?: ResourceKind;
     extra?: (workspace: Workspace) => React.ReactNode;
 }) {
@@ -199,7 +131,7 @@ function CloudWorkspace({
                 adapter={adapter}
                 signal={signal}
                 initialKind={initialKind}
-                workspaceControls={workspaceControls}
+                library={library}
             />
             {extra?.(workspace)}
         </>
@@ -212,6 +144,7 @@ function CloudWorkspace({
  */
 export function ResourceWorkspaceView({
     workspaceControls,
+    library = workspaceControls !== undefined,
     workspace,
     adapter,
     signal: parent,
@@ -220,7 +153,8 @@ export function ResourceWorkspaceView({
     workspace: Workspace;
     adapter: ResourceAdapter;
     signal?: AbortSignal;
-    workspaceControls?: ReactNode;
+    library?: boolean;
+    workspaceControls?: React.ReactNode;
     initialKind?: ResourceKind;
 }) {
     useAppLocale();
@@ -228,7 +162,7 @@ export function ResourceWorkspaceView({
         client = useQueryClient(),
         { t } = useTranslation(undefined, useEditorTranslationOptions);
     // 仅云端资源列表传入工具栏。桌面及专用环境页保留行内创建表单，也保留资源标识作为编辑入口。
-    const library = workspaceControls !== undefined;
+
     const [creating, setCreating] = useState(false);
     const heading = useRef<HTMLHeadingElement>(null);
     const newResource = useRef<HTMLButtonElement>(null);
@@ -506,21 +440,20 @@ export function ResourceWorkspaceView({
                         <h1 ref={heading} tabIndex={-1}>
                             {creating ? tx("New resource") : t("resources")}
                         </h1>
-                        {creating ? (
+                        {creating && workspaceControls && (
                             <div className="vq-workspace-context">{workspaceControls}</div>
-                        ) : (
-                            !adapter.readOnly && (
-                                <Button
-                                    ref={newResource}
-                                    disabled={!editableRole(workspace, "CASE")}
-                                    onClick={() => {
-                                        setCreateKind(kind && editableRole(workspace, kind) ? kind : "CASE");
-                                        setCreating(true);
-                                    }}
-                                >
-                                    <span aria-hidden="true">＋</span> {tx("New resource")}
-                                </Button>
-                            )
+                        )}
+                        {!creating && !adapter.readOnly && (
+                            <Button
+                                ref={newResource}
+                                disabled={!editableRole(workspace, "CASE")}
+                                onClick={() => {
+                                    setCreateKind(kind && editableRole(workspace, kind) ? kind : "CASE");
+                                    setCreating(true);
+                                }}
+                            >
+                                <span aria-hidden="true">＋</span> {tx("New resource")}
+                            </Button>
                         )}
                     </div>
                     {creating ? (

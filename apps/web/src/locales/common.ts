@@ -3,6 +3,7 @@
  * 请求参数、技术标识或用户创建的业务名称。
  */
 export const commonMessages: Record<string, readonly [string, string]> = {
+    "Add workspace": ["添加工作区", "Add workspace"],
     Settings: ["设置", "Settings"],
     Menu: ["菜单", "Menu"],
     "New resource": ["新建资源", "New resource"],

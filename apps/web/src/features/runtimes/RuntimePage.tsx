@@ -10,70 +10,21 @@ import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { api, runtimeApi, type Runtime, type Workspace } from "../../api";
 import { Auth } from "../../auth-context";
 import { Notice, Panel, useAction, values } from "../../ui";
+import { useWorkspaceDirectory, WorkspaceStatus } from "../workspaces/WorkspaceDirectory";
 import { useWorkspace } from "../workspaces/WorkspaceContext";
 
 /**
- * 组合工作区选择器与 Runtime/服务账号面板，调用 inspect/approve/grants/trust/revoke/issueToken。凭证投递开关走
- * delivery
- * ；吊销后列表刷新且不可再领取该空间作业。
+ * 将顶栏目录确认的空间交给设备与服务账号面板，权限判断与设备信任操作继续使用当前工作区的身份。
  */
 export function RuntimePage() {
     useAppLocale();
-    const { user } = useContext(Auth),
-        { selected, select } = useWorkspace();
-    const workspaces = useInfiniteQuery({
-        queryKey: ["workspaces", user?.id],
-        queryFn: ({ pageParam, signal }) => api.workspaces(pageParam, signal),
-        initialPageParam: undefined as string | undefined,
-        getNextPageParam: (p) => p.nextCursor ?? undefined,
-        enabled: !!user,
-    });
-    const items = workspaces.data?.pages.flatMap((p) => p.items) ?? [];
-    // 设备页面的首项标识只负责补齐空选择，权限和归档状态仍从当前列表重新计算；无关列表刷新不应重挂载正在填写登记码或服
-    // 务账号名称的同空间表单。
-    const firstWorkspaceId = items[0]?.id;
-    useEffect(() => {
-        if (!selected && firstWorkspaceId) select(firstWorkspaceId);
-    }, [firstWorkspaceId, selected, select]);
+    const { user } = useContext(Auth);
+    const { workspace } = useWorkspaceDirectory();
     if (!user) return <Navigate to="/login" />;
-    const workspace = items.find((w) => w.id === selected);
     return (
         <Panel title={tx("Runtimes")}>
+            <WorkspaceStatus />
             <p>{tx("Register a device and choose who may use it. Registration alone does not start a worker.")}</p>
-            {workspaces.isPending && <p role="status">{tx("Loading Workspaces…")}</p>}
-            {workspaces.error && (
-                <>
-                    <Notice error={workspaces.error.message} />
-                    <button type="button" onClick={() => void workspaces.refetch()}>
-                        {tx("Retry Workspaces")}
-                    </button>
-                </>
-            )}
-            {workspaces.isSuccess && !items.length && (
-                <p>{tx("Create or join a Workspace before registering a device.")}</p>
-            )}
-            {!!items.length && (
-                <label>
-                    {tx("Workspace")}
-                    <select value={selected} onChange={(e) => select(e.target.value)}>
-                        {items.map((w) => (
-                            <option key={w.id} value={w.id}>
-                                {w.name}
-                                {w.archived ? tx(" (Archived)") : ""}
-                            </option>
-                        ))}
-                    </select>
-                </label>
-            )}
-            {workspaces.hasNextPage && (
-                <button
-                    type="button"
-                    disabled={workspaces.isFetchingNextPage}
-                    onClick={() => void workspaces.fetchNextPage()}
-                >
-                    {tx("Load more Workspaces")}
-                </button>
-            )}
             {workspace && <RuntimeWorkspace key={user.id + workspace.id} workspace={workspace} />}
         </Panel>
     );

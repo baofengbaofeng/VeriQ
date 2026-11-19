@@ -8,8 +8,9 @@ import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { PlatformComponents } from "@veriq/contracts";
 import { Auth } from "../../auth-context";
-import { api, request, runtimeApi, type Workspace } from "../../api";
+import { request, runtimeApi, type Workspace } from "../../api";
 import { Panel } from "../../ui";
+import { useWorkspaceDirectory, WorkspaceStatus } from "../workspaces/WorkspaceDirectory";
 import { useWorkspace } from "../workspaces/WorkspaceContext";
 import { CloudResourceAdapter } from "../resources/adapters";
 type S = PlatformComponents["schemas"];
@@ -18,82 +19,23 @@ type Write = S["ExecutionPlanWrite"];
 type Page<T> = { items: T[]; nextCursor: string | null };
 
 /**
- * 空间选择器只显示当前账户可见的真实空间并支持游标续页，页面内容以用户与空间共同作为键重新挂载，因此旧请求的表单结果和
- * 一次性令牌不会在切换后出现在另一个授权范围。
+ * 执行计划只接收当前目录已授权的工作区；页面以用户与空间为键，链接中的计划标识仅对该空间有效。
  */
 export function ExecutionPlansPage() {
     useAppLocale();
-    const { user } = useContext(Auth),
-        { selected, select } = useWorkspace();
-    const spaces = useInfiniteQuery({
-        queryKey: ["workspaces", user?.id],
-        queryFn: ({ pageParam, signal }) => api.workspaces(pageParam, signal),
-        initialPageParam: undefined as string | undefined,
-        getNextPageParam: (p) => p.nextCursor ?? undefined,
-        enabled: !!user,
-    });
-    const [parameters] = useSearchParams();
-    const workspaceParameter = parameters.get("workspaceId") ?? "";
-    const requestedWorkspace = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-        workspaceParameter,
-    )
-        ? workspaceParameter
-        : "";
-    const requestedPlan = parameters.get("planId") ?? "";
-    const target = useQuery({
-        queryKey: ["plan-workspace-target", user?.id, requestedWorkspace],
-        queryFn: ({ signal }) => api.workspace(requestedWorkspace, signal),
-        enabled: !!user && !!requestedWorkspace,
-    });
-    const listed = spaces.data?.pages.flatMap((p) => p.items) ?? [];
-    const items = target.data && !listed.some((item) => item.id === target.data.id) ? [...listed, target.data] : listed;
-    const availableRequestedId = target.data?.id;
-    useEffect(() => {
-        if (availableRequestedId) select(availableRequestedId);
-    }, [availableRequestedId, select]);
-    // 示例向导链接的空间先经真实权限接口确认，加载完成后只选择一次；手动切换和语言变更仍保留当前选择，后续列表分页不覆
-    // 盖编辑中的计划，旧空间请求继续由 Provider 取消。
-    // 计划页只为尚未选择空间的入口补齐首项，后续分页或权限刷新不会覆盖手动选择；因此同空间的计划名称、固定版本及冲突输
-    // 入仍由现有用户与空间键保留。
-    const firstWorkspaceId = items[0]?.id;
-    useEffect(() => {
-        if (!selected && !availableRequestedId && firstWorkspaceId) select(firstWorkspaceId);
-    }, [firstWorkspaceId, selected, select, availableRequestedId]);
+    const { user } = useContext(Auth);
+    const { workspace, requested } = useWorkspaceDirectory();
+    const { selected } = useWorkspace();
+    const [params] = useSearchParams();
     if (!user) return <Navigate to="/login" />;
-    const workspace = items.find((w) => w.id === selected);
     return (
         <Panel title={tx("执行计划")}>
-            <label>
-                {tx("空间 / Workspace")}
-                <select aria-label={tx("Plan Workspace")} value={selected} onChange={(e) => select(e.target.value)}>
-                    {items.map((w) => (
-                        <option key={w.id} value={w.id}>
-                            {w.name}
-                        </option>
-                    ))}
-                </select>
-            </label>
-            {(spaces.isPending || target.isFetching) && <p role="status">{tx("Loading Workspaces…")}</p>}
-            {spaces.isSuccess && !items.length && <p>{tx("No Workspaces yet.")}</p>}
-            {target.error && <p role="alert">{target.error.message}</p>}
-            {spaces.error && (
-                <div>
-                    <p role="alert">{spaces.error.message}</p>
-                    <button type="button" onClick={() => void spaces.refetch()}>
-                        {tx("Retry Workspaces")}
-                    </button>
-                </div>
-            )}
-            {spaces.hasNextPage && (
-                <button type="button" onClick={() => void spaces.fetchNextPage()}>
-                    {tx("更多空间 / More Workspaces")}
-                </button>
-            )}
+            <WorkspaceStatus />
             {workspace && (
                 <PlanWorkspace
                     key={user.id + selected}
                     workspace={workspace}
-                    requestedPlanId={selected === requestedWorkspace ? requestedPlan : ""}
+                    requestedPlanId={requested ? (params.get("planId") ?? "") : ""}
                 />
             )}
         </Panel>

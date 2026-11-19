@@ -11,7 +11,7 @@ import { AiPage } from "./features/ai/AiPage";
 import { ReportPage } from "./features/reports/ReportPage";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Link, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, useLocation, Link, Navigate, Route, Routes } from "react-router-dom";
 import { api, ApiError, type User } from "./api";
 import { Auth } from "./auth-context";
 import { Panel } from "./ui";
@@ -24,10 +24,12 @@ import { RuntimePage } from "./features/runtimes/RuntimePage";
 import { ResourcePage } from "./features/resources/ResourcePage";
 import { EnvironmentPage } from "./features/environments/EnvironmentPage";
 import { AccessibilityNavigation, AppLocaleProvider, LanguageControl } from "./locale-ui";
+import { WorkspaceDirectory } from "./features/workspaces/WorkspaceDirectory";
 import { AppShell } from "./layout";
 import "./style.css";
 import "./admin.css";
 function App() {
+    const { pathname, key: locationKey } = useLocation();
     useAppLocale();
     const [user, setUser] = useState<User | null>(null),
         [ready, setReady] = useState(false),
@@ -136,97 +138,54 @@ function App() {
                 <p role="status">{tx("Loading VeriQ…")}</p>
             </main>
         );
+    const shell = (invitation?: React.ReactNode) => (
+        <WorkspaceProvider key={user?.id ?? "anonymous"}>
+            <WorkspaceDirectory>
+                <AppShell onLogout={() => void logout()}>
+                    <Routes>
+                        <Route path="/setup" element={<Setup />} />
+                        <Route
+                            path="/login"
+                            element={
+                                user ? <Navigate to="/account" /> : initialized ? <SignIn /> : <Navigate to="/setup" />
+                            }
+                        />
+                        <Route path="/reset" element={<ResetRequest />} />
+                        <Route path="/reset/confirm" element={<ResetConfirm />} />
+                        <Route path="/account" element={<Account />} />
+                        <Route path="/admin/users" element={<AdminUsers />} />
+                        <Route path="/workspaces" element={<WorkspacePage />} />
+                        <Route path="/runtimes" element={<RuntimePage />} />
+                        <Route path="/resources" element={<ResourcePage />} />
+                        <Route path="/environments" element={<EnvironmentPage />} />
+                        <Route path="/agent" element={<AgentPage />} />
+                        <Route path="/ai" element={<AiPage />} />
+                        <Route path="/reports" element={<ReportPage />} />
+                        <Route path="/execution-plans" element={<ExecutionPlansPage />} />
+                        <Route path="/invitations/accept" element={invitation} />
+                        <Route
+                            path="/"
+                            element={<Navigate to={user ? "/account" : initialized ? "/login" : "/setup"} />}
+                        />
+                        <Route
+                            path="*"
+                            element={
+                                <Panel title={tx("Page not found")}>
+                                    <Link to="/">{tx("Return to VeriQ")}</Link>
+                                </Panel>
+                            }
+                        />
+                    </Routes>
+                </AppShell>
+            </WorkspaceDirectory>
+        </WorkspaceProvider>
+    );
     return (
         <Auth.Provider value={{ user, refresh, setupComplete: () => setInitialized(true) }}>
-            <AppShell onLogout={() => void logout()}>
-                <Routes>
-                    <Route path="/setup" element={<Setup />} />
-                    <Route
-                        path="/login"
-                        element={
-                            user ? <Navigate to="/account" /> : initialized ? <SignIn /> : <Navigate to="/setup" />
-                        }
-                    />
-                    <Route path="/reset" element={<ResetRequest />} />
-                    <Route path="/reset/confirm" element={<ResetConfirm />} />
-                    <Route path="/account" element={<Account />} />
-                    <Route path="/admin/users" element={<AdminUsers />} />
-                    <Route
-                        path="/workspaces"
-                        element={
-                            <WorkspaceProvider key={user?.id ?? "anonymous"}>
-                                <WorkspacePage />
-                            </WorkspaceProvider>
-                        }
-                    />
-                    <Route
-                        path="/runtimes"
-                        element={
-                            <WorkspaceProvider key={user?.id ?? "anonymous"}>
-                                <RuntimePage />
-                            </WorkspaceProvider>
-                        }
-                    />
-                    <Route
-                        path="/resources"
-                        element={
-                            <WorkspaceProvider key={user?.id ?? "anonymous"}>
-                                <ResourcePage />
-                            </WorkspaceProvider>
-                        }
-                    />
-                    <Route
-                        path="/environments"
-                        element={
-                            <WorkspaceProvider key={user?.id ?? "anonymous"}>
-                                <EnvironmentPage />
-                            </WorkspaceProvider>
-                        }
-                    />
-                    <Route
-                        path="/agent"
-                        element={
-                            <WorkspaceProvider key={user?.id ?? "anonymous"}>
-                                <AgentPage />
-                            </WorkspaceProvider>
-                        }
-                    />
-                    <Route
-                        path="/ai"
-                        element={
-                            <WorkspaceProvider key={user?.id ?? "anonymous"}>
-                                <AiPage />
-                            </WorkspaceProvider>
-                        }
-                    />
-                    <Route
-                        path="/reports"
-                        element={
-                            <WorkspaceProvider key={user?.id ?? "anonymous"}>
-                                <ReportPage />
-                            </WorkspaceProvider>
-                        }
-                    />
-                    <Route
-                        path="/execution-plans"
-                        element={
-                            <WorkspaceProvider key={user?.id ?? "anonymous"}>
-                                <ExecutionPlansPage />
-                            </WorkspaceProvider>
-                        }
-                    />
-                    <Route path="/invitations/accept" element={<AcceptInvitation />} />
-                    <Route path="/" element={<Navigate to={user ? "/account" : initialized ? "/login" : "/setup"} />} />
-                    <Route
-                        path="*"
-                        element={
-                            <Panel title={tx("Page not found")}>
-                                <Link to="/">{tx("Return to VeriQ")}</Link>
-                            </Panel>
-                        }
-                    />
-                </Routes>
-            </AppShell>
+            <AcceptInvitation
+                entry={pathname.toLowerCase().replace(/\/$/, "") === "/invitations/accept" ? locationKey : undefined}
+                render={shell}
+            />
         </Auth.Provider>
     );
 }

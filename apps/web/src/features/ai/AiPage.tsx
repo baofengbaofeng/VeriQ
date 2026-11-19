@@ -9,9 +9,10 @@ import { Navigate } from "react-router-dom";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { validateSchema, type PlatformComponents } from "@veriq/contracts";
-import { api, type Workspace } from "../../api";
+import { type Workspace } from "../../api";
 import { Auth } from "../../auth-context";
 import { Panel } from "../../ui";
+import { useWorkspaceDirectory, WorkspaceStatus } from "../workspaces/WorkspaceDirectory";
 import { useWorkspace } from "../workspaces/WorkspaceContext";
 import { ResourceEditorView } from "../resources/ResourcePage";
 import { CloudResourceAdapter, type ResourceAdapter } from "../resources/adapters";
@@ -34,53 +35,24 @@ const defaults: S["ProviderWrite"] = {
     maxRequestUsd: 0.5,
 };
 /**
- * 工作区选择壳：默认选中首个空间，再渲染 AiWorkspaceView 并传入 adapter 与 signal。无空间时提示先创建或加入。未登录重
- * 定向；自身不缓存 generation 表单以免切换空间泄漏。
+ * 按照顶部目录选中的工作区建立模型与资源适配器，切换空间时替换表单并停止原空间的异步任务。
  */
 export function AiPage() {
     useAppLocale();
-    const t = useLabels(),
-        { user } = useContext(Auth),
-        { selected, select, signal } = useWorkspace();
-    const workspaces = useInfiniteQuery({
-        queryKey: ["workspaces", user?.id],
-        queryFn: ({ pageParam, signal }) => api.workspaces(pageParam, signal),
-        initialPageParam: undefined as string | undefined,
-        getNextPageParam: (p) => p.nextCursor ?? undefined,
-        enabled: !!user,
-    });
-    const items = workspaces.data?.pages.flatMap((p) => p.items) ?? [];
-    const firstWorkspaceId = items[0]?.id;
-    useEffect(() => {
-        if (!selected && firstWorkspaceId) select(firstWorkspaceId);
-    }, [selected, firstWorkspaceId, select]);
+    const { user } = useContext(Auth);
+    const { workspace } = useWorkspaceDirectory();
+    const { selected, signal } = useWorkspace();
+    const t = useLabels();
     const adapter = useMemo(() => new CloudAiAdapter(selected), [selected]);
     const resources = useMemo(() => new CloudResourceAdapter(selected), [selected]);
     if (!user) return <Navigate to="/login" />;
-    const ws = items.find((w) => w.id === selected);
     return (
         <Panel title={t("title")}>
-            <label>
-                {tx("Workspace")}
-                <select value={selected} onChange={(e) => select(e.target.value)}>
-                    {items.map((w) => (
-                        <option key={w.id} value={w.id}>
-                            {w.name}
-                        </option>
-                    ))}
-                </select>
-            </label>
-            {workspaces.error && <p role="alert">{workspaces.error.message}</p>}
-            {workspaces.hasNextPage && (
-                <button type="button" onClick={() => void workspaces.fetchNextPage()}>
-                    {t("more")}
-                </button>
-            )}
-            {!items.length && <p>{t("noWorkspace")}</p>}
-            {ws && (
+            <WorkspaceStatus />
+            {workspace && (
                 <AiWorkspaceView
                     key={user.id + selected}
-                    workspace={ws}
+                    workspace={workspace}
                     adapter={adapter}
                     resources={resources}
                     signal={signal}

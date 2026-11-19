@@ -25,15 +25,12 @@ test("server console follows the approved layout", async ({ page }) => {
     await signIn(page);
     await page.goto("/admin/users");
     const header = page.getByRole("banner");
-    const settings = header.getByRole("link", { name: "Settings" });
-    await expect(settings).toHaveAttribute("href", "/account");
+    const profile = header.getByRole("button", { name: "Browser Administrator", exact: true });
     const controls = [
         header.getByRole("link", { name: "VeriQ" }),
-        header.locator(".vq-avatar"),
-        header.getByText("Browser Administrator", { exact: true }),
-        header.getByLabel("Language"),
-        header.getByRole("button", { name: "Sign out" }),
-        settings,
+        header.getByRole("combobox", { name: "Workspace", exact: true }),
+        header.getByRole("button", { name: "Add workspace", exact: true }),
+        profile,
     ];
     let right = 0;
     for (const control of controls) {
@@ -43,11 +40,13 @@ test("server console follows the approved layout", async ({ page }) => {
         right = box.x + box.width;
     }
     await expect(header).toHaveCSS("height", "56px");
+    await expect(controls[0]).toHaveText("");
     await expect(controls[0]).toHaveCSS("font-size", "14px");
     const sidebar = page.getByRole("complementary");
     const width = (await sidebar.boundingBox())?.width;
     expect(width).toBeGreaterThanOrEqual(180);
     expect(width).toBeLessThanOrEqual(200);
+    await expect(sidebar.getByRole("link", { name: "Account", exact: true })).toHaveCount(0);
     const users = sidebar.getByRole("link", { name: "Users" });
     await expect(users).toHaveAttribute("aria-current", "page");
     await expect(users).toHaveCSS("font-size", "13px");
@@ -56,7 +55,9 @@ test("server console follows the approved layout", async ({ page }) => {
     await expect(table.getByRole("columnheader").first()).toHaveCSS("font-size", "12px");
     await expect(table.getByRole("cell").first()).toHaveCSS("font-size", "12px");
     await expect(table.getByRole("button").first()).toHaveCSS("font-size", "12px");
-    const glyph = await header.getByRole("button", { name: "Sign out" }).locator("svg").screenshot();
+    await profile.click();
+    const settings = page.getByRole("menuitem", { name: "Settings" });
+    const glyph = await page.getByRole("menuitem", { name: "Sign out" }).locator("svg").screenshot();
     const contrast = await page.evaluate(
         async (image) => {
             const bitmap = await createImageBitmap(await (await fetch(image)).blob());
@@ -79,6 +80,10 @@ test("compact console navigation closes on selection and exposes the current bra
     await page.setViewportSize({ width: 390, height: 844 });
     await signIn(page);
     await page.goto("/resources/");
+    const header = page.getByRole("banner");
+    await expect(header.getByText("Browser Administrator", { exact: true })).toBeVisible();
+    await expect(header.getByRole("combobox", { name: "Workspace" })).toBeVisible();
+    await expect(header.getByRole("button", { name: "Add workspace" })).toBeVisible();
     const menu = page.getByRole("button", { name: "Menu", exact: true });
     await expect(menu).toHaveAttribute("aria-expanded", "false");
     await menu.click();
@@ -207,4 +212,78 @@ test("Web controls distinguish field, keyboard and pointer focus", async ({ page
     await expect(title).toHaveCSS("box-shadow", "none");
     await expect(title).toHaveCSS("outline-style", "solid");
     await expect(title).toHaveCSS("outline-width", "2px");
+});
+
+test("header creates and retains an authorized workspace across navigation", async ({ page }) => {
+    await signIn(page);
+    const header = page.getByRole("banner");
+    const selector = header.getByRole("combobox", { name: "Workspace", exact: true });
+    await expect(selector).toBeVisible();
+    const ids: string[] = [];
+    const firstKey = `shell-${randomUUID()}`;
+    for (const name of ["Alpha", "Beta"]) {
+        if (name === "Beta") await page.getByRole("link", { name: "Runtimes", exact: true }).click();
+        await header.getByRole("button", { name: "Add workspace" }).click();
+        const dialog = page.getByRole("dialog", { name: "Add workspace" });
+        await dialog.getByLabel("Key").fill(firstKey);
+        await dialog.getByLabel("Name").fill(name);
+        if (name === "Beta") {
+            await dialog.getByRole("button", { name: "Create Workspace" }).click();
+            await expect(dialog.getByRole("alert")).toBeVisible();
+            await expect(dialog.getByLabel("Name")).toHaveValue(name);
+            await expect(page.getByRole("banner", { includeHidden: true }).locator("select")).toHaveValue(ids[0]);
+            await dialog.getByLabel("Key").fill(`shell-${randomUUID()}`);
+        }
+        const response = page.waitForResponse(
+            (r) => r.url().endsWith("/workspaces") && r.request().method() === "POST",
+        );
+        await dialog.getByRole("button", { name: "Create Workspace" }).click();
+        const created = await response;
+        expect(created.status()).toBe(201);
+        const id: string = (await created.json()).data.id;
+        ids.push(id);
+        await expect(dialog).toBeHidden();
+        await expect(selector).toHaveValue(id);
+    }
+    await page.getByRole("link", { name: "Resources", exact: true }).click();
+    await expect(selector).toHaveValue(ids[1]);
+    await expect(page.getByRole("main").getByRole("combobox", { name: "Workspace" })).toHaveCount(0);
+    await page.goto(`/agent?workspaceId=${ids[0]}&planId=${randomUUID()}&view=details#conversation`);
+    await expect(selector).toHaveValue(ids[0]);
+    await expect(page.getByRole("complementary", { name: "Conversations" })).toBeVisible();
+    await page.getByRole("link", { name: "Resources", exact: true }).click();
+    await selector.selectOption(ids[1]);
+    await page.context().setOffline(true);
+    try {
+        await page.goBack();
+        await expect(page.getByRole("heading", { name: "Test Agent", exact: true })).toBeVisible();
+        await expect(selector).toHaveValue("");
+        await expect(page.getByRole("complementary", { name: "Conversations" })).toHaveCount(0);
+        await selector.selectOption(ids[1]);
+        await expect(page).toHaveURL(/\/agent\?view=details#conversation$/);
+    } finally {
+        await page.context().setOffline(false);
+    }
+    await expect(page.getByRole("complementary", { name: "Conversations" })).toBeVisible();
+    await expect(selector).toHaveValue(ids[1]);
+    const profile = header.getByRole("button", { name: "Browser Administrator" });
+    await profile.press("Enter");
+    const menu = page.getByRole("menu");
+    await expect(menu.getByRole("menuitemradio", { name: "English" })).toBeChecked();
+    await menu.getByRole("menuitemradio", { name: "中文" }).press("Enter");
+    await expect(header.getByRole("combobox")).toHaveValue(ids[1]);
+    await profile.press("Enter");
+    await menu.getByRole("menuitemradio", { name: "English" }).press("Enter");
+    await profile.press("Enter");
+    await menu.getByRole("menuitem", { name: "Settings" }).press("Enter");
+    await expect(page).toHaveURL(/\/account$/);
+    await expect(page.getByRole("heading", { name: "Your account" })).toBeFocused();
+    await profile.press("Enter");
+    await page.keyboard.press("Escape");
+    await expect(profile).toBeFocused();
+    await profile.press("Enter");
+    await menu.getByRole("menuitem", { name: "Sign out" }).press("Enter");
+    await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
+    await expect(selector).toHaveCount(0);
+    await expect(header.getByLabel("Language")).toBeVisible();
 });
