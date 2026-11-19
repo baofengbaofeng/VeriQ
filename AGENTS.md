@@ -17,33 +17,15 @@
 
 ## 规范与规则文档
 
-专项规范与本文件一并强制执行。规则目录是 [`.agents/rules/README.md`](./.agents/rules/README.md)。以下索引链接至仓库中的文件与章节。
+专项规范与本文件一并强制执行。
 
 ### 契约与平台文档
 
-| 文件 | 用途 | 何时阅读 |
-| --- | --- | --- |
-| [`docs/公共契约.md`](./docs/公共契约.md) | 公共契约、工作区数据集、联网执行与历史兼容 | 改动公共接口、数据集或执行路径时 |
-| [`docs/桌面工作台指南.md`](./docs/桌面工作台指南.md) | 桌面工作台的使用、宿主边界与验收 | 改动 Electron 桌面或本地 GUI 时 |
-| [`docs/decisions/0021-运行时发行与原生边界.md`](./docs/decisions/0021-运行时发行与原生边界.md) | Runtime 发行、目标平台与原生边界 | 改动桌面或 Runtime 平台目标、发行或停止能力时 |
+按主题查阅 [`docs/README.md`](./docs/README.md)。
 
 ### 独立规则文档
 
-| 文件 | 用途 | 何时阅读 |
-| --- | --- | --- |
-| [`.agents/rules/README.md`](./.agents/rules/README.md) | 专项规范目录 | 需要判断该打开哪一份规则时 |
-| [`.agents/rules/coding-standard.md`](./.agents/rules/coding-standard.md#目录) | 跨语言编码要求、与产品约束冲突时的优先规则及工程细则，涵盖执行预算、结果归约、调度与 AI | 编写或审查源码，或处理相关工程主题时 |
-| [`.agents/rules/coding-standard-rules/python-coding-standard.md`](./.agents/rules/coding-standard-rules/python-coding-standard.md) | Python 语言与风格详本。文首 VeriQ 改编是规范性的 | 编写或审查 Python 时 |
-| [`.agents/rules/coding-standard-rules/typescript-javascript-coding-standard.md`](./.agents/rules/coding-standard-rules/typescript-javascript-coding-standard.md) | TypeScript 与 JavaScript 风格详本。VeriQ 格式规则是规范性的 | 编写或审查 TypeScript 或 JavaScript 时 |
-| [`.agents/rules/commit-standard.md`](./.agents/rules/commit-standard.md) | 提交边界、消息与代理不 push | 准备提交时 |
-| [`.agents/rules/security-standard.md`](./.agents/rules/security-standard.md) | 认证授权、密钥、IPC、签名、历史离线兼容、停止证明与供应链 | 改动安全相关路径时 |
-| [`.agents/rules/testing-standard.md`](./.agents/rules/testing-standard.md) | TDD、假绿禁令、覆盖率与平台测试 | 编写或审查测试时 |
-| [`.agents/rules/review-standard.md`](./.agents/rules/review-standard.md) | 审查职责、必查项与拒绝标准 | 审查代码或规格时 |
-| [`.agents/rules/release-standard.md`](./.agents/rules/release-standard.md#2-原生与跨平台要求) | 目标平台、进程停止范围、凭据、路径与能力声明 | 改动平台目标、进程、凭据或停止证明时 |
-| [`.agents/rules/release-standard.md`](./.agents/rules/release-standard.md#1-发行配置与回滚) | 产物完整性、晋升、安全默认、回滚及[外部调度接入](./docs/integration/外部调度接入.md) | 构建发行物、设定配置默认或改动维护接口时 |
-| [`.agents/rules/privacy-standard.md`](./.agents/rules/privacy-standard.md) | 数据分类、证据授权、保留期与脱敏 | 处理用户数据、证据或日志时 |
-
-编写 Python 时遵守 [Coding Standard](./.agents/rules/coding-standard.md) 与 [Python 编码规范](./.agents/rules/coding-standard-rules/python-coding-standard.md)。编写 TypeScript/JavaScript 时遵守同一总则与 [TypeScript/JavaScript 编码规范](./.agents/rules/coding-standard-rules/typescript-javascript-coding-standard.md)。语言指南与总则冲突时，以总则和本文件中的不可协商基线为准；总则与语言指南已经写明的数字和工具名，不得用本文件以外的旧稿覆盖。
+按任务查阅 [`.agents/rules/README.md`](./.agents/rules/README.md)。
 
 ## 产品标识与仓库布局
 

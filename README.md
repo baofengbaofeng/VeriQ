@@ -175,7 +175,7 @@ veriq/
 
 ## 文档与参与贡献
 
-文档总览见[文档索引](docs/文档索引.md)。按主题查阅[使用与接入指南](docs/guides/使用与接入指南.md)、[系统接入规范](docs/integration/系统接入规范.md)和[验证与验收索引](docs/validation/验证与验收索引.md)。
+文档总览见[文档索引](docs/README.md)。按主题查阅[使用与接入指南](docs/guides/使用与接入指南.md)、[系统接入规范](docs/integration/系统接入规范.md)和[验证与验收索引](docs/validation/验证与验收索引.md)。
 
 独立验收的证据、未关闭事项与接续入口见[MVP 验证交接](docs/validation/首版验证交接.md)。
 
@@ -364,7 +364,7 @@ Desktop installers require separate macOS x64, macOS arm64, Windows x64 and Ubun
 
 ## Docs and contributing
 
-Start at the [documentation index](docs/文档索引.md). Browse the [usage and integration guides](docs/guides/使用与接入指南.md), [system integration contracts](docs/integration/系统接入规范.md), and [validation and acceptance index](docs/validation/验证与验收索引.md).
+Start at the [documentation index](docs/README.md). Browse the [usage and integration guides](docs/guides/使用与接入指南.md), [system integration contracts](docs/integration/系统接入规范.md), and [validation and acceptance index](docs/validation/验证与验收索引.md).
 
 Start with the [public contracts](docs/公共契约.md) and [desktop guide](docs/桌面工作台指南.md). The full desktop GUI and separate Runtime supersede the earlier CLI-only or thin-native-launcher candidates. Decisions that change scope, contracts, or the engineering baseline should update the relevant contract documents and ADRs before implementation.
 
