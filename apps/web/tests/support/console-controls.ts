@@ -30,5 +30,6 @@ export async function signOut(page: Page) {
  */
 export async function chooseLanguage(page: Page, language: "en" | "zh") {
     await profileButton(page).click();
+    await page.getByRole("menuitem", { name: /^(Language|语言)/ }).click();
     await page.getByRole("menuitemradio", { name: language === "zh" ? "中文" : "English" }).click();
 }
