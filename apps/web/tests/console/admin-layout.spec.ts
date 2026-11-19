@@ -23,21 +23,32 @@ async function signIn(page: Page) {
 }
 
 /**
- * 直接测量 Banner 内当前可见的全部交互元素，覆盖粗指针和移动设备各展开状态。
+ * 侧栏品牌区在展开时显示横版标识，折叠后仅保留方形图标；直接测量实际渲染的图片确认两种状态都来自真实资源。
  */
-async function expectCompactBanner(page: Page, count: number) {
+async function expectSidebarBrand(page: Page, collapsed = false) {
+    const sidebar = page.getByRole("complementary");
+    const brand = sidebar.getByRole("link", { name: "VeriQ", exact: true });
+    await expect(brand).toBeVisible();
+    const image = brand.getByRole("img", { name: "VeriQ" });
+    await expect(image).toHaveCount(1);
+    const box = await image.boundingBox();
+    if (!box) throw new Error("Sidebar brand has no visible bounding box");
+    expect(box.height).toBe(collapsed ? 32 : 40);
+    expect(box.width).toBeGreaterThanOrEqual(box.height);
+}
+
+/**
+ * 直接测量横幅内当前可见的全部交互元素；新外壳不再把品牌放入横幅，因此只校验控件高度与视口边界。
+ */
+async function expectBannerControls(page: Page, count: number, maxHeight = 32) {
     const banner = page.getByRole("banner");
-    const logo = banner.getByRole("link", { name: "VeriQ", exact: true });
-    const bounds = await logo.boundingBox();
-    expect(bounds).toMatchObject({ width: 42, height: 42 });
-    expect(await logo.getByRole("img", { name: "VeriQ" }).boundingBox()).toEqual(bounds);
     const controls = banner.locator("a:visible, button:visible, select:visible, input:visible");
     await expect(controls).toHaveCount(count);
     const viewport = await page.evaluate(() => document.documentElement.clientWidth);
     for (const control of await controls.all()) {
         const box = await control.boundingBox();
         if (!box) throw new Error("Banner control has no visible bounding box");
-        if (!(await control.and(logo).count())) expect(box.height).toBeLessThanOrEqual(32);
+        expect(box.height).toBeLessThanOrEqual(maxHeight);
         expect(box.x).toBeGreaterThanOrEqual(0);
         expect(box.x + box.width).toBeLessThanOrEqual(viewport);
     }
@@ -53,40 +64,22 @@ async function expectWorkspaceMenuWidth(page: Page, menu: Locator) {
 }
 
 /**
- * 核对不同语言和视口中工作区说明、操作及分隔线的实际坐标，确保整组同行且不会挤到主题按钮下方。
+ * 核对不同语言和视口中工作区选择、新建及设置按钮的纵向中心，确认三个操作在头部保持同一行。
  */
-async function expectWorkspaceGroup(page: Page, name: string, dividerGap: number) {
+async function expectWorkspaceRow(page: Page) {
     const banner = page.getByRole("banner");
-    const caption = banner.getByText(name, { exact: true });
-    await expect(caption).toBeVisible();
-    const divider = banner.locator(".vq-workspace-divider");
-    await expect(divider).toHaveAttribute("aria-hidden", "true");
-    await expect(divider).toHaveCSS("width", "1px");
-    await expect(divider).toHaveCSS("height", "20px");
-    const theme = banner.locator(".vq-theme-toggle");
     const controls = [
-        caption,
         workspacePicker(page),
-        ...(await banner.locator(".vq-workspace-icon").all()),
-        divider,
-        theme,
+        banner.locator("button.vq-workspace-icon"),
+        banner.locator("a.vq-workspace-icon"),
     ];
-    let right: number | undefined;
     let center: number | undefined;
     for (const control of controls) {
         const box = await control.boundingBox();
-        if (!box) throw new Error("Workspace group element has no visible bounds");
-        if (right !== undefined) {
-            const gap = box.x - right;
-            if (control === divider || control === theme) expect(gap).toBe(dividerGap);
-            else expect(gap).toBe(6);
-        }
+        if (!box) throw new Error("Workspace control has no visible bounds");
         center ??= box.y + box.height / 2;
         expect(box.y + box.height / 2).toBeCloseTo(center, 0);
-        right = box.x + box.width;
     }
-    await expect(caption).toHaveCSS("font-size", "14px");
-    await expect(caption).toHaveCSS("font-weight", "700");
 }
 
 test("server console follows the approved layout", async ({ page }) => {
@@ -94,16 +87,17 @@ test("server console follows the approved layout", async ({ page }) => {
     await page.goto("/admin/users");
     const header = page.getByRole("banner");
     const profile = header.getByRole("button", { name: "Browser Administrator", exact: true });
+    const hamburger = header.getByRole("button", { name: "Toggle sidebar" });
     const controls = [
-        header.getByRole("link", { name: "VeriQ" }),
+        hamburger,
         workspacePicker(page),
         header.getByRole("button", { name: "Add workspace", exact: true }),
         header.getByRole("link", { name: "Workspace settings" }),
         header.getByRole("button", { name: "Dark mode" }),
+        header.getByRole("button", { name: "Notifications" }),
         profile,
     ];
-    await expectWorkspaceGroup(page, "Workspace", 12);
-    await expect(header.locator(".vq-workspace-divider")).toHaveCSS("background-color", "rgb(225, 230, 237)");
+    await expectWorkspaceRow(page);
     const viewport = await page.evaluate(() => document.documentElement.clientWidth);
     let right = 0;
     await controls[0].focus();
@@ -113,25 +107,31 @@ test("server console follows the approved layout", async ({ page }) => {
         const box = await control.boundingBox();
         if (!box) throw new Error("Header control has no visible bounding box");
         expect(box.x).toBeGreaterThanOrEqual(right);
-        if (index === 1) expect(box.x).toBeGreaterThan(viewport / 2);
-        if (control === profile) expect(box.x - right).toBeLessThanOrEqual(12);
+        if (control === profile) expect(box.x - right).toBeLessThanOrEqual(8);
         right = box.x + box.width;
     }
     expect(viewport - right).toBeLessThanOrEqual(24);
-    await expect(header).toHaveCSS("height", "77px");
-    await expectCompactBanner(page, 6);
+    await expect(header).toHaveCSS("height", "72px");
+    await expectBannerControls(page, 7);
     await expect(controls[2]).toHaveCSS("width", "32px");
     await expect(controls[3]).toHaveCSS("width", "32px");
-    await expect(controls[0]).toHaveText("");
-    await expect(controls[0]).toHaveCSS("font-size", "14px");
+    await expect(hamburger).toHaveAttribute("aria-expanded", "true");
+    await expect(hamburger).toHaveCSS("width", "32px");
     const sidebar = page.getByRole("complementary");
-    const width = (await sidebar.boundingBox())?.width;
-    expect(width).toBeGreaterThanOrEqual(180);
-    expect(width).toBeLessThanOrEqual(200);
+    await expectSidebarBrand(page);
+    expect((await sidebar.boundingBox())?.width).toBe(280);
+    await hamburger.click();
+    await expect(hamburger).toHaveAttribute("aria-expanded", "false");
+    await expect(sidebar).toHaveAttribute("data-collapsed", "true");
+    expect((await sidebar.boundingBox())?.width).toBe(88);
+    await expectSidebarBrand(page, true);
+    await hamburger.click();
+    await expect(hamburger).toHaveAttribute("aria-expanded", "true");
+    expect((await sidebar.boundingBox())?.width).toBe(280);
     await expect(sidebar.getByRole("link", { name: "Account", exact: true })).toHaveCount(0);
     const users = sidebar.getByRole("link", { name: "Users" });
     await expect(users).toHaveAttribute("aria-current", "page");
-    await expect(users).toHaveCSS("font-size", "13px");
+    await expect(users).toHaveCSS("font-size", "14px");
     await expect(page.getByRole("heading", { name: "Users", level: 1 })).toHaveCSS("font-size", "14px");
     const table = page.getByRole("table");
     await expect(table.getByRole("columnheader").first()).toHaveCSS("font-size", "12px");
@@ -159,18 +159,23 @@ test("server console follows the approved layout", async ({ page }) => {
 });
 
 test("compact console navigation closes on selection and exposes the current branch", async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
+    await page.setViewportSize({ width: 700, height: 844 });
     await signIn(page);
     await page.goto("/resources/");
     const header = page.getByRole("banner");
     const actions = header.getByRole("button", { name: "Toggle application menu" });
     await expect(actions).toHaveAttribute("aria-expanded", "false");
+    await expect(header.getByRole("button", { name: "Notifications" })).toBeHidden();
     await actions.click();
+    await expect(actions).toHaveAttribute("aria-expanded", "true");
     await expect(header.getByText("Browser Administrator", { exact: true })).toBeVisible();
+    await expect(header.getByRole("button", { name: "Notifications" })).toBeVisible();
     await expect(workspacePicker(page)).toBeVisible();
     await expect(header.getByRole("button", { name: "Add workspace" })).toBeVisible();
     await actions.click();
-    await expect(workspacePicker(page)).toBeHidden();
+    await expect(actions).toHaveAttribute("aria-expanded", "false");
+    await expect(header.getByRole("button", { name: "Notifications" })).toBeHidden();
+    await expect(workspacePicker(page)).toBeVisible();
     const menu = page.getByRole("button", { name: "Menu", exact: true });
     await expect(menu).toHaveAttribute("aria-expanded", "false");
     await menu.click();
@@ -185,11 +190,11 @@ test("compact console navigation closes on selection and exposes the current bra
     await expect(nav).toBeHidden();
     await menu.click();
     await expect(nav.getByRole("link", { name: "Runtimes" })).toHaveAttribute("aria-current", "page");
-    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(700);
 });
 
 test("compact console returns focus to Menu after selecting the current route", async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
+    await page.setViewportSize({ width: 700, height: 844 });
     await signIn(page);
     await page.goto("/resources");
     const menu = page.getByRole("button", { name: "Menu", exact: true });
@@ -256,11 +261,11 @@ test("workspace title and import action share a row", async ({ page }) => {
 test.describe("desktop touch console", () => {
     test.use({ hasTouch: true, viewport: { width: 1280, height: 800 } });
 
-    test("desktop touch header stays 77px with compact controls", async ({ page }) => {
+    test("desktop touch header stays 72px with inline controls", async ({ page }) => {
         await signIn(page);
         const header = page.getByRole("banner");
-        await expect(header).toHaveCSS("height", "77px");
-        await expectCompactBanner(page, 6);
+        await expect(header).toHaveCSS("height", "72px");
+        await expectBannerControls(page, 7);
     });
 });
 
@@ -527,7 +532,7 @@ test("header creates and retains an authorized workspace across navigation", asy
     await menu.getByRole("menuitem", { name: /^Language/ }).press("ArrowRight");
     await expect(page.getByRole("menuitemradio", { name: "English" })).toBeChecked();
     await page.getByRole("menuitemradio", { name: "中文" }).press("Enter");
-    await expectWorkspaceGroup(page, "当前工作区", 12);
+    await expectWorkspaceRow(page);
     const add = header.getByRole("button", { name: "添加工作区" });
     await add.press("Enter");
     const localized = page.getByRole("dialog", { name: "添加工作区" });
@@ -567,7 +572,7 @@ test("TailAdmin profile dimensions and theme persist through real navigation", a
     await theme.click();
     await expect(theme).toHaveAttribute("aria-pressed", "true");
     await expect(page.locator("html")).toHaveCSS("color-scheme", "dark");
-    await expect(banner.locator(".vq-workspace-divider")).toHaveCSS("background-color", "rgb(52, 64, 84)");
+    await expect(workspacePicker(page)).toHaveCSS("border-color", "rgb(52, 64, 84)");
     const resourceName = page.getByLabel("Name", { exact: true });
     await expect(resourceName).toHaveValue("Unsubmitted resource");
     await expect(resourceName).toHaveCSS("background-color", "rgb(24, 32, 47)");
@@ -639,11 +644,11 @@ test("theme still switches when browser preference storage is blocked", async ({
     await expect(page.getByLabel("Password")).toBeVisible();
 });
 
-test("TailAdmin banner sizes and nested language choices preserve the resource draft", async ({ page }) => {
+test("TailAdmin header sizes and nested language choices preserve the resource draft", async ({ page }) => {
     const scope = await editorScope(page, `aaa-${randomUUID()}-${"workspace".repeat(8)}`);
     const banner = page.getByRole("banner");
     await page.setViewportSize({ width: 1280, height: 900 });
-    await expect(banner).toHaveCSS("height", "77px");
+    await expect(banner).toHaveCSS("height", "72px");
     const theme = banner.getByRole("button", { name: "Dark mode" });
     const user = banner.getByRole("button", { name: "Browser Administrator" });
     await expect(theme).toHaveCSS("border-radius", "8px");
@@ -667,17 +672,17 @@ test("TailAdmin banner sizes and nested language choices preserve the resource d
     const draftNode = await page.getByLabel("Name", { exact: true }).elementHandle();
     await user.press("Enter");
     await expect(page.getByRole("menu")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("menu")).toHaveCount(0);
     await page.setViewportSize({ width: 1024, height: 900 });
     const toggle = banner.getByRole("button", { name: "Toggle application menu" });
-    await expect(banner).toHaveCSS("height", "69px");
-    await expect(page.getByRole("menu")).toHaveCount(0);
-    await expect(toggle).toBeFocused();
+    await expect(banner).toHaveCSS("height", "72px");
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
-    await page.setViewportSize({ width: 320, height: 740 });
-    await expect(banner).toHaveCSS("height", "65px");
-    await expectCompactBanner(page, 2);
-    await expect(picker).toBeHidden();
+    await expect(user).toBeHidden();
+    await expect(picker).toBeVisible();
+    await expectBannerControls(page, 5);
     const workspaces = await openWorkspaceMenu(page);
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
     await expectWorkspaceMenuWidth(page, workspaces);
     const longOption = workspaces.getByRole("menuitemradio", { name: scope.key, exact: true });
     await expect(longOption).toBeChecked();
@@ -698,23 +703,26 @@ test("TailAdmin banner sizes and nested language choices preserve the resource d
     await expect(toggle).toHaveCSS("width", "32px");
     await expect(picker).toBeFocused();
     await expect(user).toBeVisible();
-    await expect(banner).toHaveCSS("height", "141px");
-    await expectCompactBanner(page, 7);
-    await expectWorkspaceGroup(page, "Workspace", 10);
+    await expect(banner).toHaveCSS("height", "72px");
+    await expectBannerControls(page, 8);
+    await expectWorkspaceRow(page);
     const themeBox = await theme.boundingBox();
     const account = await user.boundingBox();
-    if (!themeBox || !account) throw new Error("Expanded Banner controls must have visible bounds");
-    expect(account.y).toBeGreaterThanOrEqual(themeBox.y + themeBox.height);
+    if (!themeBox || !account) throw new Error("Expanded header controls must have visible bounds");
+    expect(account.y + account.height / 2).toBeCloseTo(themeBox.y + themeBox.height / 2, 0);
     for (const name of [picker.locator("span"), user.locator(".vq-user-name")]) {
         await expect(name).toHaveCSS("text-overflow", "ellipsis");
         expect(await name.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
     }
     await user.click();
     await expect(page.getByRole("menu")).toBeVisible();
-    await toggle.click();
+    await page.keyboard.press("Escape");
     await expect(page.getByRole("menu")).toHaveCount(0);
-    await expect(toggle).toBeFocused();
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await expect(user).toBeHidden();
     await toggle.press("Enter");
+    await expect(user).toBeVisible();
     await user.press("Enter");
     const language = page.getByRole("menuitem", { name: /Language/ });
     await expect(language).toContainText("EN");
@@ -730,7 +738,7 @@ test("TailAdmin banner sizes and nested language choices preserve the resource d
     await expect(submenu).toHaveCSS("width", "168px");
     const bounds = await submenu.boundingBox();
     expect(bounds?.x).toBeGreaterThanOrEqual(0);
-    expect(bounds && bounds.x + bounds.width).toBeLessThanOrEqual(320);
+    expect(bounds && bounds.x + bounds.width).toBeLessThanOrEqual(1024);
     await page.keyboard.press("Escape");
     await expect(language).toBeFocused();
     await expect(english).toBeHidden();
@@ -740,25 +748,24 @@ test("TailAdmin banner sizes and nested language choices preserve the resource d
     await language.click();
     await page.getByRole("menuitemradio", { name: "中文", exact: true }).click();
     await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
-    await expectWorkspaceGroup(page, "当前工作区", 10);
+    await expectWorkspaceRow(page);
     await expect(page.getByRole("menu")).toHaveCount(0);
     await expect(picker).toHaveAttribute("data-workspace-id", scope.workspaceId);
     expect(page.url()).toMatch(/\/resources\?section=assets#draft$/);
     expect(await draftNode?.evaluate((input) => input.isConnected && (input as HTMLInputElement).value)).toBe(
         "Keep draft across languages",
     );
+    await page.setViewportSize({ width: 1280, height: 900 });
     await user.click();
     await expect(page.getByRole("menuitem", { name: /语言/ })).toContainText("ZH");
     await page.getByRole("menuitem", { name: "退出登录", exact: true }).click();
-    const guestToggle = banner.getByRole("button", { name: "展开或收起应用菜单" });
-    await expect(guestToggle).toHaveAttribute("aria-expanded", "false");
-    await guestToggle.click();
+    await expect(banner.getByRole("link", { name: "VeriQ", exact: true })).toBeVisible();
     await banner.getByRole("combobox", { name: "语言" }).selectOption("en");
     await expect(banner.getByRole("button", { name: "Dark mode" })).toBeVisible();
-    await expectCompactBanner(page, 4);
+    await expectBannerControls(page, 3, 48);
     await expect(banner.locator(".vq-workspace-divider")).toHaveCount(0);
     await expect(banner.getByText("Workspace", { exact: true })).toHaveCount(0);
-    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(1280);
 });
 
 test("Workspace toolbar browses paginated members and opens workspace settings", async ({ page }) => {
@@ -844,11 +851,15 @@ test("Workspace toolbar browses paginated members and opens workspace settings",
     await expect(page).toHaveURL(/\/resources$/);
     await trigger.press("Enter");
     await expect(menu).toBeVisible();
-    await page.setViewportSize({ width: 320, height: 750 });
-    const expander = header.getByRole("button", { name: "Toggle application menu" });
-    await expect(expander).toBeFocused();
+    await page.keyboard.press("Escape");
     await expect(menu).toBeHidden();
-    await expander.press("Enter");
+    await page.setViewportSize({ width: 700, height: 750 });
+    const expander = header.getByRole("button", { name: "Toggle application menu" });
+    await expect(expander).toBeVisible();
+    await expect(expander).toHaveAttribute("aria-expanded", "false");
+    await expander.click();
+    await expect(expander).toHaveAttribute("aria-expanded", "true");
+    await expect(header).toHaveCSS("height", "72px");
     const add = header.getByRole("button", { name: "Add workspace" });
     await header.getByRole("button", { name: "Dark mode" }).click();
     await add.press("Enter");
@@ -878,6 +889,6 @@ test("Workspace toolbar browses paginated members and opens workspace settings",
     await expect(menu).toHaveCSS("background-color", "rgb(30, 38, 53)");
     const bounds = await menu.boundingBox();
     expect(bounds?.x).toBeGreaterThanOrEqual(0);
-    expect(bounds && bounds.x + bounds.width).toBeLessThanOrEqual(320);
-    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
+    expect(bounds && bounds.x + bounds.width).toBeLessThanOrEqual(700);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(700);
 });

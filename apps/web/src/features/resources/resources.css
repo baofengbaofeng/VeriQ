@@ -2,7 +2,7 @@
     min-width: 0;
 }
 .vq-section {
-    border-top: 1px solid #dce5e5;
+    border-top: 1px solid var(--vq-border);
     padding: 20px 0;
     margin-top: 18px;
     min-width: 0;
@@ -39,8 +39,8 @@
     margin-left: 0;
 }
 .vq-secondary {
-    background: #fff;
-    color: #136968;
+    background: var(--vq-surface);
+    color: var(--vq-brand);
 }
 .vq-danger {
     background: #fff3f0;
@@ -70,14 +70,14 @@
 }
 .vq-item {
     padding: 16px;
-    background: #f8fbfb;
-    border: 1px solid #d6e2e2;
+    background: var(--vq-field);
+    border: 1px solid var(--vq-border);
     border-radius: 8px;
     margin: 12px 0;
     min-width: 0;
 }
 .vq-item .vq-item {
-    background: white;
+    background: var(--vq-surface);
 }
 .vq-check {
     display: flex;
@@ -98,13 +98,13 @@
 .vq-monaco {
     height: 390px;
     width: 100%;
-    border: 1px solid #9db2b6;
+    border: 1px solid var(--vq-border);
     margin: 14px 0;
     min-width: 0;
 }
 .vq-value {
     padding: 14px;
-    border: 1px solid #dce5e5;
+    border: 1px solid var(--vq-border);
     border-radius: 6px;
     display: grid;
     gap: 10px;
@@ -116,12 +116,12 @@
     min-width: 0;
 }
 .vq-drop {
-    outline: 3px solid #136968;
+    outline: 3px solid var(--vq-brand);
 }
 .vq-overlay {
     position: fixed;
     inset: 0;
-    background: #12343877;
+    background: rgb(16 24 40 / 47%);
     z-index: 1000;
 }
 .vq-dialog {
@@ -130,10 +130,10 @@
     inset: 20% auto auto 50%;
     transform: translateX(-50%);
     width: min(540px, 90vw);
-    background: white;
+    background: var(--vq-surface);
     padding: 28px;
     border-radius: 12px;
-    box-shadow: 0 20px 80px #12343866;
+    box-shadow: 0 20px 80px rgb(16 24 40 / 40%);
 }
 .vq-resources p,
 .vq-resources li,

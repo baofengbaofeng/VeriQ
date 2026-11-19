@@ -3,38 +3,109 @@
  * 桌面入口继续单独打包原有共享样式。
  */
 :root {
-    --vq-brand: #3645b8;
-    --vq-brand-dark: #2e3b9e;
-    --vq-brand-soft: #e8ecff;
-    --vq-brand-text: #192436;
-    --vq-border: #e1e6ed;
-    --vq-field: #f5f7fa;
-    --vq-rail: #f4f6f9;
-    --vq-secondary: #475467;
-    --vq-muted: #5e6a7d;
+    --vq-brand: #465fff;
+    --vq-brand-dark: #3641f5;
+    --vq-brand-soft: #ecf3ff;
+    --vq-brand-soft-strong: #dde9ff;
+    --vq-brand-text: #1d2939;
+    --vq-border: #e4e7ec;
+    --vq-field: #f9fafb;
+    --vq-rail: #f2f4f7;
+    --vq-secondary: #344054;
+    --vq-muted: #667085;
+    --vq-surface: #ffffff;
+    --vq-canvas: #f9fafb;
+    --vq-hover: #f2f4f7;
     --vq-focus-outline: #737373;
     --vq-field-outline: transparent;
-    --vq-sidebar-width: 190px;
-    --vq-topbar-height: 77px;
-    font-size: 13px;
-    line-height: 1.45;
-    color: var(--vq-brand-text);
-    background: white;
+    --vq-sidebar-width: 280px;
+    --vq-sidebar-collapsed-width: 88px;
+    --vq-header-height: 72px;
+    font-family:
+        ui-sans-serif,
+        system-ui,
+        -apple-system,
+        "Segoe UI",
+        Roboto,
+        "Helvetica Neue",
+        Arial,
+        "PingFang SC",
+        "Microsoft YaHei",
+        sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--vq-secondary);
+    background: var(--vq-canvas);
 }
-.vq-shell,
-.vq-content,
-.panel {
-    background: white;
+/*
+ * 外壳改为横向两列：左列侧栏全高，右列头部与内容纵向排列，为侧栏折叠与内容区留出独立滚动空间。
+ */
+.vq-shell {
+    display: flex;
+    flex-direction: row;
+    min-height: 100vh;
+    background: var(--vq-canvas);
 }
-.vq-topbar {
+/*
+ * 左侧栏通栏全高并固定在视口左侧，宽度由令牌控制，折叠态通过 data-collapsed 收窄为图标栏宽度。
+ */
+.vq-sidebar {
+    width: var(--vq-sidebar-width);
+    flex: 0 0 var(--vq-sidebar-width);
+    background: var(--vq-surface);
+    border-right: 1px solid var(--vq-border);
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    padding: 0;
+}
+.vq-sidebar[data-collapsed="true"] {
+    width: var(--vq-sidebar-collapsed-width);
+    flex-basis: var(--vq-sidebar-collapsed-width);
+}
+/*
+ * 右列承载 sticky 头部与可滚动内容，采用纵向弹性布局，使头部在内容滚动时始终停留在顶部。
+ */
+.vq-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+.vq-header {
     --vq-banner-control-size: 32px;
-    padding: 16px 24px;
-    min-height: var(--vq-topbar-height);
-    height: auto;
-    gap: 6px;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    height: var(--vq-header-height);
+    padding: 0 24px;
+    background: var(--vq-surface);
+    border-bottom: 1px solid var(--vq-border);
 }
-.vq-topbar :is(a, button, select) {
-    height: var(--vq-banner-control-size);
+.vq-content {
+    flex: 1;
+    min-width: 0;
+}
+.vq-content-inner {
+    max-width: 1536px;
+    margin: 0 auto;
+    padding: 24px;
+}
+@media (max-width: 768px) {
+    .vq-content-inner {
+        padding: 16px;
+    }
+}
+/*
+ * 面板作为内容卡片保留白色底，外壳与内容区改用画布色，以区分页面背景与可交互内容区域。
+ */
+.panel {
+    background: var(--vq-surface);
 }
 .vq-brand {
     --vq-banner-control-size: 42px;
@@ -56,15 +127,11 @@
     overflow: hidden;
 }
 .vq-avatar {
-    color: #38449d;
+    color: var(--vq-brand-text);
 }
 .vq-topbar .veriq-language {
     gap: 4px;
     font-weight: 450;
-}
-.vq-sidebar {
-    padding: 12px 8px;
-    background: var(--vq-rail);
 }
 .vq-nav {
     gap: 3px;
@@ -91,49 +158,134 @@
     font-size: 13px;
     font-weight: 550;
 }
-.vq-nav-item {
-    display: flex;
-    min-height: 34px;
-}
-.vq-nav-sub {
-    display: block;
-    min-height: 31px;
-    font-weight: 450;
-}
 .vq-nav-group {
     margin: 0;
 }
-.vq-nav-item[aria-expanded] .vq-nav-icon:last-child {
+.vq-topbar-workspaces :is(button, a):hover {
+    background: var(--vq-hover);
+}
+/*
+ * 侧栏头部固定为头部高度，横版品牌标识按四十像素高度对齐，为下方的分组导航留出稳定起点。
+ */
+.vq-sidebar-header {
+    display: flex;
+    align-items: center;
+    height: var(--vq-header-height);
+    padding: 0 20px;
+    border-bottom: 1px solid var(--vq-border);
+}
+.vq-sidebar-brand {
+    display: flex;
+    align-items: center;
+    text-decoration: none;
+}
+.vq-sidebar-brand .vq-brand-light {
+    display: block;
+    height: 40px;
+}
+.vq-sidebar-brand .vq-brand-dark {
+    display: none;
+    height: 40px;
+}
+/*
+ * 导航占满侧栏剩余高度并独立滚动，分组之间用四像素间距分隔，底部预留折叠按钮的空间。
+ */
+.vq-sidebar .vq-nav {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 12px 16px;
+    gap: 4px;
+}
+/*
+ * 一级导航项由图标、文字与右对齐的折叠箭头组成，统一行高、圆角和内边距以保证整行点击区域稳定。
+ */
+.vq-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    color: var(--vq-secondary);
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+}
+.vq-nav-item:hover {
+    background: var(--vq-hover);
+}
+.vq-nav-item[aria-current="page"],
+.vq-nav-item[aria-expanded="true"] {
+    background: var(--vq-brand-soft);
+    color: var(--vq-brand);
+}
+.vq-nav-item .vq-nav-icon:last-child {
     margin-inline-start: auto;
 }
 .vq-nav-item[aria-expanded="false"] .vq-nav-icon:last-child {
     transform: rotate(-90deg);
 }
+/*
+ * 子菜单相对一级项缩进，并用左侧竖线标示层级关系，组内链接之间保留两像素间距以保持紧凑。
+ */
 .vq-nav-children {
-    margin-inline-start: 15px;
-    padding-inline-start: 9px;
-    border-inline-start: 1px solid #dbe1ec;
+    margin-inline-start: 16px;
+    padding-inline-start: 12px;
+    border-inline-start: 1px solid var(--vq-border);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
 }
-.vq-nav :is(a, button):hover,
-.vq-topbar-workspaces :is(button, a):hover {
-    background: #e9edf3;
+/*
+ * 分组折叠时组件输出 hidden 属性，作者样式的 display 会覆盖浏览器默认隐藏，这里显式恢复隐藏语义。
+ */
+.vq-nav-children[hidden] {
+    display: none;
 }
-.vq-nav [aria-current="page"] {
+.vq-nav-sub {
+    display: block;
+    min-height: 36px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    color: var(--vq-secondary);
+    font-size: 14px;
+    font-weight: 450;
+    text-decoration: none;
+}
+.vq-nav-sub:hover {
+    background: var(--vq-hover);
+}
+.vq-nav-sub[aria-current="page"] {
     background: var(--vq-brand-soft);
-    color: var(--vq-brand-dark);
-    font-weight: 650;
+    color: var(--vq-brand);
+    font-weight: 600;
 }
-.vq-content-inner {
-    max-width: none;
-    margin: 0;
-    padding: 15px 18px;
+/*
+ * 折叠成图标时隐藏文字与子菜单，仅保留一级图标并居中排列，使窄栏保持整齐清晰的图标导航。
+ */
+.vq-sidebar[data-collapsed="true"] .vq-sidebar-header {
+    justify-content: center;
+    padding: 0;
+}
+.vq-sidebar[data-collapsed="true"] .vq-sidebar-brand .vq-brand-light,
+.vq-sidebar[data-collapsed="true"] .vq-sidebar-brand .vq-brand-dark {
+    display: none;
+}
+.vq-sidebar[data-collapsed="true"] .vq-nav-item {
+    justify-content: center;
+    padding: 8px;
+}
+.vq-sidebar[data-collapsed="true"] .vq-nav-item > :not(.vq-nav-icon:first-child),
+.vq-sidebar[data-collapsed="true"] .vq-nav-children {
+    display: none;
 }
 .panel {
     min-width: 0;
-    border: 0;
-    border-radius: 0;
+    border: 1px solid var(--vq-border);
+    border-radius: 16px;
     padding: 0;
-    box-shadow: none;
+    background: var(--vq-surface);
+    box-shadow: 0 1px 2px rgb(16 24 40 / 5%);
 }
 .vq-standalone {
     max-width: none;
@@ -272,9 +424,9 @@ textarea,
     max-width: 100%;
     padding: 6px 8px;
     color: var(--vq-brand-text);
-    background: white;
-    border: 1px solid #d6dce6;
-    border-radius: 6px;
+    background: var(--vq-surface);
+    border: 1px solid var(--vq-border);
+    border-radius: 8px;
     font-size: 13px;
 }
 input:not([type="checkbox"], [type="radio"]),
@@ -285,21 +437,31 @@ select,
 textarea {
     font: inherit;
 }
+.vq-btn {
+    border-radius: 8px;
+    border-color: var(--vq-border);
+}
 button {
     padding: 6px 10px;
     border-color: var(--vq-button-fill, var(--vq-brand));
     background: var(--vq-button-fill, var(--vq-brand));
+    color: #fff;
 }
 button:not(:disabled):hover {
     filter: brightness(0.96);
 }
 .vq-btn-primary {
+    background: var(--vq-brand);
     border-color: var(--vq-brand);
+    color: #fff;
+}
+.vq-btn-primary:hover:not(:disabled) {
+    background: var(--vq-brand-dark);
 }
 .vq-secondary,
 .vq-btn-secondary {
-    background: white;
-    border-color: #d6dce6;
+    background: var(--vq-surface);
+    border-color: var(--vq-border);
     color: var(--vq-secondary);
 }
 .vq-danger,
@@ -312,12 +474,16 @@ button:not(:disabled):hover {
 .vq-hint-icon {
     background: transparent;
 }
+.vq-btn-ghost {
+    border-color: transparent;
+}
 .vq-sheet-close,
 .vq-hint-icon {
     color: var(--vq-secondary);
 }
 .vq-user-trigger {
     background: transparent;
+    color: var(--vq-secondary);
 }
 .vq-section {
     margin: 12px 0;
@@ -340,7 +506,19 @@ button:not(:disabled):hover {
     width: min(1000px, 96vw);
 }
 .vq-dialog {
-    background: white;
+    background: var(--vq-surface);
+}
+/*
+ * 菜单、抽屉与对话框统一为十二像素圆角、细边框与双层柔和阴影，使其在浅色画布上形成清晰稳定的浮层层次。
+ */
+.vq-menu,
+.vq-sheet,
+.vq-dialog {
+    border-radius: 12px;
+    border: 1px solid var(--vq-border);
+    box-shadow:
+        0 12px 16px -4px rgb(16 24 40 / 8%),
+        0 4px 6px -2px rgb(16 24 40 / 3%);
 }
 .vq-tooltip {
     color: white;
@@ -361,7 +539,7 @@ input:focus:not(:focus-visible) {
 }
 
 /*
- * 输入域的中性边框沿用当前明暗主题，键盘仍保留有间距的焦点轮廓；字段错误及原生选中反馈由控件自身呈现。
+ * 输入域聚焦时统一改用品牌蓝边框与四像素柔和光环，非法与校验失败状态仍由控件自身的红色反馈覆盖，避免提示冲突。
  */
 :root
     :is(
@@ -378,10 +556,11 @@ input:focus:not(:focus-visible) {
         ),
         textarea,
         select,
+        .vq-input,
         .vq-select-trigger
     ):focus:where(:not(:user-invalid, [aria-invalid="true"])) {
-    border-color: var(--vq-focus-outline);
-    box-shadow: none;
+    border-color: var(--vq-brand);
+    box-shadow: 0 0 0 4px rgb(70 95 255 / 12%);
     outline: 2px solid var(--vq-field-outline);
     outline-offset: 2px;
 }
@@ -417,7 +596,7 @@ th {
     height: 32px;
     background: var(--vq-field);
     color: var(--vq-secondary);
-    font-weight: 650;
+    font-weight: 600;
 }
 td {
     height: 38px;
@@ -431,7 +610,7 @@ td button {
     white-space: nowrap;
 }
 tbody tr:hover td {
-    background: #fafbfe;
+    background: var(--vq-hover);
 }
 .vq-crumb,
 .vq-card-heading small {
@@ -504,13 +683,6 @@ tbody tr:hover td {
     width: auto;
     max-width: min(28ch, 60vw);
 }
-.vq-topbar .veriq-language select {
-    min-height: var(--vq-banner-control-size);
-    padding: 2px 6px;
-    min-width: 0;
-    width: auto;
-    border-color: transparent;
-}
 .vq-library-table {
     min-width: 0;
     overflow: hidden;
@@ -537,8 +709,8 @@ tbody tr:hover td {
     gap: 5px;
     padding: 2px 7px;
     border-radius: 999px;
-    color: #475569;
-    background: #edf1f5;
+    color: var(--vq-secondary);
+    background: var(--vq-hover);
 }
 .vq-state::before {
     content: "";
@@ -577,16 +749,6 @@ tbody tr:hover td {
     justify-content: flex-end;
 }
 @media (max-width: 700px) {
-    .vq-shell-body {
-        flex-direction: column;
-    }
-    .vq-sidebar {
-        flex: 0 0 auto;
-        width: 100%;
-        padding: 0;
-        border: 0;
-        border-bottom: 1px solid var(--vq-border);
-    }
     .vq-mobile-menu {
         display: flex;
         min-height: 36px;
@@ -599,9 +761,6 @@ tbody tr:hover td {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
         align-items: start;
-    }
-    .vq-content-inner {
-        padding: 12px;
     }
     .vq-actions label {
         min-width: min(160px, 100%);
@@ -647,7 +806,7 @@ tbody tr:hover td {
 .vq-topbar-workspaces button {
     border: 1px solid var(--vq-border);
     color: var(--vq-secondary);
-    background: white;
+    background: var(--vq-surface);
 }
 
 .vq-menu-item {
@@ -740,7 +899,7 @@ tbody tr:hover td {
     }
     :root .vq-workspace-form input:focus {
         background-color: var(--vq-hover);
-        border-color: var(--vq-workspace-input-border, #d6dce6);
+        border-color: var(--vq-workspace-input-border, var(--vq-border));
         outline: none;
         box-shadow: none;
     }
@@ -757,4 +916,80 @@ tbody tr:hover td {
     padding: 6px 12px;
     border-radius: 8px;
     font-weight: 500;
+}
+/*
+ * 头部左侧的折叠、通知与主题按钮统一为三十二像素方形轮廓，采用主题边框和表面色，使浅色下三个控件外观一致。
+ */
+.vq-hamburger,
+.vq-icon-button,
+.vq-theme-toggle,
+.vq-header-more {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 1px solid var(--vq-border);
+    border-radius: 8px;
+    background: var(--vq-surface);
+    color: var(--vq-secondary);
+}
+/*
+ * 悬停时改用浅色高亮与品牌文字色，为鼠标和键盘用户提供一致反馈，同时不改变按钮尺寸以避免头部布局抖动。
+ */
+.vq-hamburger:hover,
+.vq-icon-button:hover,
+.vq-theme-toggle:hover,
+.vq-header-more:hover {
+    background: var(--vq-hover);
+    color: var(--vq-brand-text);
+}
+/*
+ * 右侧工具区依靠自动外边距贴齐头部末端，内部采用八像素间距并与三十二像素控件同高，形成稳定的横向节奏。
+ */
+.vq-header-tools {
+    margin-inline-start: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+/*
+ * 用户菜单由文字和头像组成，在工具区中移除边框，避免与相邻图标按钮产生重复轮廓线并保持轻量入口观感。
+ */
+.vq-header-tools .vq-user-trigger {
+    border: 0;
+}
+/*
+ * 窄屏收起工具组时用 hidden 属性彻底退出布局与键盘顺序，作者样式显式恢复浏览器默认的隐藏语义。
+ */
+.vq-header-tools[hidden] {
+    display: none;
+}
+/*
+ * 窄屏头部允许换行：折叠、工作区与更多按钮留在首行，展开的工具组独占第二行，保持 72 像素基准高度且不横向溢出。
+ */
+@media (max-width: 1024px) {
+    .vq-header {
+        flex-wrap: wrap;
+        height: auto;
+        min-height: var(--vq-header-height);
+        /* 两行控件 32+7+32 再加 1 像素底边，border-box 下仍为 72 像素。 */
+        row-gap: 7px;
+    }
+    .vq-header > .vq-header-tools {
+        flex-basis: 100%;
+        margin-inline-start: 0;
+        justify-content: flex-end;
+    }
+}
+/*
+ * 手机宽度收紧头部内边距与控件间距，让汉堡、工作区切换和“更多”按钮在单行内排布。
+ */
+@media (max-width: 560px) {
+    .vq-header {
+        padding-inline: 12px;
+        gap: 6px;
+    }
 }

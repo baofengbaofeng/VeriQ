@@ -74,3 +74,12 @@ test("retention outcome rejects empty success and unexpected filesystem data", (
     ])
         assert.throws(() => parseLocalRetentionOutcome(value), /LOCAL_RETENTION_RESULT_INVALID/);
 });
+
+test("desktop maintenance guidance covers disk pause and retained scratch in both languages", () => {
+    assert.match(desktopErrorMessage("RUNTIME_STORAGE_LOW", "zh"), /磁盘空间不足，领取已暂停/);
+    assert.match(desktopErrorMessage("RUNTIME_STORAGE_LOW", "en"), /Insufficient disk space; claiming is paused/);
+    assert.match(desktopErrorMessage("RUNTIME_STORAGE_UNAVAILABLE", "zh"), /无法确认磁盘可用空间，领取已暂停/);
+    assert.match(desktopErrorMessage("RUNTIME_STORAGE_UNAVAILABLE", "en"), /Disk capacity could not be verified/);
+    assert.match(desktopErrorMessage("RUNTIME_SCRATCH_CLEANUP_PENDING", "zh"), /暂存未自动清理，需管理员核对/);
+    assert.match(desktopErrorMessage("RUNTIME_SCRATCH_CLEANUP_PENDING", "en"), /Scratch was retained/);
+});

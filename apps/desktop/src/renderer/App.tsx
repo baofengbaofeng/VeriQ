@@ -283,6 +283,16 @@ export function App() {
                             {desktopErrorMessage(state.agentIssue, language)}
                         </p>
                     )}
+                    {agent?.pausedReason && (
+                        <p role="status" className="notice">
+                            {desktopErrorMessage(agent.pausedReason, language)}
+                        </p>
+                    )}
+                    {agent?.scratchCleanupPending && (
+                        <p role="status" className="notice">
+                            {desktopErrorMessage("RUNTIME_SCRATCH_CLEANUP_PENDING", language)}
+                        </p>
+                    )}
                     {(tab === "overview" || tab === "settings") && (
                         <section className="panel">
                             <h2>控制平台 / Control platform</h2>

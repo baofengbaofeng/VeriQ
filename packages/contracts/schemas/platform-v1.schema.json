@@ -7305,10 +7305,7 @@
                     "$ref": "#/$defs/JsonObject"
                 }
             },
-            "required": [
-                "versionId",
-                "parameters"
-            ],
+            "required": ["versionId", "parameters"],
             "additionalProperties": false
         },
         "HttpDatasetSample": {
@@ -7323,10 +7320,7 @@
                     "pattern": "^\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\d\\.\\d{3}(?:\\d{3})?Z$"
                 }
             },
-            "required": [
-                "sourceVersionId",
-                "fetchedAt"
-            ],
+            "required": ["sourceVersionId", "fetchedAt"],
             "additionalProperties": false
         },
         "HttpDatasetResponse": {
@@ -7346,11 +7340,7 @@
                     }
                 }
             },
-            "required": [
-                "sourceVersionId",
-                "fetchedAt",
-                "rows"
-            ],
+            "required": ["sourceVersionId", "fetchedAt", "rows"],
             "additionalProperties": false
         },
         "StaticDatasetSelection": {

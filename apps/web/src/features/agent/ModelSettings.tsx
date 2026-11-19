@@ -6,7 +6,13 @@ import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-quer
 import { tx } from "../../locale";
 import type { Workspace } from "../../api";
 import type { AiAdapter } from "../ai/adapters";
-import type { AgentSchemas, CloudAgentAdapter } from "./adapters";
+import {
+    agentErrorCode,
+    agentWorkspaceReadDenied,
+    observeAgentRead,
+    type AgentSchemas,
+    type CloudAgentAdapter,
+} from "./adapters";
 import { AgentError, agentProblem } from "./feedback";
 
 type Settings = AgentSchemas["AgentSettingsWrite"];
@@ -21,12 +27,14 @@ export function ModelSettings({
     adapter,
     providers,
     signal,
+    onWorkspaceReadDenied,
 }: {
     workspace: Workspace;
     owner: string;
     adapter: CloudAgentAdapter;
     providers: Pick<AiAdapter, "providers">;
     signal: AbortSignal;
+    onWorkspaceReadDenied: (error: unknown) => void;
 }) {
     const manage = !workspace.archived && ["OWNER", "ADMIN"].includes(workspace.role);
     const [open, setOpen] = useState(false);
@@ -37,7 +45,10 @@ export function ModelSettings({
     const key = ["workspace", workspace.id, "agent", owner, "settings"];
     const settings = useQuery({
         queryKey: key,
-        queryFn: ({ signal: request }) => adapter.settings(AbortSignal.any([signal, request])),
+        queryFn: ({ signal: request }) => {
+            const active = AbortSignal.any([signal, request]);
+            return observeAgentRead(adapter.settings(active), active, onWorkspaceReadDenied);
+        },
     });
     const directory = useInfiniteQuery({
         queryKey: ["workspace", workspace.id, "agent", owner, "providers"],
@@ -83,7 +94,17 @@ export function ModelSettings({
             cache.setQueryData(key, updated);
             setDraft(undefined);
         } catch (failure) {
-            if (!signal.aborted) setError(failure);
+            if (!signal.aborted) {
+                if (agentErrorCode(failure) === "AUTHENTICATION_REQUIRED") {
+                    onWorkspaceReadDenied(failure);
+                } else {
+                    setError(failure);
+                    // 保存失败可能只失去管理权限；沿用设置读取复核可读权限，原来的保存请求由用户自行处置。
+                    if (agentWorkspaceReadDenied(failure)) {
+                        void settings.refetch();
+                    }
+                }
+            }
         } finally {
             if (!signal.aborted) setSaving(false);
         }

@@ -459,7 +459,10 @@ class JobService:
                 if runtime.trust_status != "MANAGED":
                     continue
                 try:
-                    ApprovedEngines(self.settings).require(caps["engineVersion"])
+                    # 客户端能力只表示协议协商结果，实际分配前还须由操作员批准的双组件声明覆盖冻结任务需求。
+                    ApprovedEngines(self.settings).require_validation(
+                        caps["engineVersion"], job.required_capabilities
+                    )
                 except Problem:
                     job.wait_reason = "NO_CAPABILITY"
                     continue

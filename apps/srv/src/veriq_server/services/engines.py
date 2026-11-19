@@ -5,12 +5,20 @@ package/lock/dependencies/compiler.tgz；
 """
 
 import json
+from collections.abc import Mapping
 from hashlib import sha256
 from pathlib import Path
 from typing import Any
+
 from ..contracts import canonical_bytes, validate_schema
 from ..service import Problem
 from ..settings import Settings
+
+_CONNECTED_COMPONENTS = (
+    ("compilerConnectedDatasets", "2.0"),
+    ("runnerSdkConnectedDatasets", "2.0"),
+)
+_HTTP_COMPONENTS = (("compilerHttpDatasets", "1.0"), ("runnerSdkHttpDatasets", "1.0"))
 
 
 class ApprovedEngines:
@@ -73,3 +81,31 @@ class ApprovedEngines:
             raise Problem(
                 409, "ENGINE_NOT_APPROVED", "Operator-approved engine inventory is unavailable"
             ) from None
+
+    def require_validation(
+        self,
+        version: str,
+        required_capabilities: Mapping[str, object],
+        *,
+        inventory_hash: str | None = None,
+    ) -> dict[str, Any]:
+        """校验受管编译的批准发行是否覆盖冻结任务的联网要求，完成时先核对所提交的库存散列再判定组件能力。
+
+        静态数据要求编译器和 SDK 同时支持联网格式，HTTP 在此基础上还要求两个组件的实时读取协议。
+        无数据任务仍可使用缺少这些可选声明的旧发行。
+        """
+        engine, approved_hash = self.require(version)
+        if inventory_hash is not None and inventory_hash != approved_hash:
+            raise Problem(409, "ENGINE_INVENTORY_MISMATCH", "Compiler release inventory differs")
+        components: tuple[tuple[str, str], ...]
+        if required_capabilities.get("httpDatasets"):
+            components = _CONNECTED_COMPONENTS + _HTTP_COMPONENTS
+        elif required_capabilities.get("connectedDatasets"):
+            components = _CONNECTED_COMPONENTS
+        else:
+            return engine
+        if any(engine.get(field) != protocol for field, protocol in components):
+            raise Problem(
+                409, "ENGINE_NOT_APPROVED", "Approved engine lacks required dataset capabilities"
+            )
+        return engine

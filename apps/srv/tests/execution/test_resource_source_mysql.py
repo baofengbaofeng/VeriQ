@@ -1,19 +1,22 @@
-import pytest
 import asyncio
 import json
 import os
 import shutil
 import tempfile
+from functools import partialmethod
 from hashlib import sha256
 from pathlib import Path
 
 import httpx
+import pytest
 from test_auth import setup, login
 from test_workspace import workspace, new_member, client
 from test_lease_mysql import device
 from test_agent_mysql import agent_once, business
-from veriq_server.db import Artifact
+from test_engine_capabilities_mysql import _settings_with_inventory, _write_inventory
 from test_http_datasets import dataset_deployment
+from veriq_server.db import Artifact
+from veriq_server.settings import Settings
 
 
 async def test_published_source_exact_bytes_integrity_scope_and_current_membership(site):
@@ -1673,6 +1676,25 @@ async def historical_http_case(site, dataset_deployment):
     return ws, d, env, path
 
 
+@pytest.fixture
+def approved_http_revalidation_inventory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """只为领取新重验证的纯服务正例装入双组件均支持联网的合成库存，旧式投影回执和其他测试仍使用原有夹具。"""
+    path = tmp_path / "approved-http-revalidation.json"
+    _write_inventory(
+        path,
+        {
+            "compilerConnectedDatasets": "2.0",
+            "runnerSdkConnectedDatasets": "2.0",
+            "compilerHttpDatasets": "1.0",
+            "runnerSdkHttpDatasets": "1.0",
+        },
+    )
+    monkeypatch.setattr(
+        Settings, "__init__", partialmethod(_settings_with_inventory, path, Settings.__init__)
+    )
+
+
+@pytest.mark.usefixtures("approved_http_revalidation_inventory")
 async def test_previously_projected_http_job_revalidates_its_immutable_bundle(
     site, historical_http_case
 ):

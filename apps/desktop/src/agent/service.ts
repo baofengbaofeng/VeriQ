@@ -24,7 +24,7 @@ import { holdMaintenance } from "./maintenance";
 import { openTrace } from "../../../runtime/src/trace.ts";
 import { DeviceSession } from "../../../runtime/src/agent/credentials.ts";
 import { AgentClient } from "../../../runtime/src/agent/transport.ts";
-import { claimLoop } from "../../../runtime/src/agent/claim-loop.ts";
+import { claimLoop, type ClaimLoopState } from "../../../runtime/src/agent/claim-loop.ts";
 import { ExecutionSupervisor } from "../../../runtime/src/execution/supervisor.ts";
 import { object } from "../main/policy";
 import { probeBrowser } from "./browser-capability";
@@ -85,6 +85,8 @@ export class DesktopAgent {
     private online: Promise<void> | undefined;
     private onlineController: AbortController | undefined;
     private lastError: string | undefined;
+    private pausedReason: ClaimLoopState["pausedReason"];
+    private scratchCleanupPending = false;
     private headedCapability: ReturnType<typeof probeBrowser>;
     private browserCapability: ReturnType<typeof probeBrowser>;
     private selectedWorkspace: string | undefined;
@@ -265,6 +267,8 @@ export class DesktopAgent {
                 pid: process.pid,
                 active: store.active() ?? null,
                 online: !!this.online,
+                ...(this.pausedReason ? { pausedReason: this.pausedReason } : {}),
+                ...(this.scratchCleanupPending ? { scratchCleanupPending: true } : {}),
                 ...(this.transition && ["run", "onlineStart"].includes(this.transition.operation)
                     ? {
                           preparing: {
@@ -946,6 +950,13 @@ export class DesktopAgent {
             runnerId: config.runnerId,
             capabilities: diagnostics.capabilities,
             signal: this.onlineController.signal,
+            onStateChange: (state) => {
+                /**
+                 * 暂停原因只作用于当前领取，撤销它不清除另一个操作的错误；已知暂存仍保留可见，等待具备权限的人工核对。
+                 */
+                this.pausedReason = state.pausedReason;
+                this.scratchCleanupPending ||= state.scratchCleanupPending === true;
+            },
         })
             .catch((error) => {
                 if (!this.onlineController?.signal.aborted) this.lastError = failure(error);

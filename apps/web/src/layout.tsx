@@ -1,6 +1,6 @@
 /**
- * 应用外壳：顶部横幅、左侧固定宽度两级菜单与右侧自适应内容区。横幅左为品牌标识，右为个人资料、语言、退出与设置；侧边
- * 栏仅登录后显示，登录/初始化/重置等独立页无侧边栏。所有文案经 tx 单语展示，跟随当前语言切换而重渲染。
+ * 应用外壳：登录后左列为全高侧栏，右列 sticky 头部集中工作区、主题、通知与账户操作，内容区独立滚动。访客没有侧栏，
+ * 改由头部横向品牌标识承担入口；所有文案经 tx 单语展示，跟随当前语言切换而重渲染。
  */
 
 import {
@@ -22,7 +22,9 @@ import { LanguageControl } from "./locale-ui";
 import { WorkspaceControls } from "./features/workspaces/WorkspaceControls";
 
 import adminIcons from "./admin-icons.svg?no-inline";
-import brand from "../../../assets/branding/veriq-logo.svg";
+import logoLight from "../../../assets/branding/verifyquality-logo-light.svg";
+import logoDark from "../../../assets/branding/verifyquality-logo-dark.svg";
+import logoIcon from "../../../assets/branding/veriq-logo.svg";
 
 /**
  * 菜单图标沿用 TailAdmin 的轮廓和当前文字颜色；链接或按钮的可读名称始终来自其文本。
@@ -80,9 +82,16 @@ function SidebarGroup({
     const id = useId();
     return (
         <div className="vq-nav-group">
-            <button type="button" className="vq-nav-item" aria-expanded={open} aria-controls={id} onClick={onToggle}>
+            <button
+                type="button"
+                className="vq-nav-item"
+                aria-label={tx(group.label)}
+                aria-expanded={open}
+                aria-controls={id}
+                onClick={onToggle}
+            >
                 <Icon name={group.icon} />
-                {tx(group.label)}
+                <span>{tx(group.label)}</span>
                 <Icon name="chevron" />
             </button>
             <div className="vq-nav-children" id={id} hidden={!open}>
@@ -102,20 +111,21 @@ function SidebarGroup({
 function revealCurrentGroup(groups: MenuGroup[], pathname: string) {
     return groups.filter((group) => !group.items.some((item) => matchPath({ path: item.path, end: false }, pathname)));
 }
-/**
- * 窄屏按钮位于导航前面，关闭后链接同时退出布局和键盘顺序；桌面保留各分组的独立展开状态。
+/*
+ * 侧栏在登录后占据左列全高，顶部品牌区随折叠在横版标识与方形图标之间切换；窄屏按钮连同导航在关闭后退出键盘顺序，
+ * 桌面保留各分组的独立展开状态，手风琴逻辑继续按当前路由展开所属分支。
  */
-function Sidebar() {
+function Sidebar({ collapsed }: { collapsed: boolean }) {
     useAppLocale();
     const { user } = useContext(Auth);
     const { pathname } = useLocation();
     const [openedAt, setOpenedAt] = useState<string | null>(null);
-    const [collapsed, setCollapsed] = useState<MenuGroup[]>([]);
+    const [collapsedGroups, setCollapsedGroups] = useState<MenuGroup[]>([]);
     const menuTrigger = useRef<HTMLButtonElement>(null);
     const open = openedAt === pathname;
     useEffect(() => {
         setOpenedAt((path) => (path === pathname ? path : null));
-        setCollapsed((groups) => revealCurrentGroup(groups, pathname));
+        setCollapsedGroups((groups) => revealCurrentGroup(groups, pathname));
     }, [pathname]);
     // 同一路径不会触发标题聚焦，窄屏关闭导航时把焦点交给仍在布局中的菜单按钮，桌面链接保持原焦点。
     const close = (event: MouseEvent<HTMLAnchorElement>) => {
@@ -126,23 +136,35 @@ function Sidebar() {
         }
     };
     const toggleMenu = () => {
-        if (!open) setCollapsed((groups) => revealCurrentGroup(groups, pathname));
+        if (!open) setCollapsedGroups((groups) => revealCurrentGroup(groups, pathname));
         setOpenedAt(open ? null : pathname);
     };
     const renderGroup = (group: MenuGroup) => (
         <SidebarGroup
             group={group}
-            open={!collapsed.includes(group)}
+            open={!collapsedGroups.includes(group)}
             onSelect={close}
             onToggle={() =>
-                setCollapsed((groups) =>
+                setCollapsedGroups((groups) =>
                     groups.includes(group) ? groups.filter((item) => item !== group) : [...groups, group],
                 )
             }
         />
     );
     return (
-        <aside className="vq-sidebar">
+        <aside className="vq-sidebar" id="vq-sidebar" data-collapsed={collapsed}>
+            <div className="vq-sidebar-header">
+                <Link to="/" className="vq-sidebar-brand" aria-label="VeriQ">
+                    {collapsed ? (
+                        <img src={logoIcon} width="32" height="32" alt="VeriQ" />
+                    ) : (
+                        <>
+                            <img className="vq-brand-light" src={logoLight} alt="VeriQ" />
+                            <img className="vq-brand-dark" src={logoDark} alt="VeriQ" />
+                        </>
+                    )}
+                </Link>
+            </div>
             <button
                 ref={menuTrigger}
                 type="button"
@@ -157,9 +179,9 @@ function Sidebar() {
             <nav className="vq-nav" id="vq-navigation" aria-label={tx("Main navigation")}>
                 {renderGroup(authoring)}
                 {renderGroup(execution)}
-                <NavLink className="vq-nav-item" to="/reports" onClick={close}>
+                <NavLink className="vq-nav-item" to="/reports" aria-label={tx("Reports")} onClick={close}>
                     <Icon name="reports" />
-                    {tx("Reports")}
+                    <span>{tx("Reports")}</span>
                 </NavLink>
                 {user?.systemAdmin && renderGroup(administration)}
             </nav>
@@ -191,6 +213,17 @@ function ThemeToggle() {
             onClick={toggle}
         >
             <Icon name={dark ? "sun" : "moon"} />
+        </button>
+    );
+}
+
+/*
+ * 通知铃为站内信占位，当前只呈现按钮而无可展开内容，图标符号与通知后端由后续任务接入，避免制造无响应的假交互。
+ */
+function NotificationBell() {
+    return (
+        <button type="button" className="vq-icon-button" aria-label={tx("Notifications")}>
+            <Icon name="bell" />
         </button>
     );
 }
@@ -328,92 +361,102 @@ function UserMenu({ onLogout }: { onLogout: () => void }) {
     );
 }
 
-/**
- * 品牌图标独立居左，工作区、主题与账户操作依次排在右侧；窄屏通过同一个展开按钮访问工具区。
+/*
+ * 顶部栏只占据右列：登录后左端汉堡按钮折叠侧栏，中段保留工作区切换，右端依次放置主题、通知与账户操作；访客没有侧栏，
+ * 左端改显横向品牌标识，语言选择仍直接暴露在工具区，避免把访客引向不可用的账户菜单。
+ * 窄屏保留一个“更多”按钮收起右侧工具组，工作区切换始终可见，展开后工具组独占一行，避免横向溢出。
  */
-function TopBar({ onLogout }: { onLogout: () => void }) {
-    const { language } = useAppLocale();
+function Header({
+    collapsed,
+    onToggleCollapse,
+    onLogout,
+}: {
+    collapsed: boolean;
+    onToggleCollapse: () => void;
+    onLogout: () => void;
+}) {
+    useAppLocale();
     const { user } = useContext(Auth);
-    const [breakpoint] = useState(() => window.matchMedia("(max-width: 1279.98px)"));
+    const [breakpoint] = useState(() => window.matchMedia("(max-width: 1024px)"));
     const [compact, setCompact] = useState(breakpoint.matches);
     const [expanded, setExpanded] = useState(false);
-    const actions = useRef<HTMLDivElement>(null);
-    const more = useRef<HTMLButtonElement>(null);
-    const restore = useRef(false);
     const toolsId = useId();
+    const more = useRef<HTMLButtonElement>(null);
+    const actions = useRef<HTMLDivElement>(null);
     useLayoutEffect(() => {
-        const synchronize = () => {
-            const creating = Boolean(actions.current?.querySelector('[aria-haspopup="dialog"][aria-expanded="true"]'));
-            if (
-                breakpoint.matches &&
-                !creating &&
-                (actions.current?.contains(document.activeElement) ||
-                    actions.current?.querySelector('[aria-expanded="true"]'))
-            )
-                restore.current = true;
-            if (!breakpoint.matches && more.current === document.activeElement) restore.current = true;
-            setExpanded(breakpoint.matches && creating);
-            setCompact(breakpoint.matches);
-        };
+        const synchronize = () => setCompact(breakpoint.matches);
         breakpoint.addEventListener("change", synchronize);
         return () => breakpoint.removeEventListener("change", synchronize);
     }, [breakpoint]);
-    useLayoutEffect(() => {
-        if (restore.current) (compact ? more.current : actions.current?.querySelector("button"))?.focus();
-        restore.current = false;
+    // 回到宽屏后合上临时展开的工具组，保留桌面端始终内联的初始状态。
+    useEffect(() => {
+        if (!compact) setExpanded(false);
     }, [compact]);
-    const toolsVisible = !compact || expanded;
+    const collapsible = Boolean(user) && compact;
+    const toolsVisible = !collapsible || expanded;
+    function toggleTools() {
+        setExpanded(!expanded);
+    }
     return (
-        <header className="vq-topbar">
-            <div className="vq-header-main">
-                <Link to="/" className="vq-brand">
-                    <img src={brand} width="42" height="42" alt="VeriQ" />
+        <header className="vq-header">
+            {user ? (
+                <button
+                    type="button"
+                    className="vq-hamburger"
+                    aria-label={tx("Toggle sidebar")}
+                    aria-controls="vq-sidebar"
+                    aria-expanded={!collapsed}
+                    onClick={onToggleCollapse}
+                >
+                    <Icon name="menu" />
+                </button>
+            ) : (
+                <Link to="/" className="vq-sidebar-brand vq-header-brand" aria-label="VeriQ">
+                    <img className="vq-brand-light" src={logoLight} alt="VeriQ" />
+                    <img className="vq-brand-dark" src={logoDark} alt="VeriQ" />
                 </Link>
-                {compact && (
-                    <button
-                        ref={more}
-                        type="button"
-                        className="vq-header-more"
-                        aria-label={tx("Toggle application menu")}
-                        aria-controls={toolsId}
-                        aria-expanded={expanded}
-                        onClick={() => setExpanded(!expanded)}
-                    >
-                        <Icon name="horizontal-dots" />
-                    </button>
-                )}
-            </div>
-            <div className="vq-header-tools" id={toolsId} ref={actions} hidden={!toolsVisible}>
-                {user && (
-                    <div className="vq-topbar-workspaces">
-                        <span className="vq-workspace-caption">
-                            {tx(language === "zh" ? "Current Workspace" : "Workspace")}
-                        </span>
-                        <WorkspaceControls visible={toolsVisible} />
-                        <span className="vq-workspace-divider" aria-hidden="true" />
-                    </div>
-                )}
-                {toolsVisible && (
+            )}
+            {user && <WorkspaceControls visible />}
+            {collapsible && (
+                <button
+                    ref={more}
+                    type="button"
+                    className="vq-header-more"
+                    aria-label={tx("Toggle application menu")}
+                    aria-controls={toolsId}
+                    aria-expanded={expanded}
+                    onClick={toggleTools}
+                >
+                    <Icon name="horizontal-dots" />
+                </button>
+            )}
+            <div ref={actions} className="vq-header-tools" id={toolsId} hidden={!toolsVisible}>
+                <ThemeToggle />
+                {user ? (
                     <>
-                        <ThemeToggle />
-                        {user ? <UserMenu onLogout={onLogout} /> : <LanguageControl />}
+                        <NotificationBell />
+                        <UserMenu onLogout={onLogout} />
                     </>
+                ) : (
+                    <LanguageControl />
                 )}
             </div>
         </header>
     );
 }
 
-/**
- * 应用外壳：组合横幅、侧边栏与内容主区；侧边栏仅在登录后渲染，主区保留 main-content 锚点供跳转链接聚焦。
+/*
+ * 应用外壳组成横向两列：登录后左列渲染全高侧栏，右列固定头部并承载内容；访客只保留右列，主区仍保留 main-content
+ * 锚点供跳转链接聚焦，折叠状态由头部按钮在本地维护并同时驱动侧栏宽度与按钮的展开语义。
  */
 export function AppShell({ children, onLogout }: { children: ReactNode; onLogout: () => void }) {
     const { user } = useContext(Auth);
+    const [collapsed, setCollapsed] = useState(false);
     return (
         <div className="vq-shell">
-            <TopBar onLogout={onLogout} />
-            <div className="vq-shell-body">
-                {user ? <Sidebar /> : null}
+            {user ? <Sidebar collapsed={collapsed} /> : null}
+            <div className="vq-main">
+                <Header collapsed={collapsed} onToggleCollapse={() => setCollapsed(!collapsed)} onLogout={onLogout} />
                 <main id="main-content" className="vq-content" tabIndex={-1}>
                     <div className="vq-content-inner">{children}</div>
                 </main>

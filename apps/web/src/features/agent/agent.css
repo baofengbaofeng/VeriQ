@@ -1,8 +1,8 @@
 .vq-agent {
-    --agent-border: var(--vq-border, #dce3eb);
-    --agent-soft: var(--vq-rail, #f4f6f9);
-    --agent-selected: var(--vq-brand-soft, #e8ecff);
-    --agent-accent: var(--vq-brand, #3645b8);
+    --agent-border: var(--vq-border);
+    --agent-soft: var(--vq-rail);
+    --agent-selected: var(--vq-brand-soft);
+    --agent-accent: var(--vq-brand);
     display: grid;
     gap: 1rem;
     margin-block-start: 1rem;
@@ -94,7 +94,7 @@
 
 .vq-agent-sessions [aria-pressed="true"] {
     background: var(--agent-selected);
-    color: var(--vq-brand-dark, #26348e);
+    color: var(--vq-brand-dark);
 }
 
 .vq-agent-history {

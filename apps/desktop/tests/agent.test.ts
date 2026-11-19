@@ -81,3 +81,84 @@ test("missing production release cannot produce advertised capabilities", async 
         await rm(root, { recursive: true, force: true });
     }
 });
+
+/**
+ * 后台投影测试保留真实领取循环、恢复日志、磁盘探测入口和状态请求，只替代浏览器自检、设备会话及操作系统空闲块结果。
+ */
+test("online disk pause preserves another error and keeps retained scratch visible after stop", async (t) => {
+    const { default: fs, mkdir, writeFile } = await import("node:fs/promises");
+    const { join } = await import("node:path");
+    const { tmpdir } = await import("node:os");
+    const { DeviceSession } = await import("../../runtime/src/agent/credentials.ts");
+    const { AgentClient } = await import("../../runtime/src/agent/transport.ts");
+    const root = await mkdtemp("/tmp/vq-desktop-");
+    t.after(() => rm(root, { recursive: true, force: true }));
+    const origin = "http://127.0.0.1:8888";
+    const id = "11111111-1111-4111-8111-111111111111";
+    const agent = new DesktopAgent(root, { origin, engineDirectory: "/missing/engine", browserExecutable: "/missing" });
+    Reflect.set(agent, "lastError", "AGENT_REQUEST_TIMEOUT");
+    Reflect.set(agent, "deviceConfig", async () => ({ server: origin, runnerId: id }));
+    const capabilities = { engineVersion: "0.1.0", os: "linux", arch: "x64", browsers: ["chromium"] };
+    Reflect.set(agent, "diagnose", async () => ({ ok: true, capabilities }));
+    t.mock.method(DeviceSession.prototype, "open", async () => {});
+    t.mock.method(DeviceSession.prototype, "close", async () => {});
+    let sampled!: () => void;
+    let claimed!: () => void;
+    const firstSample = new Promise<void>((resolve) => {
+        sampled = resolve;
+    });
+    const firstClaim = new Promise<void>((resolve) => {
+        claimed = resolve;
+    });
+    let capacity = 0n;
+    let claimCount = 0;
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    t.mock.method(fs, "statfs", async (path: string) => {
+        if (path === tmpdir()) sampled();
+        return { type: 0n, bsize: 4096n, blocks: 400000n, bfree: capacity, bavail: capacity, files: 1n, ffree: 1n };
+    });
+    t.mock.method(AgentClient.prototype, "request", async (path: string) => {
+        if (path === "/internal/v1/runtime") return { capabilities };
+        if (path.endsWith("/reconcile")) return {};
+        assert.equal(path, "/internal/v1/jobs/claim");
+        claimCount++;
+        claimed();
+    });
+    const attempts = join(root, "agent", "attempts");
+    await mkdir(attempts, { recursive: true, mode: 0o700 });
+    await writeFile(
+        join(attempts, `${id}.json`),
+        JSON.stringify({ state: "ALLOCATED", claim: { attemptId: id, fencingToken: 1 }, work: join(root, "work") }),
+        { mode: 0o600 },
+    );
+    const status = () =>
+        agent.dispatch({ operation: "status" }) as Promise<{
+            online: boolean;
+            error?: string;
+            pausedReason?: string;
+            scratchCleanupPending?: boolean;
+        }>;
+    try {
+        await agent.dispatch({ operation: "onlineStart" });
+        await Promise.race([firstSample, firstClaim]);
+        const paused = await status();
+        assert.equal(paused.online, true);
+        assert.equal(paused.pausedReason, "RUNTIME_STORAGE_LOW");
+        assert.equal(paused.scratchCleanupPending, true);
+        assert.equal(paused.error, "AGENT_REQUEST_TIMEOUT");
+        assert.equal(claimCount, 0);
+        capacity = 131072n;
+        t.mock.timers.tick(10000);
+        await firstClaim;
+        const resumed = await status();
+        assert.equal(resumed.pausedReason, undefined);
+        assert.equal(resumed.error, "AGENT_REQUEST_TIMEOUT");
+        assert.equal(resumed.scratchCleanupPending, true);
+        await agent.dispatch({ operation: "onlineStop" });
+        const stopped = await status();
+        assert.equal(stopped.online, false);
+        assert.equal(stopped.scratchCleanupPending, true);
+    } finally {
+        await agent.dispatch({ operation: "onlineStop" });
+    }
+});

@@ -5,17 +5,55 @@ import { readFile, writeFile, unlink, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { connect } from "node:net";
 import { AttemptBroker } from "../execution/broker.ts";
+import type { ClaimLoopState } from "./claim-loop.ts";
+
+interface AgentControlStatus extends ClaimLoopState {
+    running: boolean;
+    pid: number;
+}
+
+/**
+ * 只接受已知本机状态字段及其类型，保留旧进程信息并丢弃附加私有数据；无效填充值不能变成真实维护状态。
+ */
+function agentStatus(value: unknown): AgentControlStatus {
+    if (!value || typeof value !== "object") throw new Error("INVALID_AGENT_RESPONSE");
+    const { running, pid, pausedReason, scratchCleanupPending } = value as Partial<AgentControlStatus>;
+    if (
+        typeof running !== "boolean" ||
+        typeof pid !== "number" ||
+        !Number.isSafeInteger(pid) ||
+        pid < 1 ||
+        (pausedReason !== undefined &&
+            pausedReason !== "RUNTIME_STORAGE_LOW" &&
+            pausedReason !== "RUNTIME_STORAGE_UNAVAILABLE") ||
+        (scratchCleanupPending !== undefined && typeof scratchCleanupPending !== "boolean")
+    ) {
+        throw new Error("INVALID_AGENT_RESPONSE");
+    }
+    return {
+        running,
+        pid,
+        ...(pausedReason === undefined ? {} : { pausedReason }),
+        ...(scratchCleanupPending === undefined ? {} : { scratchCleanupPending }),
+    };
+}
+
 /**
  * 公开函数 serveAgentControl 在配置根下打开带 nonce 的本机控制套接字，供同机 CLI 查询状态或请求停机。写入
  * agent-control.json 前先清除陈旧套接字；
  * 返回的关闭回调会拆除代理并删除控制描述文件。
  */
-export async function serveAgentControl(root: string, stop: () => void) {
+export async function serveAgentControl(
+    root: string,
+    stop: () => void,
+    state: () => Readonly<ClaimLoopState> = () => ({}),
+) {
     await mkdir(root, { recursive: true, mode: 0o700 });
     const broker = new AttemptBroker(join(root, "agent.sock"), async (message) => {
         if (message.type === "stop") stop();
         else if (message.type !== "status") throw new Error("INVALID_OPERATION");
-        return { running: true, pid: process.pid };
+        const { pausedReason, scratchCleanupPending } = state();
+        return { running: true, pid: process.pid, pausedReason, scratchCleanupPending };
     });
     // 调用方先持有配置目录的运行实例锁，才清理遗留的控制套接字，避免移除另一正在运行的代理的控制入口。
     await unlink(broker.path).catch((e: NodeJS.ErrnoException) => {
@@ -41,28 +79,40 @@ export async function agentControl(root: string, type: "stop" | "status") {
         socket: string;
         nonce: string;
     };
-    return new Promise<{
-        running: boolean;
-        pid: number;
-    }>((resolve, reject) => {
+    return new Promise<AgentControlStatus>((resolve, reject) => {
         const socket = connect(config.socket);
-        let data = "";
+        const chunks: Buffer[] = [];
+        let bytes = 0;
         socket.on("connect", () => socket.write(JSON.stringify({ type, nonce: config.nonce }) + "\n"));
         socket.on("error", () => reject(new Error("AGENT_UNAVAILABLE")));
+        socket.on("end", () => reject(new Error("AGENT_UNAVAILABLE")));
         socket.setTimeout(5000, () => {
             socket.destroy();
             reject(new Error("AGENT_UNAVAILABLE"));
         });
-        socket.on("data", (chunk) => {
-            data += chunk.toString();
-            if (data.length > 65536) {
+        socket.on("data", (chunk: Buffer) => {
+            bytes += chunk.length;
+            if (bytes > 65536) {
                 socket.destroy();
                 reject(new Error("INVALID_AGENT_RESPONSE"));
-            } else if (data.includes("\n")) {
-                socket.end();
-                const reply = JSON.parse(data);
-                if (reply.ok) resolve(reply.value);
-                else reject(new Error("AGENT_UNAVAILABLE"));
+                return;
+            }
+            chunks.push(chunk);
+            if (!chunk.includes(10)) return;
+            socket.destroy();
+            try {
+                const reply: unknown = JSON.parse(Buffer.concat(chunks, bytes).toString("utf8"));
+                if (!reply || typeof reply !== "object" || !("ok" in reply)) throw new Error("INVALID_AGENT_RESPONSE");
+                if (reply.ok !== true) throw new Error("AGENT_UNAVAILABLE");
+                resolve(agentStatus("value" in reply ? reply.value : undefined));
+            } catch (error) {
+                reject(
+                    new Error(
+                        error instanceof Error && error.message === "AGENT_UNAVAILABLE"
+                            ? "AGENT_UNAVAILABLE"
+                            : "INVALID_AGENT_RESPONSE",
+                    ),
+                );
             }
         });
     });

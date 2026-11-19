@@ -25,7 +25,8 @@ import { loadInstalledRuntimeDistribution, assertRuntimeRole, diagnoseRelease } 
 import { spawn } from "node:child_process";
 import { DeviceSession } from "./agent/credentials.ts";
 import { AgentClient } from "./agent/transport.ts";
-import { claimLoop } from "./agent/claim-loop.ts";
+import { claimLoop, type ClaimLoopState } from "./agent/claim-loop.ts";
+import type { StoragePauseReason } from "./execution/storage-admission.ts";
 import { agentControl, serveAgentControl } from "./agent/control.ts";
 import { ExecutionSupervisor } from "./execution/supervisor.ts";
 import { WindowsAttemptJournal } from "./execution/windows-journal.ts";
@@ -397,6 +398,7 @@ runtime
         await session.open();
         const root = join(profile.directory, "agent");
         let close: (() => Promise<void>) | undefined;
+        let state: ClaimLoopState = {};
         try {
             /**
              * Windows 在线控制通道和首次认领之前实际打开私有 SQLite 并核验旧日志，原生模块或 ACL 失败不能被 doctor
@@ -412,7 +414,11 @@ runtime
                     journal.close();
                 }
             }
-            close = await serveAgentControl(root, () => controller.abort());
+            close = await serveAgentControl(
+                root,
+                () => controller.abort(),
+                () => state,
+            );
             const transport = new AgentClient(session);
             const info =
                 await transport.request<import("@veriq/contracts").PlatformComponents["schemas"]["RuntimeDTO"]>(
@@ -436,15 +442,39 @@ runtime
                 capabilities: diagnostics.capabilities,
                 signal: controller.signal,
                 ...(options.once ? { once: true } : {}),
+                onStateChange: (update) => {
+                    if (!options.once && update.pausedReason && update.pausedReason !== state.pausedReason) {
+                        process.stderr.write(storageGuidance(update.pausedReason));
+                    }
+                    if (update.scratchCleanupPending && !state.scratchCleanupPending) {
+                        process.stderr.write(scratchGuidance);
+                    }
+                    state = update;
+                },
             });
         } finally {
             await close?.();
             await session.close();
         }
     });
+/**
+ * 磁盘诊断从有限原因选择固定英文信息，状态查询、前台领取与单次失败都不输出主机路径或原生错误内容。
+ */
+function storageGuidance(reason: StoragePauseReason): string {
+    const message =
+        reason === "RUNTIME_STORAGE_LOW"
+            ? "Insufficient disk space; claiming is paused. Check free space and contact an administrator."
+            : "Disk capacity could not be verified; claiming is paused. Ask an administrator to check the volumes.";
+    return `${reason}: ${message}\n`;
+}
+
+const scratchGuidance =
+    "Scratch was retained; ask an administrator to stop the Agent, verify ownership and preserve required evidence.\n";
 runtime.command("status").action(async () => {
     const result = await agentControl(join(store().directory, "agent"), "status");
     process.stdout.write(`Agent running: ${result.running}; PID ${result.pid}\n`);
+    if (result.pausedReason) process.stdout.write(storageGuidance(result.pausedReason));
+    if (result.scratchCleanupPending) process.stdout.write(scratchGuidance);
 });
 runtime.command("stop").action(async () => {
     await agentControl(join(store().directory, "agent"), "stop");
@@ -631,6 +661,10 @@ try {
                 ? error.message
                 : "OPERATION_FAILED";
     logger.error({ event: "command_failed", code }, "VeriQ command failed");
-    process.stderr.write(`VeriQ: ${code}. Check doctor, connectivity and current authorization, then retry.\n`);
+    if (code === "RUNTIME_STORAGE_LOW" || code === "RUNTIME_STORAGE_UNAVAILABLE") {
+        process.stderr.write(storageGuidance(code));
+    } else {
+        process.stderr.write(`VeriQ: ${code}. Check doctor, connectivity and current authorization, then retry.\n`);
+    }
     process.exitCode = controller.signal.aborted ? 130 : 1;
 }

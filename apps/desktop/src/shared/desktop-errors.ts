@@ -18,6 +18,18 @@ const guidance: Record<string, readonly [string, string]> = {
         "后台请求超时，结果未确认；请刷新状态，不要假定操作已回滚。",
         "Agent request timed out and its result is unconfirmed. Refresh status; rollback is not guaranteed.",
     ],
+    RUNTIME_STORAGE_LOW: [
+        "磁盘空间不足，领取已暂停。请检查可用空间或联系管理员。",
+        "Insufficient disk space; claiming is paused. Check free space or contact an administrator.",
+    ],
+    RUNTIME_STORAGE_UNAVAILABLE: [
+        "无法确认磁盘可用空间，领取已暂停。请联系管理员核对存储卷。",
+        "Disk capacity could not be verified; claiming is paused. Ask an administrator to check the storage volumes.",
+    ],
+    RUNTIME_SCRATCH_CLEANUP_PENDING: [
+        "暂存未自动清理，需管理员核对。请先停止后台，再确认目录归属并保留所需证据。",
+        "Scratch was retained; ask an administrator to stop the Agent, verify ownership and keep required evidence.",
+    ],
     LOCAL_RETENTION_INPUT_INVALID: [
         "请填写有效保留天数和批量上限。天数为1至3650，批量为1至100。",
         "Enter retention days from 1 to 3650 and a batch limit from 1 to 100.",

@@ -407,6 +407,73 @@ async def revalidate_bundle(
     return job, None
 
 
+def _frozen_execution_root(source: dict[str, Any], owner: dict[str, Any]) -> dict[str, Any] | None:
+    """按原始源的验证目标确定编译根，旧源省略目标时只接受唯一套件根或当前用例作为独立编译根。"""
+    assets: list[dict[str, Any]] = source["assets"]
+    if "validationTarget" in source:
+        target = source["validationTarget"]
+        if not isinstance(target, dict):
+            return None
+        return next(
+            (
+                asset
+                for asset in assets
+                if asset["versionId"] == target.get("versionId")
+                and asset["resourceId"] == target.get("resourceId")
+            ),
+            None,
+        )
+    suites = [asset for asset in assets if asset["kind"] == "SUITE"]
+    if len(suites) > 1:
+        return None
+    return suites[0] if suites else owner
+
+
+def _matrix_variant_matches(
+    source: dict[str, Any], subject: dict[str, Any], case_version_id: str
+) -> bool:
+    """以数据库用例版本为锚从原数组取冻结条目，先核对用例和执行轴，再核对条目覆盖或用例默认矩阵版本。"""
+    index = subject["suiteEntryIndex"]
+    if not isinstance(index, int) or isinstance(index, bool) or index < 0:
+        return False
+    if (
+        subject.get("caseVersionId") != case_version_id
+        or case_version_id not in source["entryCaseVersionIds"]
+    ):
+        return False
+    owner = next(
+        (
+            asset
+            for asset in source["assets"]
+            if asset["kind"] == "CASE" and asset["versionId"] == case_version_id
+        ),
+        None,
+    )
+    root = _frozen_execution_root(source, owner) if owner else None
+    if not owner or not root:
+        return False
+    role, browser = subject.get("roleKey"), subject.get("browser")
+    document = owner["document"]
+    if root["kind"] == "CASE":
+        # 独立用例沿用默认矩阵和角色，历史多用例执行记录中的非零序号无须映射到单条根的局部位置。
+        return bool(
+            root["versionId"] == case_version_id
+            and role == document["roleKey"]
+            and subject.get("datasetVersionId") == document.get("datasetVersionId")
+        )
+    if root["kind"] != "SUITE" or index >= len(root["document"]["cases"]):
+        return False
+    entry = root["document"]["cases"][index]
+    return (
+        entry["versionId"] == case_version_id
+        and role in entry.get("roleKeys", [document["roleKey"]])
+        and isinstance(browser, str)
+        and browser in entry.get("browsers", [browser])
+        and subject.get("datasetVersionId")
+        == entry.get("datasetVersionId", document.get("datasetVersionId"))
+    )
+
+
 async def static_bytes(
     repo: ResourceRepository, job: Job, snapshot_hash: str, selection: dict
 ) -> bytes:
@@ -463,6 +530,10 @@ async def static_bytes(
         row.get("versionId") != asset["versionId"]
         or row.get("versionId") != subject.get("datasetVersionId")
         or row.get("rowKey") != selection["rowKey"]
+        or (
+            "suiteEntryIndex" in subject
+            and not _matrix_variant_matches(source, subject, case.case_version_id)
+        )
     ):
         raise denied
     rows = doc["rows"] if doc["schemaVersion"] == "1.0" else doc["source"]["rows"]

@@ -6,7 +6,7 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { tx } from "../../locale";
 import type { Workspace } from "../../api";
 import type { ReportAdapter } from "../reports/adapters";
-import type { AgentSchemas, CloudAgentAdapter } from "./adapters";
+import { agentErrorCode, observeAgentRead, type AgentSchemas, type CloudAgentAdapter } from "./adapters";
 import { useAgentLifetime } from "./lifetime";
 import { agentSubmission, clearAgentSubmission, hasPendingAgentConfirmation } from "./retry";
 import { AgentError, agentProblem } from "./feedback";
@@ -14,12 +14,14 @@ import { Proposal, ActionReceipt } from "./Proposal";
 import { RunCard, type ReportNavigation, type RunReference } from "./RunCard";
 
 type Turn = AgentSchemas["AgentTurnDTO"];
-type Session = AgentSchemas["AgentSessionDTO"];
 
 // 这三组文案对应服务端确定性短语，仅用于启用当前角色的发送操作；服务器仍验证动作和会话权限。
 const confirmAny = new Set(["confirm", "confirm action", "确认", "确认操作"]);
 const confirmSave = new Set(["confirm plan", "confirm save", "确认保存"]);
 const confirmRun = new Set(["confirm run", "确认执行", "确认运行"]);
+
+// 同页重开会话时查询缓存可能仍显示旧提议，待审阅的拒绝随重试作用域保留到新提议真正显示。
+const supersededTargets = new Map<string, string>();
 
 const sortTurns = (a: Turn, b: Turn) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id);
 
@@ -60,12 +62,14 @@ export function Conversation({ parentSignal, ...props }: ConversationProps) {
 interface ConversationProps {
     workspace: Workspace;
     owner: string;
-    initial: Session;
+    sessionId: string;
     initialMessage: string;
     adapter: CloudAgentAdapter;
     reports: Pick<ReportAdapter, "report" | "subscribe">;
     parentSignal: AbortSignal;
     navigate: ReportNavigation;
+    onReadDenied: (error: unknown) => void;
+    onWorkspaceReadDenied: (error: unknown) => void;
     onArchived: () => void;
 }
 
@@ -73,12 +77,14 @@ interface ConversationProps {
 function Thread({
     workspace,
     owner,
-    initial,
+    sessionId: id,
     initialMessage,
     adapter,
     reports,
     signal,
     navigate,
+    onReadDenied,
+    onWorkspaceReadDenied,
     onArchived,
 }: Omit<ConversationProps, "parentSignal"> & { signal: AbortSignal }) {
     const [text, setText] = useState(initialMessage);
@@ -88,16 +94,22 @@ function Thread({
     const recovering = useRef<{ id: string; requestId: string }>();
     const [updates, setUpdates] = useState(() => new Map<string, Turn>());
     const [completedRuns, setCompletedRuns] = useState(() => new Set<string>());
-    const id = initial.id;
     const retryKey = "veriq.agent.retry/" + JSON.stringify([owner, workspace.id, id]);
+    const supersededTarget = supersededTargets.get(retryKey);
     const key = ["workspace", workspace.id, "agent", owner, "session", id];
     const current = useQuery({
         queryKey: key,
-        queryFn: ({ signal: request }) => adapter.session(id, AbortSignal.any([signal, request])),
+        queryFn: ({ signal: request }) => {
+            const active = AbortSignal.any([signal, request]);
+            return observeAgentRead(adapter.session(id, active), active, onReadDenied);
+        },
     });
     const history = useInfiniteQuery({
         queryKey: [...key, "turns"],
-        queryFn: ({ pageParam, signal: request }) => adapter.turns(id, pageParam, AbortSignal.any([signal, request])),
+        queryFn: ({ pageParam, signal: request }) => {
+            const active = AbortSignal.any([signal, request]);
+            return observeAgentRead(adapter.turns(id, pageParam, active), active, onReadDenied);
+        },
         initialPageParam: undefined as string | undefined,
         getNextPageParam: (page) => page.nextCursor ?? undefined,
         refetchInterval: (query) => {
@@ -105,8 +117,8 @@ function Thread({
             return mergeTurns(loaded, updates).some((turn) => turn.status === "RUNNING") ? 2_000 : false;
         },
     });
-    const session = current.data ?? initial;
-    const editable = !workspace.archived && !session.archived;
+    const session = current.data;
+    const editable = !workspace.archived && !!session && !session.archived;
     const plan = editable && ["OWNER", "ADMIN", "EDITOR"].includes(workspace.role);
     const execute = editable && workspace.role !== "VIEWER";
     const turns = mergeTurns(history.data?.pages.flatMap((page) => page.items) ?? [], updates);
@@ -114,11 +126,11 @@ function Thread({
     const running = turns.some((turn) => turn.status === "RUNNING");
     const recovered = turns.find((turn) => turn.id === recovering.current?.id && turn.status !== "RUNNING");
     useEffect(() => {
-        if (recovered && recovering.current) {
+        if (!signal.aborted && recovered && recovering.current) {
             clearAgentSubmission(retryKey, recovering.current.requestId);
             recovering.current = undefined;
         }
-    }, [recovered, retryKey]);
+    }, [recovered, retryKey, signal]);
     const references = runReferences(turns);
     const focused = references.filter((run) => !completedRuns.has(run.id)).at(-1)?.id;
     const confirmationText = text
@@ -127,7 +139,23 @@ function Thread({
         .replace(/[.!。！]+$/, "");
     const isConfirmation =
         confirmAny.has(confirmationText) || confirmSave.has(confirmationText) || confirmRun.has(confirmationText);
-    const reviewable = !!latest && (!history.hasNextPage || updates.has(latest.id));
+    // 明确拒绝后的确认入口等权威读取显示可审阅的新提议，重挂时缓存在本次读取完成前不能解除门禁。
+    const reviewable =
+        !!latest &&
+        latest.id !== supersededTarget &&
+        (!supersededTarget || (current.isSuccess && history.isSuccess && history.isFetchedAfterMount)) &&
+        (!history.hasNextPage || updates.has(latest.id));
+    useEffect(() => {
+        if (
+            !signal.aborted &&
+            !operation &&
+            reviewable &&
+            supersededTarget &&
+            supersededTargets.get(retryKey) === supersededTarget
+        ) {
+            supersededTargets.delete(retryKey);
+        }
+    }, [operation, retryKey, reviewable, signal, supersededTarget]);
     const mayConfirmText =
         reviewable &&
         (latest?.proposal?.type === "SAVE_PLAN"
@@ -160,8 +188,13 @@ function Thread({
             await action();
         } catch (failure) {
             if (!signal.aborted) {
-                setError(failure);
-                void refresh();
+                // 写操作可能只失去编辑或执行能力，除明确的账户失效外仍以新的读取结果决定对话是否可见。
+                if (agentErrorCode(failure) === "AUTHENTICATION_REQUIRED") {
+                    onWorkspaceReadDenied(failure);
+                } else {
+                    setError(failure);
+                    void refresh();
+                }
             }
         } finally {
             mutation.current = false;
@@ -187,13 +220,39 @@ function Thread({
                 { confirmation: isConfirmation, expectedProposalId },
                 signal,
             );
-            const turn = await adapter.submit(id, data, signal);
+            const turn = await adapter.submit(id, data, signal).catch(async (failure: unknown) => {
+                if (
+                    signal.aborted ||
+                    !data.expectedProposalId ||
+                    agentErrorCode(failure) !== "AGENT_PROPOSAL_SUPERSEDED"
+                ) {
+                    throw failure;
+                }
+                // 只结清当前代次获明确拒绝的提交编号。保留输入并等待正常刷新，后续确认仍由用户主动发送。
+                clearAgentSubmission(retryKey, data.requestId);
+                supersededTargets.set(retryKey, data.expectedProposalId);
+                setError(failure);
+                await refresh();
+            });
+            if (!turn) {
+                return;
+            }
+            signal.throwIfAborted();
             if (turn.status === "RUNNING") recovering.current = { id: turn.id, requestId: data.requestId };
             else clearAgentSubmission(retryKey, data.requestId);
-            signal.throwIfAborted();
             setText("");
             receive(turn);
         });
+    }
+
+    // 来自授权列表的标题不能代替详情读取；新会话只有在详情与历史都已到达后才挂载私有正文及操作。
+    if (!session || !history.data) {
+        return (
+            <article className="vq-agent-thread">
+                <AgentError error={history.error ?? current.error} retry={() => void refresh()} />
+                {(current.isFetching || history.isFetching) && <p role="status">{tx("Loading VeriQ…")}</p>}
+            </article>
+        );
     }
 
     return (
@@ -241,8 +300,10 @@ function Thread({
                                     type="button"
                                     disabled={busy}
                                     onClick={() => {
-                                        clearAgentSubmission(retryKey);
-                                        setText(turn.text);
+                                        if (!signal.aborted) {
+                                            clearAgentSubmission(retryKey);
+                                            setText(turn.text);
+                                        }
                                     }}
                                 >
                                     {tx("Retry message")}
@@ -284,6 +345,7 @@ function Thread({
                     run={run}
                     reports={reports}
                     signal={signal}
+                    onWorkspaceReadDenied={onWorkspaceReadDenied}
                     focused={run.id === focused}
                     navigate={navigate}
                     reportTerminal={reportTerminal}

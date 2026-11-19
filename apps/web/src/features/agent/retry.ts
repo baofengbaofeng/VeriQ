@@ -4,7 +4,14 @@
 import type { AgentSchemas } from "./adapters";
 
 type Submission = AgentSchemas["AgentTurnSubmit"];
-const fallback = new Map<string, string>();
+
+// 页面内记录记住最近一次写入或结清。持久操作失败时，以页面内结果遮住仍可读取的旧存储值。
+interface PageRetry {
+    value?: string;
+    overridesStorage: boolean;
+}
+
+const fallback = new Map<string, PageRetry>();
 const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 
 // 三段记录分别保存正文摘要、请求和原始目标，旧版两段记录不具备足够信息来推断唯一确认目标。
@@ -17,24 +24,35 @@ function retryRecord(raw?: string) {
     return { digest, requestId, target: target || undefined };
 }
 
-// 只在当前标签页读取操作身份。受限存储模式仍能在当前渲染进程重用已发送的请求编号，切换工作区不会共用一条记录。
+// 持久操作失败后的页面记录有优先权，包括没有值的结清记录。正常存储继续提供标签页重载时的身份。
 function read(key: string): string | undefined {
+    const page = fallback.get(key);
+    if (page?.overridesStorage) {
+        return page.value;
+    }
     try {
-        return sessionStorage.getItem(key) ?? fallback.get(key);
+        return sessionStorage.getItem(key) ?? page?.value;
     } catch {
-        return fallback.get(key);
+        return page?.value;
     }
 }
 
-// 写入失败时使用进程中的有限当前记录，删除某条请求只影响它所属的身份、工作区与会话，不接触其它标签页。
+// 保留当前页面最近一次写入供读取失败时使用。持久删除成功后释放对应页面记录，失败则记住结清结果。
 function write(key: string, value?: string) {
-    if (value) fallback.set(key, value);
-    else fallback.delete(key);
     try {
-        if (value) sessionStorage.setItem(key, value);
-        else sessionStorage.removeItem(key);
+        if (value) {
+            sessionStorage.setItem(key, value);
+        } else {
+            sessionStorage.removeItem(key);
+        }
     } catch {
-        // 无法持久化时仍保留内存副本供页面内重试，且不会为了重试将对话正文另行保存。
+        fallback.set(key, { value, overridesStorage: true });
+        return;
+    }
+    if (value) {
+        fallback.set(key, { value, overridesStorage: false });
+    } else {
+        fallback.delete(key);
     }
 }
 
