@@ -64,22 +64,26 @@ function WorkspaceMenu() {
                     collisionPadding={8}
                 >
                     <DropdownMenu.RadioGroup value={workspace?.id ?? ""} onValueChange={choose}>
-                        {items.map((item) => (
-                            <DropdownMenu.RadioItem
-                                key={item.id}
-                                value={item.id}
-                                data-workspace-id={item.id}
-                                className="vq-menu-item"
-                                textValue={workspaceLabel(item)}
-                            >
-                                {workspaceLabel(item)}
-                                <DropdownMenu.ItemIndicator className="vq-workspace-check">
-                                    <svg aria-hidden="true" width="14" height="14">
-                                        <use href={`${icons}#check`} />
-                                    </svg>
-                                </DropdownMenu.ItemIndicator>
-                            </DropdownMenu.RadioItem>
-                        ))}
+                        {items.map((item) => {
+                            const optionName = workspaceLabel(item);
+                            return (
+                                <DropdownMenu.RadioItem
+                                    key={item.id}
+                                    value={item.id}
+                                    data-workspace-id={item.id}
+                                    className="vq-menu-item"
+                                    textValue={optionName}
+                                    title={optionName}
+                                >
+                                    <span className="vq-workspace-option-name">{optionName}</span>
+                                    <DropdownMenu.ItemIndicator className="vq-workspace-check">
+                                        <svg aria-hidden="true" width="14" height="14">
+                                            <use href={`${icons}#check`} />
+                                        </svg>
+                                    </DropdownMenu.ItemIndicator>
+                                </DropdownMenu.RadioItem>
+                            );
+                        })}
                     </DropdownMenu.RadioGroup>
                     {!items.length && !error && (
                         <span className="vq-menu-item" role="status">

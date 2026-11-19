@@ -582,7 +582,9 @@
     font-size: 13px;
     font-weight: 500;
 }
-.vq-workspace-picker span {
+.vq-workspace-picker span,
+.vq-workspace-option-name {
+    min-width: 0;
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
