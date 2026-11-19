@@ -1,3 +1,4 @@
+import { openWorkspaceMenu, workspaceOption, workspacePicker } from "./support/console-controls";
 import { test, expect, type Page } from "@playwright/test";
 import type { PlatformComponents } from "@veriq/contracts";
 import { spawn } from "node:child_process";
@@ -19,8 +20,9 @@ async function selectRuntimeWorkspace(page: Page, workspaceId: string) {
     });
     await page.goto("/runtimes");
     await expect(page.getByRole("heading", { name: "Runtimes", exact: true })).toBeVisible();
-    const picker = page.getByRole("combobox", { name: "Workspace", exact: true });
-    const target = picker.locator(`option[value="${workspaceId}"]`);
+    const picker = workspacePicker(page);
+    await openWorkspaceMenu(page);
+    const target = workspaceOption(page, workspaceId);
     const seenIds = new Set<string>();
     const seenCursors = new Set<string>();
     let response = await firstPage;
@@ -34,17 +36,17 @@ async function selectRuntimeWorkspace(page: Page, workspaceId: string) {
             expect(seenIds.has(item.id), "Workspace pages must not repeat IDs").toBe(false);
             seenIds.add(item.id);
         }
-        await expect(picker.locator(`option[value="${last.id}"]`)).toBeAttached();
+        await expect(workspaceOption(page, last.id)).toBeVisible();
         if ((await target.count()) === 1) {
-            await picker.selectOption(workspaceId);
-            await expect(picker).toHaveValue(workspaceId);
+            await target.click();
+            await expect(picker).toHaveAttribute("data-workspace-id", workspaceId);
             return;
         }
         if (!nextCursor) throw new Error("Known Runtime Workspace was absent from the complete list");
         if (seenCursors.has(nextCursor)) throw new Error("Workspace pagination repeated a cursor");
         seenCursors.add(nextCursor);
         if (pageNumber === 99) break;
-        const more = page.getByRole("button", { name: "More Workspaces", exact: true });
+        const more = page.getByRole("menuitem", { name: "More Workspaces", exact: true });
         await expect(more).toBeEnabled();
         const nextPage = page.waitForResponse((candidate) => {
             const url = new URL(candidate.url());

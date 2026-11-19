@@ -18,8 +18,9 @@ type Directory = {
     requested: string;
     loading: boolean;
     error: Error | null;
-    hasMore: boolean;
+    nextCursor?: string | null;
     loadingMore: boolean;
+    pagingError: boolean;
     more: () => void;
     retry: () => void;
     choose: (id: string) => void;
@@ -129,8 +130,11 @@ export function WorkspaceDirectory({ children }: { children: ReactNode }) {
                 choose,
                 created,
                 loading: !!user && !workspace && (directory.isPending || lookup.fetchStatus !== "idle"),
-                error: (requested || (!listed && selected) ? lookup.error : null) ?? directory.error,
-                hasMore: directory.hasNextPage,
+                error:
+                    (requested || (!listed && selected) ? lookup.error : null) ??
+                    (directory.isFetchNextPageError ? null : directory.error),
+                nextCursor: directory.data?.pages.at(-1)?.nextCursor,
+                pagingError: directory.isFetchNextPageError,
                 loadingMore: directory.isFetchingNextPage,
                 more: () => void directory.fetchNextPage(),
                 retry: () => {

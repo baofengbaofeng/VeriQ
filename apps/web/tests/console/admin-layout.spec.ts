@@ -3,6 +3,7 @@
  * 单个工作空间仅供创建回归使用，展示字号的用例直接访问已有用户列表。
  */
 
+import { chooseWorkspace, openWorkspaceMenu, workspaceOption, workspacePicker } from "../support/console-controls";
 import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import { editorScope } from "../editor-fixture";
@@ -28,8 +29,9 @@ test("server console follows the approved layout", async ({ page }) => {
     const profile = header.getByRole("button", { name: "Browser Administrator", exact: true });
     const controls = [
         header.getByRole("link", { name: "VeriQ" }),
-        header.getByRole("combobox", { name: "Workspace", exact: true }),
+        workspacePicker(page),
         header.getByRole("button", { name: "Add workspace", exact: true }),
+        header.getByRole("link", { name: "Workspace settings" }),
         profile,
     ];
     let right = 0;
@@ -86,7 +88,7 @@ test("compact console navigation closes on selection and exposes the current bra
     await actions.click();
     await expect(header.getByText("Browser Administrator", { exact: true })).toBeVisible();
     await actions.click();
-    await expect(header.getByRole("combobox", { name: "Workspace" })).toBeVisible();
+    await expect(workspacePicker(page)).toBeVisible();
     await expect(header.getByRole("button", { name: "Add workspace" })).toBeVisible();
     const menu = page.getByRole("button", { name: "Menu", exact: true });
     await expect(menu).toHaveAttribute("aria-expanded", "false");
@@ -136,7 +138,7 @@ test("console resources return to the selected list and create in the same works
     await expect(filter).toBeHidden();
     await page.getByRole("button", { name: "Back to list" }).press("Enter");
     await expect(start).toBeFocused();
-    await expect(page.getByLabel("Workspace")).toHaveValue(workspaceId);
+    await expect(workspacePicker(page)).toHaveAttribute("data-workspace-id", workspaceId);
     await expect(filter).toHaveValue("DATASET");
     await start.click();
     await page.getByRole("combobox", { name: "Kind", exact: true }).selectOption("DATASET");
@@ -221,7 +223,7 @@ test("Web controls distinguish field, keyboard and pointer focus", async ({ page
 test("header creates and retains an authorized workspace across navigation", async ({ page }) => {
     await signIn(page);
     const header = page.getByRole("banner");
-    const selector = header.getByRole("combobox", { name: "Workspace", exact: true });
+    const selector = workspacePicker(page);
     await expect(selector).toBeVisible();
     const ids: string[] = [];
     const firstKey = `shell-${randomUUID()}`;
@@ -235,7 +237,7 @@ test("header creates and retains an authorized workspace across navigation", asy
             await dialog.getByRole("button", { name: "Create Workspace" }).click();
             await expect(dialog.getByRole("alert")).toBeVisible();
             await expect(dialog.getByLabel("Name")).toHaveValue(name);
-            await expect(page.getByRole("banner", { includeHidden: true }).locator("select")).toHaveValue(ids[0]);
+            await expect(workspacePicker(page)).toHaveAttribute("data-workspace-id", ids[0]);
             await dialog.getByLabel("Key").fill(`shell-${randomUUID()}`);
         }
         const response = page.waitForResponse(
@@ -247,36 +249,36 @@ test("header creates and retains an authorized workspace across navigation", asy
         const id: string = (await created.json()).data.id;
         ids.push(id);
         await expect(dialog).toBeHidden();
-        await expect(selector).toHaveValue(id);
+        await expect(selector).toHaveAttribute("data-workspace-id", id);
     }
     await page.getByRole("link", { name: "Resources", exact: true }).click();
-    await expect(selector).toHaveValue(ids[1]);
-    await expect(page.getByRole("main").getByRole("combobox", { name: "Workspace" })).toHaveCount(0);
+    await expect(selector).toHaveAttribute("data-workspace-id", ids[1]);
+    await expect(page.getByRole("main").locator("button.vq-workspace-picker")).toHaveCount(0);
     await page.goto(`/agent?workspaceId=${ids[0]}&planId=${randomUUID()}&view=details#conversation`);
-    await expect(selector).toHaveValue(ids[0]);
+    await expect(selector).toHaveAttribute("data-workspace-id", ids[0]);
     await expect(page.getByRole("complementary", { name: "Conversations" })).toBeVisible();
     await page.getByRole("link", { name: "Resources", exact: true }).click();
-    await selector.selectOption(ids[1]);
+    await chooseWorkspace(page, ids[1]);
     await page.context().setOffline(true);
     try {
         await page.goBack();
         await expect(page.getByRole("heading", { name: "Test Agent", exact: true })).toBeVisible();
-        await expect(selector).toHaveValue("");
+        await expect(selector).toHaveAttribute("data-workspace-id", "");
         await expect(page.getByRole("complementary", { name: "Conversations" })).toHaveCount(0);
-        await selector.selectOption(ids[1]);
+        await chooseWorkspace(page, ids[1]);
         await expect(page).toHaveURL(/\/agent\?view=details#conversation$/);
     } finally {
         await page.context().setOffline(false);
     }
     await expect(page.getByRole("complementary", { name: "Conversations" })).toBeVisible();
-    await expect(selector).toHaveValue(ids[1]);
+    await expect(selector).toHaveAttribute("data-workspace-id", ids[1]);
     const profile = header.getByRole("button", { name: "Browser Administrator" });
     await profile.press("Enter");
     const menu = page.getByRole("menu");
     await menu.getByRole("menuitem", { name: /^Language/ }).press("ArrowRight");
     await expect(page.getByRole("menuitemradio", { name: "English" })).toBeChecked();
     await page.getByRole("menuitemradio", { name: "中文" }).press("Enter");
-    await expect(header.getByRole("combobox")).toHaveValue(ids[1]);
+    await expect(workspacePicker(page)).toHaveAttribute("data-workspace-id", ids[1]);
     await profile.press("Enter");
     await menu.getByRole("menuitem", { name: /^语言/ }).press("ArrowRight");
     await page.getByRole("menuitemradio", { name: "English" }).press("Enter");
@@ -316,7 +318,7 @@ test("TailAdmin profile dimensions and theme persist through real navigation", a
         "background-color",
         "rgb(70, 95, 255)",
     );
-    await expect(banner.getByRole("combobox")).toHaveValue(workspaceId);
+    await expect(workspacePicker(page)).toHaveAttribute("data-workspace-id", workspaceId);
     await page.getByRole("link", { name: "Test Agent", exact: true }).click();
     const archived = page.getByRole("button", { name: "Archived", exact: true });
     await archived.click();
@@ -388,8 +390,8 @@ test("TailAdmin banner sizes and nested language choices preserve the resource d
         expect(response.status()).toBe(201);
     }
     await page.goto("/resources?section=assets#draft");
-    const picker = banner.getByRole("combobox");
-    await picker.selectOption(scope.workspaceId);
+    const picker = workspacePicker(page);
+    await chooseWorkspace(page, scope.workspaceId);
     await page.getByRole("button", { name: "New resource", exact: true }).click();
     await page.getByLabel("Name", { exact: true }).fill("Keep draft across languages");
     const draftNode = await page.getByLabel("Name", { exact: true }).elementHandle();
@@ -403,7 +405,9 @@ test("TailAdmin banner sizes and nested language choices preserve the resource d
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
     await page.setViewportSize({ width: 320, height: 740 });
     await expect(banner).toHaveCSS("height", "65px");
-    await expect(banner.getByRole("button", { name: "More Workspaces" })).toBeVisible();
+    const workspaces = await openWorkspaceMenu(page);
+    await expect(workspaces.getByRole("menuitem", { name: "More Workspaces" })).toBeVisible();
+    await page.keyboard.press("Escape");
     await expect(toggle).toHaveCSS("width", "40px");
     await toggle.click();
     await expect(user).toBeVisible();
@@ -435,7 +439,7 @@ test("TailAdmin banner sizes and nested language choices preserve the resource d
     await page.getByRole("menuitemradio", { name: "中文", exact: true }).click();
     await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
     await expect(page.getByRole("menu")).toHaveCount(0);
-    await expect(picker).toHaveValue(scope.workspaceId);
+    await expect(picker).toHaveAttribute("data-workspace-id", scope.workspaceId);
     expect(page.url()).toMatch(/\/resources\?section=assets#draft$/);
     expect(await draftNode?.evaluate((input) => input.isConnected && (input as HTMLInputElement).value)).toBe(
         "Keep draft across languages",
@@ -448,5 +452,86 @@ test("TailAdmin banner sizes and nested language choices preserve the resource d
     await guestToggle.click();
     await banner.getByRole("combobox", { name: "语言" }).selectOption("en");
     await expect(banner.getByRole("button", { name: "Dark mode" })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
+});
+
+test("Workspace toolbar browses paginated members and opens workspace settings", async ({ page }) => {
+    test.setTimeout(90_000);
+    await signIn(page);
+    const header = page.getByRole("banner");
+    const settings = header.getByRole("link", { name: "Workspace settings" });
+    await expect(settings).toHaveAttribute("href", "/workspaces");
+    await expect(
+        page.getByRole("navigation", { name: "Main navigation" }).getByRole("link", { name: "Workspaces" }),
+    ).toHaveCount(0);
+    const session = (await (await page.request.get("/api/v1/auth/session")).json()).data;
+    const headers = { Origin: "http://127.0.0.1:5173", "X-CSRF-Token": session.csrfToken };
+    for (let i = 0; i < 51; i++) {
+        const created = await page.request.post("/api/v1/workspaces", {
+            headers,
+            data: {
+                key: `zzzz-picker-${randomUUID()}`,
+                name: `Menu workspace ${i}`,
+            },
+        });
+        expect(created.status()).toBe(201);
+    }
+    await settings.click();
+    await expect(page.getByRole("heading", { name: "Workspaces", level: 1 })).toBeVisible();
+    const trigger = header.getByRole("button", { name: /^Workspace:/ });
+    await trigger.press("Enter");
+    const menu = page.getByRole("menu", { name: /^Workspace:/ });
+    const selected = menu.getByRole("menuitemradio", { checked: true });
+    await expect(selected).toHaveCount(1);
+    const first = await selected.getAttribute("data-workspace-id");
+    await page.keyboard.press("Escape");
+    await expect(trigger).toBeFocused();
+    await trigger.press("ArrowDown");
+    const more = menu.getByRole("menuitem", { name: "More Workspaces", exact: true });
+    await page.route(
+        (url) => url.pathname === "/api/v1/workspaces" && url.searchParams.has("cursor"),
+        (r) => r.abort("failed"),
+        { times: 1 },
+    );
+    await more.press("Enter");
+    const retry = menu.getByRole("menuitem", { name: "Retry more workspaces" });
+    await expect(retry).toBeVisible();
+    const radios = menu.getByRole("menuitemradio");
+    for (let action = retry; ; action = more) {
+        const before = new Set(
+            await radios.evaluateAll((rows) => rows.map((row) => row.getAttribute("data-workspace-id"))),
+        );
+        const response = page.waitForResponse((r) => {
+            const url = new URL(r.url());
+            return url.pathname === "/api/v1/workspaces" && url.searchParams.has("cursor");
+        });
+        await action.press("Enter");
+        const fetched = await response;
+        expect(fetched.status()).toBe(200);
+        const data: { items: { id: string }[]; nextCursor: string | null } = (await fetched.json()).data;
+        const added = data.items.find((item) => !before.has(item.id));
+        if (!added) throw new Error("Expected a new member workspace from this page");
+        await expect(workspaceOption(page, added.id)).toBeFocused();
+        if (!data.nextCursor) break;
+    }
+    await expect(more).toBeHidden();
+    const last = menu.getByRole("menuitemradio").last();
+    const id = await last.getAttribute("data-workspace-id");
+    expect(id).toBeTruthy();
+    expect(id).not.toBe(first);
+    await last.press("Enter");
+    await expect(trigger).toHaveAttribute("data-workspace-id", id!);
+    await expect(trigger).toBeFocused();
+    await header.getByRole("button", { name: "Add workspace" }).click();
+    await expect(page.getByRole("dialog", { name: "Add workspace" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await page.setViewportSize({ width: 320, height: 750 });
+    await header.getByRole("button", { name: "Toggle application menu" }).click();
+    await header.getByRole("button", { name: "Dark mode" }).click();
+    await trigger.click();
+    await expect(menu).toHaveCSS("background-color", "rgb(30, 38, 53)");
+    const bounds = await menu.boundingBox();
+    expect(bounds?.x).toBeGreaterThanOrEqual(0);
+    expect(bounds && bounds.x + bounds.width).toBeLessThanOrEqual(320);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
 });

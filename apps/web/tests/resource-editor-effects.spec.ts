@@ -2,6 +2,7 @@
  * VeriQ 资源回归只经真实安装、登录与空间接口建立测试前置条件；编辑器回归单独挂载实际导出的 Monaco，并通过浏览器输入和
  * 公共生命周期状态观察受控更新。
  */
+import { chooseWorkspace, openWorkspaceMenu, workspaceOption, workspacePicker } from "./support/console-controls";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { test, expect } from "@playwright/test";
@@ -80,20 +81,18 @@ test("resources restore workspace focus on selection and retain unsaved values a
     const firstPage = (await (await listing).json()).data;
     const first = firstPage.items[0].id as string;
     let lastLoadedId = firstPage.items.at(-1).id as string;
-    const selector = page.getByLabel("Workspace");
-    await expect(selector).toHaveValue(first);
+    const selector = workspacePicker(page);
+    await expect(selector).toHaveAttribute("data-workspace-id", first);
     expect(queried.some((url) => new URL(url).pathname === `/api/v1/workspaces/${first}/resources`)).toBe(true);
 
     /**
      * 共享管理员的默认空间可能已有其它用例资源，因此只以真实首屏响应核对默认查询；空态属于本例新建的 Alpha，必须先通过
      * 实际分页按钮载入两个已知空间，再选择自有空间进行断言。
      */
+    await openWorkspaceMenu(page);
     const cursors = new Set<string>();
-    while (
-        (await selector.locator(`option[value="${alpha}"]`).count()) === 0 ||
-        (await selector.locator(`option[value="${beta}"]`).count()) === 0
-    ) {
-        const more = page.getByRole("button", { name: "More Workspaces", exact: true });
+    while ((await workspaceOption(page, alpha).count()) === 0 || (await workspaceOption(page, beta).count()) === 0) {
+        const more = page.getByRole("menuitem", { name: "More Workspaces", exact: true });
         await expect(more).toBeVisible();
         const nextPage = page.waitForResponse(
             (response) =>
@@ -111,16 +110,17 @@ test("resources restore workspace focus on selection and retain unsaved values a
         const items = (await response.json()).data.items;
         expect(items.length).toBeGreaterThan(0);
         lastLoadedId = items.at(-1).id;
-        await expect(selector.locator(`option[value="${lastLoadedId}"]`)).toHaveCount(1);
+        await expect(workspaceOption(page, lastLoadedId)).toHaveCount(1);
     }
+    await page.keyboard.press("Escape");
     if (first === alpha) {
-        await selector.selectOption(beta);
-        await expect(selector).toHaveValue(beta);
+        await chooseWorkspace(page, beta);
+        await expect(selector).toHaveAttribute("data-workspace-id", beta);
     }
     await selector.focus();
     await expect(selector).toBeFocused();
-    await selector.selectOption(alpha);
-    await expect(selector).toHaveValue(alpha);
+    await chooseWorkspace(page, alpha);
+    await expect(selector).toHaveAttribute("data-workspace-id", alpha);
     await expect.soft(selector).toBeFocused();
     await expect(page.getByText("No resources in this Workspace.")).toBeVisible();
     expect(queried.some((url) => new URL(url).pathname === `/api/v1/workspaces/${alpha}/resources`)).toBe(true);
@@ -135,7 +135,7 @@ test("resources restore workspace focus on selection and retain unsaved values a
         const items = (await response.json()).data.items as { id: string }[];
         return items.some((item) => item.id === lastLoadedId);
     });
-    await page.getByRole("link", { name: "Workspaces", exact: true }).click();
+    await page.getByRole("link", { name: "Workspace settings", exact: true }).click();
     await (await staged).finished();
     const renamed = await page.request.patch(`/api/v1/workspaces/${beta}`, {
         headers: { Origin: origin, "X-CSRF-Token": session.csrfToken },
@@ -174,7 +174,7 @@ test("resources restore workspace focus on selection and retain unsaved values a
     try {
         await page.getByRole("link", { name: "Resources", exact: true }).click();
         await backendCompleted;
-        await selector.selectOption(beta);
+        await chooseWorkspace(page, beta);
         await expect(page.getByText("No resources in this Workspace.")).toBeVisible();
         await page.getByRole("button", { name: "New resource", exact: true }).click();
         await resourceCreateForm(page).getByRole("combobox", { name: "Kind", exact: true }).selectOption("DATASET");
@@ -188,8 +188,8 @@ test("resources restore workspace focus on selection and retain unsaved values a
         release();
         await finished;
         await (await refreshed).finished();
-        await expect(selector.locator(`option[value="${beta}"]`)).toHaveText("Resource Beta refreshed");
-        await expect(selector).toHaveValue(beta);
+        await expect(selector).toHaveText("Resource Beta refreshed");
+        await expect(selector).toHaveAttribute("data-workspace-id", beta);
         await expect(resourceCreateForm(page).getByRole("combobox", { name: "Kind", exact: true })).toHaveValue(
             "DATASET",
         );
@@ -199,8 +199,8 @@ test("resources restore workspace focus on selection and retain unsaved values a
         expect(queried.some((url) => new URL(url).pathname === `/api/v1/workspaces/${beta}/resources`)).toBe(true);
         await selector.focus();
         await expect(selector).toBeFocused();
-        await selector.selectOption(alpha);
-        await expect(selector).toHaveValue(alpha);
+        await chooseWorkspace(page, alpha);
+        await expect(selector).toHaveAttribute("data-workspace-id", alpha);
         await expect(selector).toBeFocused();
         await expect(page.getByText("No resources in this Workspace.")).toBeVisible();
         await page.getByRole("button", { name: "New resource", exact: true }).click();

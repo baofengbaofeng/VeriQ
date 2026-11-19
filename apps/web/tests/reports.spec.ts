@@ -1,4 +1,4 @@
-import { chooseLanguage, workspacePicker } from "./support/console-controls";
+import { chooseLanguage, chooseWorkspace, openWorkspaceMenu, workspacePicker } from "./support/console-controls";
 import { test, expect, type Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import type { PlatformComponents } from "@veriq/contracts";
@@ -44,9 +44,9 @@ test("reports show real Workspace history and clear scope on switch", async ({ p
     await page.getByRole("link", { name: "Reports", exact: true }).click();
     await chooseLanguage(page, "en");
     await expect(page.getByRole("heading", { name: "Reports", exact: true })).toBeVisible();
-    await workspacePicker(page).selectOption((await a.json()).data.id);
+    await chooseWorkspace(page, (await a.json()).data.id);
     await expect(page.getByText("No runs in this Workspace.", { exact: true })).toBeVisible();
-    await workspacePicker(page).selectOption((await b.json()).data.id);
+    await chooseWorkspace(page, (await b.json()).data.id);
     await expect(page.getByText("No runs in this Workspace.", { exact: true })).toBeVisible();
     await expect(page.getByText("Select a run to inspect its report.", { exact: true })).toBeVisible();
 });
@@ -110,26 +110,27 @@ test("reports discover URL workspace on a later genuine page and retain manual c
             response.url().endsWith(runPath + "/report") || response.url().endsWith(runPath + "/events/stream"),
     );
     await page.goto(`/reports?workspaceId=${target.id}&runId=${missingRun}`);
-    await expect(selector).toHaveValue(target.id);
+    await expect(selector).toHaveAttribute("data-workspace-id", target.id);
     expect((await lookup).status()).toBe(404);
     await page.goto(`/reports?workspaceId=${target.id}`);
-    await expect(selector).toHaveValue(fallback.id);
-    await page.getByRole("button", { name: "More Workspaces", exact: true }).click();
-    await expect(selector).toHaveValue(target.id);
-    await selector.selectOption(fallback.id);
+    await expect(selector).toHaveAttribute("data-workspace-id", fallback.id);
+    await openWorkspaceMenu(page);
+    await page.getByRole("menuitem", { name: "More Workspaces", exact: true }).click();
+    await expect(selector).toHaveAttribute("data-workspace-id", target.id);
+    await chooseWorkspace(page, fallback.id);
     await chooseLanguage(page, "en");
     await expect(page.getByRole("heading", { name: "Reports", exact: true })).toBeVisible();
-    await expect(selector).toHaveValue(fallback.id);
+    await expect(selector).toHaveAttribute("data-workspace-id", fallback.id);
     // 同一个真实列表还覆盖首屏可见目标和缺失目标，页面导航新建选择生命周期；不能假设创建顺序就是服务端排序，所有目标与
     // 回退项均来自刚读取的 API 分页。
     await page.goto(`/reports?workspaceId=${fallback.id}`);
-    await expect(selector).toHaveValue(fallback.id);
+    await expect(selector).toHaveAttribute("data-workspace-id", fallback.id);
     const other = first.items.find((item) => item.id !== fallback.id);
     if (!other) throw new Error("Expected a manual alternative workspace");
-    await selector.selectOption(other.id);
+    await chooseWorkspace(page, other.id);
     await chooseLanguage(page, "zh");
     const localizedSelector = workspacePicker(page);
-    await expect(localizedSelector).toHaveValue(other.id);
+    await expect(localizedSelector).toHaveAttribute("data-workspace-id", other.id);
     await page.goto(`/reports?workspaceId=${randomUUID()}`);
-    await expect(localizedSelector).toHaveValue(fallback.id);
+    await expect(localizedSelector).toHaveAttribute("data-workspace-id", fallback.id);
 });

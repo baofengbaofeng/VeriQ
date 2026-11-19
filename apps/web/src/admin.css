@@ -631,9 +631,6 @@ tbody tr:hover td {
     min-width: 0;
     gap: 8px;
 }
-.vq-topbar-workspaces select {
-    width: clamp(9rem, 18vw, 18rem);
-}
 .vq-topbar-workspaces button {
     border: 1px solid var(--vq-border);
     color: var(--vq-secondary);

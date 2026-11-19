@@ -145,7 +145,7 @@ SOFTWARE.
 
 Web shell, navigation icons, resource cards, form and table layouts adapted from
 [TailAdmin React Free](https://github.com/TailAdmin/free-react-tailwind-admin-dashboard)
-at commit `9aaac11e9e6fa87d0afe0e976b5ac291e29eeeb9`. The responsive header, user menu and its icons also adapt
+at commit `9aaac11e9e6fa87d0afe0e976b5ac291e29eeeb9`. The responsive header, workspace and user menus, and their icons also adapt
 the [v2.5.1 source](https://github.com/TailAdmin/free-react-tailwind-admin-dashboard/tree/486ed748b21e032a4432effeca4ef3684fa223d3).
 
 MIT License

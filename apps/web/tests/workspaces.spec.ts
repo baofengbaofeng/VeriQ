@@ -1,4 +1,10 @@
-import { signOut, workspacePicker } from "./support/console-controls";
+import {
+    chooseWorkspace,
+    openWorkspaceMenu,
+    selectedWorkspaceId,
+    signOut,
+    workspacePicker,
+} from "./support/console-controls";
 import { test, expect } from "@playwright/test";
 
 test("real Workspace selection, invitation acceptance and member permissions", async ({ page, browser }) => {
@@ -60,7 +66,7 @@ test("real Workspace selection, invitation acceptance and member permissions", a
     await page.getByRole("button", { name: "Sign in" }).click();
     await expect(page.locator("dl")).toContainText("Workspace test operator");
     expect((await page.request.get("/api/v1/workspaces/" + unrelatedId)).status()).toBe(403);
-    await page.getByRole("link", { name: "Workspaces", exact: true }).click();
+    await page.getByRole("link", { name: "Workspace settings", exact: true }).click();
     await expect(page.getByText("No Workspaces yet.", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Add workspace", exact: true }).click();
     await page.getByLabel("Key").fill("browser-alpha");
@@ -71,7 +77,7 @@ test("real Workspace selection, invitation acceptance and member permissions", a
         .fill("Browser Alpha");
     await page.getByRole("button", { name: "Create Workspace" }).click();
     await expect(page.getByRole("article")).toContainText("Browser Alpha");
-    const alpha = await workspacePicker(page).inputValue();
+    const alpha = await selectedWorkspaceId(page);
     await page.getByRole("button", { name: "Add workspace", exact: true }).click();
     await page.getByLabel("Key").fill("browser-beta");
     await page
@@ -81,8 +87,8 @@ test("real Workspace selection, invitation acceptance and member permissions", a
         .fill("Browser Beta");
     await page.getByRole("button", { name: "Create Workspace" }).click();
     await expect(page.getByRole("article")).toContainText("Browser Beta");
-    const beta = await workspacePicker(page).inputValue();
-    await workspacePicker(page).selectOption(alpha);
+    const beta = await selectedWorkspaceId(page);
+    await chooseWorkspace(page, alpha);
     await expect(page.getByRole("article")).toContainText("Browser Alpha");
     await page.getByLabel("Email").fill("workspace-viewer@example.com");
     await page.locator('select[name="role"]').selectOption("VIEWER");
@@ -104,7 +110,7 @@ test("real Workspace selection, invitation acceptance and member permissions", a
     await viewer.getByLabel("Password").fill("Viewer password 123!");
     await viewer.getByRole("button", { name: "Sign in" }).click();
     await expect(viewer.locator("dl")).toBeVisible();
-    await viewer.getByRole("link", { name: "Workspaces", exact: true }).click();
+    await viewer.getByRole("link", { name: "Workspace settings", exact: true }).click();
     await expect(viewer.getByRole("article")).toContainText("Browser Alpha");
     await expect(viewer.getByRole("article")).toContainText("VIEWER");
     await expect(viewer.getByRole("button", { name: "Create invitation" })).toHaveCount(0);
@@ -149,7 +155,7 @@ test("real Workspace selection, invitation acceptance and member permissions", a
     });
     await page.getByRole("button", { name: "Refresh Workspace" }).click();
     await oldReceived;
-    await workspacePicker(page).selectOption(beta);
+    await chooseWorkspace(page, beta);
     expect((await abortedOld).failure()?.errorText).toContain("ERR_ABORTED");
     releaseOld();
     await page.unroute(oldPath);
@@ -183,8 +189,8 @@ test("real Workspace selection, invitation acceptance and member permissions", a
     await existingPage.getByLabel("Password").fill("Existing password 123!");
     await existingPage.getByRole("button", { name: "Accept invitation" }).click();
     await expect(existingPage.getByRole("status")).toContainText("Invitation accepted");
-    await existingPage.getByRole("link", { name: "Workspaces", exact: true }).click();
-    await expect(workspacePicker(existingPage)).toHaveValue(beta);
+    await existingPage.getByRole("link", { name: "Workspace settings", exact: true }).click();
+    await expect(workspacePicker(existingPage)).toHaveAttribute("data-workspace-id", beta);
     await existingContext.close();
     await page.getByRole("button", { name: "Archive Workspace" }).click();
     await expect(page.getByRole("article")).toContainText("Archived");
@@ -199,8 +205,10 @@ test("real Workspace selection, invitation acceptance and member permissions", a
     await page.getByLabel("Password").fill("Viewer password 123!");
     await page.getByRole("button", { name: "Sign in" }).click();
     await expect(page.locator("dl")).toContainText("Workspace Viewer");
-    await page.getByRole("link", { name: "Workspaces", exact: true }).click();
+    await page.getByRole("link", { name: "Workspace settings", exact: true }).click();
     await expect(page.getByRole("article")).toContainText("Browser Alpha");
-    await expect(workspacePicker(page).getByRole("option", { name: /Browser Beta/ })).toHaveCount(0);
+    const menu = await openWorkspaceMenu(page);
+    await expect(menu.getByRole("menuitemradio", { name: /Browser Alpha/ })).toBeChecked();
+    await expect(menu.getByRole("menuitemradio", { name: /Browser Beta/ })).toHaveCount(0);
     await viewerContext.close();
 });

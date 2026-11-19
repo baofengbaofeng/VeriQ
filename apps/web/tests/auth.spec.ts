@@ -1,4 +1,4 @@
-import { signOut, profileButton } from "./support/console-controls";
+import { profileButton, signOut } from "./support/console-controls";
 import { test, expect, type APIResponse, type Page, type Route } from "@playwright/test";
 import { writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
@@ -532,7 +532,7 @@ test("real setup, login, account, administration and one-time reset", async ({ p
      * 对首个精确会话列表请求只注入一次网络故障，以真实后端重试恢复首屏；随后持有实际分页响应并切换身份，验证旧列表不会
      * 污染新账户或恢复旧游标。
      */
-    await page.getByRole("link", { name: "Workspaces", exact: true }).click();
+    await page.getByRole("link", { name: "Workspace settings", exact: true }).click();
     await page.route(
         (url) =>
             url.origin === origin &&
@@ -682,7 +682,7 @@ test("real setup, login, account, administration and one-time reset", async ({ p
         expect(currentSession).toBe("browser-user@example.com");
         // 继续执行真实界面写入以同时验证新身份 Cookie、内存 CSRF 和 Origin，不能只点击密码输入框便宣称会话仍有效；写入
         // 完成后再次使用当前传输读取会话确认身份。
-        await page.getByRole("link", { name: "Workspaces", exact: true }).click();
+        await page.getByRole("link", { name: "Workspace settings", exact: true }).click();
         await page.getByRole("button", { name: "Add workspace", exact: true }).click();
         await page.getByLabel("Key").fill(`session-owner-${randomUUID()}`);
         await page.getByLabel("Name").first().fill("Session owner write");

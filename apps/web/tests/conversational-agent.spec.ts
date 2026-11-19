@@ -1,7 +1,7 @@
 /**
  * 浏览器通过真实员工会话访问当前工作区，模型响应只在批准的本地协议边界产生，计划、回执和报告均由真实服务持久化。
  */
-import { workspacePicker } from "./support/console-controls";
+import { chooseWorkspace, workspacePicker } from "./support/console-controls";
 import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -95,7 +95,7 @@ test("inherits a model and persists plan and Run receipts through authorized UI"
     test.setTimeout(180_000);
     const scope = await editorScope(page, "conversation-run");
     await page.getByRole("link", { name: "Test Agent", exact: true }).click();
-    await workspacePicker(page).selectOption(scope.workspaceId);
+    await chooseWorkspace(page, scope.workspaceId);
     const base = `/api/v1/workspaces/${scope.workspaceId}`;
     const providerId = await provider(page, scope.workspaceId, scope.headers);
     await page.getByRole("button", { name: "Model settings", exact: true }).click();
@@ -212,7 +212,7 @@ test("inherits a model and persists plan and Run receipts through authorized UI"
     });
     expect(settings.status()).toBe(200);
     await page.reload();
-    await workspacePicker(page).selectOption(scope.workspaceId);
+    await chooseWorkspace(page, scope.workspaceId);
     const stream = page.waitForRequest((request) => request.url().endsWith("/events/stream"));
     await page.getByRole("button", { name: "Smoke history", exact: true }).click();
     await expect(page.getByText("A second client proposes another run.")).toBeVisible();
@@ -249,7 +249,7 @@ test("inherits a model and persists plan and Run receipts through authorized UI"
     await expect(run).toContainText("CANCELLED");
 
     await page.reload();
-    await workspacePicker(page).selectOption(scope.workspaceId);
+    await chooseWorkspace(page, scope.workspaceId);
     await page.getByRole("button", { name: "Smoke history", exact: true }).click();
     await expect(page.getByText("Payment is outside this smoke plan.")).toBeVisible();
     await expect(page.getByRole("region", { name: "Run status" })).toContainText("CANCELLED");
@@ -292,7 +292,7 @@ test("a delayed model reply cannot repopulate another Workspace", async ({ page 
         ).status(),
     ).toBe(200);
     await page.goto(`/agent?workspaceId=${first.workspaceId}`);
-    await expect(workspacePicker(page)).toHaveValue(first.workspaceId);
+    await expect(workspacePicker(page)).toHaveAttribute("data-workspace-id", first.workspaceId);
     await page.getByLabel("Conversation title").fill("Private conversation");
     await page.getByRole("button", { name: "New conversation", exact: true }).click();
     const entered = Promise.withResolvers<void>();
@@ -303,7 +303,7 @@ test("a delayed model reply cannot repopulate another Workspace", async ({ page 
         await page.getByLabel("Message").fill("Assess this Workspace");
         await page.getByRole("button", { name: "Send", exact: true }).click();
         await entered.promise;
-        await workspacePicker(page).selectOption(secondId);
+        await chooseWorkspace(page, secondId);
         released.resolve();
         const sessions = (await (await page.request.get(`${base}/sessions`)).json()).data.items;
         const history = `${base}/sessions/${sessions[0].id}/turns`;
@@ -312,7 +312,7 @@ test("a delayed model reply cannot repopulate another Workspace", async ({ page 
             .toBe("Private delayed reply.");
         await expect(page.getByRole("button", { name: "Private conversation" })).toHaveCount(0);
         await expect(page.getByText("Private delayed reply.")).toHaveCount(0);
-        await workspacePicker(page).selectOption(first.workspaceId);
+        await chooseWorkspace(page, first.workspaceId);
         await page.getByRole("button", { name: "Private conversation" }).click();
         await expect(page.getByText("Private delayed reply.")).toBeVisible();
     } finally {

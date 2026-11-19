@@ -2,7 +2,7 @@
  * 使用真实数据库、编译 Agent 与浏览器表单验证计划和服务令牌管理，所有资源由实际发布接口产生，测试不拦截 API 或注入假
  * UI 数据；令牌只在一次性显示区域读取且不写入测试日志。
  */
-import { workspacePicker } from "./support/console-controls";
+import { chooseWorkspace } from "./support/console-controls";
 import { test, expect } from "@playwright/test";
 import { editorScope, managedCompiler } from "./editor-fixture";
 
@@ -113,7 +113,7 @@ test("plans create, revision conflict, trigger and scoped token lifecycle throug
             ],
         });
         await page.goto("/execution-plans");
-        await workspacePicker(page).selectOption(scope.workspaceId);
+        await chooseWorkspace(page, scope.workspaceId);
         await page.getByLabel("Plan name", { exact: true }).fill("Scheduled GUI smoke");
         await page.getByLabel("SUITE resource", { exact: true }).selectOption(suite.resource.id);
         await page.getByLabel("SUITE version", { exact: true }).selectOption(suite.version.id);
@@ -140,7 +140,7 @@ test("plans create, revision conflict, trigger and scoped token lifecycle throug
         await expect(page.getByRole("alert")).toContainText("revision");
         await expect(page.getByLabel("Plan name", { exact: true })).toHaveValue("Unsaved local update");
         await page.reload();
-        await workspacePicker(page).selectOption(scope.workspaceId);
+        await chooseWorkspace(page, scope.workspaceId);
         await page
             .getByRole("region", { name: "Concurrent update", exact: true })
             .getByRole("button", { name: "Trigger", exact: true })
@@ -173,7 +173,7 @@ test("plans create, revision conflict, trigger and scoped token lifecycle throug
         });
         expect(other.status()).toBe(201);
         await page.reload();
-        await workspacePicker(page).selectOption((await other.json()).data.id);
+        await chooseWorkspace(page, (await other.json()).data.id);
         await expect(page.getByRole("region", { name: "Concurrent update", exact: true })).toHaveCount(0);
         await expect(oneTime).toHaveCount(0);
         await expect(page.getByLabel("Plan name", { exact: true })).toHaveValue("");

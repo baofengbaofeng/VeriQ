@@ -7,6 +7,8 @@ export const workspacesMessages: Record<string, readonly [string, string]> = {
     Key: ["标识", "Key"],
     "Loading Workspaces…": ["正在加载工作区…", "Loading Workspaces…"],
     "Retry Workspaces": ["重试工作区列表", "Retry Workspaces"],
+    "Workspace settings": ["工作区设置", "Workspace settings"],
+    "Retry more workspaces": ["重试加载更多工作区", "Retry more workspaces"],
     "Load more Workspaces": ["加载更多工作区", "Load more Workspaces"],
     "Loading members…": ["正在加载成员…", "Loading members…"],
     "Load more members": ["加载更多成员", "Load more members"],
@@ -56,9 +58,9 @@ export const workspacesMessages: Record<string, readonly [string, string]> = {
     "Remove member": ["移除成员", "Remove member"],
     "Accept Workspace invitation": ["接受工作区邀请", "Accept Workspace invitation"],
     "Invitation accepted.": ["已接受邀请。", "Invitation accepted."],
-    "Open Workspaces to view your membership.": [
-        "打开工作区可查看您的成员关系。",
-        "Open Workspaces to view your membership.",
+    "Open workspace settings to view your membership.": [
+        "打开工作区设置可查看您的成员关系。",
+        "Open workspace settings to view your membership.",
     ],
     "Sign in with your account to open the Workspace.": [
         "请使用您的账号登录后打开工作区。",
