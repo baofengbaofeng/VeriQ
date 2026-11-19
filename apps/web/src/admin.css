@@ -105,7 +105,7 @@
  * 面板作为内容卡片保留白色底，外壳与内容区改用画布色，以区分页面背景与可交互内容区域。
  */
 .panel {
-    background: white;
+    background: var(--vq-surface);
 }
 .vq-brand {
     --vq-banner-control-size: 42px;
@@ -127,7 +127,7 @@
     overflow: hidden;
 }
 .vq-avatar {
-    color: #38449d;
+    color: var(--vq-brand-text);
 }
 .vq-topbar .veriq-language {
     gap: 4px;
@@ -162,7 +162,7 @@
     margin: 0;
 }
 .vq-topbar-workspaces :is(button, a):hover {
-    background: #e9edf3;
+    background: var(--vq-hover);
 }
 /*
  * 侧栏头部固定为头部高度，横版品牌标识按四十像素高度对齐，为下方的分组导航留出稳定起点。
@@ -281,10 +281,11 @@
 }
 .panel {
     min-width: 0;
-    border: 0;
-    border-radius: 0;
+    border: 1px solid var(--vq-border);
+    border-radius: 16px;
     padding: 0;
-    box-shadow: none;
+    background: var(--vq-surface);
+    box-shadow: 0 1px 2px rgb(16 24 40 / 5%);
 }
 .vq-standalone {
     max-width: none;
@@ -423,9 +424,9 @@ textarea,
     max-width: 100%;
     padding: 6px 8px;
     color: var(--vq-brand-text);
-    background: white;
-    border: 1px solid #d6dce6;
-    border-radius: 6px;
+    background: var(--vq-surface);
+    border: 1px solid var(--vq-border);
+    border-radius: 8px;
     font-size: 13px;
 }
 input:not([type="checkbox"], [type="radio"]),
@@ -436,21 +437,31 @@ select,
 textarea {
     font: inherit;
 }
+.vq-btn {
+    border-radius: 8px;
+    border-color: var(--vq-border);
+}
 button {
     padding: 6px 10px;
     border-color: var(--vq-button-fill, var(--vq-brand));
     background: var(--vq-button-fill, var(--vq-brand));
+    color: #fff;
 }
 button:not(:disabled):hover {
     filter: brightness(0.96);
 }
 .vq-btn-primary {
+    background: var(--vq-brand);
     border-color: var(--vq-brand);
+    color: #fff;
+}
+.vq-btn-primary:hover:not(:disabled) {
+    background: var(--vq-brand-dark);
 }
 .vq-secondary,
 .vq-btn-secondary {
-    background: white;
-    border-color: #d6dce6;
+    background: var(--vq-surface);
+    border-color: var(--vq-border);
     color: var(--vq-secondary);
 }
 .vq-danger,
@@ -463,12 +474,16 @@ button:not(:disabled):hover {
 .vq-hint-icon {
     background: transparent;
 }
+.vq-btn-ghost {
+    border-color: transparent;
+}
 .vq-sheet-close,
 .vq-hint-icon {
     color: var(--vq-secondary);
 }
 .vq-user-trigger {
     background: transparent;
+    color: var(--vq-secondary);
 }
 .vq-section {
     margin: 12px 0;
@@ -491,7 +506,19 @@ button:not(:disabled):hover {
     width: min(1000px, 96vw);
 }
 .vq-dialog {
-    background: white;
+    background: var(--vq-surface);
+}
+/*
+ * 菜单、抽屉与对话框统一为十二像素圆角、细边框与双层柔和阴影，使其在浅色画布上形成清晰稳定的浮层层次。
+ */
+.vq-menu,
+.vq-sheet,
+.vq-dialog {
+    border-radius: 12px;
+    border: 1px solid var(--vq-border);
+    box-shadow:
+        0 12px 16px -4px rgb(16 24 40 / 8%),
+        0 4px 6px -2px rgb(16 24 40 / 3%);
 }
 .vq-tooltip {
     color: white;
@@ -512,7 +539,7 @@ input:focus:not(:focus-visible) {
 }
 
 /*
- * 输入域的中性边框沿用当前明暗主题，键盘仍保留有间距的焦点轮廓；字段错误及原生选中反馈由控件自身呈现。
+ * 输入域聚焦时统一改用品牌蓝边框与四像素柔和光环，非法与校验失败状态仍由控件自身的红色反馈覆盖，避免提示冲突。
  */
 :root
     :is(
@@ -529,10 +556,11 @@ input:focus:not(:focus-visible) {
         ),
         textarea,
         select,
+        .vq-input,
         .vq-select-trigger
     ):focus:where(:not(:user-invalid, [aria-invalid="true"])) {
-    border-color: var(--vq-focus-outline);
-    box-shadow: none;
+    border-color: var(--vq-brand);
+    box-shadow: 0 0 0 4px rgb(70 95 255 / 12%);
     outline: 2px solid var(--vq-field-outline);
     outline-offset: 2px;
 }
@@ -568,7 +596,7 @@ th {
     height: 32px;
     background: var(--vq-field);
     color: var(--vq-secondary);
-    font-weight: 650;
+    font-weight: 600;
 }
 td {
     height: 38px;
@@ -582,7 +610,7 @@ td button {
     white-space: nowrap;
 }
 tbody tr:hover td {
-    background: #fafbfe;
+    background: var(--vq-hover);
 }
 .vq-crumb,
 .vq-card-heading small {
@@ -681,8 +709,8 @@ tbody tr:hover td {
     gap: 5px;
     padding: 2px 7px;
     border-radius: 999px;
-    color: #475569;
-    background: #edf1f5;
+    color: var(--vq-secondary);
+    background: var(--vq-hover);
 }
 .vq-state::before {
     content: "";
@@ -778,7 +806,7 @@ tbody tr:hover td {
 .vq-topbar-workspaces button {
     border: 1px solid var(--vq-border);
     color: var(--vq-secondary);
-    background: white;
+    background: var(--vq-surface);
 }
 
 .vq-menu-item {
@@ -871,7 +899,7 @@ tbody tr:hover td {
     }
     :root .vq-workspace-form input:focus {
         background-color: var(--vq-hover);
-        border-color: var(--vq-workspace-input-border, #d6dce6);
+        border-color: var(--vq-workspace-input-border, var(--vq-border));
         outline: none;
         box-shadow: none;
     }
