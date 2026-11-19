@@ -638,10 +638,11 @@ tbody tr:hover td {
 }
 
 .vq-topbar-workspaces {
+    --vq-workspace-controls-gap: 6px;
     display: flex;
     align-items: center;
     min-width: 0;
-    gap: 6px;
+    gap: var(--vq-workspace-controls-gap);
 }
 .vq-topbar-workspaces button {
     border: 1px solid var(--vq-border);

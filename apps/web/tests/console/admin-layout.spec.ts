@@ -55,7 +55,7 @@ async function expectWorkspaceMenuWidth(page: Page, menu: Locator) {
 /**
  * 核对不同语言和视口中工作区说明、操作及分隔线的实际坐标，确保整组同行且不会挤到主题按钮下方。
  */
-async function expectWorkspaceGroup(page: Page, name: string) {
+async function expectWorkspaceGroup(page: Page, name: string, dividerGap: number) {
     const banner = page.getByRole("banner");
     const caption = banner.getByText(name, { exact: true });
     await expect(caption).toBeVisible();
@@ -63,12 +63,13 @@ async function expectWorkspaceGroup(page: Page, name: string) {
     await expect(divider).toHaveAttribute("aria-hidden", "true");
     await expect(divider).toHaveCSS("width", "1px");
     await expect(divider).toHaveCSS("height", "20px");
+    const theme = banner.locator(".vq-theme-toggle");
     const controls = [
         caption,
         workspacePicker(page),
         ...(await banner.locator(".vq-workspace-icon").all()),
         divider,
-        banner.locator(".vq-theme-toggle"),
+        theme,
     ];
     let right: number | undefined;
     let center: number | undefined;
@@ -76,13 +77,16 @@ async function expectWorkspaceGroup(page: Page, name: string) {
         const box = await control.boundingBox();
         if (!box) throw new Error("Workspace group element has no visible bounds");
         if (right !== undefined) {
-            expect(box.x - right).toBeGreaterThan(0);
-            expect(box.x - right).toBeLessThanOrEqual(12);
+            const gap = box.x - right;
+            if (control === divider || control === theme) expect(gap).toBe(dividerGap);
+            else expect(gap).toBe(6);
         }
         center ??= box.y + box.height / 2;
         expect(box.y + box.height / 2).toBeCloseTo(center, 0);
         right = box.x + box.width;
     }
+    await expect(caption).toHaveCSS("font-size", "14px");
+    await expect(caption).toHaveCSS("font-weight", "700");
 }
 
 test("server console follows the approved layout", async ({ page }) => {
@@ -98,7 +102,7 @@ test("server console follows the approved layout", async ({ page }) => {
         header.getByRole("button", { name: "Dark mode" }),
         profile,
     ];
-    await expectWorkspaceGroup(page, "Workspace");
+    await expectWorkspaceGroup(page, "Workspace", 12);
     await expect(header.locator(".vq-workspace-divider")).toHaveCSS("background-color", "rgb(225, 230, 237)");
     const viewport = await page.evaluate(() => document.documentElement.clientWidth);
     let right = 0;
@@ -429,6 +433,7 @@ test("header creates and retains an authorized workspace across navigation", asy
     await menu.getByRole("menuitem", { name: /^Language/ }).press("ArrowRight");
     await expect(page.getByRole("menuitemradio", { name: "English" })).toBeChecked();
     await page.getByRole("menuitemradio", { name: "中文" }).press("Enter");
+    await expectWorkspaceGroup(page, "当前工作区", 12);
     await expect(workspacePicker(page)).toHaveAttribute("data-workspace-id", ids[1]);
     await profile.press("Enter");
     await menu.getByRole("menuitem", { name: /^语言/ }).press("ArrowRight");
@@ -595,7 +600,7 @@ test("TailAdmin banner sizes and nested language choices preserve the resource d
     await expect(user).toBeVisible();
     await expect(banner).toHaveCSS("height", "141px");
     await expectCompactBanner(page, 7);
-    await expectWorkspaceGroup(page, "Workspace");
+    await expectWorkspaceGroup(page, "Workspace", 10);
     const themeBox = await theme.boundingBox();
     const account = await user.boundingBox();
     if (!themeBox || !account) throw new Error("Expanded Banner controls must have visible bounds");
@@ -635,7 +640,7 @@ test("TailAdmin banner sizes and nested language choices preserve the resource d
     await language.click();
     await page.getByRole("menuitemradio", { name: "中文", exact: true }).click();
     await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
-    await expectWorkspaceGroup(page, "当前工作区");
+    await expectWorkspaceGroup(page, "当前工作区", 10);
     await expect(page.getByRole("menu")).toHaveCount(0);
     await expect(picker).toHaveAttribute("data-workspace-id", scope.workspaceId);
     expect(page.url()).toMatch(/\/resources\?section=assets#draft$/);
