@@ -17,7 +17,7 @@
 
 ## 规范与规则文档
 
-专项规范与本文件一并强制执行。规则目录是 [`.agents/rules/README.md`](./.agents/rules/README.md)。下表只列出仓库里实际存在的文件。
+专项规范与本文件一并强制执行。规则目录是 [`.agents/rules/README.md`](./.agents/rules/README.md)。以下索引链接至仓库中的文件与章节。
 
 ### 规格
 
@@ -31,32 +31,37 @@
 | [docs/specs/runtime-manifest-v2.md](./docs/specs/runtime-manifest-v2.md) | Mac Runtime v2 静态库存 | 改动 Darwin Runtime 清单校验时 |
 | [docs/specs/runtime-payload-inputs.md](./docs/specs/runtime-payload-inputs.md) | macOS Runtime 静态输入核验与有界归档准备 | 改动 Runtime 输入核验或归档准备时 |
 
-### 规则
+### 独立规则文档
 
 | 文件 | 用途 | 何时阅读 |
 | --- | --- | --- |
 | [`.agents/rules/README.md`](./.agents/rules/README.md) | 专项规范目录 | 需要判断该打开哪一份规则时 |
-| [`.agents/rules/coding-standard.md`](./.agents/rules/coding-standard.md) | 跨语言格式、注释、日志与失败关闭；与产品约束冲突时的优先规则 | 编写或审查源码时 |
+| [编码与工程规范](./.agents/rules/coding-standard.md) | 跨语言编码要求、与产品约束冲突时的优先规则及工程章节 | 编写或审查源码，或处理下列工程主题时 |
 | [`.agents/rules/coding-standard-rules/python-coding-standard.md`](./.agents/rules/coding-standard-rules/python-coding-standard.md) | Python 语言与风格详本。文首 VeriQ 改编是规范性的 | 编写或审查 Python 时 |
 | [`.agents/rules/coding-standard-rules/typescript-javascript-coding-standard.md`](./.agents/rules/coding-standard-rules/typescript-javascript-coding-standard.md) | TypeScript 与 JavaScript 风格详本。VeriQ 格式规则是规范性的 | 编写或审查 TypeScript 或 JavaScript 时 |
 | [`.agents/rules/commit-standard.md`](./.agents/rules/commit-standard.md) | 提交边界、消息与代理不 push | 准备提交时 |
 | [`.agents/rules/security-standard.md`](./.agents/rules/security-standard.md) | 认证授权、密钥、IPC、签名与供应链 | 改动安全相关路径时 |
 | [`.agents/rules/testing-standard.md`](./.agents/rules/testing-standard.md) | TDD、假绿禁令、覆盖率与平台测试 | 编写或审查测试时 |
 | [`.agents/rules/review-standard.md`](./.agents/rules/review-standard.md) | 审查职责、必查项与拒绝标准 | 审查代码或规格时 |
-| [`.agents/rules/documentation-contract-standard.md`](./.agents/rules/documentation-contract-standard.md) | 规格、ADR、跨语言契约一致性与 API 兼容性 | 修改规格、ADR、用户文档或公共 HTTP、IPC、结果协议等契约时 |
-| [`.agents/rules/dependency-license-standard.md`](./.agents/rules/dependency-license-standard.md) | 依赖钉死、许可与漏洞 | 选取或升级依赖时 |
-| [`.agents/rules/error-handling-observability-standard.md`](./.agents/rules/error-handling-observability-standard.md) | 失败关闭、错误码、日志脱敏与健康信号 | 设计错误处理或日志时 |
-| [`.agents/rules/concurrency-idempotency-state-standard.md`](./.agents/rules/concurrency-idempotency-state-standard.md) | 租约、fencing、幂等、容量隔离、重试、超时与背压 | 改动队列、租约或结果写入，或设定并发、超时、批次预算时 |
-| [`.agents/rules/database-migration-standard.md`](./.agents/rules/database-migration-standard.md) | 表前缀、UTC/UUID、迁移与事务原子性 | 设计表或编写迁移时 |
-| [`.agents/rules/architecture-boundary-extensibility-standard.md`](./.agents/rules/architecture-boundary-extensibility-standard.md) | 分层依赖、控制面与执行面、扩展点 | 新增模块或调整依赖方向时 |
 | [`.agents/rules/native-cross-platform-standard.md`](./.agents/rules/native-cross-platform-standard.md) | 进程停止范围、凭据、路径与能力声明 | 改动各操作系统上的进程、凭据或停止证明时 |
-| [`.agents/rules/release-rollback-configuration-standard.md`](./.agents/rules/release-rollback-configuration-standard.md) | 产物完整性、晋升、安全默认与回滚 | 构建发行物或设定配置默认时 |
-| [`.agents/rules/privacy-data-retention-standard.md`](./.agents/rules/privacy-data-retention-standard.md) | 数据分类、证据授权、保留期与脱敏 | 处理用户数据、证据或日志时 |
-| [`.agents/rules/outbound-network-integration-standard.md`](./.agents/rules/outbound-network-integration-standard.md) | SSRF、Provider、对象存储与出站超时重试 | 新增或修改出站调用时 |
-| [`.agents/rules/audit-event-standard.md`](./.agents/rules/audit-event-standard.md) | 审计点、事件顺序、fencing 与订阅授权 | 记录审计或发出执行事件时 |
-| [`.agents/rules/asset-compilation-immutable-artifact-standard.md`](./.agents/rules/asset-compilation-immutable-artifact-standard.md) | DSL、发布、快照与引擎确定性 | 处理 DSL、编译或执行快照时 |
+| [`.agents/rules/release-standard.md`](./.agents/rules/release-standard.md) | 产物完整性、晋升、安全默认与回滚 | 构建发行物或设定配置默认时 |
+| [`.agents/rules/privacy-standard.md`](./.agents/rules/privacy-standard.md) | 数据分类、证据授权、保留期与脱敏 | 处理用户数据、证据或日志时 |
 
-编写 Python 时遵守 [编码规范总则](./.agents/rules/coding-standard.md) 与 [Python 编码规范](./.agents/rules/coding-standard-rules/python-coding-standard.md)。编写 TypeScript/JavaScript 时遵守同一总则与 [TypeScript/JavaScript 编码规范](./.agents/rules/coding-standard-rules/typescript-javascript-coding-standard.md)。语言指南与总则冲突时，以总则和本文件中的不可协商基线为准；总则与语言指南已经写明的数字和工具名，不得用本文件以外的旧稿覆盖。
+编写 Python 时遵守 [编码与工程规范](./.agents/rules/coding-standard.md) 与 [Python 编码规范](./.agents/rules/coding-standard-rules/python-coding-standard.md)。编写 TypeScript/JavaScript 时遵守同一总则与 [TypeScript/JavaScript 编码规范](./.agents/rules/coding-standard-rules/typescript-javascript-coding-standard.md)。语言指南与总则冲突时，以总则和本文件中的不可协商基线为准；总则与语言指南已经写明的数字和工具名，不得用本文件以外的旧稿覆盖。
+
+### 工程章节
+
+| 章节 | 用途 | 何时阅读 |
+| --- | --- | --- |
+| [9. 架构边界与扩展性](./.agents/rules/coding-standard.md#9-架构边界与扩展性) | 分层依赖、控制面与执行面、扩展点 | 新增模块或调整依赖方向时 |
+| [10. 资产编译与不可变产物](./.agents/rules/coding-standard.md#10-资产编译与不可变产物) | DSL、发布、快照与引擎确定性 | 处理 DSL、编译或执行快照时 |
+| [11. 审计与执行事件](./.agents/rules/coding-standard.md#11-审计与执行事件) | 审计点、事件顺序、fencing 与订阅授权 | 记录审计或发出执行事件时 |
+| [12. 并发、幂等、状态与超时预算](./.agents/rules/coding-standard.md#12-并发幂等状态与超时预算) | 租约、fencing、幂等、容量隔离、重试、超时与背压 | 改动队列、租约或结果写入，或设定并发、超时、批次预算时 |
+| [13. 数据库与迁移](./.agents/rules/coding-standard.md#13-数据库与迁移) | 表前缀、UTC/UUID、迁移与事务原子性 | 设计表或编写迁移时 |
+| [14. 依赖与许可](./.agents/rules/coding-standard.md#14-依赖与许可) | 依赖钉死、许可与漏洞 | 选取或升级依赖时 |
+| [15. 文档、契约与 API 兼容性](./.agents/rules/coding-standard.md#15-文档契约与-api-兼容性) | 规格、ADR、跨语言契约一致性与 API 兼容性 | 修改规格、ADR、用户文档或公共 HTTP、IPC、结果协议等契约时 |
+| [16. 错误处理与可观测性](./.agents/rules/coding-standard.md#16-错误处理与可观测性) | 失败关闭、错误码、日志脱敏与健康信号 | 设计错误处理或日志时 |
+| [17. 出站网络与外部集成](./.agents/rules/coding-standard.md#17-出站网络与外部集成) | SSRF、Provider、对象存储与出站超时重试 | 新增或修改出站调用时 |
 
 ## 产品标识与仓库布局
 
@@ -159,10 +164,10 @@
 
 ## 编码规范（强制摘要）
 
-细则见 [编码规范总则](./.agents/rules/coding-standard.md)、[Python 编码规范](./.agents/rules/coding-standard-rules/python-coding-standard.md) 与 [TypeScript/JavaScript 编码规范](./.agents/rules/coding-standard-rules/typescript-javascript-coding-standard.md)。下列条目与这些文件一致：
+细则见 [编码与工程规范](./.agents/rules/coding-standard.md)、[Python 编码规范](./.agents/rules/coding-standard-rules/python-coding-standard.md) 与 [TypeScript/JavaScript 编码规范](./.agents/rules/coding-standard-rules/typescript-javascript-coding-standard.md)。下列条目与这些文件一致：
 
 - 缩进：TypeScript/JavaScript、Python、C/C++ 以及同仓库其它可编程源码一律使用 **4 个空格**；禁止 Tab 缩进（`.editorconfig` 明确例外者除外，如 `Makefile`）。新增与改动文件必须符合 `.editorconfig`（UTF-8、LF、文件末换行）。
-- 行宽：代码和注释每个物理行最多 **120 个显示列**，与 IDE 的 120 列标尺一致。中文等全角/宽字符占 2 列，ASCII 占 1 列；缩进、标点和注释分隔符也计入。导入、长字符串、URL 和生成源码同样遵守上限；完整 Unicode 口径见编码规范总则。
+- 行宽：代码和注释每个物理行最多 **120 个显示列**，与 IDE 的 120 列标尺一致。中文等全角/宽字符占 2 列，ASCII 占 1 列；缩进、标点和注释分隔符也计入。导入、长字符串、URL 和生成源码同样遵守上限；完整 Unicode 口径见编码与工程规范。
 - 注释语言：源码注释（含模块说明、公开 API 文档串、关键路径旁注）一律使用**中文**；产品名 VeriQ 与技术标识可保留原文。
 - 注释覆盖率：可编程源代码注释覆盖率必须 **大于 40%**（注释行 / (注释行 + 非空代码行)）。仅排除生成物与 vendored 依赖。覆盖率必须靠针对当前代码的有效说明达成，禁止用套话、政策复读或占位长句批量粘贴凑数。
 - 固定工具语法：经语法上下文和实际工具行为验证的标记按功能代码计量，标记贡献 `C=0`，所在非空物理行保留在 `K` 并适用显示列宽限制。识别范围和普通说明的处理见[工具语法计量规格](./docs/specs/tool-syntax-accounting.md)。
@@ -182,11 +187,11 @@
 - 行为变更优先采用 TDD：先观察到 RED，再实现到 GREEN。断言真实可观察行为，不测源码文本字符串是否匹配。
 - 迭代时跑聚焦测试；移交提交或集成前跑相关更完整套件。每一次失败与阻塞都必须如实报告。
 - 禁止用 sleep、强制点击、宽泛吞异常、弱化断言、假 UI、假报告，或在缺少必需夹具（MySQL、浏览器、原生工具链）时静默跳过，来掩盖失败。
-- 保持 API、Schema、OpenAPI、生成类型、样例与文档一致。修改契约后须重新生成，并运行拥有这些产物的包级 `check` 与 `test`。细则见 [文档与契约规范](./.agents/rules/documentation-contract-standard.md)。
+- 保持 API、Schema、OpenAPI、生成类型、样例与文档一致。修改契约后须重新生成，并运行拥有这些产物的包级 `check` 与 `test`。细则见 [文档、契约与 API 兼容性](./.agents/rules/coding-standard.md#15-文档契约与-api-兼容性)。
 - 变更保持聚焦、可读。永不提交密钥、环境凭证、二进制、缓存或机器状态。
 - 质量门禁：除非任务明确收窄范围，Python 与核心 TypeScript 包行覆盖率目标为 **≥ 75%**。关键认证、租约与 fencing、停止回执和恢复路径仍须有超出覆盖率数字的专项行为测试。
 - 不得以空壳接口、占位页面、仅含 TODO 的模块或默认跳过的测试套件冒充功能交付。
-- 依赖变更遵守 [依赖与许可规范](./.agents/rules/dependency-license-standard.md)。
+- 依赖变更遵守 [依赖与许可](./.agents/rules/coding-standard.md#14-依赖与许可)。
 
 ## 代理操作规则
 
