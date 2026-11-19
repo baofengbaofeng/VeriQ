@@ -36,7 +36,7 @@
 | 文件 | 用途 | 何时阅读 |
 | --- | --- | --- |
 | [`.agents/rules/README.md`](./.agents/rules/README.md) | 专项规范目录 | 需要判断该打开哪一份规则时 |
-| [编码与工程规范](./.agents/rules/coding-standard.md) | 跨语言编码要求、与产品约束冲突时的优先规则及工程章节 | 编写或审查源码，或处理下列工程主题时 |
+| [Coding Standard](./.agents/rules/coding-standard.md) | 跨语言编码要求、与产品约束冲突时的优先规则及工程章节 | 编写或审查源码，或处理下列工程主题时 |
 | [`.agents/rules/coding-standard-rules/python-coding-standard.md`](./.agents/rules/coding-standard-rules/python-coding-standard.md) | Python 语言与风格详本。文首 VeriQ 改编是规范性的 | 编写或审查 Python 时 |
 | [`.agents/rules/coding-standard-rules/typescript-javascript-coding-standard.md`](./.agents/rules/coding-standard-rules/typescript-javascript-coding-standard.md) | TypeScript 与 JavaScript 风格详本。VeriQ 格式规则是规范性的 | 编写或审查 TypeScript 或 JavaScript 时 |
 | [`.agents/rules/commit-standard.md`](./.agents/rules/commit-standard.md) | 提交边界、消息与代理不 push | 准备提交时 |
@@ -47,7 +47,7 @@
 | [发行、配置与回滚](./.agents/rules/release-standard.md#发行配置与回滚) | 产物完整性、晋升、安全默认与回滚 | 构建发行物或设定配置默认时 |
 | [`.agents/rules/privacy-standard.md`](./.agents/rules/privacy-standard.md) | 数据分类、证据授权、保留期与脱敏 | 处理用户数据、证据或日志时 |
 
-编写 Python 时遵守 [编码与工程规范](./.agents/rules/coding-standard.md) 与 [Python 编码规范](./.agents/rules/coding-standard-rules/python-coding-standard.md)。编写 TypeScript/JavaScript 时遵守同一总则与 [TypeScript/JavaScript 编码规范](./.agents/rules/coding-standard-rules/typescript-javascript-coding-standard.md)。语言指南与总则冲突时，以总则和本文件中的不可协商基线为准；总则与语言指南已经写明的数字和工具名，不得用本文件以外的旧稿覆盖。
+编写 Python 时遵守 [Coding Standard](./.agents/rules/coding-standard.md) 与 [Python 编码规范](./.agents/rules/coding-standard-rules/python-coding-standard.md)。编写 TypeScript/JavaScript 时遵守同一总则与 [TypeScript/JavaScript 编码规范](./.agents/rules/coding-standard-rules/typescript-javascript-coding-standard.md)。语言指南与总则冲突时，以总则和本文件中的不可协商基线为准；总则与语言指南已经写明的数字和工具名，不得用本文件以外的旧稿覆盖。
 
 ### 工程章节
 
@@ -164,10 +164,10 @@
 
 ## 编码规范（强制摘要）
 
-细则见 [编码与工程规范](./.agents/rules/coding-standard.md)、[Python 编码规范](./.agents/rules/coding-standard-rules/python-coding-standard.md) 与 [TypeScript/JavaScript 编码规范](./.agents/rules/coding-standard-rules/typescript-javascript-coding-standard.md)。下列条目与这些文件一致：
+细则见 [Coding Standard](./.agents/rules/coding-standard.md)、[Python 编码规范](./.agents/rules/coding-standard-rules/python-coding-standard.md) 与 [TypeScript/JavaScript 编码规范](./.agents/rules/coding-standard-rules/typescript-javascript-coding-standard.md)。下列条目与这些文件一致：
 
 - 缩进：TypeScript/JavaScript、Python、C/C++ 以及同仓库其它可编程源码一律使用 **4 个空格**；禁止 Tab 缩进（`.editorconfig` 明确例外者除外，如 `Makefile`）。新增与改动文件必须符合 `.editorconfig`（UTF-8、LF、文件末换行）。
-- 行宽：代码和注释每个物理行最多 **120 个显示列**，与 IDE 的 120 列标尺一致。中文等全角/宽字符占 2 列，ASCII 占 1 列；缩进、标点和注释分隔符也计入。导入、长字符串、URL 和生成源码同样遵守上限；完整 Unicode 口径见编码与工程规范。
+- 行宽：代码和注释每个物理行最多 **120 个显示列**，与 IDE 的 120 列标尺一致。中文等全角/宽字符占 2 列，ASCII 占 1 列；缩进、标点和注释分隔符也计入。导入、长字符串、URL 和生成源码同样遵守上限；完整 Unicode 口径见《Coding Standard》。
 - 注释语言：源码注释（含模块说明、公开 API 文档串、关键路径旁注）一律使用**中文**；产品名 VeriQ 与技术标识可保留原文。
 - 注释覆盖率：可编程源代码注释覆盖率必须 **大于 40%**（注释行 / (注释行 + 非空代码行)）。仅排除生成物与 vendored 依赖。覆盖率必须靠针对当前代码的有效说明达成，禁止用套话、政策复读或占位长句批量粘贴凑数。
 - 固定工具语法：经语法上下文和实际工具行为验证的标记按功能代码计量，标记贡献 `C=0`，所在非空物理行保留在 `K` 并适用显示列宽限制。识别范围和普通说明的处理见[工具语法计量规格](./docs/specs/tool-syntax-accounting.md)。

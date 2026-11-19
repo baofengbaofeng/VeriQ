@@ -1,4 +1,4 @@
-# Privacy and data retention standard
+# Privacy Standard
 
 约束用户数据、证据、日志与备份中的敏感信息处理及保留期，降低泄漏与合规风险。
 

@@ -1,4 +1,4 @@
-# Python coding standard
+# Python Coding Standard
 
 下面的 VeriQ 改编是规范性的，与 Google 原文不一致时以这里为准。本风格指南列出 Python 程序必须遵守和必须避免的做法。
 

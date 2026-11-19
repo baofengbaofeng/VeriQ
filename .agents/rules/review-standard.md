@@ -1,4 +1,4 @@
-# Review standard
+# Review Standard
 
 规定代码与规格审查的职责、必查项与拒绝标准，避免「看起来绿」的合入。
 

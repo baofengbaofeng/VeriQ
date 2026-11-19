@@ -1,4 +1,4 @@
-# TypeScript and JavaScript coding standard
+# TypeScript and JavaScript Coding Standard
 
 ## 引言
 

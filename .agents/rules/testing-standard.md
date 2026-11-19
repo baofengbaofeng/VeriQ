@@ -1,4 +1,4 @@
-# Testing standard
+# Testing Standard
 
 规定测试分层、TDD 流程、断言诚实性、覆盖率与平台相关验证要求。
 

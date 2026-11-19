@@ -1,4 +1,4 @@
-# Security standard
+# Security Standard
 
 规定认证授权、密钥处理、桌面 IPC、供应链与失败关闭的安全基线。实现细节以规格与 ADR 为准；本文件约束「必须 / 禁止」行为。
 

@@ -1,4 +1,4 @@
-# Commit standard
+# Commit Standard
 
 规范 Git 提交的内容边界、消息格式与代理协作约束，保证历史可审阅、可回滚、可追溯。
 
