@@ -6,7 +6,7 @@
 import { chooseWorkspace, openWorkspaceMenu, workspaceOption, workspacePicker } from "../support/console-controls";
 import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
-import { editorScope } from "../editor-fixture";
+import { createResource, editorScope } from "../editor-fixture";
 import { installed } from "../support/install-console";
 
 test.beforeEach(async ({ page }) => installed(page));
@@ -187,6 +187,11 @@ test.describe("desktop touch console", () => {
     });
 });
 
+const focusColors = [
+    ["light", "rgb(115, 115, 115)"],
+    ["dark", "rgb(163, 163, 163)"],
+] as const;
+
 test("Web controls distinguish field, keyboard and pointer focus", async ({ page }) => {
     const { workspaceId } = await editorScope(page, `focus-${randomUUID()}`);
     await page.goto(`/agent?workspaceId=${workspaceId}`);
@@ -194,31 +199,94 @@ test("Web controls distinguish field, keyboard and pointer focus", async ({ page
     const archived = conversations.getByRole("button", { name: "Archived", exact: true });
     const title = conversations.getByRole("textbox", { name: "Conversation title" });
 
-    await archived.click();
-    await expect(archived).toHaveAttribute("aria-pressed", "true");
-    await expect(archived).toHaveCSS("outline-style", "none");
-    await page.keyboard.press("Tab");
-    await expect(title).toBeFocused();
-    await expect(title).toHaveCSS("outline-color", "rgb(117, 131, 154)");
-    await expect(title).toHaveCSS("outline-style", "solid");
-    await expect(title).toHaveCSS("outline-width", "2px");
-    await expect(title).toHaveCSS("outline-offset", "2px");
-    await expect(title).toHaveCSS("border-color", "rgb(156, 185, 255)");
-    await expect(title).toHaveCSS("box-shadow", "rgba(70, 95, 255, 0.1) 0px 0px 0px 4px");
-    await page.keyboard.press("Shift+Tab");
-    await expect(archived).toBeFocused();
-    await expect(archived).toHaveCSS("outline-style", "solid");
-    await expect(archived).toHaveCSS("outline-color", "rgb(117, 131, 154)");
-    await expect(archived).toHaveCSS("outline-offset", "3px");
-    await expect(archived).toHaveAttribute("aria-pressed", "true");
+    const theme = page.getByRole("banner").getByRole("button", { name: "Dark mode" });
+    const profile = page.getByRole("button", { name: "Browser Administrator", exact: true });
+    const settings = page.getByRole("menuitem", { name: "Account settings" });
+    for (const [mode, neutral] of focusColors) {
+        if (mode === "dark") await theme.click();
+        await title.click();
+        await expect(title).toBeFocused();
+        await expect(title).toHaveCSS("border-color", neutral);
+        await expect(title).toHaveCSS("box-shadow", "none");
 
+        await archived.click();
+        await expect(archived).toHaveCSS("outline-style", "none");
+        await page.keyboard.press("Tab");
+        await expect(title).toBeFocused();
+        await expect(title).toHaveCSS("outline-color", neutral);
+        await expect(title).toHaveCSS("outline-style", "solid");
+        await expect(title).toHaveCSS("outline-width", "2px");
+        await expect(title).toHaveCSS("outline-offset", "2px");
+        await page.keyboard.press("Shift+Tab");
+        await expect(archived).toBeFocused();
+        await expect(archived).toHaveCSS("outline-style", "solid");
+        await expect(archived).toHaveCSS("outline-color", neutral);
+        await expect(archived).toHaveCSS("outline-offset", "3px");
+        await expect(archived).toHaveAttribute("aria-pressed", "true");
+
+        await profile.click();
+        await settings.hover();
+        await expect(settings).toBeFocused();
+        const pointerOutline = await settings.evaluate((item) => {
+            const style = getComputedStyle(item);
+            return style.outlineStyle === "none" ? "none" : style.outlineColor;
+        });
+        expect(["none", neutral]).toContain(pointerOutline);
+        await page.keyboard.press("Escape");
+        await profile.press("Enter");
+        await expect(settings).toBeFocused();
+        await expect(settings).toHaveCSS("outline-color", neutral);
+        await expect(settings).toHaveCSS("outline-style", "solid");
+        await page.keyboard.press("Escape");
+    }
     await page.emulateMedia({ forcedColors: "active" });
+    await archived.click();
     await page.keyboard.press("Tab");
     await expect(title).toBeFocused();
     await expect(title).toHaveCSS("box-shadow", "none");
     await expect(title).toHaveCSS("outline-style", "solid");
     await expect(title).toHaveCSS("outline-width", "2px");
+    const highlight = await page.evaluate(() => {
+        const sample = document.createElement("span");
+        sample.style.color = "Highlight";
+        document.body.append(sample);
+        const color = getComputedStyle(sample).color;
+        sample.remove();
+        return color;
+    });
+    await expect(title).toHaveCSS("outline-color", highlight);
 });
+
+for (const [mode, neutral] of focusColors) {
+    test(`Web JSON editor Find and native selector use neutral pointer focus in ${mode} mode`, async ({ page }) => {
+        await editorScope(page, `focus-${randomUUID()}`);
+        if (mode === "dark") await page.getByRole("banner").getByRole("button", { name: "Dark mode" }).click();
+        const filter = page.getByLabel("Filter kind");
+        await filter.click();
+        await page.keyboard.press("Escape");
+        await expect(filter).toBeFocused();
+        await expect(filter).toHaveCSS("border-color", neutral);
+        await expect(filter).toHaveCSS("box-shadow", "none");
+        await createResource(page, "DATASET", "focus-source");
+        await page.getByRole("button", { name: "JSON source", exact: true }).click();
+        const editor = page.getByRole("dialog").locator(".vq-monaco");
+        await editor.locator(".view-lines").click();
+        await page.keyboard.press("Control+f");
+        await editor.getByRole("textbox", { name: "Find", exact: true }).click();
+        const search = editor.locator(".find-widget .monaco-inputbox.synthetic-focus");
+        await expect(search).toHaveCSS("outline-style", "solid");
+        await expect(search).toHaveCSS("outline-color", neutral);
+        await editor.locator(".view-lines").click();
+        await page.keyboard.press("F1");
+        const commands = editor.locator(".quick-input-list > .monaco-list");
+        await expect(commands).toBeVisible();
+        await page.keyboard.press("Tab");
+        await expect(commands).toBeFocused();
+        const command = commands.locator(".monaco-list-row.focused");
+        await expect(command).toHaveCSS("outline-style", "solid");
+        await expect(command).toHaveCSS("outline-color", neutral);
+    });
+}
 
 test("header creates and retains an authorized workspace across navigation", async ({ page }) => {
     await signIn(page);
