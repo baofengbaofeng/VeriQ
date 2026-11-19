@@ -18,7 +18,7 @@ async function signIn(page: Page) {
     await page.getByRole("textbox", { name: "Email" }).fill("browser-admin@example.com");
     await page.getByLabel("Password").fill("Browser password 123!");
     await page.getByRole("button", { name: "Sign in" }).click();
-    await expect(page.getByRole("heading", { name: "Your account" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Profile", exact: true })).toBeVisible();
 }
 
 test("server console follows the approved layout", async ({ page }) => {
@@ -73,7 +73,7 @@ test("server console follows the approved layout", async ({ page }) => {
     );
     expect(contrast).toBeGreaterThan(60);
     await settings.click();
-    await expect(page.getByRole("heading", { name: "Your account" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Profile", exact: true })).toBeVisible();
 });
 
 test("compact console navigation closes on selection and exposes the current branch", async ({ page }) => {
@@ -277,7 +277,7 @@ test("header creates and retains an authorized workspace across navigation", asy
     await profile.press("Enter");
     await menu.getByRole("menuitem", { name: "Settings" }).press("Enter");
     await expect(page).toHaveURL(/\/account$/);
-    await expect(page.getByRole("heading", { name: "Your account" })).toBeFocused();
+    await expect(page.getByRole("heading", { level: 1, name: "Profile", exact: true })).toBeFocused();
     await profile.press("Enter");
     await page.keyboard.press("Escape");
     await expect(profile).toBeFocused();
@@ -286,4 +286,76 @@ test("header creates and retains an authorized workspace across navigation", asy
     await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
     await expect(selector).toHaveCount(0);
     await expect(header.getByLabel("Language")).toBeVisible();
+});
+
+test("TailAdmin profile dimensions and theme persist through real navigation", async ({ page }) => {
+    const { workspaceId } = await editorScope(page, `theme-${randomUUID()}`);
+    const banner = page.getByRole("banner");
+    const theme = banner.getByRole("button", { name: "Dark mode", exact: true });
+    await expect(theme).toBeVisible();
+    await expect(theme).toHaveCSS("width", "44px");
+    await expect(theme).toHaveCSS("height", "44px");
+    await expect(theme).toHaveAttribute("aria-pressed", "false");
+    const profile = banner.getByRole("button", { name: "Browser Administrator", exact: true });
+    await expect(profile.locator(".vq-avatar")).toHaveCSS("width", "44px");
+    await page.getByRole("button", { name: "New resource", exact: true }).click();
+    await page.getByLabel("Name", { exact: true }).fill("Unsubmitted resource");
+    await theme.click();
+    await expect(theme).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("html")).toHaveCSS("color-scheme", "dark");
+    const resourceName = page.getByLabel("Name", { exact: true });
+    await expect(resourceName).toHaveValue("Unsubmitted resource");
+    await expect(resourceName).toHaveCSS("background-color", "rgb(24, 32, 47)");
+    await expect(page.getByRole("button", { name: "Create resource", exact: true })).toHaveCSS(
+        "background-color",
+        "rgb(70, 95, 255)",
+    );
+    await expect(banner.getByRole("combobox")).toHaveValue(workspaceId);
+    await page.getByRole("link", { name: "Test Agent", exact: true }).click();
+    const archived = page.getByRole("button", { name: "Archived", exact: true });
+    await archived.click();
+    await expect(archived).toHaveCSS("background-color", "rgb(35, 52, 85)");
+    await expect(archived).toHaveAttribute("aria-pressed", "true");
+    await profile.press("Enter");
+    const menu = page.getByRole("menu");
+    await expect(menu).toHaveCSS("width", "260px");
+    await expect(menu).toHaveCSS("border-radius", "16px");
+    await expect(menu).toHaveCSS("padding", "12px");
+    await expect(menu).toHaveCSS("background-color", "rgb(26, 34, 49)");
+    await expect(menu.getByText("browser-admin@example.com")).toBeVisible();
+    await menu.getByRole("menuitem", { name: "Settings" }).press("Enter");
+    await expect(page.getByRole("heading", { level: 1, name: "Profile" })).toBeFocused();
+    await expect(
+        page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Home" }),
+    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Personal information" })).toBeVisible();
+    await expect(page.locator(".vq-profile-summary .vq-avatar")).toHaveCSS("width", "80px");
+    await expect(page.locator(".vq-profile")).toHaveCSS("border-radius", "16px");
+    await expect(page.locator(".vq-profile-card").first()).toHaveCSS("padding", "24px");
+    await page.reload();
+    await expect(theme).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("html")).toHaveCSS("color-scheme", "dark");
+    await theme.click();
+    await expect(page.locator("html")).toHaveCSS("color-scheme", "light");
+    await theme.click();
+    await profile.click();
+    await page.getByRole("menuitem", { name: "Sign out", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
+    await expect(theme).toHaveAttribute("aria-pressed", "true");
+});
+
+test("theme still switches when browser preference storage is blocked", async ({ page }) => {
+    await page.addInitScript(() => {
+        Object.defineProperty(window, "localStorage", {
+            get() {
+                throw new DOMException("Access denied", "SecurityError");
+            },
+        });
+    });
+    await page.goto("/login");
+    const theme = page.getByRole("button", { name: "Dark mode" });
+    await expect(theme).toHaveAttribute("aria-pressed", "false");
+    await theme.press("Enter");
+    await expect(page.locator("html")).toHaveCSS("color-scheme", "dark");
+    await expect(page.getByLabel("Password")).toBeVisible();
 });

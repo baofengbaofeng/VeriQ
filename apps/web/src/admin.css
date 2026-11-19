@@ -281,8 +281,8 @@ textarea {
 }
 button {
     padding: 6px 10px;
-    border-color: var(--vq-brand);
-    background: var(--vq-brand);
+    border-color: var(--vq-button-fill, var(--vq-brand));
+    background: var(--vq-button-fill, var(--vq-brand));
 }
 button:not(:disabled):hover {
     filter: brightness(0.96);
@@ -669,37 +669,6 @@ tbody tr:hover td {
 }
 .vq-workspace-form button {
     justify-self: end;
-}
-.vq-profile {
-    display: grid;
-    gap: 12px;
-}
-.vq-profile-card {
-    border: 1px solid var(--vq-border);
-    border-radius: 10px;
-    padding: 14px 16px;
-    min-width: 0;
-}
-.vq-profile-card > h2 {
-    margin: 0 0 10px;
-}
-.vq-profile-summary {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-}
-.vq-profile-summary dl {
-    margin: 0;
-    display: grid;
-    grid-template-columns: max-content minmax(0, 1fr);
-    gap: 4px 12px;
-}
-.vq-profile-summary dd {
-    margin: 0;
-    overflow-wrap: anywhere;
-}
-.vq-profile-card > label {
-    max-width: 16rem;
 }
 @media (max-width: 580px) {
     .vq-topbar-workspaces {

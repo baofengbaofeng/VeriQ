@@ -30,9 +30,22 @@ import TsWorker from "monaco-editor/language/typescript/ts.worker?worker";
               : new EditorWorker(),
 };
 /**
- * 受控编辑器：value/onChange；只读时隐藏写入能力，供草稿 JSON 与生成源码共用。卸载时dispose编辑器实例。主题与字号固定
- * ；
- * 语言由 props 指定。
+ * 共享编辑器在带有 Web 主题标记的文档中更新配色；只更新 Monaco 的主题服务，保留正在编辑的模型、光标和撤销栈。
+ */
+function useDocumentTheme() {
+    useEffect(() => {
+        const root = document.documentElement;
+        if (!root.hasAttribute("data-veriq-web")) return;
+        const synchronize = () => monaco.editor.setTheme(root.dataset.theme === "dark" ? "vs-dark" : "vs");
+        synchronize();
+        const observer = new MutationObserver(synchronize);
+        observer.observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+        return () => observer.disconnect();
+    }, []);
+}
+
+/**
+ * 草稿源码与只读生成结果共用受控编辑器，语言由调用方指定；模型独立于界面配色，在组件卸载时释放。
  */
 export function Monaco({
     value,
@@ -48,6 +61,7 @@ export function Monaco({
     label?: string;
 }) {
     useAppLocale();
+    useDocumentTheme();
     const helpId = useId();
     const localizedLabel = tx(label);
     const host = useRef<HTMLDivElement>(null),
@@ -114,6 +128,7 @@ export function Monaco({
  */
 export function MonacoDiff({ original, modified }: { original: string; modified: string }) {
     useAppLocale();
+    useDocumentTheme();
     const localizedLabel = tx("Version difference");
     const labelRef = useRef(localizedLabel);
     labelRef.current = localizedLabel;
