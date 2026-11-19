@@ -344,9 +344,12 @@ class CompletionService:
                 403, "UNTRUSTED_COMPILER", "Only approved managed compiler completion may publish"
             )
         source = json.loads((await repo.artifact(attempt.snapshot_hash)).content)
-        engine, inventory_hash = ApprovedEngines(self.settings).require(source["engineVersion"])
-        if manifest["engineInventorySha256"] != inventory_hash:
-            raise Problem(409, "ENGINE_INVENTORY_MISMATCH", "Compiler release inventory differs")
+        # 已领取的任务可能跨越批准库存更新，签发前用当前发行条目和任务冻结能力重新判断是否可以接纳完成。
+        engine = ApprovedEngines(self.settings).require_validation(
+            source["engineVersion"],
+            job.required_capabilities,
+            inventory_hash=manifest["engineInventorySha256"],
+        )
         if not evidence_complete:
             raise Problem(
                 409, "INVALID_EVIDENCE", "Compiler evidence must match retained uploads and events"

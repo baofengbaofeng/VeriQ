@@ -127,7 +127,7 @@ class ResourceAPI(API):
                 if receipt is None:
                     raise Problem(
                         409,
-                        "VALIDATION_NOT_COMPLETED",
+                        "VALIDATION_RECEIPT_UNAVAILABLE",
                         "No successful validation receipt is available",
                     )
                 self.respond(receipt_dto(receipt))
