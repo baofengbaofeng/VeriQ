@@ -859,6 +859,7 @@ test("Workspace toolbar browses paginated members and opens workspace settings",
     await expect(expander).toHaveAttribute("aria-expanded", "false");
     await expander.click();
     await expect(expander).toHaveAttribute("aria-expanded", "true");
+    await expect(header).toHaveCSS("height", "72px");
     const add = header.getByRole("button", { name: "Add workspace" });
     await header.getByRole("button", { name: "Dark mode" }).click();
     await add.press("Enter");

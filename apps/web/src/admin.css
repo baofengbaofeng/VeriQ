@@ -975,7 +975,8 @@ tbody tr:hover td {
         flex-wrap: wrap;
         height: auto;
         min-height: var(--vq-header-height);
-        row-gap: 8px;
+        /* 两行控件 32+7+32 再加 1 像素底边，border-box 下仍为 72 像素。 */
+        row-gap: 7px;
     }
     .vq-header > .vq-header-tools {
         flex-basis: 100%;

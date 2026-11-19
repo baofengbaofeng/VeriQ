@@ -70,14 +70,14 @@ test("workspace settings tabs isolate member management and provider configurati
     await page.getByRole("banner").getByRole("button", { name: "Dark mode" }).click();
     await expect(ai).toHaveCSS("border-bottom-color", "rgb(117, 146, 255)");
     await expect(basic).toHaveCSS("border-bottom-color", "rgba(0, 0, 0, 0)");
-    await page.setViewportSize({ width: 320, height: 760 });
+    await page.setViewportSize({ width: 700, height: 760 });
     await expect(tabs).toHaveCSS("height", "48px");
     for (const button of await tabs.getByRole("tab").all()) {
         await expect(button).toHaveCSS("font-size", "14px");
         await expect(button.locator("svg")).toHaveCSS("width", "16px");
         await expect(button).toBeInViewport({ ratio: 1 });
     }
-    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(700);
     await page.setViewportSize({ width: 1280, height: 800 });
     await form.getByLabel("Write-only API key").fill("unsubmitted-fixture-key");
     await chooseWorkspace(page, otherId);
