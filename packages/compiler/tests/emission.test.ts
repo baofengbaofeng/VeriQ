@@ -523,6 +523,62 @@ it("I3 accepts both no-row and exact-row alternatives of matching suite variants
     e.dataRow = { key: "a", values: { name: "WRONG" } };
     expect(() => assembleExecution(r.bundle, e, r.files)).toThrow("DATA_ROW_MISMATCH");
 });
+
+it.each([
+    { secondValue: "B", scenario: "distinct row contents" },
+    { secondValue: "A", scenario: "identical row contents" },
+])("binds a frozen suite ordinal to its dataset with $scenario", ({ secondValue }) => {
+    // 两个条目共用同一用例和执行轴，第一条继承用例默认版本，第二条覆盖版本，因此行值相同也不能交换版本。
+    const rowA = { key: "shared", values: { name: "A" } };
+    const rowB = { key: "shared", values: { name: secondValue } };
+    const columns = { name: "string" };
+    const datasetA = asset(3, "DATASET", { schemaVersion: "1.0", columns, rows: [rowA] });
+    const datasetB = asset(4, "DATASET", { schemaVersion: "1.0", columns, rows: [rowB] });
+    const suite = asset(8, "SUITE", {
+        schemaVersion: "1.0",
+        cases: [
+            { versionId: id(1), roleKeys: ["reader"], browsers: ["chromium"] },
+            { versionId: id(1), roleKeys: ["reader"], browsers: ["chromium"], datasetVersionId: id(4) },
+        ],
+    });
+    const source = snapshot(undefined, [datasetA, datasetB, suite], { datasetVersionId: id(3) });
+    source.validationTarget = { resourceId: suite.resourceId, versionId: suite.versionId, revision: 1 };
+    rehash(source);
+    const { bundle, files } = compileFiles(source, distribution());
+    const frozen = { ...execution(), assetSourceHash: source.sourceHash };
+
+    expect(
+        assembleExecution(bundle, { ...frozen, suiteEntryIndex: 0, datasetVersionId: id(3), dataRow: rowA }, files),
+    ).toMatchObject({ snapshot: { datasetVersionId: id(3), dataRow: rowA } });
+    expect(
+        assembleExecution(bundle, { ...frozen, suiteEntryIndex: 1, datasetVersionId: id(4), dataRow: rowB }, files),
+    ).toMatchObject({ snapshot: { datasetVersionId: id(4), dataRow: rowB } });
+    expect(() =>
+        assembleExecution(bundle, { ...frozen, suiteEntryIndex: 0, datasetVersionId: id(4), dataRow: rowB }, files),
+    ).toThrow("DATA_ROW_MISMATCH");
+});
+
+it("keeps a historical CASE ordinal while requiring its default dataset", () => {
+    const row = { key: "shared", values: { name: "A" } };
+    const dataset = asset(3, "DATASET", { schemaVersion: "1.0", columns: { name: "string" }, rows: [row] });
+    const source = snapshot(undefined, [dataset], { datasetVersionId: dataset.versionId });
+    const { bundle, files } = compileFiles(source, distribution());
+    // 历史多用例运行用原列表序号记录每次执行，但各用例分开编译，单用例源码因此仍可对应非零序号。
+    const frozen = {
+        ...execution(),
+        assetSourceHash: source.sourceHash,
+        datasetVersionId: dataset.versionId,
+        dataRow: row,
+    };
+    const indexed = { ...frozen, suiteEntryIndex: 3 };
+    expect(assembleExecution(bundle, indexed, files).snapshot).toEqual(indexed);
+    for (const historical of [indexed, frozen]) {
+        expect(() => assembleExecution(bundle, { ...historical, datasetVersionId: id(4) }, files)).toThrow(
+            "DATA_ROW_MISMATCH",
+        );
+    }
+});
+
 it("I3 keeps role, browser and data matching coupled to a complete variant", () => {
     const dataset = asset(3, "DATASET", {
         schemaVersion: "1.0",
@@ -561,6 +617,11 @@ it("I3 keeps role, browser and data matching coupled to a complete variant", () 
     expect(() => assembleExecution(r.bundle, e, r.files)).toThrow("ROLE_MISMATCH");
     e.browser = "firefox";
     expect(assembleExecution(r.bundle, e, r.files).snapshot.roleKey).toBe("editor");
+    e.suiteEntryIndex = 1;
+    expect(assembleExecution(r.bundle, e, r.files).snapshot.roleKey).toBe("editor");
+    e.suiteEntryIndex = 0;
+    expect(() => assembleExecution(r.bundle, e, r.files)).toThrow("ROLE_MISMATCH");
+    e.suiteEntryIndex = 1;
     delete e.dataRow;
     expect(() => assembleExecution(r.bundle, e, r.files)).toThrow("DATA_ROW_MISMATCH");
 });

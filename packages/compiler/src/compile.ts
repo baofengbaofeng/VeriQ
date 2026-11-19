@@ -495,30 +495,31 @@ export function assembleExecution(
     )
         throw new Error("DATASET_BINDINGS_MISMATCH");
     const suite = source.assets.find((a) => a.kind === "SUITE");
-    const variants =
-        suite?.kind === "SUITE"
-            ? suite.document.cases.filter(
-                  (c) =>
-                      c.versionId === snapshot.caseVersionId &&
-                      (c.roleKeys ?? [selectedCase.document.roleKey]).includes(snapshot.roleKey) &&
-                      (!c.browsers || c.browsers.includes(snapshot.browser)),
-              )
-            : [
-                  {
-                      versionId: snapshot.caseVersionId,
-                      ...(selectedCase.document.datasetVersionId
-                          ? { datasetVersionId: selectedCase.document.datasetVersionId }
-                          : {}),
-                  },
-              ];
-    if (suite ? variants.length === 0 : selectedCase.document.roleKey !== snapshot.roleKey)
+    // 套件序号以冻结原数组为准，在筛选执行轴前先取条目；独立用例可保留历史多用例运行的原列表序号。
+    const suiteEntries = suite?.document.cases;
+    const entryIndex = snapshot.suiteEntryIndex;
+    const candidates = entryIndex === undefined ? suiteEntries : suiteEntries?.slice(entryIndex, entryIndex + 1);
+    const defaultDataset = selectedCase.document.datasetVersionId;
+    const defaultRole = selectedCase.document.roleKey;
+    const matrixVersions = candidates
+        ?.filter(
+            (entry) =>
+                entry.versionId === snapshot.caseVersionId &&
+                (entry.roleKeys ?? [defaultRole]).includes(snapshot.roleKey) &&
+                (!entry.browsers || entry.browsers.includes(snapshot.browser)),
+        )
+        .map((entry) => entry.datasetVersionId ?? defaultDataset) ?? [defaultDataset];
+    if (suite ? matrixVersions.length === 0 : defaultRole !== snapshot.roleKey) {
         throw new Error("ROLE_MISMATCH");
+    }
     /**
-     * 行身份按当前角色及浏览器允许的变体匹配，无数据的变体只接受无执行行。树元数据属于资产摘要，不属于既有执行行摘要。
+     * 冻结版本存在时须先核对其归属，旧快照可以仅携带行；树父键和排序属于资产摘要而不进入执行行摘要。
      */
     const selectedRowHash = snapshot.dataRow ? sha256(canonicalBytes(snapshot.dataRow)) : undefined;
-    const matchesData = variants.some((variant) => {
-        const datasetId = variant.datasetVersionId ?? selectedCase.document.datasetVersionId;
+    const matchesData = matrixVersions.some((datasetId) => {
+        if (snapshot.datasetVersionId !== undefined && datasetId !== snapshot.datasetVersionId) {
+            return false;
+        }
         if (!datasetId) return selectedRowHash === undefined;
         if (!selectedRowHash) return false;
         const dataset = source.assets.find((a) => a.versionId === datasetId);
@@ -527,12 +528,9 @@ export function assembleExecution(
         const rows = d.schemaVersion === "1.0" ? d.rows : d.source.kind === "STATIC" ? d.source.rows : [];
         return rows.some(({ key, values }) => sha256(canonicalBytes({ key, values })) === selectedRowHash);
     });
-    if (!matchesData)
-        throw new Error(
-            variants.some((c) => c.datasetVersionId ?? selectedCase.document.datasetVersionId)
-                ? "DATA_ROW_MISMATCH"
-                : "UNEXPECTED_DATA_ROW",
-        );
+    if (!matchesData) {
+        throw new Error(matrixVersions.some(Boolean) ? "DATA_ROW_MISMATCH" : "UNEXPECTED_DATA_ROW");
+    }
     const initialVariables = resolveInitialVariables(selectedCase.document.initialVariables, snapshot.variables);
     if (selectedCase.document.fixtureVersionId) {
         const fixture = source.assets.find((a) => a.versionId === selectedCase.document.fixtureVersionId);
