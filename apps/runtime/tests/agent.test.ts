@@ -76,6 +76,7 @@ test("historical reconciliation preserves the exact newer lost claim request", a
         const supervisor = new ExecutionSupervisor({
             root: directory,
             client,
+            minimumFreeBytes: 1,
         } as ConstructorParameters<typeof ExecutionSupervisor>[0]);
         await claimLoop({
             root: directory,
@@ -138,6 +139,7 @@ test("only the correlated acknowledged recovery clears its own pending claim req
         const supervisor = new ExecutionSupervisor({
             root: directory,
             client,
+            minimumFreeBytes: 1,
         } as ConstructorParameters<typeof ExecutionSupervisor>[0]);
         await claimLoop({
             root: directory,
@@ -181,5 +183,100 @@ test("an installation missing its native launcher fails closed without compiling
         assert.deepEqual(await readdir(root), ["node_modules", "package.json", "src"]);
     } finally {
         await rm(root, { recursive: true, force: true });
+    }
+});
+
+/**
+ * 真实本机套接字保留旧运行标志和进程号，并接收有限暂停及处置状态；通过同一带随机 nonce 的连接仍可发起停止。
+ */
+test("nonce status carries maintenance fields without changing the stop operation", async (t) => {
+    const { agentControl, serveAgentControl } = await import("../src/agent/control.ts");
+    const directory = await mkdtemp(join(tmpdir(), "vq-ctl-"));
+    t.after(() => rm(directory, { recursive: true, force: true }));
+    const stop = new AbortController();
+    let state: ReturnType<NonNullable<Parameters<typeof serveAgentControl>[2]>> = {};
+    const close = await serveAgentControl(
+        directory,
+        () => stop.abort(),
+        () => state,
+    );
+    try {
+        const legacy = { running: true, pid: process.pid };
+        assert.deepEqual(await agentControl(directory, "status"), legacy);
+        state = { pausedReason: "RUNTIME_STORAGE_LOW", scratchCleanupPending: true };
+        assert.deepEqual(await agentControl(directory, "status"), { ...legacy, ...state });
+        await agentControl(directory, "stop");
+        assert.equal(stop.signal.aborted, true);
+    } finally {
+        await close();
+    }
+});
+
+test("nonce client accepts legacy status and rejects invalid optional fields", async (t) => {
+    const { writeFile } = await import("node:fs/promises");
+    const { agentControl } = await import("../src/agent/control.ts");
+    const { AttemptBroker } = await import("../src/execution/broker.ts");
+    const directory = await mkdtemp(join(tmpdir(), "vq-ctl-"));
+    t.after(() => rm(directory, { recursive: true, force: true }));
+    const legacy = { running: true, pid: process.pid };
+    let state: unknown = legacy;
+    const broker = new AttemptBroker(join(directory, "test.sock"), async () => state);
+    await broker.open();
+    try {
+        await writeFile(
+            join(directory, "agent-control.json"),
+            JSON.stringify({ socket: broker.path, nonce: broker.nonce }),
+        );
+        assert.deepEqual(await agentControl(directory, "status"), legacy);
+        for (const value of [
+            { ...legacy, pausedReason: "/private/path" },
+            { ...legacy, scratchCleanupPending: "true" },
+            { ...legacy, running: "yes" },
+            { ...legacy, pid: -1 },
+        ]) {
+            state = value;
+            await assert.rejects(agentControl(directory, "status"), { message: "INVALID_AGENT_RESPONSE" });
+        }
+        state = { ...legacy, rawError: "/private/path" };
+        assert.deepEqual(await agentControl(directory, "status"), legacy);
+        await writeFile(join(directory, "agent-control.json"), JSON.stringify({ socket: broker.path, nonce: "wrong" }));
+        await assert.rejects(agentControl(directory, "status"), { message: "AGENT_UNAVAILABLE" });
+    } finally {
+        await broker.close();
+    }
+});
+
+test("CLI status prints fixed English disk and scratch guidance through the nonce channel", async (t) => {
+    const { spawn } = await import("node:child_process");
+    const { serveAgentControl } = await import("../src/agent/control.ts");
+    const profile = await mkdtemp(join(tmpdir(), "vq-ctl-"));
+    t.after(() => rm(profile, { recursive: true, force: true }));
+    const close = await serveAgentControl(
+        join(profile, "agent"),
+        () => {},
+        () => ({ pausedReason: "RUNTIME_STORAGE_LOW", scratchCleanupPending: true }),
+    );
+    try {
+        const args = ["--import", "tsx", "src/cli.ts", "--config-dir", profile, "runtime", "status"];
+        const cli = spawn(process.execPath, args, { stdio: ["ignore", "pipe", "pipe"] });
+        let output = "";
+        let errors = "";
+        cli.stdout.on("data", (chunk: Buffer) => {
+            output += chunk.toString();
+        });
+        cli.stderr.on("data", (chunk: Buffer) => {
+            errors += chunk.toString();
+        });
+        const code = await new Promise<number | null>((resolve, reject) => {
+            cli.once("error", reject);
+            cli.once("close", resolve);
+        });
+        assert.equal(code, 0, errors);
+        assert.match(output, /Agent running: true; PID [1-9][0-9]*/);
+        assert.match(output, /Insufficient disk space; claiming is paused/);
+        assert.match(output, /Scratch was retained; ask an administrator/);
+        assert.equal(output.includes(profile), false);
+    } finally {
+        await close();
     }
 });

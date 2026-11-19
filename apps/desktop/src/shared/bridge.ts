@@ -38,6 +38,8 @@ export interface AgentState {
     pid: number;
     active: { workspaceId: string; runId: string; attemptId: string; state: string } | null;
     online: boolean;
+    pausedReason?: "RUNTIME_STORAGE_LOW" | "RUNTIME_STORAGE_UNAVAILABLE";
+    scratchCleanupPending?: boolean;
     preparing?: { id: string; operation: "run" | "onlineStart"; cancelling: boolean };
     device?: { id: string; workspaceId: string };
     workspaceId?: string;

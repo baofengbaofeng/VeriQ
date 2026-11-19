@@ -47,6 +47,7 @@ import { requireDarwinSource, type DarwinSourceCapability, type DarwinSourceStat
 import { matchesControlledClaim } from "./darwin-proof.ts";
 import { WindowsAttemptJournal } from "./windows-journal.ts";
 import { allocateScratch, monitorStorage, retireScratch, type DataCleanup, type TaskAllocation } from "./storage.ts";
+import { storagePauseReason } from "./storage-admission.ts";
 import { loadRelease, sha256 } from "./release.ts";
 import { developmentExecutionPaths, containedPath, type ExecutionPaths } from "./paths.ts";
 import { offlineWorkerEnvironment } from "../offline/worker-environment.ts";
@@ -75,6 +76,7 @@ export interface AttemptResult {
     completion?: CompletionManifestV1;
     stop: StopReceipt;
     files: LocalEvidence[];
+    dataCleanup?: DataCleanup;
 }
 /**
  * 公开接口 SupervisorOptions 配置监督器根目录、AgentClient、发行目录、浏览器可执行文件与存储上限。
@@ -85,6 +87,10 @@ export interface SupervisorOptions {
     releaseDirectory: string;
     browserExecutable: string;
     storageLimit?: number;
+    /**
+     * 本机可信调用方可设定正安全整数下限，未设定时每卷保留五百一十二 MiB；任务内容无法更改这项准入。
+     */
+    minimumFreeBytes?: number;
     /**
      * 源码宿主能力只接收工厂签发的当前对象，构造器实际验证品牌与平台后才允许 Darwin 业务；任务、profile 和 renderer
      * JSON 都没有构造这项非序列化能力的路径，安装就绪仍由独立发行入口负责。
@@ -105,6 +111,7 @@ interface AttemptJournal {
     work: string;
     stop?: StopReceipt;
 }
+type RecoveredAttempt = StopReceipt & { claimRequestId?: string };
 const json = async <T>(path: string): Promise<T> => JSON.parse(await readFile(path, "utf8")) as T;
 /**
  * 公开类 ExecutionSupervisor 驱动单次 Attempt 全生命周期：含激活、编译装配、进程监护、事件上报与恢复对账。
@@ -112,7 +119,13 @@ const json = async <T>(path: string): Promise<T> => JSON.parse(await readFile(pa
 export class ExecutionSupervisor {
     readonly processes: ProcessSupervisor;
     private readonly source: DarwinSourceState | undefined;
+    private readonly minimumFreeBytes: bigint;
     constructor(private options: SupervisorOptions) {
+        const minimumFreeBytes = options.minimumFreeBytes === undefined ? 512 * 1024 ** 2 : options.minimumFreeBytes;
+        if (!Number.isSafeInteger(minimumFreeBytes) || minimumFreeBytes < 1) {
+            throw new Error("INVALID_MINIMUM_FREE_BYTES");
+        }
+        this.minimumFreeBytes = BigInt(minimumFreeBytes);
         if (options.darwinSource !== undefined) this.source = requireDarwinSource(options.darwinSource);
         this.processes = new ProcessSupervisor(
             join(options.root, "processes"),
@@ -120,6 +133,23 @@ export class ExecutionSupervisor {
             options.execution?.guardianExecutable,
             options.darwinSource,
         );
+    }
+    /**
+     * 领取准入与正式分配共享同一工作父目录和暂存根，按实际选择的路径观测卷容量，避免宿主入口各自推导。
+     */
+    checkStorageAdmission() {
+        return storagePauseReason(
+            this.options.root,
+            this.workDirectory(),
+            this.temporaryDirectory(),
+            this.minimumFreeBytes,
+        );
+    }
+    private workDirectory() {
+        return join(this.options.root, "work");
+    }
+    private temporaryDirectory() {
+        return this.source?.temporaryDirectory ?? tmpdir();
     }
     private async journal(value: AttemptJournal) {
         /**
@@ -263,12 +293,12 @@ export class ExecutionSupervisor {
         return this.processes.terminateAttempt(id, reason, deadlineMonotonicMs);
     }
     /**
-     * 公开方法 recover 扫描 attempts 日志并终止残留进程：向控制面对账后返回带 claimRequestId 的停机回执列表。
+     * 恢复尝试终止日志记录的残留进程，并向控制面对账后返回原有停机回执；暂存处置通过独立通知交付本机状态。
      */
-    async recover(): Promise<(StopReceipt & { claimRequestId?: string })[]> {
-        if (process.platform === "win32") return this.recoverWindows();
+    async recover(onCleanup?: (value: DataCleanup) => void): Promise<RecoveredAttempt[]> {
+        if (process.platform === "win32") return this.recoverWindows(onCleanup);
         const directory = join(this.options.root, "attempts");
-        const receipts: (StopReceipt & { claimRequestId?: string })[] = [];
+        const receipts: RecoveredAttempt[] = [];
         /**
          * 恢复中的白名单是容量释放依据，必须复用实际私有记录能力读取，不能按路径跟随链接或接受宽权限文件；
          * 同一只读会话保持目录身份，旧历史也不会在核验前被收紧权限或改写。
@@ -309,12 +339,7 @@ export class ExecutionSupervisor {
                 )
                     stop.reason = "JOURNAL_STAGING_UNCONFIRMED";
                 if (stop.processStopped && stop.processStopScope !== "NO_PROCESS_SPAWNED") record.state = "STOPPED";
-                record.dataCleanup = await retireScratch(
-                    this.options.root,
-                    this.source?.temporaryDirectory ?? tmpdir(),
-                    record,
-                    stop,
-                );
+                record.dataCleanup = await retireScratch(this.options.root, this.temporaryDirectory(), record, stop);
                 record.stop = stop;
                 try {
                     await this.journal(record);
@@ -327,6 +352,7 @@ export class ExecutionSupervisor {
                             stoppedAt: new Date().toISOString(),
                         };
                 }
+                onCleanup?.(record.dataCleanup);
                 await this.reconcile(record.claim, stop, "PENDING");
                 receipts.push({
                     ...stop,
@@ -357,9 +383,9 @@ export class ExecutionSupervisor {
      * 孤立进程成员不被忽略，持久前置状态仍必须没有任何原生启动意图，真正派生过
      * 的 Attempt 始终使用 Job 排空证明。
      */
-    private async recoverWindows(): Promise<(StopReceipt & { claimRequestId?: string })[]> {
+    private async recoverWindows(onCleanup?: (value: DataCleanup) => void): Promise<RecoveredAttempt[]> {
         const journal = await WindowsAttemptJournal.open(this.options.root);
-        const receipts: (StopReceipt & { claimRequestId?: string })[] = [];
+        const receipts: RecoveredAttempt[] = [];
         let processes: ProcessRecords | undefined;
         try {
             await journal.requireNoLegacy();
@@ -375,14 +401,10 @@ export class ExecutionSupervisor {
                     (await this.unspawned(record, true)) ??
                     (await this.terminateAttempt(record.claim.attemptId, "AGENT_RECOVERY"));
                 if (stop.processStopped && stop.processStopScope !== "NO_PROCESS_SPAWNED") record.state = "STOPPED";
-                record.dataCleanup = await retireScratch(
-                    this.options.root,
-                    this.source?.temporaryDirectory ?? tmpdir(),
-                    record,
-                    stop,
-                );
+                record.dataCleanup = await retireScratch(this.options.root, this.temporaryDirectory(), record, stop);
                 record.stop = stop;
                 journal.save(record);
+                onCleanup?.(record.dataCleanup);
                 await this.reconcile(record.claim, stop, "PENDING");
                 receipts.push({
                     ...stop,
@@ -447,14 +469,15 @@ export class ExecutionSupervisor {
         if (process.platform !== "linux" && process.platform !== "win32" && !this.source)
             throw new Error("UNSUPPORTED_PROCESS_PLATFORM");
         const executionPaths = this.options.execution ?? developmentExecutionPaths();
-        const work = join(this.options.root, "work", claim.attemptId);
-        await privateDirectory(dirname(work));
+        const workParent = this.workDirectory();
+        const work = join(workParent, claim.attemptId);
+        await privateDirectory(workParent);
         await mkdir(work, { mode: 0o700 });
         await privateDirectory(work);
         const brokerDirectory = this.source ? await createDarwinBrokerDirectory() : undefined;
         let tmp: string;
         try {
-            tmp = await mkdtemp(join(this.source?.temporaryDirectory ?? tmpdir(), "veriq-a-"));
+            tmp = await mkdtemp(join(this.temporaryDirectory(), "veriq-a-"));
             if (this.source) this.source.native.openPrivateDirectory(tmp, false).close();
         } catch (error) {
             await brokerDirectory?.close();
@@ -543,6 +566,7 @@ export class ExecutionSupervisor {
             if (total > 128 * 1024 * 1024) throw new Error("CLOSURE_LIMIT");
             return bytes;
         };
+        let result: AttemptResult;
         try {
             const raw = await client.download(claim.snapshotUrl, claim.snapshotSha256, claim, controller.signal);
             manifest = JSON.parse(Buffer.from(raw).toString()) as JobManifestV1;
@@ -1055,12 +1079,7 @@ export class ExecutionSupervisor {
                     payload: { artifactId, file: file.file, kind: file.kind },
                 });
             }
-            record.dataCleanup = await retireScratch(
-                this.options.root,
-                this.source?.temporaryDirectory ?? tmpdir(),
-                record,
-                stop,
-            );
+            record.dataCleanup = await retireScratch(this.options.root, this.temporaryDirectory(), record, stop);
             await commit();
             if (record.dataCleanup === "STOP_UNCONFIRMED") throw new Error("TASK_DATA_CLEANUP_UNCONFIRMED");
             const evidence = files.map((f) => f.file),
@@ -1135,7 +1154,7 @@ export class ExecutionSupervisor {
                 lastSequence: events.lastSequence,
                 cleanupStatus,
             });
-            return { completion, stop, files };
+            result = { completion, stop, files };
         } catch (error) {
             const failure =
                 error instanceof RuntimeError
@@ -1169,7 +1188,7 @@ export class ExecutionSupervisor {
             await this.reconcile(claim, stop, caseResult?.cleanupStatus ?? (child ? "PENDING" : "NOT_REQUIRED")).catch(
                 () => {},
             );
-            return { stop, files };
+            result = { stop, files };
         } finally {
             heartbeat.close();
             clearInterval(flushTimer);
@@ -1184,10 +1203,14 @@ export class ExecutionSupervisor {
             if (stop && record.dataCleanup === undefined) {
                 record.dataCleanup = retainPrivateReports
                     ? "REPORT_RETAINED"
-                    : await retireScratch(this.options.root, this.source?.temporaryDirectory ?? tmpdir(), record, stop);
+                    : await retireScratch(this.options.root, this.temporaryDirectory(), record, stop);
                 await commit();
             }
         }
+        /**
+         * 失败路径的暂存状态直到收尾提交后才具备，返回值在该处投影；完成清单和真实停止回执仍按既有规则生成。
+         */
+        return { ...result, ...(record.dataCleanup ? { dataCleanup: record.dataCleanup } : {}) };
     }
     private async resolveCredential(
         claim: Claim,
