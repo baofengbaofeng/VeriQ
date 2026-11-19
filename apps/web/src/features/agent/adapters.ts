@@ -42,11 +42,11 @@ export class CloudAgentAdapter {
         );
     };
 
-    // 标题可选，由服务器在缺省时生成统一名称；新会话的正式标识仍由服务端分配。
+    // 标题缺省时由服务端生成统一名称，同时分配私有会话的正式标识，客户端可据此继续读取本人会话。
     createSession = (data: AgentSchemas["AgentSessionCreate"], signal?: AbortSignal) =>
         request<AgentSchemas["AgentSessionDTO"]>(`${this.base}/sessions`, "POST", data, signal);
 
-    // 会话详情保留归档标记，另一端变更该状态后可重新读取并更新当前聊天的写入能力。
+    // 会话详情保留归档标记，另一端变更状态后重新读取详情，才能更新当前聊天是否具备写入能力。
     session = (id: string, signal?: AbortSignal) =>
         request<AgentSchemas["AgentSessionDTO"]>(this.sessionPath(id), "GET", undefined, signal);
 
@@ -54,7 +54,7 @@ export class CloudAgentAdapter {
     archive = (id: string, signal?: AbortSignal) =>
         request<AgentSchemas["Empty"]>(this.sessionPath(id), "DELETE", undefined, signal);
 
-    // 对话轮次按服务端时间顺序续读，仅向同一会话呈现签名游标，未换页时保留首段历史。
+    // 对话轮次按服务端时间顺序读取；签名游标只交给所属会话续页，未换页时当前线程保留首段历史。
     turns = (id: string, cursor?: string, signal?: AbortSignal) =>
         request<AgentSchemas["AgentTurnDTOPageEnvelope"]["data"]>(
             `${this.sessionPath(id)}/turns${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`,
@@ -84,4 +84,32 @@ export function agentErrorCode(error: unknown): string | undefined {
     if (error instanceof ApiError) return error.code;
     const message = error instanceof Error ? error.message : "";
     return /(?:^|: )([A-Z][A-Z0-9_]{2,100})$/.exec(message)?.[1];
+}
+
+/**
+ * 只有来自当前读接口的这些明确代号证明工作区对话不可读，报告专属错误和普通传输异常由各调用方继续处理。
+ */
+export function agentWorkspaceReadDenied(error: unknown): boolean {
+    const code = agentErrorCode(error);
+    return code === "AUTHENTICATION_REQUIRED" || code === "WORKSPACE_FORBIDDEN" || code === "WORKSPACE_NOT_FOUND";
+}
+
+/**
+ * 在读取所属的取消边界仍有效时交付失败，先把明确拒绝传给视图，再让查询各自保留原始错误以供反馈。
+ */
+export async function observeAgentRead<T>(
+    read: Promise<T>,
+    signal: AbortSignal,
+    onFailure: (error: unknown) => void,
+): Promise<T> {
+    try {
+        const data = await read;
+        signal.throwIfAborted();
+        return data;
+    } catch (error) {
+        if (!signal.aborted) {
+            onFailure(error);
+        }
+        throw error;
+    }
 }

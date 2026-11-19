@@ -6,7 +6,7 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { tx } from "../../locale";
 import type { Workspace } from "../../api";
 import type { ReportAdapter } from "../reports/adapters";
-import type { AgentSchemas, CloudAgentAdapter } from "./adapters";
+import { agentErrorCode, observeAgentRead, type AgentSchemas, type CloudAgentAdapter } from "./adapters";
 import { useAgentLifetime } from "./lifetime";
 import { agentSubmission, clearAgentSubmission, hasPendingAgentConfirmation } from "./retry";
 import { AgentError, agentProblem } from "./feedback";
@@ -14,7 +14,6 @@ import { Proposal, ActionReceipt } from "./Proposal";
 import { RunCard, type ReportNavigation, type RunReference } from "./RunCard";
 
 type Turn = AgentSchemas["AgentTurnDTO"];
-type Session = AgentSchemas["AgentSessionDTO"];
 
 // 这三组文案对应服务端确定性短语，仅用于启用当前角色的发送操作；服务器仍验证动作和会话权限。
 const confirmAny = new Set(["confirm", "confirm action", "确认", "确认操作"]);
@@ -60,12 +59,14 @@ export function Conversation({ parentSignal, ...props }: ConversationProps) {
 interface ConversationProps {
     workspace: Workspace;
     owner: string;
-    initial: Session;
+    sessionId: string;
     initialMessage: string;
     adapter: CloudAgentAdapter;
     reports: Pick<ReportAdapter, "report" | "subscribe">;
     parentSignal: AbortSignal;
     navigate: ReportNavigation;
+    onReadDenied: (error: unknown) => void;
+    onWorkspaceReadDenied: (error: unknown) => void;
     onArchived: () => void;
 }
 
@@ -73,12 +74,14 @@ interface ConversationProps {
 function Thread({
     workspace,
     owner,
-    initial,
+    sessionId: id,
     initialMessage,
     adapter,
     reports,
     signal,
     navigate,
+    onReadDenied,
+    onWorkspaceReadDenied,
     onArchived,
 }: Omit<ConversationProps, "parentSignal"> & { signal: AbortSignal }) {
     const [text, setText] = useState(initialMessage);
@@ -88,16 +91,21 @@ function Thread({
     const recovering = useRef<{ id: string; requestId: string }>();
     const [updates, setUpdates] = useState(() => new Map<string, Turn>());
     const [completedRuns, setCompletedRuns] = useState(() => new Set<string>());
-    const id = initial.id;
     const retryKey = "veriq.agent.retry/" + JSON.stringify([owner, workspace.id, id]);
     const key = ["workspace", workspace.id, "agent", owner, "session", id];
     const current = useQuery({
         queryKey: key,
-        queryFn: ({ signal: request }) => adapter.session(id, AbortSignal.any([signal, request])),
+        queryFn: ({ signal: request }) => {
+            const active = AbortSignal.any([signal, request]);
+            return observeAgentRead(adapter.session(id, active), active, onReadDenied);
+        },
     });
     const history = useInfiniteQuery({
         queryKey: [...key, "turns"],
-        queryFn: ({ pageParam, signal: request }) => adapter.turns(id, pageParam, AbortSignal.any([signal, request])),
+        queryFn: ({ pageParam, signal: request }) => {
+            const active = AbortSignal.any([signal, request]);
+            return observeAgentRead(adapter.turns(id, pageParam, active), active, onReadDenied);
+        },
         initialPageParam: undefined as string | undefined,
         getNextPageParam: (page) => page.nextCursor ?? undefined,
         refetchInterval: (query) => {
@@ -105,8 +113,8 @@ function Thread({
             return mergeTurns(loaded, updates).some((turn) => turn.status === "RUNNING") ? 2_000 : false;
         },
     });
-    const session = current.data ?? initial;
-    const editable = !workspace.archived && !session.archived;
+    const session = current.data;
+    const editable = !workspace.archived && !!session && !session.archived;
     const plan = editable && ["OWNER", "ADMIN", "EDITOR"].includes(workspace.role);
     const execute = editable && workspace.role !== "VIEWER";
     const turns = mergeTurns(history.data?.pages.flatMap((page) => page.items) ?? [], updates);
@@ -114,11 +122,11 @@ function Thread({
     const running = turns.some((turn) => turn.status === "RUNNING");
     const recovered = turns.find((turn) => turn.id === recovering.current?.id && turn.status !== "RUNNING");
     useEffect(() => {
-        if (recovered && recovering.current) {
+        if (!signal.aborted && recovered && recovering.current) {
             clearAgentSubmission(retryKey, recovering.current.requestId);
             recovering.current = undefined;
         }
-    }, [recovered, retryKey]);
+    }, [recovered, retryKey, signal]);
     const references = runReferences(turns);
     const focused = references.filter((run) => !completedRuns.has(run.id)).at(-1)?.id;
     const confirmationText = text
@@ -160,8 +168,13 @@ function Thread({
             await action();
         } catch (failure) {
             if (!signal.aborted) {
-                setError(failure);
-                void refresh();
+                // 写操作可能只失去编辑或执行能力，除明确的账户失效外仍以新的读取结果决定对话是否可见。
+                if (agentErrorCode(failure) === "AUTHENTICATION_REQUIRED") {
+                    onWorkspaceReadDenied(failure);
+                } else {
+                    setError(failure);
+                    void refresh();
+                }
             }
         } finally {
             mutation.current = false;
@@ -188,12 +201,22 @@ function Thread({
                 signal,
             );
             const turn = await adapter.submit(id, data, signal);
+            signal.throwIfAborted();
             if (turn.status === "RUNNING") recovering.current = { id: turn.id, requestId: data.requestId };
             else clearAgentSubmission(retryKey, data.requestId);
-            signal.throwIfAborted();
             setText("");
             receive(turn);
         });
+    }
+
+    // 来自授权列表的标题不能代替详情读取；新会话只有在详情与历史都已到达后才挂载私有正文及操作。
+    if (!session || !history.data) {
+        return (
+            <article className="vq-agent-thread">
+                <AgentError error={history.error ?? current.error} retry={() => void refresh()} />
+                {(current.isFetching || history.isFetching) && <p role="status">{tx("Loading VeriQ…")}</p>}
+            </article>
+        );
     }
 
     return (
@@ -241,8 +264,10 @@ function Thread({
                                     type="button"
                                     disabled={busy}
                                     onClick={() => {
-                                        clearAgentSubmission(retryKey);
-                                        setText(turn.text);
+                                        if (!signal.aborted) {
+                                            clearAgentSubmission(retryKey);
+                                            setText(turn.text);
+                                        }
                                     }}
                                 >
                                     {tx("Retry message")}
@@ -284,6 +309,7 @@ function Thread({
                     run={run}
                     reports={reports}
                     signal={signal}
+                    onWorkspaceReadDenied={onWorkspaceReadDenied}
                     focused={run.id === focused}
                     navigate={navigate}
                     reportTerminal={reportTerminal}

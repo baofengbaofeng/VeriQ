@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "../../api";
 import { tx } from "../../locale";
 import type { ReportAdapter, RunReport } from "../reports/adapters";
-import { agentErrorCode, type AgentSchemas } from "./adapters";
+import { agentErrorCode, agentWorkspaceReadDenied, observeAgentRead, type AgentSchemas } from "./adapters";
 import { AgentError } from "./feedback";
 
 type Receipt = AgentSchemas["AgentReceipt"];
@@ -34,7 +34,9 @@ function accessDenied(error: unknown): boolean {
     const code = agentErrorCode(error);
     return (
         (error instanceof ApiError && [401, 403, 404, 410].includes(error.status)) ||
-        ["WORKSPACE_FORBIDDEN", "REPORT_EXPIRED", "AUTHENTICATION_REQUIRED", "RUN_NOT_FOUND"].includes(code ?? "")
+        agentWorkspaceReadDenied(error) ||
+        code === "REPORT_EXPIRED" ||
+        code === "RUN_NOT_FOUND"
     );
 }
 
@@ -47,6 +49,7 @@ export function RunCard({
     run,
     reports,
     signal,
+    onWorkspaceReadDenied,
     focused,
     navigate,
     reportTerminal,
@@ -56,6 +59,7 @@ export function RunCard({
     run: RunReference;
     reports: Pick<ReportAdapter, "report" | "subscribe">;
     signal: AbortSignal;
+    onWorkspaceReadDenied: (error: unknown) => void;
     focused: boolean;
     navigate: ReportNavigation;
     reportTerminal: (id: string, terminal: boolean) => void;
@@ -70,7 +74,9 @@ export function RunCard({
         queryKey: key,
         queryFn: async ({ signal: request }) => {
             const version = generation.current;
-            const snapshot = matching(workspaceId, id, await reports.report(id, AbortSignal.any([signal, request])));
+            const active = AbortSignal.any([signal, request]);
+            const value = await observeAgentRead(reports.report(id, active), active, onWorkspaceReadDenied);
+            const snapshot = matching(workspaceId, id, value);
             // 拥有本次读请求时记录的代际用于阻止慢 GET 覆盖已到达的较新 SSE 帧，显式刷新则停止旧流后重新读取。
             if (version !== generation.current) return cache.getQueryData<RunReport>(key) ?? snapshot;
             return snapshot;
@@ -100,18 +106,37 @@ export function RunCard({
                 },
                 active,
             )
-            .catch((error: unknown) => {
-                if (!active.aborted) setStreamError(error);
+            .catch(async (error: unknown) => {
+                if (active.aborted) {
+                    return;
+                }
+                const workspaceDenied = agentWorkspaceReadDenied(error);
+                if (workspaceDenied && error instanceof ApiError) {
+                    onWorkspaceReadDenied(error);
+                    return;
+                }
+                setStreamError(error);
+                // 桌面开流可能仅从状态推导错误代号，缺少授权码的帧也只说明流受限；以当前报告读取复核工作区。
+                if (workspaceDenied || agentErrorCode(error) === "REPORT_ACCESS_CHANGED") {
+                    try {
+                        await observeAgentRead(reports.report(id, active), active, onWorkspaceReadDenied);
+                    } catch (failure) {
+                        // 报告读取若明确拒绝，只更新卡片的受限原因；临时传输中断仍保留已经观察到的首次订阅限制。
+                        if (!active.aborted && accessDenied(failure)) {
+                            setStreamError(failure);
+                        }
+                    }
+                }
             });
         return () => lifetime.abort();
-    }, [streaming, reports, id, signal, cache, key, workspaceId, refreshSignal]);
+    }, [streaming, reports, id, signal, cache, key, workspaceId, refreshSignal, onWorkspaceReadDenied]);
 
-    // 把权威终态通知展现层以释放监听位置，让更早的仍活动运行可以获得后续订阅。
+    // 根据报告快照通知父级当前运行是否到达终态，以便把独占订阅名额转给尚未结束的其他运行。
     useEffect(() => {
         if (loaded) reportTerminal(id, terminal);
     }, [id, loaded, reportTerminal, terminal]);
 
-    // 刷新先关闭旧流再取新的授权快照，避免延迟初始数据覆盖已经观察到的终态。
+    // 显式刷新先关闭旧订阅再读取授权快照，避免延迟快照覆盖同一次运行已经观察到的权威终态。
     const refresh = async () => {
         refreshSignal.abort();
         await report.refetch();
