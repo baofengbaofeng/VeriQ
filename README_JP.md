@@ -8,10 +8,6 @@ VeriQ という名前は、Veri（検証）と Q（品質）に分けて読む�
 
 [简体中文](README.md) · [English](README_EN.md) · **日本語**
 
-[![Python 3.12](assets/badges/python.svg)](.python-version) [![Tornado 6.6.1](assets/badges/tornado.svg)](apps/srv/pyproject.toml) [![React 18](assets/badges/react.svg)](apps/web/package.json) [![Node.js 24](assets/badges/nodejs.svg)](.node-version)
-
-[![Electron 45](assets/badges/electron.svg)](apps/desktop/package.json) [![Playwright 1.65](assets/badges/playwright.svg)](apps/runtime/package.json) [![MySQL 8.4](assets/badges/mysql.svg)](docs/decisions/0003-工程基线.md)
-
 ## 0. 目次
 
 1. [プロジェクトの背景と目的](#1-プロジェクトの背景と目的)

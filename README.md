@@ -8,10 +8,6 @@ VeriQ 可拆读为 Veri（验证）与 Q（质量），表达用可复现的验�
 
 **简体中文** · [English](README_EN.md) · [日本語](README_JP.md)
 
-[![Python 3.12](assets/badges/python.svg)](.python-version) [![Tornado 6.6.1](assets/badges/tornado.svg)](apps/srv/pyproject.toml) [![React 18](assets/badges/react.svg)](apps/web/package.json) [![Node.js 24](assets/badges/nodejs.svg)](.node-version)
-
-[![Electron 45](assets/badges/electron.svg)](apps/desktop/package.json) [![Playwright 1.65](assets/badges/playwright.svg)](apps/runtime/package.json) [![MySQL 8.4](assets/badges/mysql.svg)](docs/decisions/0003-工程基线.md)
-
 ## 0. 目录
 
 1. [项目背景与目标](#1-项目背景与目标)
