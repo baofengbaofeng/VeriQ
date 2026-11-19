@@ -128,9 +128,7 @@
     background: transparent;
     font-weight: 500;
 }
-.vq-user-trigger .vq-user-name,
-.vq-menu-identity strong,
-:is(.vq-profile-menu, .vq-language-menu, .vq-workspace-menu) .vq-menu-item {
+.vq-user-trigger .vq-user-name {
     font-size: 13px;
     line-height: 18px;
     font-weight: 500;
@@ -174,9 +172,15 @@
     padding: 4px 8px;
     overflow-wrap: anywhere;
 }
-.vq-menu-identity span {
+.vq-menu-identity strong,
+:is(.vq-profile-menu, .vq-language-menu, .vq-workspace-menu) .vq-menu-item {
     font-size: 12px;
-    line-height: 18px;
+    line-height: 16px;
+    font-weight: 500;
+}
+.vq-menu-identity span {
+    font-size: 11px;
+    line-height: 16px;
     color: var(--vq-profile-muted);
 }
 :is(.vq-profile-menu, .vq-language-menu, .vq-workspace-menu) .vq-menu-item {
@@ -209,7 +213,7 @@
     padding: 2px 5px;
     border-radius: 999px;
     border: 1px solid var(--vq-profile-border);
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 500;
     line-height: 1;
     color: var(--vq-profile-body);
