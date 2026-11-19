@@ -15,7 +15,7 @@
     display: flex;
     align-items: center;
     min-width: 0;
-    gap: 8px;
+    gap: 6px;
 }
 .vq-header-tools[hidden] {
     display: none;
@@ -24,20 +24,18 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 40px;
-    height: 40px;
-    min-height: 40px;
+    width: var(--vq-banner-control-size);
     flex: none;
     padding: 0;
     border: 0;
-    border-radius: 10px;
+    border-radius: 8px;
     background: transparent;
     color: var(--vq-profile-body);
 }
 .vq-header-more .vq-nav-icon {
-    width: 24px;
-    height: 24px;
-    flex-basis: 24px;
+    width: 18px;
+    height: 18px;
+    flex-basis: 18px;
 }
 .vq-header-more:hover,
 .vq-header-more[aria-expanded="true"] {
@@ -62,12 +60,10 @@
         flex-wrap: nowrap;
     }
     .vq-topbar .vq-header-tools {
+        min-height: 76px;
         justify-content: space-between;
         padding: 16px 20px;
         box-shadow: 0 4px 8px rgb(16 24 40 / 6%);
-    }
-    .vq-topbar .vq-header-more {
-        min-height: 40px;
     }
 }
 @media (min-width: 1024px) and (max-width: 1279.98px) {
@@ -78,7 +74,7 @@
 @media (max-width: 560px) {
     .vq-topbar-workspaces .vq-workspace-picker {
         flex: 1;
-        max-width: 14rem;
+        max-width: 11rem;
     }
     .vq-topbar-workspaces .vq-brand {
         flex: none;
@@ -89,7 +85,7 @@
     align-items: center;
     justify-content: flex-end;
     margin-inline-start: auto;
-    gap: 16px;
+    gap: 12px;
     max-width: 100%;
 }
 .vq-header-tools button + button {
@@ -99,21 +95,20 @@
     display: inline-flex;
     justify-content: center;
     align-items: center;
-    flex: 0 0 44px;
-    width: 44px;
-    height: 44px;
+    flex: none;
+    width: var(--vq-banner-control-size);
     border: 1px solid #d0d5dd;
-    border-radius: 10px;
+    border-radius: 8px;
     padding: 0;
     color: var(--vq-profile-body);
     background: transparent;
     box-shadow: 0 1px 2px rgb(16 24 40 / 5%);
 }
 .vq-theme-toggle .vq-nav-icon,
-.vq-profile-menu .vq-nav-icon {
-    width: 20px;
-    height: 20px;
-    flex-basis: 20px;
+.vq-user-trigger .vq-nav-icon {
+    width: 16px;
+    height: 16px;
+    flex-basis: 16px;
 }
 .vq-header-more:active,
 .vq-theme-toggle:active {
@@ -133,7 +128,11 @@
     background: transparent;
     font-weight: 500;
 }
-.vq-user-trigger .vq-user-name,
+.vq-user-trigger .vq-user-name {
+    font-size: 13px;
+    line-height: 18px;
+    font-weight: 500;
+}
 .vq-menu-identity strong,
 :is(.vq-profile-menu, .vq-language-menu, .vq-workspace-menu) .vq-menu-item {
     font-size: 14px;
@@ -141,14 +140,11 @@
     font-weight: 500;
 }
 .vq-user-trigger .vq-avatar {
-    border-radius: 8px;
-    margin-inline-end: 12px;
+    margin-inline-end: 8px;
+    border-radius: 6px;
 }
 .vq-user-trigger .vq-nav-icon {
-    width: 20px;
-    height: 20px;
-    flex-basis: 20px;
-    margin-inline-start: 4px;
+    margin-inline-start: 3px;
     color: var(--vq-profile-muted);
     transition: transform 200ms;
 }
@@ -373,9 +369,11 @@
     gap: 16px;
     text-align: center;
 }
+.vq-profile .vq-avatar {
+    border-radius: 8px;
+}
 .vq-profile .vq-avatar,
 .vq-user-trigger .vq-avatar {
-    border-radius: 8px;
     border: 1px solid var(--vq-profile-border);
     font-size: 16px;
     background: var(--vq-brand-soft);
@@ -585,20 +583,19 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    height: 44px;
+    gap: 6px;
     margin: 0;
     border: 1px solid #d0d5dd;
     box-shadow: 0 1px 2px rgb(16 24 40 / 5%);
-    border-radius: 10px;
+    border-radius: 8px;
     color: var(--vq-profile-body);
     background: var(--vq-surface);
 }
 .vq-topbar-workspaces .vq-workspace-picker {
-    width: clamp(9rem, 18vw, 18rem);
+    width: clamp(7rem, 14vw, 14rem);
     justify-content: space-between;
-    padding: 0 12px;
-    font-size: 14px;
+    padding: 0 8px;
+    font-size: 13px;
     font-weight: 500;
 }
 .vq-workspace-picker span {
@@ -607,6 +604,8 @@
     text-overflow: ellipsis;
 }
 .vq-workspace-picker svg {
+    width: 12px;
+    height: 12px;
     flex: none;
 }
 .vq-workspace-picker[data-state="open"] svg {
@@ -614,8 +613,12 @@
 }
 .vq-topbar-workspaces .vq-workspace-icon {
     flex: none;
-    width: 44px;
+    width: var(--vq-banner-control-size);
     padding: 0;
+}
+.vq-workspace-icon svg {
+    width: 16px;
+    height: 16px;
 }
 .vq-topbar-workspaces :is(.vq-workspace-picker, .vq-workspace-icon):hover,
 .vq-topbar-workspaces .vq-workspace-picker[data-state="open"] {
@@ -644,10 +647,6 @@
 @media (max-width: 560px) {
     .vq-topbar-workspaces .vq-workspace-picker {
         width: 0;
-        padding-inline: 8px;
-    }
-    .vq-topbar-workspaces .vq-workspace-icon {
-        width: 36px;
     }
 }
 

@@ -27,13 +27,18 @@
     background: white;
 }
 .vq-topbar {
+    --vq-banner-control-size: 32px;
     padding: 16px 24px;
     min-height: var(--vq-topbar-height);
     height: auto;
-    gap: 8px;
+    gap: 6px;
+}
+.vq-topbar :is(a, button, select) {
+    height: var(--vq-banner-control-size);
 }
 .vq-brand {
-    gap: 8px;
+    width: var(--vq-banner-control-size);
+    justify-content: center;
     font-size: 14px;
 }
 .vq-user-trigger {
@@ -44,7 +49,7 @@
 }
 .vq-user-name {
     font-size: 13px;
-    max-width: 20ch;
+    max-width: 16ch;
     text-overflow: ellipsis;
     white-space: nowrap;
     overflow: hidden;
@@ -499,6 +504,8 @@ tbody tr:hover td {
     max-width: min(28ch, 60vw);
 }
 .vq-topbar .veriq-language select {
+    min-height: var(--vq-banner-control-size);
+    padding: 2px 6px;
     min-width: 0;
     width: auto;
     border-color: transparent;
@@ -601,7 +608,7 @@ tbody tr:hover td {
 }
 @media (max-width: 480px) {
     .vq-user-name {
-        max-width: 14ch;
+        max-width: 12ch;
     }
     .vq-library-fields > div,
     .vq-fields,
@@ -621,13 +628,8 @@ tbody tr:hover td {
     .vq-input {
         font-size: 16px;
     }
-    .vq-brand {
-        min-width: 44px;
-        justify-content: center;
-    }
     .vq-nav :is(a, button),
     .vq-mobile-menu,
-    .vq-topbar :is(a, button, select),
     .vq-page-heading button,
     .vq-create-actions button {
         min-height: 44px;
@@ -639,7 +641,7 @@ tbody tr:hover td {
     align-items: center;
     flex-wrap: wrap;
     min-width: 0;
-    gap: 8px;
+    gap: 6px;
 }
 .vq-topbar-workspaces button {
     border: 1px solid var(--vq-border);
