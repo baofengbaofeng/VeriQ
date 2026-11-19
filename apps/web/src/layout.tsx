@@ -82,9 +82,16 @@ function SidebarGroup({
     const id = useId();
     return (
         <div className="vq-nav-group">
-            <button type="button" className="vq-nav-item" aria-expanded={open} aria-controls={id} onClick={onToggle}>
+            <button
+                type="button"
+                className="vq-nav-item"
+                aria-label={tx(group.label)}
+                aria-expanded={open}
+                aria-controls={id}
+                onClick={onToggle}
+            >
                 <Icon name={group.icon} />
-                {tx(group.label)}
+                <span>{tx(group.label)}</span>
                 <Icon name="chevron" />
             </button>
             <div className="vq-nav-children" id={id} hidden={!open}>
@@ -172,9 +179,9 @@ function Sidebar({ collapsed }: { collapsed: boolean }) {
             <nav className="vq-nav" id="vq-navigation" aria-label={tx("Main navigation")}>
                 {renderGroup(authoring)}
                 {renderGroup(execution)}
-                <NavLink className="vq-nav-item" to="/reports" onClick={close}>
+                <NavLink className="vq-nav-item" to="/reports" aria-label={tx("Reports")} onClick={close}>
                     <Icon name="reports" />
-                    {tx("Reports")}
+                    <span>{tx("Reports")}</span>
                 </NavLink>
                 {user?.systemAdmin && renderGroup(administration)}
             </nav>

@@ -59,6 +59,7 @@
     position: sticky;
     top: 0;
     height: 100vh;
+    padding: 0;
 }
 .vq-sidebar[data-collapsed="true"] {
     width: var(--vq-sidebar-collapsed-width);
@@ -156,37 +157,126 @@
     font-size: 13px;
     font-weight: 550;
 }
-.vq-nav-item {
-    display: flex;
-    min-height: 34px;
-}
-.vq-nav-sub {
-    display: block;
-    min-height: 31px;
-    font-weight: 450;
-}
 .vq-nav-group {
     margin: 0;
 }
-.vq-nav-item[aria-expanded] .vq-nav-icon:last-child {
+.vq-topbar-workspaces :is(button, a):hover {
+    background: #e9edf3;
+}
+/*
+ * 侧栏头部固定为头部高度，横版品牌标识按四十像素高度对齐，为下方的分组导航留出稳定起点。
+ */
+.vq-sidebar-header {
+    display: flex;
+    align-items: center;
+    height: var(--vq-header-height);
+    padding: 0 20px;
+    border-bottom: 1px solid var(--vq-border);
+}
+.vq-sidebar-brand {
+    display: flex;
+    align-items: center;
+    text-decoration: none;
+}
+.vq-sidebar-brand .vq-brand-light {
+    display: block;
+    height: 40px;
+}
+.vq-sidebar-brand .vq-brand-dark {
+    display: none;
+    height: 40px;
+}
+/*
+ * 导航占满侧栏剩余高度并独立滚动，分组之间用四像素间距分隔，底部预留折叠按钮的空间。
+ */
+.vq-sidebar .vq-nav {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 12px 16px;
+    gap: 4px;
+}
+/*
+ * 一级导航项由图标、文字与右对齐的折叠箭头组成，统一行高、圆角和内边距以保证整行点击区域稳定。
+ */
+.vq-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    color: var(--vq-secondary);
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+}
+.vq-nav-item:hover {
+    background: var(--vq-hover);
+}
+.vq-nav-item[aria-current="page"],
+.vq-nav-item[aria-expanded="true"] {
+    background: var(--vq-brand-soft);
+    color: var(--vq-brand);
+}
+.vq-nav-item .vq-nav-icon:last-child {
     margin-inline-start: auto;
 }
 .vq-nav-item[aria-expanded="false"] .vq-nav-icon:last-child {
     transform: rotate(-90deg);
 }
+/*
+ * 子菜单相对一级项缩进，并用左侧竖线标示层级关系，组内链接之间保留两像素间距以保持紧凑。
+ */
 .vq-nav-children {
-    margin-inline-start: 15px;
-    padding-inline-start: 9px;
-    border-inline-start: 1px solid #dbe1ec;
+    margin-inline-start: 16px;
+    padding-inline-start: 12px;
+    border-inline-start: 1px solid var(--vq-border);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
 }
-.vq-nav :is(a, button):hover,
-.vq-topbar-workspaces :is(button, a):hover {
-    background: #e9edf3;
+/*
+ * 分组折叠时组件输出 hidden 属性，作者样式的 display 会覆盖浏览器默认隐藏，这里显式恢复隐藏语义。
+ */
+.vq-nav-children[hidden] {
+    display: none;
 }
-.vq-nav [aria-current="page"] {
+.vq-nav-sub {
+    display: block;
+    min-height: 36px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    color: var(--vq-secondary);
+    font-size: 14px;
+    font-weight: 450;
+    text-decoration: none;
+}
+.vq-nav-sub:hover {
+    background: var(--vq-hover);
+}
+.vq-nav-sub[aria-current="page"] {
     background: var(--vq-brand-soft);
-    color: var(--vq-brand-dark);
-    font-weight: 650;
+    color: var(--vq-brand);
+    font-weight: 600;
+}
+/*
+ * 折叠成图标时隐藏文字与子菜单，仅保留一级图标并居中排列，使窄栏保持整齐清晰的图标导航。
+ */
+.vq-sidebar[data-collapsed="true"] .vq-sidebar-header {
+    justify-content: center;
+    padding: 0;
+}
+.vq-sidebar[data-collapsed="true"] .vq-sidebar-brand .vq-brand-light,
+.vq-sidebar[data-collapsed="true"] .vq-sidebar-brand .vq-brand-dark {
+    display: none;
+}
+.vq-sidebar[data-collapsed="true"] .vq-nav-item {
+    justify-content: center;
+    padding: 8px;
+}
+.vq-sidebar[data-collapsed="true"] .vq-nav-item > :not(.vq-nav-icon:first-child),
+.vq-sidebar[data-collapsed="true"] .vq-nav-children {
+    display: none;
 }
 .panel {
     min-width: 0;
