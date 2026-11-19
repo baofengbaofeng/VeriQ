@@ -83,7 +83,7 @@ pnpm --filter @veriq/desktop package:sign-update \
 
 App 的关闭按钮首次提示后收起到托盘/菜单栏，缺少 Linux 托盘时最小化；Dock 或第二实例恢复原窗口。退出 UI 不停止 Agent，停止 Agent 需要另一原生确认。Mac/Windows 安装版通过系统登录项 API 显式开关启动 GUI，Linux 不伪称支持这个 API。版本诊断分开显示 GUI/Electron/内嵌 Node/Chromium 与独立 Node、产品、引擎、候选及签名模式。
 
-独立验收清单见 [V03](../../docs/validation/tasks/V03-desktop.md)。
+独立验收清单见 [V03](../../docs/validation/tasks/桌面安装与平台验收.md)。
 
 ## Mac 原生签名材料的实际生产入口
 

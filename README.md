@@ -20,7 +20,7 @@ Mac Bundle ID 固定为 `io.github.baofengbaofeng.veriq`。`e0ba135` 已通过[�
 
 入口与执行文件输入生产器已完成源码审查：真实 Vite 夹具及相关测试共 55 项通过，包清单物理归属与跨平台大小写冲突回归通过。双架构 Mac 上真实项目入口的构建验收正在接入，完整 Runtime、桌面安装与 MVP 尚未完成。
 
-当前开发采用代码优先交付：剩余功能源码按独立批次提交，验证、真实环境验收和复审另行执行。请接手的 Agent 先阅读[独立验证清单](docs/validation/mvp-handoff.md)；源码交付不代表完整 MVP 已通过验收。
+当前开发采用代码优先交付：剩余功能源码按独立批次提交，验证、真实环境验收和复审另行执行。请接手的 Agent 先阅读[独立验证清单](docs/validation/首版验证交接.md)；源码交付不代表完整 MVP 已通过验收。
 
 ## 为什么做 VeriQ
 
@@ -78,7 +78,7 @@ flowchart TB
 
 个人 Runtime 默认私有，共享须由所有者明确授权。
 
-业务定时由外部调度中间件通过受限身份调用 HTTP 触发接口，执行计划不保存平台解释的 Cron。平台不内置 Cron 解析、计划扫描或 APScheduler 服务；任务轮询、租约心跳及有界维护接口沿用统一执行协议。计划管理、服务令牌、重叠策略和可运行 CI 命令见[外部调度接入](docs/integration/external-scheduler.md)。
+业务定时由外部调度中间件通过受限身份调用 HTTP 触发接口，执行计划不保存平台解释的 Cron。平台不内置 Cron 解析、计划扫描或 APScheduler 服务；任务轮询、租约心跳及有界维护接口沿用统一执行协议。计划管理、服务令牌、重叠策略和可运行 CI 命令见[外部调度接入](docs/integration/外部调度接入.md)。
 
 ## 技术基线
 
@@ -115,7 +115,7 @@ pnpm check
 
 账户与 Workspace 模块可在开发环境运行：安全配置 MySQL、初始化管理员、分别启动 Tornado 与 Vite 的步骤见[开发指南](docs/development.md)。后端入口为 `veriq_server`；当前界面提供真实的安装、认证、用户管理、空间切换、成员与邀请功能，完整测试平台仍待后续模块交付。
 
-版本化资产 API 支持八类资源、草稿修订、依赖、校验预览与排队、不可变发布规则。服务端已实现受信编译完成回执和发布校验，要求当前 MANAGED 设备、有效租约/fencing、批准的引擎清单及真实上传文件；Linux 开发 Agent 已接入实际编译、浏览器执行与完成回执；生产引擎清单和原生发行包仍须由发布任务交付，不会把排队任务当作已验证发布。字段与哈希协议见[契约说明](docs/contracts.md)及[资产验证决策](docs/decisions/0005-不可变资产校验.md)。稳定 veriq-id、重复记录、组件与操作断言关联见[前端接入](docs/integration/frontend.md)。fixture 示例、业务身份隔离、外部 TTL 补偿及受限 Trace 策略见[后端接入](docs/integration/backend.md)；当前 Attempt 凭证授权已接入真实设备、执行请求者和独立下发授权校验，原始制品与结构化报告已实施独立访问控制。AI 配置、预算、人工审核和实际 Provider 验收边界见 [AI 使用说明](docs/ai.md)。
+版本化资产 API 支持八类资源、草稿修订、依赖、校验预览与排队、不可变发布规则。服务端已实现受信编译完成回执和发布校验，要求当前 MANAGED 设备、有效租约/fencing、批准的引擎清单及真实上传文件；Linux 开发 Agent 已接入实际编译、浏览器执行与完成回执；生产引擎清单和原生发行包仍须由发布任务交付，不会把排队任务当作已验证发布。字段与哈希协议见[契约说明](docs/contracts.md)及[资产验证决策](docs/decisions/0005-不可变资产校验.md)。稳定 veriq-id、重复记录、组件与操作断言关联见[前端接入](docs/integration/前端接入契约.md)。fixture 示例、业务身份隔离、外部 TTL 补偿及受限 Trace 策略见[后端接入](docs/integration/后端接入契约.md)；当前 Attempt 凭证授权已接入真实设备、执行请求者和独立下发授权校验，原始制品与结构化报告已实施独立访问控制。AI 配置、预算、人工审核和实际 Provider 验收边界见 [AI 使用说明](docs/ai.md)。
 
 Linux Agent 开发需先执行 `pnpm --filter @veriq/runtime build:launcher` 再 `runtime start`（Runtime 测试命令会自动构建）。该步骤仅在构建期使用 C 编译器。已安装 Agent 需要预编译的 `build/veriq_runner` 辅助进程，缺失则失败关闭。生产原生打包仍属后续发行任务；本地 Agent 运行时不要求 Python、MySQL、C 编译器、bwrap 或 unshare。
 
@@ -150,6 +150,7 @@ veriq/
 └── docs/
     ├── decisions/                 # 工程决策记录
     ├── guides/                    # 使用与接入指南
+    ├── integration/               # 系统接入规范
     └── validation/                # 验收证据与接续
 ```
 
@@ -174,7 +175,9 @@ veriq/
 
 ## 文档与参与贡献
 
-独立验收的证据、未关闭事项与接续入口见[MVP 验证交接](docs/validation/mvp-handoff.md)。
+按主题查阅[使用与接入指南](docs/guides/使用与接入指南.md)、[系统接入规范](docs/integration/系统接入规范.md)和[验证与验收索引](docs/validation/验证与验收索引.md)。
+
+独立验收的证据、未关闭事项与接续入口见[MVP 验证交接](docs/validation/首版验证交接.md)。
 
 先查阅[公共契约](docs/contracts.md)和[桌面指南](docs/desktop.md)。当前采用完整桌面 GUI 和独立 Runtime，已取代早期仅 CLI 或薄原生启动器方案。影响范围、契约或技术基线的新决策应在实现前同步到相应的契约文档与 ADR。
 
@@ -204,7 +207,7 @@ The repository currently includes `apps/srv` (Tornado control service), `apps/we
 
 The entry/execution input producer has passed source review and 55 relevant real Vite fixture tests, including physical package ownership and portable case-collision regressions. Native Intel/ARM Mac acceptance of the real project entries is next; complete Runtime, desktop installation and MVP acceptance remain open.
 
-Development currently prioritizes source delivery in scoped commits. Validation, real-environment acceptance and independent review are separate follow-up tasks. See the [validation handoff](docs/validation/mvp-handoff.md); committed source does not imply MVP acceptance.
+Development currently prioritizes source delivery in scoped commits. Validation, real-environment acceptance and independent review are separate follow-up tasks. See the [validation handoff](docs/validation/首版验证交接.md); committed source does not imply MVP acceptance.
 
 ## Why VeriQ
 
@@ -262,7 +265,7 @@ flowchart TB
 
 Personal Runtimes are private by default. Sharing requires explicit owner authorization.
 
-Business schedules are driven by external middleware calling authenticated HTTP trigger APIs. The platform does not store platform-interpreted Cron, and does not embed Cron parsing, schedule scanners, or APScheduler. Task polling, lease heartbeats and bounded maintenance reuse the unified execution protocol. Plan management, scoped service tokens, overlap policies and a runnable CI command are documented in [external scheduler integration](docs/integration/external-scheduler.md).
+Business schedules are driven by external middleware calling authenticated HTTP trigger APIs. The platform does not store platform-interpreted Cron, and does not embed Cron parsing, schedule scanners, or APScheduler. Task polling, lease heartbeats and bounded maintenance reuse the unified execution protocol. Plan management, scoped service tokens, overlap policies and a runnable CI command are documented in [external scheduler integration](docs/integration/外部调度接入.md).
 
 ## Engineering baseline
 
@@ -301,7 +304,7 @@ pnpm check
 
 Accounts and Workspace modules can run in development: secure MySQL setup, admin bootstrap, and separate Tornado/Vite startup are in the [development guide](docs/development.md). The backend entrypoint is `veriq_server`. The current UI provides real install, auth, user management, space switching, members, and invites; the full testing platform still needs remaining modules.
 
-Versioned asset APIs support eight resource kinds, draft revisions, dependencies, validation preview and queueing, and immutable publish rules. The server implements trusted compile completion receipts and publish validation that require a current MANAGED device, valid lease/fencing, an approved engine manifest, and real uploaded files. The Linux development Agent is wired for real compile, browser execution, and completion receipts. Production engine manifests and native packages must still come from release tasks; queued work must not be treated as verified publish. Field and hash protocols are in [contracts](docs/contracts.md) and [immutable asset validation](docs/decisions/0005-不可变资产校验.md). Stable test IDs, record identity, component integration and action/assertion correlation are in [frontend integration](docs/integration/frontend.md). Fixture samples, business-identity isolation, external TTL compensation, and restricted Trace policy are in [backend integration](docs/integration/backend.md). Current Attempt credential grants validate real devices, execution requesters, and independent delivery authorization; raw artifacts and structured reports already use separate access control. AI configuration, budgets, human review, and Provider acceptance boundaries are in [AI usage](docs/ai.md).
+Versioned asset APIs support eight resource kinds, draft revisions, dependencies, validation preview and queueing, and immutable publish rules. The server implements trusted compile completion receipts and publish validation that require a current MANAGED device, valid lease/fencing, an approved engine manifest, and real uploaded files. The Linux development Agent is wired for real compile, browser execution, and completion receipts. Production engine manifests and native packages must still come from release tasks; queued work must not be treated as verified publish. Field and hash protocols are in [contracts](docs/contracts.md) and [immutable asset validation](docs/decisions/0005-不可变资产校验.md). Stable test IDs, record identity, component integration and action/assertion correlation are in [frontend integration](docs/integration/前端接入契约.md). Fixture samples, business-identity isolation, external TTL compensation, and restricted Trace policy are in [backend integration](docs/integration/后端接入契约.md). Current Attempt credential grants validate real devices, execution requesters, and independent delivery authorization; raw artifacts and structured reports already use separate access control. AI configuration, budgets, human review, and Provider acceptance boundaries are in [AI usage](docs/ai.md).
 
 Linux Agent development requires `pnpm --filter @veriq/runtime build:launcher` before `runtime start` (the Runtime test command builds it automatically). This uses a C compiler at build time only. Installed Agents require the precompiled `build/veriq_runner` helper; missing helpers fail closed. Production native packaging remains a later release task. No Python, MySQL, C compiler, bwrap, or unshare is a local Agent runtime prerequisite.
 
@@ -336,6 +339,7 @@ veriq/
 └── docs/
     ├── decisions/                 # engineering decisions
     ├── guides/                    # usage and integration guides
+    ├── integration/               # system integration contracts
     └── validation/                # acceptance evidence and handoff
 ```
 
@@ -359,6 +363,8 @@ Desktop installers require separate macOS x64, macOS arm64, Windows x64 and Ubun
 - Desktop entry process is `veriq`, background process `veriq_agent`, execution process `veriq_runner`; CLI may use `veriq_cli` with a compatibility entry strategy. Real OS process names must be accepted on target OS builds; renaming only the window title or logs is not enough.
 
 ## Docs and contributing
+
+Browse the [usage and integration guides](docs/guides/使用与接入指南.md), [system integration contracts](docs/integration/系统接入规范.md), and [validation and acceptance index](docs/validation/验证与验收索引.md).
 
 Start with the [public contracts](docs/contracts.md) and [desktop guide](docs/desktop.md). The full desktop GUI and separate Runtime supersede the earlier CLI-only or thin-native-launcher candidates. Decisions that change scope, contracts, or the engineering baseline should update the relevant contract documents and ADRs before implementation.
 

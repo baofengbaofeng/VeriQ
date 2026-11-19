@@ -362,7 +362,7 @@ executeCase(plan: CompiledCase, source: AssetSnapshotV1,
 <a id="t07-fixture-and-identity-handoff"></a>
 ## T07 夹具与身份交接
 
-具体决策及已测试的后端契约见 [ADR 0008](decisions/0008-测试夹具与业务身份.md) 和[后端集成](integration/backend.md)。`CaseDslV1.fixtureInput` 是可选显式绑定对象，省略时为空，副作用发生前校验。`CaseDslV1.initialVariables?: ParameterTypes` 按既有 ValueType 语义声明必需初始名称/类型，源码不含值；冻结 `ExecutionSnapshot.variables` 提供值。可移植导出 `resolveInitialVariables(declarations, values): JsonObject` 校验自身属性存在性/类型，仅返回 prepare 前绑定所声明子集，失败为 `INITIAL_VARIABLES_INVALID`。额外冻结变量保持兼容，但不能成为 fixtureInput 符号。夹具输出名称冲突报 `DUPLICATE_VARIABLE`。静态字面值/数据约束使用完整 Ajv；动态绑定使用声明类型及可独立判定约束，再由冷组装/SDK 在认证前用实际值校验完整输入模式。`LifecycleContext.fixtureInput` 独立携带解析值，夹具 cleanupToken 从不成为普通变量。prepare/query/cleanup 方法分别为 POST/GET/POST-or-DELETE。`EnvironmentV1.fixtureIdentity` 与 fixtureBaseURL 配对，独立于业务角色。
+具体决策及已测试的后端契约见 [ADR 0008](decisions/0008-测试夹具与业务身份.md) 和[后端集成](integration/后端接入契约.md)。`CaseDslV1.fixtureInput` 是可选显式绑定对象，省略时为空，副作用发生前校验。`CaseDslV1.initialVariables?: ParameterTypes` 按既有 ValueType 语义声明必需初始名称/类型，源码不含值；冻结 `ExecutionSnapshot.variables` 提供值。可移植导出 `resolveInitialVariables(declarations, values): JsonObject` 校验自身属性存在性/类型，仅返回 prepare 前绑定所声明子集，失败为 `INITIAL_VARIABLES_INVALID`。额外冻结变量保持兼容，但不能成为 fixtureInput 符号。夹具输出名称冲突报 `DUPLICATE_VARIABLE`。静态字面值/数据约束使用完整 Ajv；动态绑定使用声明类型及可独立判定约束，再由冷组装/SDK 在认证前用实际值校验完整输入模式。`LifecycleContext.fixtureInput` 独立携带解析值，夹具 cleanupToken 从不成为普通变量。prepare/query/cleanup 方法分别为 POST/GET/POST-or-DELETE。`EnvironmentV1.fixtureIdentity` 与 fixtureBaseURL 配对，独立于业务角色。
 
 `AuthAdapterConfigV1` 支持 `HTTP_BEARER`、`HTTP_SESSION`、固定相对 identity/login 路径及 identityPointer。`AuthAdapterVersionV1` 为 `{workspaceId,versionId,contentHash,configuration}`。Workspace 注册表不可变，可变撤销元数据放在冻结配置之外。可选 `AssetSnapshotV1.authAdapters` 仅用于真实 Environment 闭包，存在时才进入源码 JCS 投影，并按 UUID 文本码点排序，Python/TS 共用向量。普通 CASE 源码仍与环境无关。`ExecutionSnapshotV1.authAdapters` 冻结所选角色/夹具闭包，编译器组装要求精确 ID、哈希、Workspace、秘密锁定版本且无多余项。T09/T10 必须提供注册表认证值、当前撤销检查及完整 ExecutionSnapshot 精确字节的 TEST 清单哈希。T14 保留独立签名离线档案。
 
@@ -567,7 +567,7 @@ T14 复审修正：createBundle 要求可打印 ASCII Idempotency-Key，并同�
 
 `EXECUTION` 令牌 24 小时后到期，要求显式 planIds 和相互独立的 trigger/read/cancel 操作范围。它们属于独立服务身份，created_by 仅保留审计归因。准入、领取、心跳、凭据解析与完成复用当前请求者授权检查。允许服务账号拥有的 Runtime 或由所有者明确共享给 Workspace 的 Runtime；不会从令牌签发员工继承其私人硬件。令牌/账号撤销、到期、Workspace/计划归档及当前 Runtime 选择/共享检查均失败关闭。`GET .../service-accounts/{account}/tokens` 只返回分页元数据，明文仅在签发响应出现。登记与维护用途不能获得执行范围。
 
-只有限定范围的触发、单 Run 状态/取消、`/ci-report` 和 `/junit` 接受执行 Bearer。显式无效的 Authorization 绝不回退使用同时提供的 Cookie。普通 Web 写入继续要求 Origin+CSRF。普通报告/证据端点拒绝 Bearer；CI 使用安全摘要投影，不读取原始报告证据。`/junit` 要求 Run 为终态，通过标准库 XML 序列化真实用例 ID/结果，并明确记录整体门禁失败。原始 Playwright JUnit 仍是 OWNER/ADMIN 凭据受限的原始证据。断言值、请求头、业务标签及本机保险库数据不进入 CI XML。可运行的 Python 标准库客户端、退出码及外部维护分页示例见[外部调度接入](integration/external-scheduler.md)。
+只有限定范围的触发、单 Run 状态/取消、`/ci-report` 和 `/junit` 接受执行 Bearer。显式无效的 Authorization 绝不回退使用同时提供的 Cookie。普通 Web 写入继续要求 Origin+CSRF。普通报告/证据端点拒绝 Bearer；CI 使用安全摘要投影，不读取原始报告证据。`/junit` 要求 Run 为终态，通过标准库 XML 序列化真实用例 ID/结果，并明确记录整体门禁失败。原始 Playwright JUnit 仍是 OWNER/ADMIN 凭据受限的原始证据。断言值、请求头、业务标签及本机保险库数据不进入 CI XML。可运行的 Python 标准库客户端、退出码及外部维护分页示例见[外部调度接入](integration/外部调度接入.md)。
 
 保留的契约修正：维护允许全部四种已登记操作，取值必须已知且唯一；历史和审计声明实际 after 查询参数；AI 上下文/取消及其他 AI 路由只声明员工 Cookie/CSRF，不提供未实现的 ServiceToken 范围。
 
