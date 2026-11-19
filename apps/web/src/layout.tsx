@@ -329,7 +329,7 @@ function UserMenu({ onLogout }: { onLogout: () => void }) {
 }
 
 /**
- * 品牌图标及成员空间操作组成横幅左区，右区按身份展示个人菜单或访客语言选择器，保持单一空间入口。
+ * 品牌图标独立居左，工作区、主题与账户操作依次排在右侧；窄屏通过同一个展开按钮访问工具区。
  */
 function TopBar({ onLogout }: { onLogout: () => void }) {
     useAppLocale();
@@ -343,14 +343,16 @@ function TopBar({ onLogout }: { onLogout: () => void }) {
     const toolsId = useId();
     useLayoutEffect(() => {
         const synchronize = () => {
+            const creating = Boolean(actions.current?.querySelector('[aria-haspopup="dialog"][aria-expanded="true"]'));
             if (
                 breakpoint.matches &&
+                !creating &&
                 (actions.current?.contains(document.activeElement) ||
                     actions.current?.querySelector('[aria-expanded="true"]'))
             )
                 restore.current = true;
             if (!breakpoint.matches && more.current === document.activeElement) restore.current = true;
-            setExpanded(false);
+            setExpanded(breakpoint.matches && creating);
             setCompact(breakpoint.matches);
         };
         breakpoint.addEventListener("change", synchronize);
@@ -360,15 +362,13 @@ function TopBar({ onLogout }: { onLogout: () => void }) {
         if (restore.current) (compact ? more.current : actions.current?.querySelector("button"))?.focus();
         restore.current = false;
     }, [compact]);
+    const toolsVisible = !compact || expanded;
     return (
         <header className="vq-topbar">
             <div className="vq-header-main">
-                <div className="vq-topbar-workspaces">
-                    <Link to="/" className="vq-brand">
-                        <img src={brand} width="42" height="42" alt="VeriQ" />
-                    </Link>
-                    {user && <WorkspaceControls />}
-                </div>
+                <Link to="/" className="vq-brand">
+                    <img src={brand} width="42" height="42" alt="VeriQ" />
+                </Link>
                 {compact && (
                     <button
                         ref={more}
@@ -383,8 +383,13 @@ function TopBar({ onLogout }: { onLogout: () => void }) {
                     </button>
                 )}
             </div>
-            <div className="vq-header-tools" id={toolsId} ref={actions} hidden={compact && !expanded}>
-                {(!compact || expanded) && (
+            <div className="vq-header-tools" id={toolsId} ref={actions} hidden={!toolsVisible}>
+                {user && (
+                    <div className="vq-topbar-workspaces">
+                        <WorkspaceControls visible={toolsVisible} />
+                    </div>
+                )}
+                {toolsVisible && (
                     <>
                         <ThemeToggle />
                         {user ? <UserMenu onLogout={onLogout} /> : <LanguageControl />}

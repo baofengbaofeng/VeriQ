@@ -62,15 +62,23 @@ test("server console follows the approved layout", async ({ page }) => {
         workspacePicker(page),
         header.getByRole("button", { name: "Add workspace", exact: true }),
         header.getByRole("link", { name: "Workspace settings" }),
+        header.getByRole("button", { name: "Dark mode" }),
         profile,
     ];
+    const viewport = await page.evaluate(() => document.documentElement.clientWidth);
     let right = 0;
-    for (const control of controls) {
+    await controls[0].focus();
+    for (const [index, control] of controls.entries()) {
+        if (index) await page.keyboard.press("Tab");
+        await expect(control).toBeFocused();
         const box = await control.boundingBox();
         if (!box) throw new Error("Header control has no visible bounding box");
         expect(box.x).toBeGreaterThanOrEqual(right);
+        if (index === 1) expect(box.x).toBeGreaterThan(viewport / 2);
+        if (index > 1) expect(box.x - right).toBeLessThanOrEqual(12);
         right = box.x + box.width;
     }
+    expect(viewport - right).toBeLessThanOrEqual(24);
     await expect(header).toHaveCSS("height", "77px");
     await expectCompactBanner(page, 6);
     await expect(controls[2]).toHaveCSS("width", "32px");
@@ -120,9 +128,10 @@ test("compact console navigation closes on selection and exposes the current bra
     await expect(actions).toHaveAttribute("aria-expanded", "false");
     await actions.click();
     await expect(header.getByText("Browser Administrator", { exact: true })).toBeVisible();
-    await actions.click();
     await expect(workspacePicker(page)).toBeVisible();
     await expect(header.getByRole("button", { name: "Add workspace" })).toBeVisible();
+    await actions.click();
+    await expect(workspacePicker(page)).toBeHidden();
     const menu = page.getByRole("button", { name: "Menu", exact: true });
     await expect(menu).toHaveAttribute("aria-expanded", "false");
     await menu.click();
@@ -330,6 +339,12 @@ test("header creates and retains an authorized workspace across navigation", asy
         const dialog = page.getByRole("dialog", { name: "Add workspace" });
         await dialog.getByLabel("Key").fill(firstKey);
         await dialog.getByLabel("Name").fill(name);
+        if (name === "Alpha") {
+            await page.setViewportSize({ width: 320, height: 750 });
+            await expect(dialog.getByLabel("Key")).toHaveValue(firstKey);
+            await expect(dialog.getByLabel("Name")).toBeFocused();
+            await expect(dialog.getByLabel("Name")).toHaveValue(name);
+        }
         if (name === "Beta") {
             await dialog.getByRole("button", { name: "Create Workspace" }).click();
             await expect(dialog.getByRole("alert")).toBeVisible();
@@ -347,6 +362,10 @@ test("header creates and retains an authorized workspace across navigation", asy
         ids.push(id);
         await expect(dialog).toBeHidden();
         await expect(selector).toHaveAttribute("data-workspace-id", id);
+        if (name === "Alpha") {
+            await expect(header.getByRole("button", { name: "Add workspace" })).toBeFocused();
+            await page.setViewportSize({ width: 1280, height: 900 });
+        }
     }
     await page.getByRole("link", { name: "Resources", exact: true }).click();
     await expect(selector).toHaveAttribute("data-workspace-id", ids[1]);
@@ -515,6 +534,8 @@ test("TailAdmin banner sizes and nested language choices preserve the resource d
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
     await page.setViewportSize({ width: 320, height: 740 });
     await expect(banner).toHaveCSS("height", "65px");
+    await expectCompactBanner(page, 2);
+    await expect(picker).toBeHidden();
     const workspaces = await openWorkspaceMenu(page);
     await expectWorkspaceMenuWidth(page, workspaces);
     const longOption = workspaces.getByRole("menuitemradio", { name: scope.key, exact: true });
@@ -534,11 +555,18 @@ test("TailAdmin banner sizes and nested language choices preserve the resource d
     await expect(workspaces.getByRole("menuitem", { name: "More Workspaces" })).toBeInViewport();
     await page.keyboard.press("Escape");
     await expect(toggle).toHaveCSS("width", "32px");
-    await expectCompactBanner(page, 5);
-    await toggle.click();
+    await expect(picker).toBeFocused();
     await expect(user).toBeVisible();
     await expect(banner).toHaveCSS("height", "141px");
     await expectCompactBanner(page, 7);
+    const gear = await banner.getByRole("link", { name: "Workspace settings" }).boundingBox();
+    const themeBox = await theme.boundingBox();
+    const account = await user.boundingBox();
+    if (!gear || !themeBox || !account) throw new Error("Expanded Banner controls must have visible bounds");
+    expect(themeBox.y).toBe(gear.y);
+    expect(themeBox.x - gear.x - gear.width).toBeGreaterThanOrEqual(0);
+    expect(themeBox.x - gear.x - gear.width).toBeLessThanOrEqual(12);
+    expect(account.y).toBeGreaterThanOrEqual(themeBox.y + themeBox.height);
     for (const name of [picker.locator("span"), user.locator(".vq-user-name")]) {
         await expect(name).toHaveCSS("text-overflow", "ellipsis");
         expect(await name.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(true);
@@ -671,11 +699,22 @@ test("Workspace toolbar browses paginated members and opens workspace settings",
     await last.press("Enter");
     await expect(trigger).toHaveAttribute("data-workspace-id", id!);
     await expect(trigger).toBeFocused();
-    await header.getByRole("button", { name: "Add workspace" }).click();
+    await page.getByRole("link", { name: "Resources", exact: true }).click();
+    await expect(page).toHaveURL(/\/resources$/);
+    await trigger.press("Enter");
+    await expect(menu).toBeVisible();
+    await page.setViewportSize({ width: 320, height: 750 });
+    const expander = header.getByRole("button", { name: "Toggle application menu" });
+    await expect(expander).toBeFocused();
+    await expect(menu).toBeHidden();
+    await expander.press("Enter");
+    const add = header.getByRole("button", { name: "Add workspace" });
+    await add.press("Enter");
     await expect(page.getByRole("dialog", { name: "Add workspace" })).toBeVisible();
     await page.keyboard.press("Escape");
-    await page.setViewportSize({ width: 320, height: 750 });
-    await header.getByRole("button", { name: "Toggle application menu" }).click();
+    await expect(add).toBeFocused();
+    await settings.press("Enter");
+    await expect(page).toHaveURL(/\/workspaces$/);
     await header.getByRole("button", { name: "Dark mode" }).click();
     await trigger.click();
     await expect(menu).toHaveCSS("background-color", "rgb(30, 38, 53)");

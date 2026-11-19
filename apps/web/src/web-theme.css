@@ -54,30 +54,23 @@
         padding: 0 12px;
         border-bottom: 1px solid var(--vq-profile-border);
     }
-    .vq-topbar-workspaces {
-        flex: 1;
-        min-width: 0;
-        flex-wrap: nowrap;
-    }
     .vq-topbar .vq-header-tools {
         min-height: 76px;
         justify-content: space-between;
         padding: 16px 20px;
         box-shadow: 0 4px 8px rgb(16 24 40 / 6%);
     }
+    .vq-header-tools:has(.vq-topbar-workspaces) {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        align-content: center;
+        gap: 4px 8px;
+        padding: 4px 12px;
+    }
 }
 @media (min-width: 1024px) and (max-width: 1279.98px) {
     .vq-header-main {
         min-height: 69px;
-    }
-}
-@media (max-width: 560px) {
-    .vq-topbar-workspaces .vq-workspace-picker {
-        flex: 1;
-        max-width: 11rem;
-    }
-    .vq-topbar-workspaces .vq-brand {
-        flex: none;
     }
 }
 .vq-header-tools {
@@ -634,7 +627,7 @@
 }
 @media (max-width: 560px) {
     .vq-topbar-workspaces .vq-workspace-picker {
-        width: 0;
+        width: clamp(7rem, 40vw, 11rem);
     }
 }
 

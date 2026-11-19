@@ -21,6 +21,8 @@ export function workspaceOption(page: Page, id: string) {
  * 已经展开的浮层可直接继续分页或选择，避免再次点击触发器反而关闭菜单；等待实际可见后才操作其内容。
  */
 export async function openWorkspaceMenu(page: Page) {
+    const more = page.getByRole("banner").locator('.vq-header-more[aria-expanded="false"]');
+    if (await more.isVisible()) await more.click();
     const trigger = workspacePicker(page);
     if ((await trigger.getAttribute("aria-expanded")) !== "true") await trigger.click();
     const menu = page.getByRole("menu").and(page.locator(".vq-workspace-menu"));
