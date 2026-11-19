@@ -12,6 +12,8 @@
     --vq-rail: #f4f6f9;
     --vq-secondary: #475467;
     --vq-muted: #5e6a7d;
+    --vq-focus-outline: #75839a;
+    --vq-field-outline: transparent;
     --vq-sidebar-width: 190px;
     --vq-topbar-height: 56px;
     font-size: 13px;
@@ -351,12 +353,50 @@ button:not(:disabled):hover {
 .vq-tooltip {
     color: white;
 }
+/*
+ * 键盘操作使用与控件略有间隔的轮廓，Agent 的选中底色和菜单项高亮仍由各组件提供。
+ */
 :focus-visible,
-input:focus,
-select:focus,
-.vq-input:focus {
-    outline: 2px solid #4e5de1;
-    outline-offset: 2px;
+input:focus-visible,
+.vq-input:focus-visible,
+.vq-agent :is(button, a):focus-visible {
+    outline: 2px solid var(--vq-focus-outline);
+    outline-offset: 3px;
+}
+input:focus:not(:focus-visible) {
+    outline: none;
+}
+
+/*
+ * 输入域使用 TailAdmin 的浅色边框与外晕，不改变盒模型；不覆盖无效字段或原生选择按钮的状态。
+ */
+:root
+    :is(
+        input:not(
+            [type="checkbox"],
+            [type="radio"],
+            [type="file"],
+            [type="range"],
+            [type="color"],
+            [type="button"],
+            [type="submit"],
+            [type="reset"],
+            [type="image"]
+        ),
+        textarea,
+        select,
+        .vq-select-trigger
+    ):focus:where(:not(:user-invalid, [aria-invalid="true"])) {
+    border-color: #9cb9ff;
+    box-shadow: 0 0 0 4px rgb(70 95 255 / 10%);
+    outline: 2px solid var(--vq-field-outline);
+    outline-offset: 1px;
+}
+@media (forced-colors: active) {
+    :root {
+        --vq-focus-outline: Highlight;
+        --vq-field-outline: Highlight;
+    }
 }
 table,
 th,
