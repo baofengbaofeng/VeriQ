@@ -10,7 +10,7 @@
 
 **技术栈：** 已冻结的 TypeScript 5.9.3、Vite 6.4.5、Node 24、Python 3.12、pytest；不新增依赖。
 
-**规格：** [Tool syntax accounting](../specs/tool-syntax-accounting.md)、[ADR 0028](../decisions/0028-tool-syntax-accounting.md)。
+**规格：** [Tool syntax accounting](../specs/tool-syntax-accounting.md)、[ADR 0028](../decisions/0028-工具语法计量.md)。
 
 ## 全局约束
 

@@ -276,7 +276,7 @@ Python `canonical_bytes(value)` 和 TypeScript `canonicalBytes(value)` 返回 RF
 
 统一队列存储 `kind=VALIDATE`、资源 `subject_id`、`state=QUEUED`、不可变 `snapshot_hash`/`manifest_hash`、资源/revision/source 幂等哈希、要求的引擎/编译能力、行为人/时间及可空活动 Attempt。`ValidateJobManifestV1.snapshotSha256` 标识保留的 AssetSnapshot 字节；面向领取的清单哈希标识精确作业清单字节。T09 在此表上扩展领取/fencing/租约/容量。T04 从未声称编译已完成；资源测试的回执夹具注入明确属于 T08–T10 完成边界。
 
-可发布回执来源包含 `runtimeId`、`attemptId`、`compilerTrust: MANAGED`、资源/revision、Workspace/job、source/engine 及编译描述符 SHA-256。T08–T10 只能在有效租约/fencing 下，由管理员批准的**可信编译器**完成成功、授权且经核验的执行后创建回执，须检查批准的引擎/编译器/SDK/锁文件及实际上传字节。USER_REGISTERED 个人 Runtime 认证加上匹配的调用方声明哈希，并不能证明生成代码正确。T12 重分发可执行 TS 前必须保留此信任边界。发布检查已记录 MANAGED 来源、完成作业/活动 Attempt、精确服务端快照/清单、匹配的源码/根/revision，以及描述符所有实际文件的哈希/长度。当前还没有生产回执写入器，待处理作业不能发布。见 [ADR 0005](decisions/0005-immutable-asset-validation.md)。
+可发布回执来源包含 `runtimeId`、`attemptId`、`compilerTrust: MANAGED`、资源/revision、Workspace/job、source/engine 及编译描述符 SHA-256。T08–T10 只能在有效租约/fencing 下，由管理员批准的**可信编译器**完成成功、授权且经核验的执行后创建回执，须检查批准的引擎/编译器/SDK/锁文件及实际上传字节。USER_REGISTERED 个人 Runtime 认证加上匹配的调用方声明哈希，并不能证明生成代码正确。T12 重分发可执行 TS 前必须保留此信任边界。发布检查已记录 MANAGED 来源、完成作业/活动 Attempt、精确服务端快照/清单、匹配的源码/根/revision，以及描述符所有实际文件的哈希/长度。当前还没有生产回执写入器，待处理作业不能发布。见 [ADR 0005](decisions/0005-不可变资产校验.md)。
 
 限制：规范资源内容 2 MiB，创建/草稿传输封装 2 MiB + 4096 字节，其他操作 64 KiB，HTTP 硬传输 3 MiB；闭包最多 1000 个资产、深度 100、16 MiB；列表默认 25、最大 100。真实 HTTP/MySQL 已覆盖大于 64 KiB 的实际数据集。更大传输限额不改变账户表单限制，也不增加二进制上传支持。
 
@@ -325,7 +325,7 @@ interface RunnerSdkV1 {
 
 流程最大深度为五；每个用例/库展开步骤（含调用边界）最多 500；模板深度为五。每个用例/库断言展开最多访问 5,000 个节点，计入模板调用及叶子；在分配无界重复模板 DAG 前返回 `EXPANDED_ASSERTION_LIMIT`。传输步骤/断言 ID 为 `v_` 加 SHA-256 展开路径摘要，共 66 字符，长嵌套 DSL ID 也保持规范 Key 边界；展开路径另作可读元数据。WRITE 关键步骤要求非 WARN 的响应字段业务断言；检查点证明必须在关键写入后，使用导航/重载后的非 WARN 持久 UI 检查、只读 GET 响应字段或 eventual GET 查询。允许同一步骤 eventual 回读。`CompiledCase.persistenceCheckpointStepId` 将显式 DSL 检查点映射到生成传输 ID。
 
-编译器不提供验证回执、队列 Worker、浏览器 SDK、认证夹具适配器或草稿/导出 HTTP 端点。发布前 T10 须向既有 VALIDATE 完成路径上传每个实际输出文件及精确描述符；T12 复用这些保留字节。没有 Runtime 的草稿导出仍只是标记未验证的 DSL/依赖定义，缺少引擎发行时不能获得可执行产物。见 [ADR 0006](decisions/0006-deterministic-compiler-artifacts.md)。
+编译器不提供验证回执、队列 Worker、浏览器 SDK、认证夹具适配器或草稿/导出 HTTP 端点。发布前 T10 须向既有 VALIDATE 完成路径上传每个实际输出文件及精确描述符；T12 复用这些保留字节。没有 Runtime 的草稿导出仍只是标记未验证的 DSL/依赖定义，缺少引擎发行时不能获得可执行产物。见 [ADR 0006](decisions/0006-确定性编译产物.md)。
 
 <a id="t06-runner-sdk-and-t07t10-handoff"></a>
 ## T06 Runner SDK 与 T07/T10 交接
@@ -342,7 +342,7 @@ ObserverV1 另接受：
 - `{id, kind:'newPage', pageKey, timeoutMs?}`。只捕获动作 Page 的 popup，不进行 Context 级页面竞态。步骤及 UI/URL 断言可选 pageKey 选择它，省略始终选原用例页面。包装声明对子步骤/调用方步骤可见，流程局部声明返回时恢复。前置断言和动作选择发生在该步骤声明之前；编译器检查重复及顺序。只有网络观察器 ID 可供请求/响应断言或提取使用。
 - `{id, kind:'download', timeoutMs?}`。必须提供可信 `downloads:{directory,maxBytes}`；名称由引擎产生，错误时清除部分持久化文件。建议文件名只是元数据。字节上限限制已持久化证据；Playwright 在暴露流前先暂存下载，因此 T10/T20 还必须限制浏览器临时存储并关闭 Context。捕获结果保留有类型内部证据，供 T10 投影到既有 STEP_FINISHED、ARTIFACT_CREATED 事件。
 
-事件获取默认 15 秒，受用例截止时间限制。单次观察器在步骤结束前出现第二次事件即失败。所有捕获都预先布防，包括 callFlow 包装，并在断言/网络窗口后再次检查。见 [ADR 0007](decisions/0007-runner-sdk-events.md)。
+事件获取默认 15 秒，受用例截止时间限制。单次观察器在步骤结束前出现第二次事件即失败。所有捕获都预先布防，包括 callFlow 包装，并在断言/网络窗口后再次检查。见 [ADR 0007](decisions/0007-执行器观察器与事件.md)。
 
 生产用例入口为：
 
@@ -362,7 +362,7 @@ executeCase(plan: CompiledCase, source: AssetSnapshotV1,
 <a id="t07-fixture-and-identity-handoff"></a>
 ## T07 夹具与身份交接
 
-具体决策及已测试的后端契约见 [ADR 0008](decisions/0008-fixtures-business-identity.md) 和[后端集成](integration/backend.md)。`CaseDslV1.fixtureInput` 是可选显式绑定对象，省略时为空，副作用发生前校验。`CaseDslV1.initialVariables?: ParameterTypes` 按既有 ValueType 语义声明必需初始名称/类型，源码不含值；冻结 `ExecutionSnapshot.variables` 提供值。可移植导出 `resolveInitialVariables(declarations, values): JsonObject` 校验自身属性存在性/类型，仅返回 prepare 前绑定所声明子集，失败为 `INITIAL_VARIABLES_INVALID`。额外冻结变量保持兼容，但不能成为 fixtureInput 符号。夹具输出名称冲突报 `DUPLICATE_VARIABLE`。静态字面值/数据约束使用完整 Ajv；动态绑定使用声明类型及可独立判定约束，再由冷组装/SDK 在认证前用实际值校验完整输入模式。`LifecycleContext.fixtureInput` 独立携带解析值，夹具 cleanupToken 从不成为普通变量。prepare/query/cleanup 方法分别为 POST/GET/POST-or-DELETE。`EnvironmentV1.fixtureIdentity` 与 fixtureBaseURL 配对，独立于业务角色。
+具体决策及已测试的后端契约见 [ADR 0008](decisions/0008-测试夹具与业务身份.md) 和[后端集成](integration/backend.md)。`CaseDslV1.fixtureInput` 是可选显式绑定对象，省略时为空，副作用发生前校验。`CaseDslV1.initialVariables?: ParameterTypes` 按既有 ValueType 语义声明必需初始名称/类型，源码不含值；冻结 `ExecutionSnapshot.variables` 提供值。可移植导出 `resolveInitialVariables(declarations, values): JsonObject` 校验自身属性存在性/类型，仅返回 prepare 前绑定所声明子集，失败为 `INITIAL_VARIABLES_INVALID`。额外冻结变量保持兼容，但不能成为 fixtureInput 符号。夹具输出名称冲突报 `DUPLICATE_VARIABLE`。静态字面值/数据约束使用完整 Ajv；动态绑定使用声明类型及可独立判定约束，再由冷组装/SDK 在认证前用实际值校验完整输入模式。`LifecycleContext.fixtureInput` 独立携带解析值，夹具 cleanupToken 从不成为普通变量。prepare/query/cleanup 方法分别为 POST/GET/POST-or-DELETE。`EnvironmentV1.fixtureIdentity` 与 fixtureBaseURL 配对，独立于业务角色。
 
 `AuthAdapterConfigV1` 支持 `HTTP_BEARER`、`HTTP_SESSION`、固定相对 identity/login 路径及 identityPointer。`AuthAdapterVersionV1` 为 `{workspaceId,versionId,contentHash,configuration}`。Workspace 注册表不可变，可变撤销元数据放在冻结配置之外。可选 `AssetSnapshotV1.authAdapters` 仅用于真实 Environment 闭包，存在时才进入源码 JCS 投影，并按 UUID 文本码点排序，Python/TS 共用向量。普通 CASE 源码仍与环境无关。`ExecutionSnapshotV1.authAdapters` 冻结所选角色/夹具闭包，编译器组装要求精确 ID、哈希、Workspace、秘密锁定版本且无多余项。T09/T10 必须提供注册表认证值、当前撤销检查及完整 ExecutionSnapshot 精确字节的 TEST 清单哈希。T14 保留独立签名离线档案。
 
@@ -379,7 +379,7 @@ executeCase(plan: CompiledCase, source: AssetSnapshotV1,
 <a id="t08-runtime-and-service-account-handoff"></a>
 ## T08 Runtime 与服务账户交接
 
-[ADR 0009](decisions/0009-runtime-enrollment.md) 定义批准的所有权与登记模型。迁移 `0005_runtimes` 新增五张 Runtime 表及可复用的 `veriq_service_accounts` / `veriq_service_tokens` 基础。每个 Runtime 恰好归属一个真实用户或服务账户。绑定和显式具名成员/整个 Workspace 授权独立于信任与位置。设备能力保持 `DEVICE_REPORTED`，登记返回 `OFFLINE`，不附带 `lastSeenAt` 或伪造执行历史。
+[ADR 0009](decisions/0009-运行时登记与授权.md) 定义批准的所有权与登记模型。迁移 `0005_runtimes` 新增五张 Runtime 表及可复用的 `veriq_service_accounts` / `veriq_service_tokens` 基础。每个 Runtime 恰好归属一个真实用户或服务账户。绑定和显式具名成员/整个 Workspace 授权独立于信任与位置。设备能力保持 `DEVICE_REPORTED`，登记返回 `OFFLINE`，不附带 `lastSeenAt` 或伪造执行历史。
 
 `RuntimeService(session).approve_enrollment(actor: User, code, binding: workspace_id, grants, enrollment_id=...)` 创建所有者选定绑定并返回 Runtime 元数据。`require_device(authorization)` 检查过期、撤销、有效绑定及当前用户成员关系或服务账户授权后，返回数据库支持的 `(Runtime, RuntimeBinding, RuntimeToken)`。`require_dispatch(actor: User, workspace_id, runtime_id)` 另查当前 EXECUTE 与私人所有者同意。它们是事务原语：在身份/Workspace 读取**之前**取得 `lock_installation`，持有至受保护操作结束；HTTP 处理器已这样执行。T09 必须在同一授权事务中关联/锁定派单、作业行为人、所选环境/凭据授权、租约哈希、fencing token 及不可变锁定项。T09 现已安装 `DatabaseAttemptProofVerifier`，从当前数据库推导完整证明。保留 T04 作业/产物/验证回执，T09 增加 Runtime/Attempt 回执外键及经验证生产完成写入器；T08 登记路径自身绝不注入编译回执。
 
@@ -543,7 +543,7 @@ AI 提供器的增删改查、连接测试、`/ai/context`、生成、历史、�
 
 生成结果是不可信数据。CASE 输出须通过 ResourceDocumentV1、选定引用及显式人工审核；接受结果只调用 ResourceService 的 create/update_draft。编译、调试与发布继续使用既有 Runtime 工作流。边界建议和已脱敏报告分析不能自动应用。提供器密钥、原始证据和业务凭据引用绝不进入模型上下文。
 
-预算使用整数微美元估算，保留不可变费率/模型快照；用量未知或取消时，预算预留跨 UTC 月份继续保留。禁用提供器、预算耗尽或提供器错误不会影响确定性 Run。精确限制和验收边界见 [AI 操作](ai.md)及 [ADR0015](decisions/0015-ai-provider-boundaries.md)。
+预算使用整数微美元估算，保留不可变费率/模型快照；用量未知或取消时，预算预留跨 UTC 月份继续保留。禁用提供器、预算耗尽或提供器错误不会影响确定性 Run。精确限制和验收边界见 [AI 操作](ai.md)及 [ADR0015](decisions/0015-模型服务接入边界.md)。
 
 <a id="t14-signed-offline-packages"></a>
 ## T14：历史签名离线包协议
@@ -574,7 +574,7 @@ T14 复审修正：createBundle 要求可打印 ASCII Idempotency-Key，并同�
 <a id="生产静态与构建信息--production-static-and-build-information"></a>
 ## 生产静态与构建信息
 
-`GET /api/v1/build-info` 使用既有严格 `BuildInfoDTOEnvelope`，不增减四个公开字段。正式模式启动时验证包内 `static/dist` 的完整库存和构建身份；`staticManifestHash` 是 `static-manifest.json` 原始字节 SHA-256，而不是 Vite 模块图哈希。没有发行输入的开发服务返回结构化 `503 BUILD_INFO_UNAVAILABLE`。完整路径、哈希循环排除、私有元数据和 T18 生成边界见 [ADR 0019](decisions/0019-production-static-inventory.md)。
+`GET /api/v1/build-info` 使用既有严格 `BuildInfoDTOEnvelope`，不增减四个公开字段。正式模式启动时验证包内 `static/dist` 的完整库存和构建身份；`staticManifestHash` 是 `static-manifest.json` 原始字节 SHA-256，而不是 Vite 模块图哈希。没有发行输入的开发服务返回结构化 `503 BUILD_INFO_UNAVAILABLE`。完整路径、哈希循环排除、私有元数据和 T18 生成边界见 [ADR 0019](decisions/0019-生产静态资源清单.md)。
 
 <a id="桌面宿主与本机协议--desktop-host-and-local-protocol"></a>
 ## 桌面宿主与本机协议

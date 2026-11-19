@@ -9,7 +9,7 @@
 
 **技术栈：** 冻结Python3.12、Alembic1.18.4、pytest及既有comment_audit验收助手，不新增依赖。
 
-**规格：** [Migration description metadata](../specs/migration-description-metadata.md)、[ADR0029](../decisions/0029-migration-description-metadata.md)。
+**规格：** [Migration description metadata](../specs/migration-description-metadata.md)、[ADR0029](../decisions/0029-迁移说明运行元数据.md)。
 
 ## 全局约束
 

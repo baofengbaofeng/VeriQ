@@ -10,7 +10,7 @@ Workspace 成员可切换空间并查看自身角色。OWNER/ADMIN 可管理允�
 
 资产 API 客户端可在 Workspace 内创建、修订全部八类资源，检查钉选依赖并读取不可变发布版本。先读取 `validation-preview`，再将返回的修订号/源码摘要提交给 `validate`。这会创建真实的排队 VALIDATE Job；Linux Agent 使用批准引擎库存、真实编译及受 fencing 约束的完成协议处理它。没有公开端点会伪造校验成功。当前权限、摘要、入口和发布契约见[契约文档](contracts.md)。
 
-编译器校验全部八类资产，生成确定性 TypeScript、源码上下文及已核验依赖文件。可执行编译要求真实引擎发行字节。编译器保留隔离的夹具发行测试；SDK 还会离线安装真实 SDK/契约 JavaScript 与依赖归档，对生成 TypeScript 做类型检查并在 Chromium 中执行。内置认证/fixture Provider 及 Linux Agent 组装已有真实后端/浏览器证据；原生发行打包仍是后续任务。见[编译器契约](contracts.md)和 [ADR 0006](decisions/0006-deterministic-compiler-artifacts.md)。
+编译器校验全部八类资产，生成确定性 TypeScript、源码上下文及已核验依赖文件。可执行编译要求真实引擎发行字节。编译器保留隔离的夹具发行测试；SDK 还会离线安装真实 SDK/契约 JavaScript 与依赖归档，对生成 TypeScript 做类型检查并在 Chromium 中执行。内置认证/fixture Provider 及 Linux Agent 组装已有真实后端/浏览器证据；原生发行打包仍是后续任务。见[编译器契约](contracts.md)和 [ADR 0006](decisions/0006-确定性编译产物.md)。
 
 凭据管理 API 要求 Workspace OWNER/ADMIN，只返回元数据而不返回明文。业务身份与 fixture 身份分离、版本钉死，并通过不可变认证注册表配置。内部解析器要求当前设备/Attempt 权威状态及独立批准的凭据投递。[后端接入指南](integration/backend.md)涵盖受控 Tornado/SQLite 测试目标、幂等 fixture 生命周期和补偿；该目标不替代平台 MySQL 数据库。原始 Trace/截图/下载文件具有受凭据限制的敏感级别，并要求独立的当前报告权限。初始变量声明只含类型，实际值另行冻结，并在副作用发生前校验。
 
@@ -26,7 +26,7 @@ pnpm install --frozen-lockfile
 全组同步会安装用于严格检查 S3 的四个精确 dev 输入。`boto3-stubs[s3]` 与 `mypy-boto3-s3` 均为 `1.44.0`，
 `botocore-stubs` 为 `1.43.126`，`types-s3transfer` 为 `0.19.3`。核心声明与运行时 botocore `1.44.0` 的兼容范围限于已核对的接口。
 服务生产依赖、56 项冻结发行需求与 SDK 运行版本继续使用原有锁定值。
-生产源码引用 `mypy_boto3_s3` 时，仅在 `TYPE_CHECKING` 中导入，并使用字符串注解或延迟求值。详见 [ADR 0027](decisions/0027-sdk-type-stubs.md)。
+生产源码引用 `mypy_boto3_s3` 时，仅在 `TYPE_CHECKING` 中导入，并使用字符串注解或延迟求值。详见 [ADR 0027](decisions/0027-对象存储开发套件类型存根.md)。
 
 注释工具也要求先完成上述冻结全组 Python 同步，不能依赖全局偶然安装的 tree-sitter。
 在仓库根运行：
@@ -41,7 +41,7 @@ uv run --project apps/srv --frozen --no-sync python scripts/comment_audit.py --o
 Shell 只接入 `.sh` 与精确 preinstall 路径，并要求首行 `#!/usr/bin/env bash` 或 `#!/bin/sh`；
 shebang 保留代码计数，不能算说明。CSS 仅接受直接位于 stylesheet / block 且没有函数参数祖先的 comment，
 函数、声明等其他注释上下文会明确报 unsupported（包括未引号 URL 中被 grammar 误标的伪注释）。
-这些边界见 [ADR 0026](decisions/0026-trusted-comment-parsers.md)。库存与列宽枚举仍不依赖可选 parser。
+这些边界见 [ADR 0026](decisions/0026-可信注释解析器.md)。库存与列宽枚举仍不依赖可选 parser。
 Java 原始 UTF8 中任何 ASCII 反斜杠紧跟小写 `u` 都在 parser 构造前整文件拒绝，不判断资格或转译。
 因此一些合法 escaped literal 也保守失败；不提供 Unicode normalizer 或完整 JLS 保证。
 未紧跟 LF 的原始 CR 也在 parser 构造前整文件拒绝，包括合法文本块中的裸 CR。LF 和完整 CRLF 继续支持。
@@ -77,7 +77,7 @@ uv run --project apps/srv veriq_server --config /private/veriq/veriq.json doctor
 uv run --project apps/srv veriq_server --config /private/veriq/veriq.json serve
 ```
 
-`doctor` 检查已校验配置、MySQL 8.4 和安装表。`GET /api/v1/health/live` 只检查 HTTP 进程；`GET /api/v1/health/ready` 查询数据库。所有 API 响应使用规范 JSON 信封。显式 CLI 参数优先于 `VERIQ_` 环境变量，后者优先于配置文件，配置文件再优先于非敏感默认值。例如 `--port 8889` 或 `VERIQ_PORT=8889` 会修改 API 端口。必填设置为 `database_url`、`public_url`、`master_key` 和 `signing_key`；密钥值是 32 字节的十六进制编码。生产默认要求 HTTPS 公开来源并设置 Secure Cookie。生产使用同源 TLS 反向代理；生产静态服务、已完成代码审查的发行暂存/wheel 验证已实现，正常发行和目标 OS 验收仍待完成，见[库存契约](decisions/0019-production-static-inventory.md)。
+`doctor` 检查已校验配置、MySQL 8.4 和安装表。`GET /api/v1/health/live` 只检查 HTTP 进程；`GET /api/v1/health/ready` 查询数据库。所有 API 响应使用规范 JSON 信封。显式 CLI 参数优先于 `VERIQ_` 环境变量，后者优先于配置文件，配置文件再优先于非敏感默认值。例如 `--port 8889` 或 `VERIQ_PORT=8889` 会修改 API 端口。必填设置为 `database_url`、`public_url`、`master_key` 和 `signing_key`；密钥值是 32 字节的十六进制编码。生产默认要求 HTTPS 公开来源并设置 Secure Cookie。生产使用同源 TLS 反向代理；生产静态服务、已完成代码审查的发行暂存/wheel 验证已实现，正常发行和目标 OS 验收仍待完成，见[库存契约](decisions/0019-生产静态资源清单.md)。
 
 在另一个终端启动 Vite：
 
@@ -85,7 +85,7 @@ uv run --project apps/srv veriq_server --config /private/veriq/veriq.json serve
 pnpm --filter @veriq/web dev
 ```
 
-Vite 服务地址为 `http://127.0.0.1:5173`，将 `/api` 代理至 `127.0.0.1:8888` 的 Tornado。开发时将 `public_url` 设置为浏览器使用的精确 Vite Origin；变更请求强制校验 Origin 和 Tornado CSRF。API 启动不需要前端 `dist` 目录。开发时只访问 API 端口的 `/` 会返回 JSON 404，前端路由由 Vite 负责。它的固定端口为 5173（`strictPort`），`/api` 和 `/internal` 在代理时均保留浏览器 Origin。没有已发布前端时，`GET /api/v1/build-info` 返回结构化 `503 BUILD_INFO_UNAVAILABLE`。生产则要求 [ADR 0019](decisions/0019-production-static-inventory.md) 描述的完整包库存及元数据。
+Vite 服务地址为 `http://127.0.0.1:5173`，将 `/api` 代理至 `127.0.0.1:8888` 的 Tornado。开发时将 `public_url` 设置为浏览器使用的精确 Vite Origin；变更请求强制校验 Origin 和 Tornado CSRF。API 启动不需要前端 `dist` 目录。开发时只访问 API 端口的 `/` 会返回 JSON 404，前端路由由 Vite 负责。它的固定端口为 5173（`strictPort`），`/api` 和 `/internal` 在代理时均保留浏览器 Origin。没有已发布前端时，`GET /api/v1/build-info` 返回结构化 `503 BUILD_INFO_UNAVAILABLE`。生产则要求 [ADR 0019](decisions/0019-生产静态资源清单.md) 描述的完整包库存及元数据。
 
 可用页面为 `/setup`、`/login`、`/reset`、`/reset/confirm`、`/account` 和 `/admin/users`。密码长度要求为 12～1024 字符。未配置 SMTP 时，公开重置请求对所有邮箱返回相同的通用响应，并说明由管理员提供链接。可选真实 SMTP 投递通过受保护配置文件，或 `VERIQ_SMTP_HOST`、`VERIQ_SMTP_PORT`、`VERIQ_SMTP_FROM`、`VERIQ_SMTP_USERNAME`、`VERIQ_SMTP_PASSWORD`、`VERIQ_SMTP_SECURITY`（默认 `starttls`，也可为 `tls`）及 `VERIQ_SMTP_TIMEOUT` 配置。用户名和密码必须同时提供；生产拒绝明文 SMTP。TLS 校验证书。公开重置请求在账户查询前即应答；已配置的投递作为受跟踪后台任务执行。投递失败时记录安全事件、审计失败并撤销该次签发的令牌；公开响应始终通用，绝不声称邮件已送达。正常关闭服务会排空待处理投递。这是进程内投递接缝，没有跨进程崩溃保留的持久队列。`delivery.Delivery.send(recipient, subject, body)` 也可用于 T03 邀请。获授权管理员签发可复制、30 分钟有效且一次性的重置链接，仅在获授权响应中传递。URL 将令牌放在 fragment 中，浏览器进入时移除，不会出现在发给服务端的 URL 中。密码修改/重置、停用、退出及撤销都会使会话失效。没有其他启用管理员时，不得停用或降权最后一位启用中的系统管理员。
 
@@ -148,7 +148,7 @@ pnpm --filter @veriq/web test:e2e z-runtimes.spec.ts
 
 服务端依据真实上传字节、保留源码及运维人员拥有的 `approved_engine_inventory_path` 核验受管理编译完成。任何引擎都不会被隐式批准：缺少批准就失败关闭。T18 已提供实际引擎构建器及独立、受守卫保护的运维晋升；T20 增加原生分发。见[发行工具](release.md)。仅用于测试的归档生产器不是安装或生产批准工具。Python 控制服务绝不执行 Node 或 Chrome。
 
-外部中间件调用限定范围且幂等的 HTTP 维护路由，完成租约回收、fixture 补偿及容量核对。用途为 MAINTENANCE、带显式操作的 Workspace 服务令牌，与一次性 RUNTIME_ENROLLMENT 不同。内部不设 Cron。完整字段、摘要、事件顺序、FINALIZE 元数据、上传上限和结果规则见[执行契约](contracts.md)与[队列决策](decisions/0010-unified-fenced-execution.md)。
+外部中间件调用限定范围且幂等的 HTTP 维护路由，完成租约回收、fixture 补偿及容量核对。用途为 MAINTENANCE、带显式操作的 Workspace 服务令牌，与一次性 RUNTIME_ENROLLMENT 不同。内部不设 Cron。完整字段、摘要、事件顺序、FINALIZE 元数据、上传上限和结果规则见[执行契约](contracts.md)与[队列决策](decisions/0010-统一队列与围栏执行.md)。
 
 T09 是服务端基础。其真实 MySQL/HTTP 并发及真实编译器归档测试与 TEST/CLEANUP 协议夹具分离；这些夹具不是浏览器 Trace，也不是 Agent 杀进程的证据。T10 已提供真实 Linux 消费者、进程监督、规范 SDK 事件及可恢复轮换。T12 增加受限原始证据访问、保留期及报告。开发 CLI 仍只是登记离线设备，不自动启动 worker。
 
@@ -165,7 +165,7 @@ pnpm --filter @veriq/runtime dev --config-dir /private/veriq-profile runtime sta
 pnpm --filter @veriq/runtime dev --config-dir /private/veriq-profile runtime stop
 ```
 
-启动以前台方式运行；状态/停止从另一个终端发出。停止先确认请求，随后 Agent 中断工作、尝试清理并确认后代终止。退出登录要求 Agent 已停止。缺少启动器或无法确认终止时失败关闭。不能把最近的 ONLINE 在线状态当作进程正在运行的证明，或释放容量的授权。[Linux 约束决策](decisions/0012-linux-attempt-containment.md)说明了内核子进程排空证明及恢复限制。
+启动以前台方式运行；状态/停止从另一个终端发出。停止先确认请求，随后 Agent 中断工作、尝试清理并确认后代终止。退出登录要求 Agent 已停止。缺少启动器或无法确认终止时失败关闭。不能把最近的 ONLINE 在线状态当作进程正在运行的证明，或释放容量的授权。[Linux 约束决策](decisions/0012-在线执行进程隔离.md)说明了内核子进程排空证明及恢复限制。
 
 每个 Attempt 使用新的业务状态及有界事件/证据存储。显式取消保留此前已观察的失败。配置整用例重试时，必须成功完成符合 fixture 命名空间关闭契约的清理，或同时具备可信编译器元数据与完整观察到的只读行为。没有 fixture 的写操作若结果不确定，不会被自动重复：RETRY_SAFETY_UNCONFIRMED 要求先做业务核对，之后才能显式新建 Run。只读重试仍可使用；重试通过聚合为 UNSTABLE。精确字段和授权见[执行契约](contracts.md)。
 
@@ -181,7 +181,7 @@ Vite 开发应用中的 `/resources` 和 `/environments` 提供资源及环境 U
 `599f989` 实现，`10a1065` 修复管理入口认证回退与CI总截止时间，均经独立规格/质量审查及修复复审。
 服务账号创建者停用后，真实Agent仍能以明确计划/操作授权完成实际业务浏览器、凭证解析、状态/JUnit读取。
 CI超时使用单一截止时间，已知Run的取消另有最多10秒尽力请求；超时不证明远端任务未接受或物理进程已停止。
-接入、幂等分页与维护说明见[外部调度](integration/external-scheduler.md)和[ADR0018](decisions/0018-external-plan-trigger.md)。
+接入、幂等分页与维护说明见[外部调度](integration/external-scheduler.md)和[ADR0018](decisions/0018-执行计划的外部触发.md)。
 
 本轮证据按实际源码阶段分组：服务端广套件437通过/4失败，定向46通过/1测试证据变量错误，随后该单项1通过；
 Runtime广套件63通过/3缺浏览器路径，补齐环境后三项通过；TS契约先199/2、后200/1兼容超时，最终定向185通过。
@@ -201,7 +201,7 @@ Ruff、格式和生成一致性均有记录。不将这些分组结果称为同�
 `4b58a4c`沿用唯一make_app工厂实现生产同源静态/SPA/API路由，`0f48d6e`/`67779ed`修复非入口HTML的后缀与MIME参数绕过，独立复审已关闭，零新增问题。
 完整文件库存与Vite图分别校验；生产缺文件、哈希/长度/闭包/版本/路径错误启动失败，开发不依赖dist。
 公开build-info使用既有四字段；开发缺发行物诚实返回503。公开健康别名使用规范HealthDTO，保留旧API响应兼容。
-[ADR0019](decisions/0019-production-static-inventory.md)定义T18必须遵守的stage清单/metadata格式、精确字节hash和无循环依赖。
+[ADR0019](decisions/0019-生产静态资源清单.md)定义T18必须遵守的stage清单/metadata格式、精确字节hash和无循环依赖。
 
 基础实现阶段310项Python受影响回归、201项TS契约、真实HTTPS/Vite/MySQL认证和深链接，以及独立开发代理认证场景均通过。
 后续修复先观察真实RED，最终90项静态回归与85文件严格mypy、Ruff/格式通过；未重复310/浏览器/build，也不把旧结果重新绑定到修复源码。
@@ -212,7 +212,7 @@ T18已提供实际stage/wheel及Debian下无Node/只读/仓库外安装证明，
 
 ## 服务端发行工具（T18 已审查，验收待完成）
 
-`3995648` 实现发行流水线，`dc95f26` 修复取消隔离及等待权威锁后的候选新鲜度。独立限定范围复审关闭了两个重要问题，未发现新增问题。构建阶段现使用隔离的 Linux subreaper，直到完整子树被收割才释放构建锁；缺少完成证明时隔离工作区。晋升在取得既有签发者/库存守卫锁后，重新验证最初选定的库存及文件字节。见 [ADR0020](decisions/0020-server-release-pipeline.md) 和[发行指南](release.md)。
+`3995648` 实现发行流水线，`dc95f26` 修复取消隔离及等待权威锁后的候选新鲜度。独立限定范围复审关闭了两个重要问题，未发现新增问题。构建阶段现使用隔离的 Linux subreaper，直到完整子树被收割才释放构建锁；缺少完成证明时隔离工作区。晋升在取得既有签发者/库存守卫锁后，重新验证最初选定的库存及文件字节。见 [ADR0020](decisions/0020-服务端发行流程.md) 和[发行指南](release.md)。
 
 `dc95f26` 上的真实默认构建完成冻结安装后，在 Web lint 阶段停止：145 个错误、38 个警告和 128 条信息。`output/server` 在构建前后均不存在。独立格式检查发现 132 个文件；T18 初始固定注释审计记录 4.4551% 及 280 处违规，另有四个已有 CI 客户端 mypy 注解待处理。这些都是真实的 T22/T23 发行阻塞。不声称已完成正常全量发行、目标 Ubuntu24.04 或 OCI 验收。
 
@@ -240,7 +240,7 @@ CI 使用独立且未批准的引擎1.0.2-t19-fix1（规范 `1c64aff0…`），�
 
 离线执行/导入模块（`1b6fccb`、`86f1602`，修复于 `67968b4`）通过独立规格/质量审查及限定范围复审。真实组合测试覆盖签名且由 Agent 发布的 CASE、取消及完整 SUITE 矩阵、候选 SUITE 的角色/浏览器/数据集覆盖，以及杀死宿主后的 DOWNLOAD 恢复：四个场景通过业务 HTTP 和真实 MySQL 导入 API 验证，执行期间控制监听器被物理停止。源码、变体、事件及原始摘要匹配；重复上传复用 Run，保留在线 Attempt。导入保留 OFFLINE_IMPORT 且门禁为 false；省略工作仍为 INCOMPLETE。
 
-最终修复检查通过 27 个离线及 27 个导入/报告测试、200 个契约检查、生成契约一致性、Runtime/Web 类型、Ruff 及显式配置的严格 mypy（80 个文件）。四场景组合早于两个较小的客户端/检查点细化，后者由冻结源码离线检查覆盖；不声称针对这些细化再次执行了组合测试。初始广泛服务端批次仍记录为 290 通过/七个失败；六个夹具配置失败和原生导入锁缺陷已由六个真实 Agent/编译器测试及受影响导入/发布套件检查。不声称干净重跑了整个批次或完整 SDK。见[离线执行](offline-execution.md)和 [ADR0017](decisions/0017-offline-execution-import.md)。桌面/IPC、Windows/vault、生产打包及下列正式浏览器/Provider 门禁仍是已分配工作，不是完整产品验收。
+最终修复检查通过 27 个离线及 27 个导入/报告测试、200 个契约检查、生成契约一致性、Runtime/Web 类型、Ruff 及显式配置的严格 mypy（80 个文件）。四场景组合早于两个较小的客户端/检查点细化，后者由冻结源码离线检查覆盖；不声称针对这些细化再次执行了组合测试。初始广泛服务端批次仍记录为 290 通过/七个失败；六个夹具配置失败和原生导入锁缺陷已由六个真实 Agent/编译器测试及受影响导入/发布套件检查。不声称干净重跑了整个批次或完整 SDK。见[离线执行](offline-execution.md)和 [ADR0017](decisions/0017-离线执行与结果导入.md)。桌面/IPC、Windows/vault、生产打包及下列正式浏览器/Provider 门禁仍是已分配工作，不是完整产品验收。
 
 签名资源包实现（`46798ab`，修复于 `3ffb144`、`c1fa544`）在修复未检查的带外同级密钥、语义闭包/入口绑定、HTTP 幂等/认证/状态契约及多 CASE 版本分页后，通过独立审查。最终限定范围证据包括 14 个离线验证器测试、37 个编译器生成测试、六个资源包/守卫检查、196 个契约测试、一个真实 Agent/键盘 GUI/下载/原生验证流程、一个生成 SDK 消费者，以及类型、mypy（76 个文件）和 Ruff。GUI 分页测试明确披露其只用于列表的历史填充；只有真实 Agent 发布的根会被导出。这些检查不是全产品验收。
 
@@ -264,6 +264,6 @@ AI 实现（`f9573d0`，修复于 `3c96eb6`）通过独立代码审查。修复�
 
 开发 `/reports` 视图使用真实 Run/Attempt 历史、可重放事件流、编译器派生步骤标签，以及分开的执行时/当前信任门禁。普通成员查看脱敏结构化值。原始 Trace、HTML、截图、下载和日志访问要求当前 Workspace Owner/Admin 权限及精确 Attempt 关联；调用者提供的敏感级别不能授予访问。通过 `pnpm --filter @veriq/runtime dev trace open /path/to/trace.zip` 在本机查看获授权下载的 Trace；它使用钉死版本 Playwright 回环查看器，不会把文件上传至公开服务。
 
-原始证据保留期依据服务端终态时间戳，默认通过的 Attempt 保留14天，其他终态结果保留30天，由经过认证的外部维护 HTTP 端点唤醒。时间戳未知的历史记录继续保留。源码、引擎及编译来源保持钉死。元数据/导出包生命周期仍是必要运维任务。最小的私有空退役栅栏防止迟到外部写入者恢复已删除证据字节；仅经过一段时间不足以移除栅栏。协议和存储详情见[契约](contracts.md)及 [ADR0014](decisions/0014-report-evidence-storage.md)。
+原始证据保留期依据服务端终态时间戳，默认通过的 Attempt 保留14天，其他终态结果保留30天，由经过认证的外部维护 HTTP 端点唤醒。时间戳未知的历史记录继续保留。源码、引擎及编译来源保持钉死。元数据/导出包生命周期仍是必要运维任务。最小的私有空退役栅栏防止迟到外部写入者恢复已删除证据字节；仅经过一段时间不足以移除栅栏。协议和存储详情见[契约](contracts.md)及 [ADR0014](decisions/0014-报告与证据存储.md)。
 
 T14 增加迁移0011（`veriq_bundles`）及 `/bundles` Web 页面。已有安装导出前，须准备独立运维签发者，见[离线资源包操作](offline-bundles.md)。新 `init` 会安全创建它，`serve` 绝不凭空生成签名身份。原生 CLI 实现资源包下载/验证、信任绑定/刷新及精确本机秘密映射。离线执行/结果导入现使用同一套 worker/编译器及持久本机 SQLite 报告，见[离线操作](offline-execution.md)。原生 OS vault、桌面 IPC 及安装器仍是各自后续任务；包签名不会赋予正式结果信任。资源包保留根保持钉死，等待 T21 的包生命周期工作。

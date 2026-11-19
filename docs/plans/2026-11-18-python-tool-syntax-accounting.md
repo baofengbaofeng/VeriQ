@@ -8,7 +8,7 @@
 
 **技术栈：** 现有 Python 3.12、mypy 1.19.1、pytest、Node 24 和 Vite 6.4.5；不新增依赖，不修改锁。
 
-**规格：** [工具语法计量](../specs/tool-syntax-accounting.md)；[ADR 0030](../decisions/0030-python-tool-syntax-accounting.md)。
+**规格：** [工具语法计量](../specs/tool-syntax-accounting.md)；[ADR 0030](../decisions/0030-行尾类型检查指令计量.md)。
 
 ## 全局约束
 

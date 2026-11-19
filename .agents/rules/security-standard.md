@@ -20,7 +20,7 @@
 
 ## 3. Workspace 授权
 
-- Workspace 是资源与授权边界。凡资源读写、批量操作、引用解析、SSE/事件、证据下载、导出、导入、Runtime 领取/上传/凭证解析，均须校验 `workspace_id` 及相应授权。员工入口检查当前成员状态与权限；服务和设备入口核对当前账号、令牌用途与范围，涉及设备时再核对设备绑定及相关所有者授权。见 [Runtime 登记 ADR](../../docs/decisions/0009-runtime-enrollment.md)与[外部计划触发 ADR](../../docs/decisions/0018-external-plan-trigger.md)。
+- Workspace 是资源与授权边界。凡资源读写、批量操作、引用解析、SSE/事件、证据下载、导出、导入、Runtime 领取/上传/凭证解析，均须校验 `workspace_id` 及相应授权。员工入口检查当前成员状态与权限；服务和设备入口核对当前账号、令牌用途与范围，涉及设备时再核对设备绑定及相关所有者授权。见 [Runtime 登记 ADR](../../docs/decisions/0009-运行时登记与授权.md)与[外部计划触发 ADR](../../docs/decisions/0018-执行计划的外部触发.md)。
 - 系统管理员不是隐式空间成员，也不隐式拥有私人设备派单权。
 - 个人 Runtime 默认私有；共享须所有者显式授权。撤销后必须阻断后续 claim/download/upload。
 - 跨空间 IDOR 类缺陷视为高危：测试必须覆盖负例。
@@ -32,7 +32,7 @@
 - 配置 UI 可创建/更新/撤销凭证引用，已保存的秘密不得回读原文。获授权的签发流程仅在签发当次向操作人交付新令牌。界面临时持有交付值，禁止写入持久客户端存储、历史记录或日志。后续查询只返回元数据。见[外部调度接入](../../docs/integration/external-scheduler.md)。
 - 日志、追踪、错误响应须脱敏；禁止打印 Authorization 头、Cookie、连接串密码。
 - 本地凭据默认由系统保险库保护，大型载荷使用批准的加密信封并在保险库中保存密钥。保险库锁定、不可用或故障时须失败关闭，禁止明文回退。唯一的发行服务例外是[显式服务文件模式](../../docs/runtime-credentials.md#显式服务文件模式--explicit-managed-file-mode)，适用身份、目录、卷和保护边界见 [Release Standard](./release-standard.md#2-原生与跨平台要求)。
-- AI Provider 密钥仅用于获批准端点的鉴权；Provider 密钥、业务凭据和其他秘密禁止进入模型上下文、历史、审计或普通错误。见 [AI Provider ADR](../../docs/decisions/0015-ai-provider-boundaries.md)。
+- AI Provider 密钥仅用于获批准端点的鉴权；Provider 密钥、业务凭据和其他秘密禁止进入模型上下文、历史、审计或普通错误。见 [AI Provider ADR](../../docs/decisions/0015-模型服务接入边界.md)。
 - 测试夹具使用假数据或专用测试密钥；禁止提交真实生产凭证。
 
 ## 5. 控制面与执行面
