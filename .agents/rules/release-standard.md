@@ -75,7 +75,7 @@
 ### 2.3 凭据与私有存储
 
 - 默认使用各平台批准的系统保险库，大型载荷使用批准的加密信封并将密钥存入保险库。Windows Credential Manager、Linux Secret Service、macOS Keychain 等方案须按规格选择并验证。保险库锁定、不可用或故障时须失败关闭，禁止明文回退。
-- 仅受管理的无桌面 Linux 服务可逐次显式选择 `restricted-file` 并确认其不提供静态加密。须使用专用非 root UID 与外置持久卷，核验卷和所有者、`0700` 私有目录与 `0600` 密钥文件。桌面没有此入口，保险库故障不得触发切换。此模式不授予设备 `MANAGED` 信任。参见[显式服务文件模式](../../docs/runtime-credentials.md#显式服务文件模式--explicit-managed-file-mode)。
+- 仅受管理的无桌面 Linux 服务可逐次显式选择 `restricted-file` 并确认其不提供静态加密。须使用专用非 root UID 与外置持久卷，核验卷和所有者、`0700` 私有目录与 `0600` 密钥文件。桌面没有此入口，保险库故障不得触发切换。此模式不授予设备 `MANAGED` 信任。参见[显式服务文件模式](../../docs/本机凭据管理.md#显式服务文件模式--explicit-managed-file-mode)。
 - Darwin 等平台须考虑扩展 ACL 等超出简单 `0600` 的威胁。
 - Cookie / 密钥文件权限与所有者检查须在目标 OS 验证；不要假设 POSIX 权限模型处处成立。
 

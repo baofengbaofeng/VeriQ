@@ -42,7 +42,7 @@
 - 租约过期、fencing 冲突、迟到回报
 - 停止证明缺失/范围错误 → 不释放容量
 - 签名失败、撤销状态
-- 触及历史离线结果导入协议或兼容性夹具时，覆盖重复导入幂等。离线结果导入已退出 MVP，范围见[生产路由范围](../../docs/contracts.md#联网任务的证据与恢复)。
+- 触及历史离线结果导入协议或兼容性夹具时，覆盖重复导入幂等。离线结果导入已退出 MVP，范围见[生产路由范围](../../docs/公共契约.md#联网任务的证据与恢复)。
 - 无认证触发/维护接口
 - Electron 非白名单 IPC / 错误 sender
 
@@ -76,7 +76,7 @@ uv run --project apps/srv --frozen --no-sync python scripts/comment_audit.py --o
 
 根目录 `pnpm test` 运行契约、编译器、Runner SDK 与 Runtime 测试。根目录 `pnpm check` 执行上述包及桌面的 TypeScript 检查，并校验契约生成文件是否同步。服务端测试、Web 独立检查及 Web 和桌面端到端测试须分别运行对应命令。
 
-依赖同步、过滤参数、包 filter 与 CI 任务名见[仓库 README](../../README.md)和[开发指南](../../docs/development.md)。
+依赖同步、过滤参数、包 filter 与 CI 任务名见[仓库 README](../../README.md)和[开发指南](../../docs/开发指南.md)。
 
 ## 9. 检查清单
 

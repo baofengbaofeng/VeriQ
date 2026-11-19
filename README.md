@@ -4,7 +4,7 @@
 
 **当前状态：开发中 / 尚未发布。** 账户与 Workspace、版本化测试资产、确定性编译器与 Runner SDK、fixture 与业务身份、Runtime 授权、统一队列及 Linux Agent 实际执行已有实现。八类资产编辑、编译发布、版本源码预览，以及实时结构化报告、受限证据、本机 Trace 查看、File/S3 存储与原始证据保留期维护已通过独立审查。AI 配置、预算、结构化草稿审核及失败分析已有实现并通过代码复审，实际外部 Provider 验收仍待用户授权和独立配置。历史签名包和 SQLite 报告保留兼容读取；外部 HTTP 计划触发、独立服务令牌、计划与令牌管理界面及 CI 门禁已通过独立审查及重要问题修复复审；生产同源静态服务、完整文件清单校验和构建信息已通过独立审查及修复复审。
 
-服务端构建、前端入 wheel、离线安装校验、引擎候选与独立晋升工具的代码已通过独立审查及取消/晋升问题修复复审。固定浏览器 SDK 136 项检查通过，行覆盖率 91.46%；这不代表最终集成门禁完成。默认构建仍被历史 lint、格式和注释规范阻断，当前包明确标记 UNVERIFIED。Electron 桌面 GUI 模块已通过独立审查，通过独立 Agent 联网领取任务，可查看已有历史报告。原生发行仍在开发：Windows Server 与 Ubuntu 已有原生 IPC、系统保险库及空初始化恢复的真实目标验证，Cookie 磁盘保护与重启读回也已验证；Ubuntu 源码 7 项 GUI 回归通过。Windows 在 `2455199` 的历史运行有 3 项 ACL/所有者失败；后续 C07 改过 SQLite 初始化，当前结果待复验。Windows11/Ubuntu 安装和完整产品验收尚未完成，目前没有正式安装包。构建流程见[发行指南](docs/release.md)。
+服务端构建、前端入 wheel、离线安装校验、引擎候选与独立晋升工具的代码已通过独立审查及取消/晋升问题修复复审。固定浏览器 SDK 136 项检查通过，行覆盖率 91.46%；这不代表最终集成门禁完成。默认构建仍被历史 lint、格式和注释规范阻断，当前包明确标记 UNVERIFIED。Electron 桌面 GUI 模块已通过独立审查，通过独立 Agent 联网领取任务，可查看已有历史报告。原生发行仍在开发：Windows Server 与 Ubuntu 已有原生 IPC、系统保险库及空初始化恢复的真实目标验证，Cookie 磁盘保护与重启读回也已验证；Ubuntu 源码 7 项 GUI 回归通过。Windows 在 `2455199` 的历史运行有 3 项 ACL/所有者失败；后续 C07 改过 SQLite 初始化，当前结果待复验。Windows11/Ubuntu 安装和完整产品验收尚未完成，目前没有正式安装包。构建流程见[发行指南](docs/服务端发行指南.md)。
 
 Mac Runtime 的输入核验、有界归档和完整静态候选组装已通过组件复审，包含实际 stage CLI、来源记录与最终路径校验。固定官方 Node/Chrome 获取与观测工具在 `a245535` 的 macOS 15 Intel/ARM 流水线均已完成完整扫描；两份证据的源码绑定、原始 Unix 模式和 Framework 链接事实已独立复核。`6ef86c1` 随后补齐三处 ZIP 消费者的有限关闭结算、首错保留和未知关闭现场保留，214 项受影响回归及全新独立审查通过。固定锁生产依赖布局已完成下述双 Mac 采集；正式依赖闭包、目标解析、二进制执行、Electron 插件装载、安装及完整系统凭据验收仍待完成，未生成批准的 Expected 或 ready。注释审计坐标、Web 按钮类型、会话/列表响应归属及两项退出时序问题已完成源码修正及复审；本地真实认证回归通过，完整锁定依赖和全局会话生命周期仍待 CI 与后续验收。全仓质量与完整 UI 验收仍未通过。
 
@@ -30,7 +30,7 @@ AI 是可选辅助：用于生成结构化草稿、边界建议与失败分析�
 
 ## 1.0 完整 MVP 范围
 
-首发目标包含下表各模块。Electron 桌面 GUI、CLI 和无人值守 Agent 均纳入首发。MVP 采用联网执行，原 F12 本地离线已退出首发范围。联网数据集协议见[公共契约](docs/contracts.md#联网静态数据传输)。
+首发目标包含下表各模块。Electron 桌面 GUI、CLI 和无人值守 Agent 均纳入首发。MVP 采用联网执行，原 F12 本地离线已退出首发范围。联网数据集协议见[公共契约](docs/公共契约.md#联网静态数据传输)。
 
 | 编号 | 模块             | 交付目标                                                                          |
 | ---- | ---------------- | --------------------------------------------------------------------------------- |
@@ -111,11 +111,11 @@ pnpm test
 pnpm check
 ```
 
-当前 `pnpm test` 执行公共契约、编译器、Runner SDK 与 Runtime 测试（SDK 和 Runtime 自检测试需要本机 Chromium，Linux Runtime 测试还会使用开发主机的 `cc` 构建薄启动器；产品包将预编译提供），`pnpm check` 检查契约/编译器/SDK/Runtime/桌面 TypeScript 与生成文件是否同步；默认 `./build.sh` 发行入口已实现，会执行额外真实门禁，目前仍被已登记的质量债阻断。这些命令用于开发检查，不是启动完整产品的安装命令。公共接口、工具配置与更多检查命令见[契约说明](docs/contracts.md)。
+当前 `pnpm test` 执行公共契约、编译器、Runner SDK 与 Runtime 测试（SDK 和 Runtime 自检测试需要本机 Chromium，Linux Runtime 测试还会使用开发主机的 `cc` 构建薄启动器；产品包将预编译提供），`pnpm check` 检查契约/编译器/SDK/Runtime/桌面 TypeScript 与生成文件是否同步；默认 `./build.sh` 发行入口已实现，会执行额外真实门禁，目前仍被已登记的质量债阻断。这些命令用于开发检查，不是启动完整产品的安装命令。公共接口、工具配置与更多检查命令见[契约说明](docs/公共契约.md)。
 
-账户与 Workspace 模块可在开发环境运行：安全配置 MySQL、初始化管理员、分别启动 Tornado 与 Vite 的步骤见[开发指南](docs/development.md)。后端入口为 `veriq_server`；当前界面提供真实的安装、认证、用户管理、空间切换、成员与邀请功能，完整测试平台仍待后续模块交付。
+账户与 Workspace 模块可在开发环境运行：安全配置 MySQL、初始化管理员、分别启动 Tornado 与 Vite 的步骤见[开发指南](docs/开发指南.md)。后端入口为 `veriq_server`；当前界面提供真实的安装、认证、用户管理、空间切换、成员与邀请功能，完整测试平台仍待后续模块交付。
 
-版本化资产 API 支持八类资源、草稿修订、依赖、校验预览与排队、不可变发布规则。服务端已实现受信编译完成回执和发布校验，要求当前 MANAGED 设备、有效租约/fencing、批准的引擎清单及真实上传文件；Linux 开发 Agent 已接入实际编译、浏览器执行与完成回执；生产引擎清单和原生发行包仍须由发布任务交付，不会把排队任务当作已验证发布。字段与哈希协议见[契约说明](docs/contracts.md)及[资产验证决策](docs/decisions/0005-不可变资产校验.md)。稳定 veriq-id、重复记录、组件与操作断言关联见[前端接入](docs/integration/前端接入契约.md)。fixture 示例、业务身份隔离、外部 TTL 补偿及受限 Trace 策略见[后端接入](docs/integration/后端接入契约.md)；当前 Attempt 凭证授权已接入真实设备、执行请求者和独立下发授权校验，原始制品与结构化报告已实施独立访问控制。AI 配置、预算、人工审核和实际 Provider 验收边界见 [AI 使用说明](docs/ai.md)。
+版本化资产 API 支持八类资源、草稿修订、依赖、校验预览与排队、不可变发布规则。服务端已实现受信编译完成回执和发布校验，要求当前 MANAGED 设备、有效租约/fencing、批准的引擎清单及真实上传文件；Linux 开发 Agent 已接入实际编译、浏览器执行与完成回执；生产引擎清单和原生发行包仍须由发布任务交付，不会把排队任务当作已验证发布。字段与哈希协议见[契约说明](docs/公共契约.md)及[资产验证决策](docs/decisions/0005-不可变资产校验.md)。稳定 veriq-id、重复记录、组件与操作断言关联见[前端接入](docs/integration/前端接入契约.md)。fixture 示例、业务身份隔离、外部 TTL 补偿及受限 Trace 策略见[后端接入](docs/integration/后端接入契约.md)；当前 Attempt 凭证授权已接入真实设备、执行请求者和独立下发授权校验，原始制品与结构化报告已实施独立访问控制。AI 配置、预算、人工审核和实际 Provider 验收边界见 [AI 使用说明](docs/模型辅助使用指南.md)。
 
 Linux Agent 开发需先执行 `pnpm --filter @veriq/runtime build:launcher` 再 `runtime start`（Runtime 测试命令会自动构建）。该步骤仅在构建期使用 C 编译器。已安装 Agent 需要预编译的 `build/veriq_runner` 辅助进程，缺失则失败关闭。生产原生打包仍属后续发行任务；本地 Agent 运行时不要求 Python、MySQL、C 编译器、bwrap 或 unshare。
 
@@ -160,11 +160,11 @@ veriq/
 
 **生产模式：** 先构建 React，再将 `apps/web/dist` 暂存至 `apps/srv/src/veriq_server/static/dist`，最后构建 Python wheel。正式 wheel 必须包含完整静态资源、迁移和版本资料；缺少 `index.html` 或资源清单时构建失败。干净环境安装 wheel 后，Tornado 通过同一端口提供 API 与静态页面，服务端运行时不依赖 Node/pnpm/浏览器。
 
-构建入口为 `./build.sh`，`--with-tests` 与默认一致；`--skip-tests --reason "原因"` 不跳过静态或完整性检查。当前正常构建失败且不创建成功发行目录；使用方式和候选边界见[发行指南](docs/release.md)。
+构建入口为 `./build.sh`，`--with-tests` 与默认一致；`--skip-tests --reason "原因"` 不跳过静态或完整性检查。当前正常构建失败且不创建成功发行目录；使用方式和候选边界见[发行指南](docs/服务端发行指南.md)。
 
 生产路由须区分 API、静态文件与登记的 SPA 页面：未知 API 和缺失静态资源返回真实 404，登记页面支持深链接刷新。凭证不得写入前端构建产物，用户证据不放入静态发布目录。
 
-桌面安装包按 macOS x64、macOS arm64、Windows x64、Ubuntu x64 分别构建与验收，包含本地 GUI、Agent/Runner 及所需依赖；Mac 双架构优先。共享业务代码之外，凭据库、进程监督、原生文件访问与桌面生命周期仍需平台适配。服务端打包成功不能代替桌面验证。安装与平台验收仍待完成。现有操作见[桌面指南](docs/desktop.md)，原生发行边界见 [ADR 0021](docs/decisions/0021-运行时发行与原生边界.md)。
+桌面安装包按 macOS x64、macOS arm64、Windows x64、Ubuntu x64 分别构建与验收，包含本地 GUI、Agent/Runner 及所需依赖；Mac 双架构优先。共享业务代码之外，凭据库、进程监督、原生文件访问与桌面生命周期仍需平台适配。服务端打包成功不能代替桌面验证。安装与平台验收仍待完成。现有操作见[桌面指南](docs/桌面工作台指南.md)，原生发行边界见 [ADR 0021](docs/decisions/0021-运行时发行与原生边界.md)。
 
 ## Workspace 与命名规则
 
@@ -175,11 +175,11 @@ veriq/
 
 ## 文档与参与贡献
 
-按主题查阅[使用与接入指南](docs/guides/使用与接入指南.md)、[系统接入规范](docs/integration/系统接入规范.md)和[验证与验收索引](docs/validation/验证与验收索引.md)。
+文档总览见[文档索引](docs/文档索引.md)。按主题查阅[使用与接入指南](docs/guides/使用与接入指南.md)、[系统接入规范](docs/integration/系统接入规范.md)和[验证与验收索引](docs/validation/验证与验收索引.md)。
 
 独立验收的证据、未关闭事项与接续入口见[MVP 验证交接](docs/validation/首版验证交接.md)。
 
-先查阅[公共契约](docs/contracts.md)和[桌面指南](docs/desktop.md)。当前采用完整桌面 GUI 和独立 Runtime，已取代早期仅 CLI 或薄原生启动器方案。影响范围、契约或技术基线的新决策应在实现前同步到相应的契约文档与 ADR。
+先查阅[公共契约](docs/公共契约.md)和[桌面指南](docs/桌面工作台指南.md)。当前采用完整桌面 GUI 和独立 Runtime，已取代早期仅 CLI 或薄原生启动器方案。影响范围、契约或技术基线的新决策应在实现前同步到相应的契约文档与 ADR。
 
 贡献应包含可审阅的行为说明、相应测试与实际验证结果，并同步受影响的 Schema、OpenAPI、客户端和文档。不要以空接口、假数据页面、TODO 或默认跳过测试代替模块交付；未运行的验证须如实说明。已交付的检查入口见上文，其他检查命令须由对应任务实现并实际验证。
 
@@ -201,7 +201,7 @@ VeriQ is an automated smoke and regression platform for enterprise PC web system
 
 **Current status: under development / not released.** Accounts and Workspaces, versioned test assets, the deterministic compiler and Runner SDK, fixtures and business identities, Runtime authorization, the unified queue, and real Linux Agent execution are implemented. Editing for the eight asset kinds, compile/publish, version source preview, live structured reports, restricted evidence, local Trace viewing, File/S3 storage, and raw-evidence retention maintenance have passed independent review. AI configuration, budgets, structured draft review, and failure analysis are implemented and code-reviewed; real external Provider acceptance still needs user authorization and separate configuration. Existing signed bundle metadata and historical SQLite reports remain readable. External HTTP plan triggers, independent service tokens, plan/token management UI and CI gates have passed independent review and scoped fix re-review; Production same-origin static serving, complete file-inventory validation and build identity have passed independent review and scoped fixes.
 
-Server build tooling, frontend-in-wheel packaging, offline installation checks, engine candidates and separate promotion have passed independent review and scoped cancellation/promotion fixes. The pinned-browser SDK gate passed 136 tests with 91.46% line coverage; this does not close final integration gates. Default builds remain blocked by existing lint, formatting and comment-policy debt, and current candidates are explicitly UNVERIFIED. The Electron desktop GUI module has passed independent review and supports connected execution and historical report viewing. Native distribution remains in progress: native IPC, system vaults and explicit empty-initialization recovery have real Windows Server and Ubuntu target evidence, including protected Cookie databases and restart readback. Seven Ubuntu source-GUI cases passed. Three ACL/owner cases failed on the historical Windows run at `2455199`; C07 later changed SQLite initialization, and current results remain unverified. Windows11/Ubuntu installation and complete-product acceptance remain pending; there is no formal installer yet. For the build procedure, see [release tooling](docs/release.md).
+Server build tooling, frontend-in-wheel packaging, offline installation checks, engine candidates and separate promotion have passed independent review and scoped cancellation/promotion fixes. The pinned-browser SDK gate passed 136 tests with 91.46% line coverage; this does not close final integration gates. Default builds remain blocked by existing lint, formatting and comment-policy debt, and current candidates are explicitly UNVERIFIED. The Electron desktop GUI module has passed independent review and supports connected execution and historical report viewing. Native distribution remains in progress: native IPC, system vaults and explicit empty-initialization recovery have real Windows Server and Ubuntu target evidence, including protected Cookie databases and restart readback. Seven Ubuntu source-GUI cases passed. Three ACL/owner cases failed on the historical Windows run at `2455199`; C07 later changed SQLite initialization, and current results remain unverified. Windows11/Ubuntu installation and complete-product acceptance remain pending; there is no formal installer yet. For the build procedure, see [release tooling](docs/服务端发行指南.md).
 
 The repository currently includes `apps/srv` (Tornado control service), `apps/web` (React console), `apps/runtime` (connected Agent/CLI), and `packages/{contracts,compiler,runner-sdk,ui}`. `apps/desktop` contains main/preload/renderer, bundled local UI and an independent Agent entry; target installers and remaining native capabilities are in progress. Contributors and coding agents must follow the coding standards in root `AGENTS.md` (4-space indentation, Chinese source comments, English logs, and related rules).
 
@@ -217,7 +217,7 @@ AI is optional assistance for structured drafts, boundary suggestions, and failu
 
 ## Full 1.0 MVP scope
 
-The first release targets the modules below and includes the Electron desktop GUI, CLI, and unattended Agent. MVP test runs require a platform connection. Former F12 offline execution is outside the first release. See the [connected dataset contract](docs/contracts.md#联网静态数据传输).
+The first release targets the modules below and includes the Electron desktop GUI, CLI, and unattended Agent. MVP test runs require a platform connection. Former F12 offline execution is outside the first release. See the [connected dataset contract](docs/公共契约.md#联网静态数据传输).
 
 | ID  | Module                    | Delivery goal                                                                                                                     |
 | --- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
@@ -300,11 +300,11 @@ pnpm test
 pnpm check
 ```
 
-`pnpm test` runs shared contracts, compiler, Runner SDK, and Runtime tests (SDK and Runtime doctor tests need local Chromium; Linux Runtime tests also use host `cc` to build the thin launcher; product packages will ship it prebuilt). `pnpm check` verifies contracts/compiler/SDK/Runtime/desktop TypeScript and generated files stay in sync. The default `./build.sh` release entry now exists and enforces additional real gates, which currently fail on recorded quality debt. These commands are development checks, not a full product install. See [contracts](docs/contracts.md) for public interfaces, tooling, and additional checks.
+`pnpm test` runs shared contracts, compiler, Runner SDK, and Runtime tests (SDK and Runtime doctor tests need local Chromium; Linux Runtime tests also use host `cc` to build the thin launcher; product packages will ship it prebuilt). `pnpm check` verifies contracts/compiler/SDK/Runtime/desktop TypeScript and generated files stay in sync. The default `./build.sh` release entry now exists and enforces additional real gates, which currently fail on recorded quality debt. These commands are development checks, not a full product install. See [contracts](docs/公共契约.md) for public interfaces, tooling, and additional checks.
 
-Accounts and Workspace modules can run in development: secure MySQL setup, admin bootstrap, and separate Tornado/Vite startup are in the [development guide](docs/development.md). The backend entrypoint is `veriq_server`. The current UI provides real install, auth, user management, space switching, members, and invites; the full testing platform still needs remaining modules.
+Accounts and Workspace modules can run in development: secure MySQL setup, admin bootstrap, and separate Tornado/Vite startup are in the [development guide](docs/开发指南.md). The backend entrypoint is `veriq_server`. The current UI provides real install, auth, user management, space switching, members, and invites; the full testing platform still needs remaining modules.
 
-Versioned asset APIs support eight resource kinds, draft revisions, dependencies, validation preview and queueing, and immutable publish rules. The server implements trusted compile completion receipts and publish validation that require a current MANAGED device, valid lease/fencing, an approved engine manifest, and real uploaded files. The Linux development Agent is wired for real compile, browser execution, and completion receipts. Production engine manifests and native packages must still come from release tasks; queued work must not be treated as verified publish. Field and hash protocols are in [contracts](docs/contracts.md) and [immutable asset validation](docs/decisions/0005-不可变资产校验.md). Stable test IDs, record identity, component integration and action/assertion correlation are in [frontend integration](docs/integration/前端接入契约.md). Fixture samples, business-identity isolation, external TTL compensation, and restricted Trace policy are in [backend integration](docs/integration/后端接入契约.md). Current Attempt credential grants validate real devices, execution requesters, and independent delivery authorization; raw artifacts and structured reports already use separate access control. AI configuration, budgets, human review, and Provider acceptance boundaries are in [AI usage](docs/ai.md).
+Versioned asset APIs support eight resource kinds, draft revisions, dependencies, validation preview and queueing, and immutable publish rules. The server implements trusted compile completion receipts and publish validation that require a current MANAGED device, valid lease/fencing, an approved engine manifest, and real uploaded files. The Linux development Agent is wired for real compile, browser execution, and completion receipts. Production engine manifests and native packages must still come from release tasks; queued work must not be treated as verified publish. Field and hash protocols are in [contracts](docs/公共契约.md) and [immutable asset validation](docs/decisions/0005-不可变资产校验.md). Stable test IDs, record identity, component integration and action/assertion correlation are in [frontend integration](docs/integration/前端接入契约.md). Fixture samples, business-identity isolation, external TTL compensation, and restricted Trace policy are in [backend integration](docs/integration/后端接入契约.md). Current Attempt credential grants validate real devices, execution requesters, and independent delivery authorization; raw artifacts and structured reports already use separate access control. AI configuration, budgets, human review, and Provider acceptance boundaries are in [AI usage](docs/模型辅助使用指南.md).
 
 Linux Agent development requires `pnpm --filter @veriq/runtime build:launcher` before `runtime start` (the Runtime test command builds it automatically). This uses a C compiler at build time only. Installed Agents require the precompiled `build/veriq_runner` helper; missing helpers fail closed. Production native packaging remains a later release task. No Python, MySQL, C compiler, bwrap, or unshare is a local Agent runtime prerequisite.
 
@@ -347,13 +347,13 @@ veriq/
 
 **Development mode:** Vite and Tornado start separately on ports 5173 and 8888. Vite proxies API and needed event connections and keeps HMR; Runtime starts independently. Editable backend installs do not require prebuilt frontend assets.
 
-The release entry is `./build.sh`; `--with-tests` is the default alias, and `--skip-tests --reason "reason"` preserves static and integrity checks. Current normal builds fail without creating a successful release output; see the [release guide](docs/release.md).
+The release entry is `./build.sh`; `--with-tests` is the default alias, and `--skip-tests --reason "reason"` preserves static and integrity checks. Current normal builds fail without creating a successful release output; see the [release guide](docs/服务端发行指南.md).
 
 **Production mode:** Build React first, stage `apps/web/dist` into `apps/srv/src/veriq_server/static/dist`, then build the Python wheel. The release wheel must include full static assets, migrations, and version metadata; missing `index.html` or the asset manifest fails the build. After a clean-environment wheel install, Tornado serves API and static pages on one port; the server runtime does not depend on Node/pnpm/browsers.
 
 Production routing must distinguish API, static files, and registered SPA pages: unknown APIs and missing static assets return real 404s; registered pages support deep-link refresh. Credentials must not be baked into frontend build artifacts; user evidence must not land in the static publish directory.
 
-Desktop installers require separate macOS x64, macOS arm64, Windows x64 and Ubuntu x64 build and acceptance flows, prioritizing both Mac architectures. They include local GUI, Agent/Runner and required dependencies. Business code is shared, while credentials, process supervision, native file access and desktop lifecycle need platform adapters. A successful server package does not replace desktop verification. Installed acceptance remains open. See the [desktop guide](docs/desktop.md) for current procedures and [ADR 0021](docs/decisions/0021-运行时发行与原生边界.md) for native release boundaries.
+Desktop installers require separate macOS x64, macOS arm64, Windows x64 and Ubuntu x64 build and acceptance flows, prioritizing both Mac architectures. They include local GUI, Agent/Runner and required dependencies. Business code is shared, while credentials, process supervision, native file access and desktop lifecycle need platform adapters. A successful server package does not replace desktop verification. Installed acceptance remains open. See the [desktop guide](docs/桌面工作台指南.md) for current procedures and [ADR 0021](docs/decisions/0021-运行时发行与原生边界.md) for native release boundaries.
 
 ## Workspace and naming rules
 
@@ -364,9 +364,9 @@ Desktop installers require separate macOS x64, macOS arm64, Windows x64 and Ubun
 
 ## Docs and contributing
 
-Browse the [usage and integration guides](docs/guides/使用与接入指南.md), [system integration contracts](docs/integration/系统接入规范.md), and [validation and acceptance index](docs/validation/验证与验收索引.md).
+Start at the [documentation index](docs/文档索引.md). Browse the [usage and integration guides](docs/guides/使用与接入指南.md), [system integration contracts](docs/integration/系统接入规范.md), and [validation and acceptance index](docs/validation/验证与验收索引.md).
 
-Start with the [public contracts](docs/contracts.md) and [desktop guide](docs/desktop.md). The full desktop GUI and separate Runtime supersede the earlier CLI-only or thin-native-launcher candidates. Decisions that change scope, contracts, or the engineering baseline should update the relevant contract documents and ADRs before implementation.
+Start with the [public contracts](docs/公共契约.md) and [desktop guide](docs/桌面工作台指南.md). The full desktop GUI and separate Runtime supersede the earlier CLI-only or thin-native-launcher candidates. Decisions that change scope, contracts, or the engineering baseline should update the relevant contract documents and ADRs before implementation.
 
 Contributions should include reviewable behavior notes, matching tests, and real verification results, and should keep affected Schema, OpenAPI, clients, and docs in sync. Do not substitute empty interfaces, fake-data pages, TODOs, or default-skipped tests for module delivery; unrun verification must be stated honestly. Delivered check entry points are above; any additional check commands must be implemented and verified by the contributors responsible for them.
 
@@ -382,6 +382,6 @@ This project is licensed under the **GNU Affero General Public License v3.0 (AGP
 
 ## 桌面工作台 / Desktop workspace
 
-完整本地 GUI 的使用流程、生命周期、受限宿主边界与源码构建见[桌面指南](docs/desktop.md)。本机全凭据退役的明确确认、恢复记录及与设备撤销的区别见[凭据退役说明](docs/runtime-credentials.md)。窗口、独立 Node24 Agent 与业务 Chromium 分开运行；已下载资源、生成源码和报告可在平台断网时使用。
+完整本地 GUI 的使用流程、生命周期、受限宿主边界与源码构建见[桌面指南](docs/桌面工作台指南.md)。本机全凭据退役的明确确认、恢复记录及与设备撤销的区别见[凭据退役说明](docs/本机凭据管理.md)。窗口、独立 Node24 Agent 与业务 Chromium 分开运行；已下载资源、生成源码和报告可在平台断网时使用。
 
-See the [desktop guide](docs/desktop.md) for the bundled GUI, lifecycle, source builds and host boundary. See [local credential retirement](docs/runtime-credentials.md) for explicit confirmation, recovery facts and the separate server-revocation boundary. Installer production and target-OS verification remain separate release gates.
+See the [desktop guide](docs/桌面工作台指南.md) for the bundled GUI, lifecycle, source builds and host boundary. See [local credential retirement](docs/本机凭据管理.md) for explicit confirmation, recovery facts and the separate server-revocation boundary. Installer production and target-OS verification remain separate release gates.
