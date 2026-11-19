@@ -332,6 +332,61 @@ test("Web controls distinguish field, keyboard and pointer focus", async ({ page
         return color;
     });
     await expect(title).toHaveCSS("outline-color", highlight);
+    await page.getByRole("banner").getByRole("button", { name: "Add workspace" }).press("Enter");
+    const dialog = page.getByRole("dialog", { name: "Add workspace" });
+    await dialog.getByRole("button", { name: "Close" }).press("Tab");
+    for (const field of [dialog.getByLabel("Key"), dialog.getByLabel("Name")]) {
+        await expect(field).toBeFocused();
+        await expect(field).toHaveCSS("outline-style", "solid");
+        await expect(field).toHaveCSS("outline-color", highlight);
+        await page.keyboard.press("Tab");
+    }
+});
+
+test("Workspace create fields use fill for pointer and keyboard focus", async ({ page }) => {
+    await signIn(page);
+    const header = page.getByRole("banner");
+    const dialog = page.getByRole("dialog", { name: "Add workspace" });
+    for (const [mode, fill] of [
+        ["light", "rgb(242, 244, 247)"],
+        ["dark", "rgb(38, 50, 68)"],
+    ]) {
+        if (mode === "dark") await header.getByRole("button", { name: "Dark mode" }).click();
+        await header.getByRole("button", { name: "Add workspace" }).press("Enter");
+        for (const field of [dialog.getByLabel("Key"), dialog.getByLabel("Name")]) {
+            const label = field.locator("xpath=parent::label");
+            await expect(label).toHaveCSS("font-weight", "500");
+            const resting = await field.evaluate((element) => {
+                const style = getComputedStyle(element);
+                return { border: style.border, fill: style.backgroundColor };
+            });
+            expect(resting.fill).not.toBe(fill);
+            await field.click();
+            for (const interaction of ["pointer", "keyboard"]) {
+                if (interaction === "keyboard") {
+                    await page.keyboard.press("Shift+Tab");
+                    await page.keyboard.press("Tab");
+                }
+                await expect(field).toBeFocused();
+                await expect(label).toHaveCSS("font-weight", "700");
+                await expect(field).toHaveCSS("font-weight", "500");
+                await expect(field).toHaveCSS("border", resting.border);
+                await expect(field).toHaveCSS("outline-style", "none");
+                await expect(field).toHaveCSS("box-shadow", "none");
+                await expect(field).toHaveCSS("background-color", fill);
+            }
+        }
+        const key = dialog.getByLabel("Key");
+        const idleBorder = await key.evaluate((element) => getComputedStyle(element).border);
+        await key.fill("9-invalid");
+        await dialog.getByRole("button", { name: "Create Workspace" }).click();
+        await expect(key).toBeFocused();
+        expect(await key.evaluate((element) => element.matches(":user-invalid"))).toBe(true);
+        await expect(key).toHaveCSS("border", idleBorder);
+        await expect(key).toHaveCSS("outline-style", "none");
+        await expect(key).toHaveCSS("background-color", fill);
+        await dialog.getByRole("button", { name: "Cancel" }).click();
+    }
 });
 
 for (const [mode, neutral] of focusColors) {
