@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test, type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readFile, readdir, realpath, rename, rm, writeFile, open } from "node:fs/promises";
 import { join } from "node:path";
@@ -9,12 +9,12 @@ import { LocalStore } from "../src/offline/store.ts";
 import { LocalReports } from "../src/offline/reports.ts";
 import { recoverOffline } from "../src/offline/run.ts";
 import type { AgentClient, Claim } from "../src/agent/transport.ts";
-import type { OfflineResultV1 } from "@veriq/contracts";
+import type { ExecutionEventV1, OfflineResultV1 } from "@veriq/contracts";
 import { canonicalBytes, validateSchema } from "@veriq/contracts";
 import { sha256 } from "../src/execution/release.ts";
 import { developmentExecutionPaths } from "../src/execution/paths.ts";
 import { ProcessSupervisor, type StopReceipt } from "../src/execution/processes.ts";
-import { retireScratch } from "../src/execution/storage.ts";
+import { retireScratch, type TaskAllocation } from "../src/execution/storage.ts";
 
 /**
  * 每个用例使用独立的真实 SQLite 档案及最小历史结果，范围声明必须由被测停止路径生成；夹具自身不提前填写停止字段，也不借
@@ -336,11 +336,22 @@ test("online recovery rejects linked pre-spawn journal bytes before reconciling 
     }
 });
 
+interface OnlineOptions {
+    observeRequest?: (path: string, attemptId: string) => Promise<void>;
+    observeUpload?: (path: string) => void;
+    attachEvidence?: boolean;
+}
+
+interface OnlineUpload {
+    path: string;
+    bytes: Uint8Array;
+}
+
 /**
- * 在线探针使用真实原生守护和一个等待 START 的小型执行进程，私有发行清单与下载内容仍走正式校验；业务夹具只产生最小
- * CLEANUP 结果，测试目标是提交门、退出证明与完成清单的范围传递。
+ * 在线探针使用真实原生守护和一个等待 START 的小型执行进程，私有发行清单与下载内容仍走正式校验。
+ * 执行进程产生最小 CLEANUP 结果，可经现有私有代理附上一份合成文件供证据上传次序测试。
  */
-async function online(root: string, observeRequest?: (path: string, attemptId: string) => Promise<void>) {
+async function online(root: string, options: OnlineOptions = {}) {
     const attemptId = randomUUID(),
         workspaceId = randomUUID(),
         fixtureVersionId = randomUUID();
@@ -405,22 +416,56 @@ async function online(root: string, observeRequest?: (path: string, attemptId: s
     const worker = join(root, "probe.mjs");
     await writeFile(
         worker,
-        `import {writeFileSync} from 'node:fs';import {join} from 'node:path';process.once('message',()=>{writeFile` +
-            `Sync(join(process.cwd(),'worker-result.json'),JSON.stringify({kind:'CLEANUP',businessOutcome:'PASSED',` +
-            `cleanupStatus:'SUCCEEDED'}));process.exit(0);});setInterval(()=>{},1000);`,
+        String.raw`import { readFileSync, writeFileSync } from "node:fs";
+import { connect } from "node:net";
+import { join } from "node:path";
+import { text } from "node:stream/consumers";
+
+process.once("message", async () => {
+    if (${options.attachEvidence === true}) {
+        const { tmp, socket, nonce } = JSON.parse(readFileSync(process.argv[2], "utf8"));
+        const path = join(tmp, "original-evidence.bin");
+        writeFileSync(path, "original evidence bytes", { flag: "wx", mode: 0o600 });
+        const channel = connect(socket);
+        const reply = text(channel);
+        channel.write(JSON.stringify({
+            type: "restricted",
+            nonce,
+            evidence: { kind: "DOWNLOAD", path, sensitivity: "CREDENTIAL_RESTRICTED" },
+        }) + "\n");
+        if (!JSON.parse(await reply).ok) {
+            throw new Error("EVIDENCE_ATTACHMENT_FAILED");
+        }
+    }
+    writeFileSync(join(process.cwd(), "worker-result.json"), JSON.stringify({
+        kind: "CLEANUP", businessOutcome: "PASSED", cleanupStatus: "SUCCEEDED",
+    }));
+    process.exit(0);
+});
+setInterval(() => {}, 1000);
+`,
     );
     const bodies: { path: string; body: Record<string, unknown> }[] = [];
+    const uploads: OnlineUpload[] = [];
     const client = {
-        binary: async () => ({}),
+        binary: async (path: string, _claim: Claim, _signal: AbortSignal, bytes?: Uint8Array) => {
+            assert(bytes);
+            options.observeUpload?.(path);
+            uploads.push({ path, bytes: Uint8Array.from(bytes) });
+            return new Uint8Array();
+        },
         download: async (path: string) => (path === "/manifest" ? manifest : source),
         request: async (path: string, _method: string, body: Record<string, unknown>) => {
             bodies.push({ path, body });
-            await observeRequest?.(path, attemptId);
-            if (path.endsWith("/artifact-uploads")) return { artifactId: randomUUID(), uploadUrl: "/uploads" };
-            if (path.endsWith("/events"))
-                return {
-                    acceptedThrough: (body.events as { sequence: number }[]).at(-1)!.sequence,
-                };
+            await options.observeRequest?.(path, attemptId);
+            if (path.endsWith("/artifact-uploads")) {
+                return { artifactId: randomUUID(), uploadUrl: `/uploads/${body.filename}` };
+            }
+            if (path.endsWith("/events")) {
+                const last = (body.events as ExecutionEventV1[]).at(-1);
+                assert(last);
+                return { acceptedThrough: last.sequence };
+            }
             return {};
         },
     } as unknown as AgentClient;
@@ -436,7 +481,7 @@ async function online(root: string, observeRequest?: (path: string, attemptId: s
             { claim, requestStarted: performance.now(), responseReceived: performance.now() },
             new AbortController().signal,
         );
-    return { supervisor, claim, run, bodies };
+    return { supervisor, claim, run, bodies, uploads };
 }
 
 test("online completion copies the actual kernel scope and persists its stop receipt", async () => {
@@ -459,14 +504,16 @@ test("online completion preserves original scratch and a replacement written dur
     const root = await mkdtemp(join(tmpdir(), "vq-online-retirement-"));
     let bytesAtFinish: string | undefined;
     try {
-        const fixture = await online(root, async (path, id) => {
-            const file = join(root, "work", id, "node_modules", "copy");
-            if (path.endsWith("/activate")) await writeFile(file, "original bytes");
-            if (path.endsWith("/finish")) {
-                bytesAtFinish = await readFile(file, "utf8");
-                await rename(file, `${file}-old`);
-                await writeFile(file, "operator replacement bytes");
-            }
+        const fixture = await online(root, {
+            async observeRequest(path, id) {
+                const file = join(root, "work", id, "node_modules", "copy");
+                if (path.endsWith("/activate")) await writeFile(file, "original bytes");
+                if (path.endsWith("/finish")) {
+                    bytesAtFinish = await readFile(file, "utf8");
+                    await rename(file, `${file}-old`);
+                    await writeFile(file, "operator replacement bytes");
+                }
+            },
         });
         const result = await fixture.run();
         assert.equal(bytesAtFinish, "original bytes");
@@ -482,6 +529,338 @@ test("online completion preserves original scratch and a replacement written dur
         assert.equal(journal.dataCleanup, "OWNERSHIP_UNCONFIRMED");
         assert.deepEqual(journal.stop, result.stop);
     } finally {
+        await rm(root, { recursive: true, force: true });
+    }
+});
+
+interface OnlineJournal {
+    state: string;
+    stop?: StopReceipt;
+    dataCleanup?: string;
+    allocation?: TaskAllocation;
+}
+
+interface JournalSyncFault {
+    state: "ACTIVATING" | "SPAWNING" | "STOPPED";
+    dataCleanup: boolean;
+    stopScope?: StopReceipt["processStopScope"];
+    observe?: () => void;
+}
+
+/**
+ * 在本次尝试的临时日志文件刷新时按状态和可选字段选中故障，正式日志及其他进程证明仍使用真实文件操作。
+ */
+async function failJournalSync(context: TestContext, root: string, attemptId: string, faults: JournalSyncFault[]) {
+    const stagedPrefix = join(await realpath(root), "attempts", `${attemptId}.json.`);
+    const handle = await open(root, "r");
+    const original = handle.sync;
+    const prototype = Object.getPrototypeOf(handle);
+    await handle.close();
+    let injected = 0;
+    context.mock.method(prototype, "sync", async function (this: Awaited<ReturnType<typeof open>>) {
+        const fault = faults[injected];
+        if (fault) {
+            const descriptor = `/proc/self/fd/${this.fd}`;
+            const path = await realpath(descriptor);
+            if (path.startsWith(stagedPrefix)) {
+                const staged: OnlineJournal = JSON.parse(await readFile(descriptor, "utf8"));
+                if (
+                    staged.state === fault.state &&
+                    Object.hasOwn(staged, "dataCleanup") === fault.dataCleanup &&
+                    (fault.stopScope === undefined || staged.stop?.processStopScope === fault.stopScope)
+                ) {
+                    injected += 1;
+                    fault.observe?.();
+                    const error: NodeJS.ErrnoException = new Error("JOURNAL_SYNC_FAILED");
+                    error.code = "EIO";
+                    error.syscall = "fsync";
+                    throw error;
+                }
+            }
+        }
+        return original.call(this);
+    });
+    return () => injected;
+}
+
+test("R08 optional journal failure preserves the committed online completion and original bytes", async (context) => {
+    const root = await mkdtemp(join(tmpdir(), "vq-online-cleanup-"));
+    let journalAtFinish: Buffer | undefined;
+    let proofAtFinish: Buffer | undefined;
+    let uploadsAtFinish = 0;
+    let finishesAtFault = 0;
+    let uploadedEvidenceAtFault: OnlineUpload | undefined;
+    try {
+        const fixture = await online(root, {
+            attachEvidence: true,
+            async observeRequest(path, id) {
+                if (path.endsWith("/activate")) {
+                    await writeFile(join(root, "work", id, "node_modules", "copy"), "original work bytes");
+                }
+                if (path.endsWith("/finish")) {
+                    uploadsAtFinish = fixture.uploads.length;
+                    journalAtFinish = await readFile(join(root, "attempts", `${id}.json`));
+                    proofAtFinish = await readFile(join(root, "processes", `${id}.drained.json`));
+                }
+            },
+        });
+        const { attemptId, fencingToken, leaseToken, snapshotSha256 } = fixture.claim;
+        const url = `/internal/v1/attempts/${attemptId}`;
+        const count = await failJournalSync(context, root, attemptId, [
+            {
+                state: "STOPPED",
+                dataCleanup: true,
+                observe() {
+                    finishesAtFault = fixture.bodies.filter((item) => item.path === `${url}/finish`).length;
+                    uploadedEvidenceAtFault = fixture.uploads[0];
+                },
+            },
+        ]);
+        const result = await fixture.run();
+        const outcomes = fixture.bodies.filter(({ path }) => path === `${url}/finish` || path === `${url}/reconcile`);
+        assert.equal(count(), 1);
+        assert.equal(uploadedEvidenceAtFault?.path, "/uploads/download-0.bin?offset=0");
+        assert.deepEqual(
+            outcomes.map(({ path }) => path),
+            [`${url}/finish`],
+            JSON.stringify(result.stop),
+        );
+        assert.equal(finishesAtFault, 1);
+        assert.equal(uploadsAtFinish, 2);
+        assert.equal(result.stop.processStopped, true);
+        assert.equal(result.stop.processStopScope, "FULL_DESCENDANT_TREE");
+        assert.equal(result.stop.reason, "COMPLETED");
+        assert.equal(result.dataCleanup, "OWNERSHIP_UNCONFIRMED");
+        assert(journalAtFinish);
+        const journal: OnlineJournal = JSON.parse(journalAtFinish.toString());
+        assert.equal(journal.state, "STOPPED");
+        assert.equal(Object.hasOwn(journal, "dataCleanup"), false);
+        assert.deepEqual(journal.stop, result.stop);
+        assert.deepEqual(await readFile(join(root, "attempts", `${attemptId}.json`)), journalAtFinish);
+        assert.deepEqual(await readdir(join(root, "attempts")), [`${attemptId}.json`]);
+        assert(proofAtFinish);
+        assert.deepEqual(await readFile(join(root, "processes", `${attemptId}.drained.json`)), proofAtFinish);
+        assert.equal(await fixture.supervisor.processes.confirmStopped(attemptId), true);
+
+        const [evidence, uploadedManifest] = fixture.uploads;
+        assert(evidence && uploadedManifest);
+        assert.equal(evidence.path, "/uploads/download-0.bin?offset=0");
+        assert.equal(Buffer.from(evidence.bytes).toString(), "original evidence bytes");
+        assert.equal(uploadedManifest.path, "/uploads/completion.json?offset=0");
+        const completion = result.completion;
+        assert(completion?.kind === "CLEANUP");
+        assert.equal(completion.businessOutcome, "PASSED");
+        assert.equal(completion.cleanupStatus, "SUCCEEDED");
+        assert.equal(completion.attemptId, attemptId);
+        assert.equal(completion.jobManifestSha256, snapshotSha256);
+        assert.equal(completion.processStopped, true);
+        assert.equal(completion.processStopScope, result.stop.processStopScope);
+        assert.deepEqual(validateSchema("CompletionManifestV1", completion), []);
+        assert.deepEqual(uploadedManifest.bytes, Uint8Array.from(canonicalBytes(completion)));
+        assert.deepEqual(completion.evidence, [
+            {
+                path: "download-0.bin",
+                sha256: sha256(evidence.bytes),
+                sizeBytes: evidence.bytes.length,
+                sensitivity: "CREDENTIAL_RESTRICTED",
+            },
+        ]);
+        const events = fixture.bodies
+            .slice(
+                0,
+                fixture.bodies.findIndex(({ path }) => path === `${url}/finish`),
+            )
+            .filter(({ path }) => path === `${url}/events`)
+            .flatMap(({ body }) => body.events as ExecutionEventV1[]);
+        assert.deepEqual(
+            events.map(({ sequence }) => sequence),
+            [1, 2, 3, 4],
+        );
+        assert.deepEqual(
+            events.map(({ type }) => type),
+            ["ATTEMPT_STARTED", "CLEANUP_RESULT", "ATTEMPT_FINISHED", "ARTIFACT_CREATED"],
+        );
+        const artifact = events.find((event) => event.type === "ARTIFACT_CREATED");
+        assert.deepEqual(artifact?.payload.file, completion.evidence[0]);
+        assert.deepEqual(outcomes[0]?.body, {
+            leaseToken,
+            fencingToken,
+            kind: "CLEANUP",
+            outcome: "PASSED",
+            manifestSha256: sha256(uploadedManifest.bytes),
+            lastSequence: 4,
+            cleanupStatus: "SUCCEEDED",
+        });
+        assert.deepEqual(validateSchema("FinishRequest", outcomes[0]?.body), []);
+        const work = join(root, "work", attemptId);
+        assert.equal(await readFile(join(work, "node_modules", "copy"), "utf8"), "original work bytes");
+        assert.equal(await readFile(join(work, "download-0.bin"), "utf8"), "original evidence bytes");
+        assert(journal.allocation);
+        const scratch = join(tmpdir(), journal.allocation.temporaryName);
+        assert.equal(await readFile(join(scratch, "original-evidence.bin"), "utf8"), "original evidence bytes");
+        assert.equal((await readdir(scratch)).includes(".veriq-retired"), false);
+    } finally {
+        context.mock.restoreAll();
+        await rm(root, { recursive: true, force: true });
+    }
+});
+
+test("R08 first stopped journal failure still blocks online completion", async (context) => {
+    const root = await mkdtemp(join(tmpdir(), "vq-online-stop-commit-"));
+    try {
+        const fixture = await online(root, { attachEvidence: true });
+        const { attemptId, fencingToken } = fixture.claim;
+        const count = await failJournalSync(context, root, attemptId, [{ state: "STOPPED", dataCleanup: false }]);
+        const result = await fixture.run();
+        assert.equal(count(), 1);
+        assert.equal(result.completion, undefined);
+        assert.equal(result.stop.reason, "JOURNAL_SYNC_FAILED");
+        assert.equal(result.stop.processStopped, true);
+        assert.equal(result.stop.processStopScope, "FULL_DESCENDANT_TREE");
+        assert.equal(await fixture.supervisor.processes.confirmStopped(attemptId), true);
+        assert.deepEqual(fixture.uploads, []);
+        assert.equal(
+            fixture.bodies.some(({ path }) => path.endsWith("/finish")),
+            false,
+        );
+        assert.deepEqual(
+            fixture.bodies.filter(({ path }) => path.endsWith("/reconcile")).map(({ body }) => body),
+            [
+                {
+                    fencingToken,
+                    processStopped: true,
+                    processStopScope: "FULL_DESCENDANT_TREE",
+                    cleanupStatus: "PENDING",
+                    stoppedAt: result.stop.stoppedAt,
+                },
+            ],
+        );
+    } finally {
+        context.mock.restoreAll();
+        await rm(root, { recursive: true, force: true });
+    }
+});
+
+test("R08 optional journal failure preserves the original failed evidence upload result", async (context) => {
+    const root = await mkdtemp(join(tmpdir(), "vq-online-upload-failure-"));
+    const rejected: string[] = [];
+    try {
+        const fixture = await online(root, {
+            attachEvidence: true,
+            observeUpload(path) {
+                rejected.push(path);
+                throw new Error("EVIDENCE_UPLOAD_FAILED");
+            },
+        });
+        const { attemptId, fencingToken } = fixture.claim;
+        const count = await failJournalSync(context, root, attemptId, [{ state: "STOPPED", dataCleanup: true }]);
+        const result = await fixture.run();
+        assert.equal(count(), 1);
+        assert.deepEqual(rejected, ["/uploads/download-0.bin?offset=0"]);
+        assert.deepEqual(fixture.uploads, []);
+        assert.equal(result.completion, undefined);
+        assert.equal(result.stop.reason, "EVIDENCE_UPLOAD_FAILED");
+        assert.equal(result.stop.processStopped, true);
+        assert.equal(result.stop.processStopScope, "FULL_DESCENDANT_TREE");
+        assert.equal(result.dataCleanup, "OWNERSHIP_UNCONFIRMED");
+        assert.equal(
+            fixture.bodies.some(({ path }) => path.endsWith("/finish")),
+            false,
+        );
+        assert.deepEqual(
+            fixture.bodies.filter(({ path }) => path.endsWith("/reconcile")).map(({ body }) => body),
+            [
+                {
+                    fencingToken,
+                    processStopped: true,
+                    processStopScope: "FULL_DESCENDANT_TREE",
+                    cleanupStatus: "PENDING",
+                    stoppedAt: result.stop.stoppedAt,
+                },
+            ],
+        );
+        const journal: OnlineJournal = JSON.parse(await readFile(join(root, "attempts", `${attemptId}.json`), "utf8"));
+        assert.equal(journal.state, "STOPPED");
+        assert.equal(Object.hasOwn(journal, "dataCleanup"), false);
+        assert.deepEqual(journal.stop, result.stop);
+    } finally {
+        context.mock.restoreAll();
+        await rm(root, { recursive: true, force: true });
+    }
+});
+
+test("R08 optional journal failure preserves quarantine when the stop is unknown", async (context) => {
+    const root = await mkdtemp(join(tmpdir(), "vq-online-unknown-stop-"));
+    try {
+        const fixture = await online(root);
+        const { attemptId, fencingToken } = fixture.claim;
+        const count = await failJournalSync(context, root, attemptId, [
+            { state: "SPAWNING", dataCleanup: false },
+            { state: "SPAWNING", dataCleanup: true },
+        ]);
+        const result = await fixture.run();
+        assert.equal(count(), 2);
+        assert.equal(result.completion, undefined);
+        assert.equal(result.stop.reason, "UNKNOWN_PROCESS");
+        assert.equal(result.stop.processStopped, false);
+        assert.equal(Object.hasOwn(result.stop, "processStopScope"), false);
+        assert.equal(result.dataCleanup, "STOP_UNCONFIRMED");
+        assert.equal(
+            fixture.bodies.some(({ path }) => path.endsWith("/finish")),
+            false,
+        );
+        assert.deepEqual(
+            fixture.bodies.filter(({ path }) => path.endsWith("/reconcile")).map(({ body }) => body),
+            [{ fencingToken, processStopped: false, cleanupStatus: "NOT_REQUIRED", stoppedAt: result.stop.stoppedAt }],
+        );
+        const journal: OnlineJournal = JSON.parse(await readFile(join(root, "attempts", `${attemptId}.json`), "utf8"));
+        assert.equal(journal.state, "SPAWNING");
+        assert.equal(Object.hasOwn(journal, "dataCleanup"), false);
+        assert.deepEqual(journal.stop, result.stop);
+        await assert.rejects(readFile(join(root, "processes", `${attemptId}.drained.json`)), { code: "ENOENT" });
+    } finally {
+        context.mock.restoreAll();
+        await rm(root, { recursive: true, force: true });
+    }
+});
+
+test("R08 optional cleanup never republishes an unconfirmed stop journal", async (context) => {
+    const root = await mkdtemp(join(tmpdir(), "vq-online-unconfirmed-commit-"));
+    let journalAtActivation: Buffer | undefined;
+    try {
+        const fixture = await online(root, {
+            async observeRequest(path, id) {
+                if (path.endsWith("/activate")) {
+                    journalAtActivation = await readFile(join(root, "attempts", `${id}.json`));
+                    throw new Error("ACTIVATION_REJECTED");
+                }
+            },
+        });
+        const { attemptId, fencingToken } = fixture.claim;
+        const count = await failJournalSync(context, root, attemptId, [
+            { state: "ACTIVATING", dataCleanup: false, stopScope: "NO_PROCESS_SPAWNED" },
+        ]);
+        const result = await fixture.run();
+        assert.equal(count(), 1);
+        assert.equal(result.completion, undefined);
+        assert.equal(result.stop.reason, "JOURNAL_COMMIT_UNCONFIRMED");
+        assert.equal(result.stop.processStopped, false);
+        assert.equal(Object.hasOwn(result.stop, "processStopScope"), false);
+        assert.equal(result.dataCleanup, "STOP_UNCONFIRMED");
+        assert.equal(
+            fixture.bodies.some(({ path }) => path.endsWith("/finish")),
+            false,
+        );
+        assert.deepEqual(
+            fixture.bodies.filter(({ path }) => path.endsWith("/reconcile")).map(({ body }) => body),
+            [{ fencingToken, processStopped: false, cleanupStatus: "NOT_REQUIRED", stoppedAt: result.stop.stoppedAt }],
+        );
+        assert(journalAtActivation);
+        assert.deepEqual(await readFile(join(root, "attempts", `${attemptId}.json`)), journalAtActivation);
+        assert.deepEqual(await readdir(join(root, "attempts")), [`${attemptId}.json`]);
+        await assert.rejects(readFile(join(root, "processes", `${attemptId}.process.json`)), { code: "ENOENT" });
+    } finally {
+        context.mock.restoreAll();
         await rm(root, { recursive: true, force: true });
     }
 });

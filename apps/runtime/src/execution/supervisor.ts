@@ -569,6 +569,7 @@ export class ExecutionSupervisor {
             return bytes;
         };
         let result: AttemptResult;
+        let dataCleanup: DataCleanup | undefined;
         try {
             const raw = await client.download(claim.snapshotUrl, claim.snapshotSha256, claim, controller.signal);
             manifest = JSON.parse(Buffer.from(raw).toString()) as JobManifestV1;
@@ -1081,9 +1082,8 @@ export class ExecutionSupervisor {
                     payload: { artifactId, file: file.file, kind: file.kind },
                 });
             }
-            record.dataCleanup = await retireScratch(this.options.root, this.temporaryDirectory(), record, stop);
-            await commit();
-            if (record.dataCleanup === "STOP_UNCONFIRMED") throw new Error("TASK_DATA_CLEANUP_UNCONFIRMED");
+            dataCleanup = await retireScratch(this.options.root, this.temporaryDirectory(), record, stop);
+            if (dataCleanup === "STOP_UNCONFIRMED") throw new Error("TASK_DATA_CLEANUP_UNCONFIRMED");
             const evidence = files.map((f) => f.file),
                 requiredEvidence = files.filter((f) => ["TRACE", "LOG"].includes(f.kind)).map((f) => f.file.sha256);
             const common = {
@@ -1202,17 +1202,22 @@ export class ExecutionSupervisor {
             } finally {
                 await brokerDirectory?.close();
             }
-            if (stop && record.dataCleanup === undefined) {
-                record.dataCleanup = retainPrivateReports
+            if (stop) {
+                dataCleanup ??= retainPrivateReports
                     ? "REPORT_RETAINED"
                     : await retireScratch(this.options.root, this.temporaryDirectory(), record, stop);
-                await commit();
+                // 前次必要提交已经确认后才补记本机处置，避免收尾把未确认的停止状态随可选字段一起发布。
+                if (journalCommitted) {
+                    record.dataCleanup = dataCleanup;
+                    try {
+                        await this.journal(record);
+                    } catch {
+                        // 可选补记失败时，本机提示仍使用已计算的保留状态，业务完成或失败结果已由各自路径结算。
+                    }
+                }
             }
         }
-        /**
-         * 失败路径的暂存状态直到收尾提交后才具备，返回值在该处投影；完成清单和真实停止回执仍按既有规则生成。
-         */
-        return { ...result, ...(record.dataCleanup ? { dataCleanup: record.dataCleanup } : {}) };
+        return { ...result, ...(dataCleanup ? { dataCleanup } : {}) };
     }
     private async resolveCredential(
         claim: Claim,
