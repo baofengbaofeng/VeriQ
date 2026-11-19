@@ -75,6 +75,7 @@
     flex-direction: column;
 }
 .vq-header {
+    --vq-banner-control-size: 32px;
     position: sticky;
     top: 0;
     z-index: 50;
@@ -887,4 +888,46 @@ tbody tr:hover td {
     padding: 6px 12px;
     border-radius: 8px;
     font-weight: 500;
+}
+/*
+ * 头部左侧的折叠、通知与主题按钮统一为三十二像素方形轮廓，采用主题边框和表面色，使浅色下三个控件外观一致。
+ */
+.vq-hamburger,
+.vq-icon-button,
+.vq-theme-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 1px solid var(--vq-border);
+    border-radius: 8px;
+    background: var(--vq-surface);
+    color: var(--vq-secondary);
+}
+/*
+ * 悬停时改用浅色高亮与品牌文字色，为鼠标和键盘用户提供一致反馈，同时不改变按钮尺寸以避免头部布局抖动。
+ */
+.vq-hamburger:hover,
+.vq-icon-button:hover,
+.vq-theme-toggle:hover {
+    background: var(--vq-hover);
+    color: var(--vq-brand-text);
+}
+/*
+ * 右侧工具区依靠自动外边距贴齐头部末端，内部采用八像素间距并与三十二像素控件同高，形成稳定的横向节奏。
+ */
+.vq-header-tools {
+    margin-inline-start: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+/*
+ * 用户菜单由文字和头像组成，在工具区中移除边框，避免与相邻图标按钮产生重复轮廓线并保持轻量入口观感。
+ */
+.vq-header-tools .vq-user-trigger {
+    border: 0;
 }
