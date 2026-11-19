@@ -184,6 +184,7 @@ test("inherits a model and persists plan and Run receipts through authorized UI"
     await expect(page.getByRole("button", { name: "Confirm run saved plan" })).toBeVisible();
     const lastIntent = "**/agent/sessions/*/turns";
     let lost: S["AgentTurnSubmit"] | undefined;
+    let lostTurn: S["AgentTurnDTO"] | undefined;
     // 第一次确认已经到达真实服务，浏览器却没有收到回执。另一个客户端随后在同一会话提出不同运行。
     await page.route(lastIntent, async (route) => {
         const request = route.request();
@@ -192,7 +193,8 @@ test("inherits a model and persists plan and Run receipts through authorized UI"
         lost = request.postDataJSON();
         const response = await route.fetch();
         expect(response.status(), await response.text()).toBe(200);
-        expect((await response.json()).data.receipt.decision).toBe("ENQUEUED");
+        lostTurn = (await response.json()).data as S["AgentTurnDTO"];
+        expect(lostTurn.receipt).toMatchObject({ decision: "ENQUEUED" });
         await route.abort();
     });
     await page.getByLabel("Message").fill("confirm run");
@@ -230,6 +232,7 @@ test("inherits a model and persists plan and Run receipts through authorized UI"
     const repeated = await replay;
     expect(repeated.status(), await repeated.text()).toBe(200);
     expect(repeated.request().postDataJSON()).toEqual(lost);
+    expect((await repeated.json()).data).toEqual(lostTurn);
     expect((await (await page.request.get(`${base}/runs`)).json()).data.items).toHaveLength(1);
     await expect(page.getByRole("button", { name: "Confirm run saved plan" })).toBeVisible();
     const run = page.getByRole("region", { name: "Run status" });
@@ -487,6 +490,193 @@ async function queueableAgentPlan(owner: Page, scope: EditorScope, workspace: st
     const savedPlan = (await saved.json()).data as S["ExecutionPlanDTO"];
     return { plan, savedPlan };
 }
+
+/**
+ * 两个独立浏览器上下文以同一所有者打开私有会话，旧确认被明确拒绝后才能从界面审阅新提议并再次发送。
+ */
+test("R12 settles a superseded confirmation before the same phrase can confirm the new proposal", async ({
+    page,
+    browser,
+}) => {
+    test.setTimeout(120_000);
+    test.info().annotations.push({ type: "browser", description: browser.version() });
+    const scope = await editorScope(page, "conversation-retry-r12");
+    const workspace = `/api/v1/workspaces/${scope.workspaceId}`;
+    const identity = await page.request.get("/api/v1/auth/session");
+    expect(identity.status(), await identity.text()).toBe(200);
+    const { plan, savedPlan } = await queueableAgentPlan(page, scope, workspace, (await identity.json()).data.user.id);
+    const replacement = await page.request.post(`${workspace}/execution-plans`, {
+        headers: scope.headers,
+        data: { ...plan, name: "Replacement Agent plan", variables: {} },
+    });
+    expect(replacement.status(), await replacement.text()).toBe(201);
+    const nextPlan = (await replacement.json()).data as S["ExecutionPlanDTO"];
+    const providerId = await provider(page, scope.workspaceId, scope.headers);
+    const settings = await page.request.put(`${workspace}/agent/settings`, {
+        headers: scope.headers,
+        data: { defaultProviderId: providerId, agentProviderId: null },
+    });
+    expect(settings.status(), await settings.text()).toBe(200);
+    await page.goto(`/agent?workspaceId=${scope.workspaceId}`);
+    const away = "Other private conversation";
+    await newAgentSession(page, away);
+    const title = "Review before retry";
+    const sessionId = await newAgentSession(page, title);
+    const endpoint = `${workspace}/agent/sessions/${sessionId}/turns`;
+    const phrase = "confirm run";
+
+    // 真实轮次响应同时提供新提议标识和提交正文，对旧窗口只观察网络请求，所有确认都经过人工点击入口。
+    async function send(view: Page) {
+        const posted = view.waitForResponse(
+            (response) => new URL(response.url()).pathname === endpoint && response.request().method() === "POST",
+        );
+        await view.getByRole("button", { name: "Send", exact: true }).click();
+        return posted;
+    }
+
+    output = {
+        reply: "Review the original run proposal.",
+        proposal: { type: "TRIGGER_PLAN", planId: savedPlan.id, planRevision: savedPlan.revision },
+    };
+    const originalText = "Propose the original saved plan";
+    const cached = page.waitForResponse(async (response) => {
+        if (new URL(response.url()).pathname !== endpoint || response.request().method() !== "GET" || !response.ok()) {
+            return false;
+        }
+        const data = (await response.json()).data as S["AgentTurnDTOPageEnvelope"]["data"];
+        return data.items.some((turn) => turn.text === originalText);
+    });
+    await page.getByLabel("Message").fill(originalText);
+    const proposed = await send(page);
+    expect(proposed.status(), await proposed.text()).toBe(200);
+    const first = (await proposed.json()).data as S["AgentTurnDTO"];
+    await expect(page.getByText("Review the original run proposal.")).toBeVisible();
+    await cached;
+    await page.getByLabel("Message").fill(phrase);
+
+    const releaseHistory = Promise.withResolvers<void>();
+    const other = await browser.newContext({
+        baseURL: memberOrigin,
+        storageState: await page.context().storageState(),
+    });
+    try {
+        const second = await other.newPage();
+        await second.goto(`/agent?workspaceId=${scope.workspaceId}`);
+        await second.getByRole("button", { name: title, exact: true }).click();
+        await expect(second.getByText("Review the original run proposal.")).toBeVisible();
+        output = {
+            reply: "Review the replacement run proposal.",
+            proposal: { type: "TRIGGER_PLAN", planId: nextPlan.id, planRevision: nextPlan.revision },
+        };
+        await second.getByLabel("Message").fill("Propose the replacement saved plan");
+        const superseding = await send(second);
+        expect(superseding.status(), await superseding.text()).toBe(200);
+        const newer = (await superseding.json()).data as S["AgentTurnDTO"];
+        expect(newer.id).not.toBe(first.id);
+        await expect(second.getByText("Review the replacement run proposal.")).toBeVisible();
+        await expect(page.getByText("Review the replacement run proposal.")).toHaveCount(0);
+
+        const firstRefresh = Promise.withResolvers<void>();
+        const reopenedRefresh = Promise.withResolvers<void>();
+        let reopened = false;
+        let confirmationPosts = 0;
+        page.on("request", (request) => {
+            const path = new URL(request.url()).pathname;
+            if (request.method() === "POST" && (path === endpoint || path === `${endpoint}/${first.id}/confirm`)) {
+                confirmationPosts++;
+            }
+        });
+        // 真实历史已含新提议，仅暂缓送达旧窗口。两次读取各自到达服务后再检查重挂时的缓存与确认入口。
+        await page.route(
+            (url) => url.pathname === endpoint,
+            async (route) => {
+                if (route.request().method() !== "GET") {
+                    await route.continue();
+                    return;
+                }
+                const refresh = reopened ? reopenedRefresh : firstRefresh;
+                const response = await route.fetch();
+                expect(response.status(), await response.text()).toBe(200);
+                const data = (await response.json()).data as S["AgentTurnDTOPageEnvelope"]["data"];
+                expect(data.items.some((turn) => turn.id === newer.id)).toBe(true);
+                refresh.resolve();
+                await releaseHistory.promise;
+                await route.fulfill({ response });
+            },
+        );
+        const calls = modelCalls;
+        const rejected = await send(page);
+        const original = rejected.request().postDataJSON() as S["AgentTurnSubmit"];
+        expect(original).toMatchObject({ text: phrase, expectedProposalId: first.id });
+        expect(rejected.status(), await rejected.text()).toBe(409);
+        const rejection = (await rejected.json()) as S["ErrorEnvelope"];
+        expect(rejection.code).toBe("AGENT_PROPOSAL_SUPERSEDED");
+        await expect(page.getByRole("alert")).toContainText(rejection.code);
+        await expect(page.getByLabel("Message")).toHaveValue(phrase);
+        await firstRefresh.promise;
+        await page.getByRole("button", { name: away, exact: true }).click();
+        await expect(page.getByRole("heading", { name: away, exact: true })).toBeVisible();
+        reopened = true;
+        await page.getByRole("button", { name: title, exact: true }).click();
+        await reopenedRefresh.promise;
+        await expect(page.getByText("Review the original run proposal.")).toBeVisible();
+        await expect(page.getByText("Review the replacement run proposal.")).toHaveCount(0);
+        await page.getByLabel("Message").fill(phrase);
+        const beforeReview = {
+            textEnabled: await page.getByRole("button", { name: "Send", exact: true }).isEnabled(),
+            quickEnabled: await page.getByRole("button", { name: "Confirm run saved plan", disabled: false }).count(),
+            confirmationPosts,
+        };
+        await test.info().attach("confirmation-before-reopened-history", {
+            body: JSON.stringify({ status: rejected.status(), code: rejection.code, ...original, ...beforeReview }),
+            contentType: "application/json",
+        });
+        expect(beforeReview).toEqual({ textEnabled: false, quickEnabled: 0, confirmationPosts: 1 });
+        releaseHistory.resolve();
+        await expect(page.getByText("Review the replacement run proposal.")).toBeVisible();
+        const before = await page.request.get(endpoint);
+        expect(before.status(), await before.text()).toBe(200);
+        const beforeTurns = (await before.json()).data.items as S["AgentTurnDTO"][];
+        expect(beforeTurns.map((turn) => turn.id)).toEqual([first.id, newer.id]);
+        expect(beforeTurns.filter((turn) => turn.receipt)).toHaveLength(0);
+        const beforeRuns = await page.request.get(`${workspace}/runs`);
+        expect(beforeRuns.status(), await beforeRuns.text()).toBe(200);
+        expect((await beforeRuns.json()).data.items).toHaveLength(0);
+        await expect(page.getByLabel("Message")).toHaveValue(phrase);
+
+        const accepted = await send(page);
+        const attempted = accepted.request().postDataJSON() as S["AgentTurnSubmit"];
+        await test.info().attach("confirmation-transport", {
+            contentType: "application/json",
+            body: JSON.stringify({
+                proposals: [first.id, newer.id],
+                rejected: { status: rejected.status(), code: rejection.code, ...original },
+                attempted: { status: accepted.status(), ...attempted },
+                receiptsBeforeRetry: beforeTurns.filter((turn) => turn.receipt).length,
+                runsBeforeRetry: 0,
+            }),
+        });
+        expect(attempted.requestId).not.toBe(original.requestId);
+        expect(attempted).toMatchObject({ text: phrase, expectedProposalId: newer.id });
+        expect(accepted.status(), await accepted.text()).toBe(200);
+        const confirmed = (await accepted.json()).data as S["AgentTurnDTO"];
+        expect(confirmed.receipt).toMatchObject({ type: "TRIGGER_PLAN", planId: nextPlan.id, decision: "ENQUEUED" });
+        await expect(page.getByRole("region", { name: "Run status" })).toContainText("ENQUEUED");
+        const history = await page.request.get(endpoint);
+        expect(history.status(), await history.text()).toBe(200);
+        const recorded = (await history.json()).data.items as S["AgentTurnDTO"][];
+        expect(recorded.map((turn) => turn.id)).toEqual([first.id, newer.id, confirmed.id]);
+        expect(recorded.map((turn) => turn.receipt)).toEqual([undefined, confirmed.receipt, confirmed.receipt]);
+        const runs = await page.request.get(`${workspace}/runs`);
+        expect(runs.status(), await runs.text()).toBe(200);
+        expect((await runs.json()).data.items).toEqual([expect.objectContaining({ id: confirmed.relatedRunId })]);
+        expect(confirmationPosts).toBe(2);
+        expect(modelCalls).toBe(calls);
+    } finally {
+        releaseHistory.resolve();
+        await other.close();
+    }
+});
 
 /**
  * 屏幕中的报告流与私有提议先通过现有接口建立，再切换真实成员权限检查读取拒绝、迟到结果和显式恢复。

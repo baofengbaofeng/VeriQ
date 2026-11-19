@@ -20,6 +20,9 @@ const confirmAny = new Set(["confirm", "confirm action", "确认", "确认操作
 const confirmSave = new Set(["confirm plan", "confirm save", "确认保存"]);
 const confirmRun = new Set(["confirm run", "确认执行", "确认运行"]);
 
+// 同页重开会话时查询缓存可能仍显示旧提议，待审阅的拒绝随重试作用域保留到新提议真正显示。
+const supersededTargets = new Map<string, string>();
+
 const sortTurns = (a: Turn, b: Turn) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id);
 
 // 刷新将服务端记录与刚完成的请求合并：较早的读取不覆盖已确认回执或刚取得的最终轮次。
@@ -92,6 +95,7 @@ function Thread({
     const [updates, setUpdates] = useState(() => new Map<string, Turn>());
     const [completedRuns, setCompletedRuns] = useState(() => new Set<string>());
     const retryKey = "veriq.agent.retry/" + JSON.stringify([owner, workspace.id, id]);
+    const supersededTarget = supersededTargets.get(retryKey);
     const key = ["workspace", workspace.id, "agent", owner, "session", id];
     const current = useQuery({
         queryKey: key,
@@ -135,7 +139,23 @@ function Thread({
         .replace(/[.!。！]+$/, "");
     const isConfirmation =
         confirmAny.has(confirmationText) || confirmSave.has(confirmationText) || confirmRun.has(confirmationText);
-    const reviewable = !!latest && (!history.hasNextPage || updates.has(latest.id));
+    // 明确拒绝后的确认入口等权威读取显示可审阅的新提议，重挂时缓存在本次读取完成前不能解除门禁。
+    const reviewable =
+        !!latest &&
+        latest.id !== supersededTarget &&
+        (!supersededTarget || (current.isSuccess && history.isSuccess && history.isFetchedAfterMount)) &&
+        (!history.hasNextPage || updates.has(latest.id));
+    useEffect(() => {
+        if (
+            !signal.aborted &&
+            !operation &&
+            reviewable &&
+            supersededTarget &&
+            supersededTargets.get(retryKey) === supersededTarget
+        ) {
+            supersededTargets.delete(retryKey);
+        }
+    }, [operation, retryKey, reviewable, signal, supersededTarget]);
     const mayConfirmText =
         reviewable &&
         (latest?.proposal?.type === "SAVE_PLAN"
@@ -200,7 +220,23 @@ function Thread({
                 { confirmation: isConfirmation, expectedProposalId },
                 signal,
             );
-            const turn = await adapter.submit(id, data, signal);
+            const turn = await adapter.submit(id, data, signal).catch(async (failure: unknown) => {
+                if (
+                    signal.aborted ||
+                    !data.expectedProposalId ||
+                    agentErrorCode(failure) !== "AGENT_PROPOSAL_SUPERSEDED"
+                ) {
+                    throw failure;
+                }
+                // 只结清当前代次获明确拒绝的提交编号。保留输入并等待正常刷新，后续确认仍由用户主动发送。
+                clearAgentSubmission(retryKey, data.requestId);
+                supersededTargets.set(retryKey, data.expectedProposalId);
+                setError(failure);
+                await refresh();
+            });
+            if (!turn) {
+                return;
+            }
             signal.throwIfAborted();
             if (turn.status === "RUNNING") recovering.current = { id: turn.id, requestId: data.requestId };
             else clearAgentSubmission(retryKey, data.requestId);
