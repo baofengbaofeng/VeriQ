@@ -67,6 +67,7 @@ export function WorkspaceControls() {
             </select>
             <button
                 className="vq-add-workspace"
+                title={tx("Add workspace")}
                 ref={trigger}
                 type="button"
                 onClick={() => {
@@ -75,11 +76,17 @@ export function WorkspaceControls() {
                     setOpen(true);
                 }}
             >
-                {tx("Add workspace")}
+                <span className="vq-compact-symbol" aria-hidden="true">
+                    ＋
+                </span>
+                <span className="vq-workspace-caption">{tx("Add workspace")}</span>
             </button>
             {hasMore && (
-                <button type="button" disabled={loadingMore} onClick={more}>
-                    {tx("More Workspaces")}
+                <button type="button" disabled={loadingMore} onClick={more} title={tx("More Workspaces")}>
+                    <span className="vq-compact-symbol" aria-hidden="true">
+                        ↓
+                    </span>
+                    <span className="vq-workspace-caption">{tx("More Workspaces")}</span>
                 </button>
             )}
             <Sheet

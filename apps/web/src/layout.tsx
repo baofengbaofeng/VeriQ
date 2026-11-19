@@ -3,7 +3,16 @@
  * 栏仅登录后显示，登录/初始化/重置等独立页无侧边栏。所有文案经 tx 单语展示，跟随当前语言切换而重渲染。
  */
 
-import { useContext, useEffect, useId, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import {
+    useContext,
+    useEffect,
+    useLayoutEffect,
+    useId,
+    useRef,
+    useState,
+    type MouseEvent,
+    type ReactNode,
+} from "react";
 import { Link, matchPath, NavLink, useLocation, useNavigate } from "react-router-dom";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { Avatar } from "./components";
@@ -188,18 +197,84 @@ function ThemeToggle() {
 }
 
 /**
+ * 语言子菜单沿用当前页面的翻译实例，选择后由根菜单自然关闭；按 Escape 只退回上一级，让键盘焦点停在语言入口。
+ */
+function LanguageMenu() {
+    const { language, setLanguage } = useAppLocale();
+    const [open, setOpen] = useState(false);
+    const trigger = useRef<HTMLDivElement>(null);
+    const [breakpoint] = useState(() => window.matchMedia("(max-width: 520px)"));
+    const [inline, setInline] = useState(breakpoint.matches);
+    useLayoutEffect(() => {
+        const resize = () => setInline(breakpoint.matches);
+        breakpoint.addEventListener("change", resize);
+        return () => breakpoint.removeEventListener("change", resize);
+    }, [breakpoint]);
+    const choices = (
+        <DropdownMenu.SubContent
+            className="vq-menu vq-language-menu"
+            sideOffset={4}
+            alignOffset={-3}
+            collisionPadding={8}
+            onEscapeKeyDown={(event) => {
+                event.preventDefault();
+                setOpen(false);
+                trigger.current?.focus();
+            }}
+        >
+            <DropdownMenu.RadioGroup value={language} onValueChange={setLanguage}>
+                {(["en", "zh"] as const).map((value) => (
+                    <DropdownMenu.RadioItem key={value} value={value} className="vq-menu-item">
+                        <Icon name={`locale-${value}`} />
+                        {value === "en" ? "English" : "中文"}
+                    </DropdownMenu.RadioItem>
+                ))}
+            </DropdownMenu.RadioGroup>
+        </DropdownMenu.SubContent>
+    );
+    return (
+        <DropdownMenu.Sub open={open} onOpenChange={setOpen}>
+            <DropdownMenu.SubTrigger
+                className="vq-menu-item"
+                ref={trigger}
+                onPointerMove={(event) => {
+                    if (inline) event.preventDefault();
+                }}
+                onPointerLeave={(event) => {
+                    if (inline && open) event.preventDefault();
+                }}
+            >
+                <Icon name="globe" />
+                {tx("Language")}
+                <span className="vq-locale-badge">
+                    {language.toUpperCase()}
+                    <Icon name={`locale-${language}`} />
+                </span>
+            </DropdownMenu.SubTrigger>
+            {inline ? (
+                open && <div className="vq-language-inline">{choices}</div>
+            ) : (
+                <DropdownMenu.Portal>{choices}</DropdownMenu.Portal>
+            )}
+        </DropdownMenu.Sub>
+    );
+}
+
+/**
  * 登录菜单在 Portal 中提供语言单选项和账户操作，键盘上下文与焦点恢复由 Radix 的菜单原语持有。
  */
 function UserMenu({ onLogout }: { onLogout: () => void }) {
-    const { language, setLanguage } = useAppLocale();
+    useAppLocale();
+    const [open, setOpen] = useState(false);
+    const trigger = useRef<HTMLButtonElement>(null);
     const { user } = useContext(Auth);
     const navigate = useNavigate();
     const { pathname } = useLocation();
     const leaving = useRef(false);
     if (!user) return null;
     return (
-        <DropdownMenu.Root>
-            <DropdownMenu.Trigger className="vq-user-trigger">
+        <DropdownMenu.Root open={open} onOpenChange={setOpen} modal={false}>
+            <DropdownMenu.Trigger ref={trigger} className="vq-user-trigger">
                 <Avatar name={user.displayName} size={44} fontSize={16} />
                 <span className="vq-user-name">{user.displayName}</span>
                 <Icon name="account-chevron" />
@@ -207,10 +282,23 @@ function UserMenu({ onLogout }: { onLogout: () => void }) {
             <DropdownMenu.Portal>
                 <DropdownMenu.Content
                     className="vq-menu vq-profile-menu"
-                    sideOffset={17}
+                    sideOffset={12}
+                    collisionPadding={8}
+                    onKeyDown={(event) => {
+                        // 子菜单关闭后，根层监听的交接可能跨越下一次按键；只补接发自当前菜单且尚未处理的退出键。
+                        if (
+                            !event.defaultPrevented &&
+                            event.key === "Escape" &&
+                            event.target instanceof Element &&
+                            event.target.closest('[role="menu"]') === event.currentTarget
+                        ) {
+                            event.preventDefault();
+                            setOpen(false);
+                        }
+                    }}
                     align="end"
                     onCloseAutoFocus={(event) => {
-                        if (leaving.current) event.preventDefault();
+                        if (leaving.current || !trigger.current?.isConnected) event.preventDefault();
                         leaving.current = false;
                     }}
                 >
@@ -218,33 +306,20 @@ function UserMenu({ onLogout }: { onLogout: () => void }) {
                         <strong>{user.displayName}</strong>
                         <span>{user.email}</span>
                     </DropdownMenu.Label>
-                    <div className="vq-menu-options">
-                        <DropdownMenu.Item
-                            className="vq-menu-item"
-                            onSelect={() => {
-                                leaving.current = pathname !== "/account";
-                                void navigate("/account");
-                            }}
-                        >
-                            <Icon name="settings" />
-                            {tx("Settings")}
-                        </DropdownMenu.Item>
-                        <DropdownMenu.Label className="vq-menu-label">{tx("Language")}</DropdownMenu.Label>
-                        <DropdownMenu.RadioGroup
-                            value={language}
-                            onValueChange={setLanguage}
-                            aria-label={tx("Language")}
-                        >
-                            {(["zh", "en"] as const).map((value) => (
-                                <DropdownMenu.RadioItem className="vq-menu-item" key={value} value={value}>
-                                    {value === "zh" ? "中文" : "English"}{" "}
-                                    <DropdownMenu.ItemIndicator aria-hidden="true">✓</DropdownMenu.ItemIndicator>
-                                </DropdownMenu.RadioItem>
-                            ))}
-                        </DropdownMenu.RadioGroup>
-                    </div>
                     <DropdownMenu.Separator className="vq-menu-separator" />
-                    <DropdownMenu.Item className="vq-menu-item" onSelect={onLogout}>
+                    <DropdownMenu.Item
+                        className="vq-menu-item"
+                        onSelect={() => {
+                            leaving.current = pathname !== "/account";
+                            void navigate("/account");
+                        }}
+                    >
+                        <Icon name="settings" />
+                        {tx("Account settings")}
+                    </DropdownMenu.Item>
+                    <LanguageMenu />
+                    <DropdownMenu.Separator className="vq-menu-separator" />
+                    <DropdownMenu.Item className="vq-menu-item vq-sign-out" onSelect={onLogout}>
                         <Icon name="logout" />
                         {tx("Sign out")}
                     </DropdownMenu.Item>
@@ -260,17 +335,62 @@ function UserMenu({ onLogout }: { onLogout: () => void }) {
 function TopBar({ onLogout }: { onLogout: () => void }) {
     useAppLocale();
     const { user } = useContext(Auth);
+    const [breakpoint] = useState(() => window.matchMedia("(max-width: 1279.98px)"));
+    const [compact, setCompact] = useState(breakpoint.matches);
+    const [expanded, setExpanded] = useState(false);
+    const actions = useRef<HTMLDivElement>(null);
+    const more = useRef<HTMLButtonElement>(null);
+    const restore = useRef(false);
+    const toolsId = useId();
+    useLayoutEffect(() => {
+        const synchronize = () => {
+            if (
+                breakpoint.matches &&
+                (actions.current?.contains(document.activeElement) ||
+                    actions.current?.querySelector('[aria-expanded="true"]'))
+            )
+                restore.current = true;
+            if (!breakpoint.matches && more.current === document.activeElement) restore.current = true;
+            setExpanded(false);
+            setCompact(breakpoint.matches);
+        };
+        breakpoint.addEventListener("change", synchronize);
+        return () => breakpoint.removeEventListener("change", synchronize);
+    }, [breakpoint]);
+    useLayoutEffect(() => {
+        if (restore.current) (compact ? more.current : actions.current?.querySelector("button"))?.focus();
+        restore.current = false;
+    }, [compact]);
     return (
         <header className="vq-topbar">
-            <div className="vq-topbar-workspaces">
-                <Link to="/" className="vq-brand">
-                    <img src={brand} width="28" height="28" alt="VeriQ" />
-                </Link>
-                {user && <WorkspaceControls />}
+            <div className="vq-header-main">
+                <div className="vq-topbar-workspaces">
+                    <Link to="/" className="vq-brand">
+                        <img src={brand} width="28" height="28" alt="VeriQ" />
+                    </Link>
+                    {user && <WorkspaceControls />}
+                </div>
+                {compact && (
+                    <button
+                        ref={more}
+                        type="button"
+                        className="vq-header-more"
+                        aria-label={tx("Toggle application menu")}
+                        aria-controls={toolsId}
+                        aria-expanded={expanded}
+                        onClick={() => setExpanded(!expanded)}
+                    >
+                        <Icon name="horizontal-dots" />
+                    </button>
+                )}
             </div>
-            <div className="vq-header-tools">
-                <ThemeToggle />
-                {user ? <UserMenu onLogout={onLogout} /> : <LanguageControl />}
+            <div className="vq-header-tools" id={toolsId} ref={actions} hidden={compact && !expanded}>
+                {(!compact || expanded) && (
+                    <>
+                        <ThemeToggle />
+                        {user ? <UserMenu onLogout={onLogout} /> : <LanguageControl />}
+                    </>
+                )}
             </div>
         </header>
     );

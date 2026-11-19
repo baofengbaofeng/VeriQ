@@ -40,6 +40,7 @@ try {
     await expect(page.locator("dl")).toBeVisible();
     await page.getByRole("link", { name: "Reports", exact: true }).click();
     await page.getByRole("banner").locator('button[aria-haspopup="menu"]').click();
+    await page.getByRole("menuitem", { name: /^(Language|语言)/ }).click();
     await page.getByRole("menuitemradio", { name: "English" }).click();
     await page.getByRole("button", { name: /MANAGED_CLOUD|CONNECTED_LOCAL/ }).click();
     await expect(page.getByText("Gate at execution")).toBeVisible();

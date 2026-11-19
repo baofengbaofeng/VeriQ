@@ -39,7 +39,7 @@ test("server console follows the approved layout", async ({ page }) => {
         expect(box.x).toBeGreaterThanOrEqual(right);
         right = box.x + box.width;
     }
-    await expect(header).toHaveCSS("height", "56px");
+    await expect(header).toHaveCSS("height", "77px");
     await expect(controls[0]).toHaveText("");
     await expect(controls[0]).toHaveCSS("font-size", "14px");
     const sidebar = page.getByRole("complementary");
@@ -56,7 +56,7 @@ test("server console follows the approved layout", async ({ page }) => {
     await expect(table.getByRole("cell").first()).toHaveCSS("font-size", "12px");
     await expect(table.getByRole("button").first()).toHaveCSS("font-size", "12px");
     await profile.click();
-    const settings = page.getByRole("menuitem", { name: "Settings" });
+    const settings = page.getByRole("menuitem", { name: "Account settings" });
     const glyph = await page.getByRole("menuitem", { name: "Sign out" }).locator("svg").screenshot();
     const contrast = await page.evaluate(
         async (image) => {
@@ -81,7 +81,11 @@ test("compact console navigation closes on selection and exposes the current bra
     await signIn(page);
     await page.goto("/resources/");
     const header = page.getByRole("banner");
+    const actions = header.getByRole("button", { name: "Toggle application menu" });
+    await expect(actions).toHaveAttribute("aria-expanded", "false");
+    await actions.click();
     await expect(header.getByText("Browser Administrator", { exact: true })).toBeVisible();
+    await actions.click();
     await expect(header.getByRole("combobox", { name: "Workspace" })).toBeVisible();
     await expect(header.getByRole("button", { name: "Add workspace" })).toBeVisible();
     const menu = page.getByRole("button", { name: "Menu", exact: true });
@@ -169,10 +173,10 @@ test("workspace title and import action share a row", async ({ page }) => {
 test.describe("desktop touch console", () => {
     test.use({ hasTouch: true, viewport: { width: 1280, height: 800 } });
 
-    test("desktop touch header stays 56px with 44px targets", async ({ page }) => {
+    test("desktop touch header stays 77px with 44px targets", async ({ page }) => {
         await signIn(page);
         const header = page.getByRole("banner");
-        await expect(header).toHaveCSS("height", "56px");
+        await expect(header).toHaveCSS("height", "77px");
         for (const control of await header.locator("a, button, select").all()) {
             const box = await control.boundingBox();
             expect(box?.height).toBeGreaterThanOrEqual(44);
@@ -269,13 +273,15 @@ test("header creates and retains an authorized workspace across navigation", asy
     const profile = header.getByRole("button", { name: "Browser Administrator" });
     await profile.press("Enter");
     const menu = page.getByRole("menu");
-    await expect(menu.getByRole("menuitemradio", { name: "English" })).toBeChecked();
-    await menu.getByRole("menuitemradio", { name: "中文" }).press("Enter");
+    await menu.getByRole("menuitem", { name: /^Language/ }).press("ArrowRight");
+    await expect(page.getByRole("menuitemradio", { name: "English" })).toBeChecked();
+    await page.getByRole("menuitemradio", { name: "中文" }).press("Enter");
     await expect(header.getByRole("combobox")).toHaveValue(ids[1]);
     await profile.press("Enter");
-    await menu.getByRole("menuitemradio", { name: "English" }).press("Enter");
+    await menu.getByRole("menuitem", { name: /^语言/ }).press("ArrowRight");
+    await page.getByRole("menuitemradio", { name: "English" }).press("Enter");
     await profile.press("Enter");
-    await menu.getByRole("menuitem", { name: "Settings" }).press("Enter");
+    await menu.getByRole("menuitem", { name: "Account settings" }).press("Enter");
     await expect(page).toHaveURL(/\/account$/);
     await expect(page.getByRole("heading", { level: 1, name: "Profile", exact: true })).toBeFocused();
     await profile.press("Enter");
@@ -321,9 +327,13 @@ test("TailAdmin profile dimensions and theme persist through real navigation", a
     await expect(menu).toHaveCSS("width", "260px");
     await expect(menu).toHaveCSS("border-radius", "16px");
     await expect(menu).toHaveCSS("padding", "12px");
-    await expect(menu).toHaveCSS("background-color", "rgb(26, 34, 49)");
+    await expect(menu).toHaveCSS("background-color", "rgb(30, 38, 53)");
     await expect(menu.getByText("browser-admin@example.com")).toBeVisible();
-    await menu.getByRole("menuitem", { name: "Settings" }).press("Enter");
+    const logout = menu.getByRole("menuitem", { name: "Sign out" });
+    await logout.hover();
+    await expect(logout).toHaveCSS("color", "rgb(253, 162, 155)");
+    await expect(logout).toHaveCSS("background-color", "rgb(56, 36, 39)");
+    await menu.getByRole("menuitem", { name: "Account settings" }).press("Enter");
     await expect(page.getByRole("heading", { level: 1, name: "Profile" })).toBeFocused();
     await expect(
         page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Home" }),
@@ -358,4 +368,85 @@ test("theme still switches when browser preference storage is blocked", async ({
     await theme.press("Enter");
     await expect(page.locator("html")).toHaveCSS("color-scheme", "dark");
     await expect(page.getByLabel("Password")).toBeVisible();
+});
+
+test("TailAdmin banner sizes and nested language choices preserve the resource draft", async ({ page }) => {
+    const scope = await editorScope(page, `aaa-${randomUUID()}-${"workspace".repeat(8)}`);
+    const banner = page.getByRole("banner");
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await expect(banner).toHaveCSS("height", "77px");
+    const theme = banner.getByRole("button", { name: "Dark mode" });
+    const user = banner.getByRole("button", { name: "Browser Administrator" });
+    await expect(theme).toHaveCSS("border-radius", "10px");
+    await expect(user.locator(".vq-avatar")).toHaveCSS("border-radius", "8px");
+    await expect(user.getByText("Browser Administrator")).toHaveCSS("font-size", "14px");
+    for (let i = 0; i < 26; i++) {
+        const response = await page.request.post("/api/v1/workspaces", {
+            headers: scope.headers,
+            data: { key: `zz-${randomUUID()}`, name: `Workspace ${i}` },
+        });
+        expect(response.status()).toBe(201);
+    }
+    await page.goto("/resources?section=assets#draft");
+    const picker = banner.getByRole("combobox");
+    await picker.selectOption(scope.workspaceId);
+    await page.getByRole("button", { name: "New resource", exact: true }).click();
+    await page.getByLabel("Name", { exact: true }).fill("Keep draft across languages");
+    const draftNode = await page.getByLabel("Name", { exact: true }).elementHandle();
+    await user.press("Enter");
+    await expect(page.getByRole("menu")).toBeVisible();
+    await page.setViewportSize({ width: 1024, height: 900 });
+    const toggle = banner.getByRole("button", { name: "Toggle application menu" });
+    await expect(banner).toHaveCSS("height", "69px");
+    await expect(page.getByRole("menu")).toHaveCount(0);
+    await expect(toggle).toBeFocused();
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await page.setViewportSize({ width: 320, height: 740 });
+    await expect(banner).toHaveCSS("height", "65px");
+    await expect(banner.getByRole("button", { name: "More Workspaces" })).toBeVisible();
+    await expect(toggle).toHaveCSS("width", "40px");
+    await toggle.click();
+    await expect(user).toBeVisible();
+    await user.click();
+    await expect(page.getByRole("menu")).toBeVisible();
+    await toggle.click();
+    await expect(page.getByRole("menu")).toHaveCount(0);
+    await expect(toggle).toBeFocused();
+    await toggle.press("Enter");
+    await user.press("Enter");
+    const language = page.getByRole("menuitem", { name: /Language/ });
+    await expect(language).toContainText("EN");
+    await expect(language.locator(".vq-locale-badge svg")).toHaveCSS("width", "14px");
+    await language.press("ArrowRight");
+    const english = page.getByRole("menuitemradio", { name: "English", exact: true });
+    await expect(english).toBeChecked();
+    await expect(english.locator("svg")).toHaveCSS("width", "20px");
+    const submenu = english.locator('xpath=ancestor::*[@role="menu"][1]');
+    const bounds = await submenu.boundingBox();
+    expect(bounds?.x).toBeGreaterThanOrEqual(0);
+    expect(bounds && bounds.x + bounds.width).toBeLessThanOrEqual(320);
+    await page.keyboard.press("Escape");
+    await expect(language).toBeFocused();
+    await expect(english).toBeHidden();
+    await page.keyboard.press("Escape");
+    await expect(user).toBeFocused();
+    await user.click();
+    await language.click();
+    await page.getByRole("menuitemradio", { name: "中文", exact: true }).click();
+    await expect(page.locator("html")).toHaveAttribute("lang", "zh-CN");
+    await expect(page.getByRole("menu")).toHaveCount(0);
+    await expect(picker).toHaveValue(scope.workspaceId);
+    expect(page.url()).toMatch(/\/resources\?section=assets#draft$/);
+    expect(await draftNode?.evaluate((input) => input.isConnected && (input as HTMLInputElement).value)).toBe(
+        "Keep draft across languages",
+    );
+    await user.click();
+    await expect(page.getByRole("menuitem", { name: /语言/ })).toContainText("ZH");
+    await page.getByRole("menuitem", { name: "退出登录", exact: true }).click();
+    const guestToggle = banner.getByRole("button", { name: "展开或收起应用菜单" });
+    await expect(guestToggle).toHaveAttribute("aria-expanded", "false");
+    await guestToggle.click();
+    await banner.getByRole("combobox", { name: "语言" }).selectOption("en");
+    await expect(banner.getByRole("button", { name: "Dark mode" })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
 });

@@ -543,7 +543,7 @@ test("real setup, login, account, administration and one-time reset", async ({ p
         { times: 1 },
     );
     await page.getByRole("button", { name: "Browser User", exact: true }).click();
-    await page.getByRole("menuitem", { name: "Settings", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Account settings", exact: true }).click();
     await expect(page.getByRole("button", { name: "Retry sessions" })).toBeVisible();
     await page.getByRole("button", { name: "Retry sessions" }).click();
     await expect(page.getByRole("list").getByRole("listitem")).toHaveCount(1);

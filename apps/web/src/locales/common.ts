@@ -9,6 +9,8 @@ export const commonMessages: Record<string, readonly [string, string]> = {
     "Personal information": ["个人信息", "Personal information"],
     Breadcrumb: ["面包屑导航", "Breadcrumb"],
     "Add workspace": ["添加工作区", "Add workspace"],
+    "Account settings": ["账号设置", "Account settings"],
+    "Toggle application menu": ["展开或收起应用菜单", "Toggle application menu"],
     Settings: ["设置", "Settings"],
     Menu: ["菜单", "Menu"],
     "New resource": ["新建资源", "New resource"],
