@@ -50,7 +50,9 @@
     font-weight: 600;
     color: #f2f4f7;
 }
-/* 右侧表单区：工具行固定右上角，正文垂直水平居中承载认证卡片。 */
+/*
+ * 右侧表单区将工具行固定在右上角，正文区域垂直水平居中承载认证卡片，让登录与重置表单在窄栏内保持稳定对齐。
+ */
 .vq-auth-main {
     position: relative;
     display: flex;
@@ -80,12 +82,16 @@
     font-size: 28px;
     margin: 0 0 8px;
 }
-/* 认证卡片内的提交按钮铺满整行，贴近 TailAdmin 登录按钮的满宽样式。 */
+/*
+ * 认证卡片内的提交按钮铺满整行宽度，贴近 TailAdmin 登录页主按钮的满宽样式，避免窄栏下按钮与字段错位。
+ */
 .vq-auth-card form button[type="submit"] {
     justify-self: stretch;
     width: 100%;
 }
-/* 窄屏隐藏左栏，仅保留居中表单与工具行。 */
+/*
+ * 窄屏隐藏左侧品牌面板，只保留居中表单与右上角工具行，保证小屏下登录表单仍可完整操作。
+ */
 @media (max-width: 1024px) {
     .vq-auth {
         grid-template-columns: 1fr;
