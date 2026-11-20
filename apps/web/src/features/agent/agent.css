@@ -648,6 +648,20 @@
     padding: 1rem;
     text-align: center;
 }
+.vq-agent-load-more {
+    display: block;
+    margin: 0.5rem auto;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--vq-muted);
+    font-size: 13px;
+    cursor: pointer;
+    text-align: center;
+}
+.vq-agent-load-more:hover:not(:disabled) {
+    color: var(--vq-brand);
+}
 .vq-agent-centered {
     text-align: center;
 }

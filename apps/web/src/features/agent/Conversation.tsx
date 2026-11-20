@@ -707,10 +707,11 @@ function Thread({
             {history.hasNextPage && (
                 <button
                     type="button"
+                    className="vq-agent-load-more"
                     disabled={history.isFetchingNextPage}
                     onClick={() => void history.fetchNextPage()}
                 >
-                    {tx("Load more messages")}
+                    {`—— ${tx("Load more messages")} ——`}
                 </button>
             )}
             {references.map((run) => (
