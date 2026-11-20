@@ -2282,6 +2282,7 @@ export interface ContractDefinitions {
   AgentProposal?: AgentProposal;
   AgentReceipt?: AgentReceipt;
   AgentTurnDTO?: AgentTurnDTO;
+  AgentTurnStepDTO?: AgentTurnStepDTO;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -3645,6 +3646,21 @@ export interface AgentTurnDTO {
   relatedRunId?: Id;
   proposal?: AgentProposal;
   receipt?: AgentReceipt;
+  thinking?: string;
+  /**
+   * @maxItems 40
+   */
+  steps?: AgentTurnStepDTO[];
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "AgentTurnStepDTO".
+ */
+export interface AgentTurnStepDTO {
+  name: string;
+  summary?: string;
+  status: "SUCCEEDED" | "FAILED";
+  errorCode?: string;
 }
 
 export type SnapshotV1 = AssetSnapshotV1;

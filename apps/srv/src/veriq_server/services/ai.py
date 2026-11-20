@@ -627,13 +627,15 @@ class AiService:
 
     @staticmethod
     def settle_usage(g: AiGeneration, reply: ModelReply | None, d: dict, config: dict) -> None:
-        """仅接受预留范围内的非负整数用量来结算费用，供应商缺失用量或返回超限数字时继续保留整笔预留。"""
+        """仅接受预留范围内的非负整数用量来结算费用，供应商缺失用量或返回超限数字时继续保留整笔预留。工具调用循环
+        跨轮次累加输出，调用方可传入 outputTokenBound 放宽单轮上限。"""
+        output_bound = d.get("outputTokenBound", config["maxOutputTokens"])
         if (
             reply
             and type(reply.input_tokens) is int
             and type(reply.output_tokens) is int
             and 0 <= reply.input_tokens <= d["inputTokenBound"]
-            and 0 <= reply.output_tokens <= config["maxOutputTokens"]
+            and 0 <= reply.output_tokens <= output_bound
         ):
             g.cost_micros = priced(reply.input_tokens, reply.output_tokens, config)
             d.update(inputTokens=reply.input_tokens, outputTokens=reply.output_tokens)

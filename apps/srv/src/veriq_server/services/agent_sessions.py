@@ -57,6 +57,8 @@ def turn_dto(row: AgentTurn) -> dict[str, Any]:
         "relatedRunId": row.related_run_id,
         "proposal": row.proposal,
         "receipt": receipt_dto(row.receipt),
+        "thinking": row.thinking,
+        "steps": row.steps,
     }
     return {
         "id": row.id,

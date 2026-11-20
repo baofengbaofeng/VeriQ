@@ -7921,6 +7921,17 @@
                 },
                 "receipt": {
                     "$ref": "#/$defs/AgentReceipt"
+                },
+                "thinking": {
+                    "type": "string",
+                    "maxLength": 60000
+                },
+                "steps": {
+                    "type": "array",
+                    "maxItems": 40,
+                    "items": {
+                        "$ref": "#/$defs/AgentTurnStepDTO"
+                    }
                 }
             },
             "required": ["id", "text", "status", "createdAt"],
@@ -7929,6 +7940,31 @@
                 "providerId": ["providerRevision"],
                 "providerRevision": ["providerId"]
             }
+        },
+        "AgentTurnStepDTO": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64
+                },
+                "summary": {
+                    "type": "string",
+                    "maxLength": 2000
+                },
+                "status": {
+                    "type": "string",
+                    "enum": ["SUCCEEDED", "FAILED"]
+                },
+                "errorCode": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                }
+            },
+            "required": ["name", "status"],
+            "additionalProperties": false
         }
     }
 }

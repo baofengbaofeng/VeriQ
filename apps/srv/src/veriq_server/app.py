@@ -250,6 +250,10 @@ def make_app(settings: Settings, db: Database, delivery: Delivery | None = None)
             "agent-turns",
         ),
         (
+            "/api/v1/workspaces/([0-9a-fA-F-]{36})/agent/sessions/([0-9a-fA-F-]{36})/turns/stream",
+            "agent-turn-stream",
+        ),
+        (
             "/api/v1/workspaces/([0-9a-fA-F-]{36})/agent/sessions/([0-9a-fA-F-]{36})"
             "/turns/([0-9a-fA-F-]{36})/confirm",
             "agent-confirm",

@@ -1131,6 +1131,8 @@ class AgentTurn(Base):
     error_code: Mapped[str | None] = mapped_column(String(80, collation="ascii_bin"))
     proposal: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True))
     receipt: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True))
+    thinking: Mapped[str | None] = mapped_column(Text)
+    steps: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON(none_as_null=True))
 
 
 class Bundle(Base):

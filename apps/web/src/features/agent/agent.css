@@ -481,6 +481,121 @@
     overflow-wrap: anywhere;
 }
 
+.vq-agent-reply-thinking {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0.6rem 0.85rem;
+    border-radius: 0.65rem;
+    background: var(--agent-soft);
+    color: var(--vq-muted);
+    font-size: 13px;
+}
+.vq-agent-reply-thinking .vq-agent-spinner {
+    width: 12px;
+    height: 12px;
+    border-width: 1.5px;
+}
+.vq-agent-thinking {
+    display: grid;
+    gap: 0.35rem;
+    min-width: 0;
+}
+.vq-agent-thinking-summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--vq-muted);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.vq-agent-thinking-summary .vq-agent-spinner {
+    width: 10px;
+    height: 10px;
+    border-width: 1.5px;
+}
+.vq-agent-thinking-chevron {
+    transition: transform 0.15s;
+}
+.vq-agent-thinking-chevron[data-open="true"] {
+    transform: rotate(90deg);
+}
+.vq-agent-thinking-body {
+    margin: 0;
+    padding: 0.5rem 0.75rem;
+    border-left: 2px solid var(--agent-border);
+    color: var(--vq-muted);
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+.vq-agent-steps {
+    display: grid;
+    gap: 0.35rem;
+    min-width: 0;
+}
+.vq-agent-step {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+    font-size: 13px;
+    color: var(--vq-secondary);
+}
+.vq-agent-step-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    flex: 0 0 auto;
+    font-size: 11px;
+}
+.vq-agent-step-icon .vq-agent-spinner {
+    width: 10px;
+    height: 10px;
+    border-width: 1.5px;
+}
+.vq-agent-step[data-status="SUCCEEDED"] .vq-agent-step-icon {
+    color: #079455;
+}
+.vq-agent-step[data-status="FAILED"] .vq-agent-step-icon {
+    color: #b42318;
+}
+.vq-agent-step-name {
+    font-weight: 600;
+}
+.vq-agent-step-summary {
+    color: var(--vq-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.vq-agent-step-error {
+    color: #b42318;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+}
+.vq-agent-cursor {
+    display: inline-block;
+    width: 7px;
+    height: 1.1em;
+    margin-inline-start: 2px;
+    background: var(--vq-brand);
+    vertical-align: text-bottom;
+    animation: vq-agent-blink 1s steps(2, start) infinite;
+}
+@keyframes vq-agent-blink {
+    to {
+        visibility: hidden;
+    }
+}
+
 .vq-agent-card {
     width: 100%;
     margin: 0;
