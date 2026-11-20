@@ -53,6 +53,7 @@ export function AgentSheet() {
                 onOpenChange={setOpen}
                 title={tx("Test Agent")}
                 size={wide ? "full" : "third"}
+                resizable={!wide}
                 headerAction={
                     <>
                         <button

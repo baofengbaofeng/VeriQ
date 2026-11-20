@@ -221,10 +221,13 @@
     gap: 0.65rem;
     margin-block-start: 0.85rem;
     padding: 0.85rem;
-    padding-bottom: 3.5rem;
+    padding-bottom: 4rem;
     border: 1px solid var(--agent-border);
     border-radius: 0.85rem;
     background: var(--agent-soft);
+}
+[data-theme="dark"] .vq-agent-composer {
+    background: var(--vq-surface);
 }
 .vq-agent-composer-actions {
     position: absolute;
@@ -270,6 +273,10 @@
     font: inherit;
     width: 100%;
     min-width: 0;
+}
+.vq-agent-composer-input:focus,
+.vq-agent-composer-input:focus-visible {
+    outline: none;
 }
 .vq-agent-archive,
 .vq-agent-send {

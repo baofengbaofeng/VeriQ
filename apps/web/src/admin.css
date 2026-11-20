@@ -527,7 +527,10 @@ button:not(:disabled):hover {
     gap: 6px 8px;
     margin: 8px 0;
 }
-.vq-sheet-header,
+.vq-sheet-header {
+    padding: 12px 16px;
+    min-height: var(--vq-header-height);
+}
 .vq-sheet-body {
     padding: 12px 16px;
 }
@@ -546,6 +549,19 @@ button:not(:disabled):hover {
     align-items: center;
     gap: 10px;
     min-width: 0;
+}
+.vq-sheet-resizer {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 6px;
+    cursor: col-resize;
+    z-index: 2;
+    touch-action: none;
+}
+.vq-sheet-resizer:hover {
+    background: var(--vq-brand-soft);
 }
 .vq-sheet-size-toggle {
     display: inline-flex;
