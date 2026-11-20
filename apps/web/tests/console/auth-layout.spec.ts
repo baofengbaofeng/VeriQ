@@ -26,7 +26,7 @@ test("sign-in page renders the standalone split layout", async ({ page }) => {
 });
 
 /**
- * 窄屏隐藏左侧品牌面板，仅保留居中表单与右上角工具行。
+ * 窄屏隐藏左侧品牌面板，仅保留居中表单与右上角工具行，确保小屏下登录表单完整可操作。
  */
 test("sign-in page hides the brand panel on narrow viewports", async ({ page }) => {
     await page.setViewportSize({ width: 700, height: 844 });

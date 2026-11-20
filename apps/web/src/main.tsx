@@ -141,9 +141,9 @@ function App() {
                 <p role="status">{tx("Loading VeriQ…")}</p>
             </main>
         );
-    const shell = (invitation?: React.ReactNode) => (
-        <Routes>
-            {/* 认证页：独立全屏分栏，访客不挂载 Workspace 上下文与应用外壳。 */}
+    const shell = (invitation?: React.ReactNode) => {
+        // 认证页：独立全屏分栏，访客不挂载 Workspace 上下文与应用外壳，登录初始化与重置统一由 AuthLayout 居中承载。
+        const authRoutes = (
             <Route element={<AuthLayout />}>
                 <Route path="/setup" element={<Setup />} />
                 <Route
@@ -153,7 +153,9 @@ function App() {
                 <Route path="/reset" element={<ResetRequest />} />
                 <Route path="/reset/confirm" element={<ResetConfirm />} />
             </Route>
-            {/* 已登录功能页：Workspace 上下文 + 应用外壳，按用户身份重挂载以清空查询与订阅。 */}
+        );
+        // 已登录功能页：保留 Workspace 上下文与应用外壳，按用户身份重挂载以清空查询与订阅，邀请与兜底路由同组渲染。
+        const consoleRoutes = (
             <Route
                 element={
                     <WorkspaceProvider key={user?.id ?? "anonymous"}>
@@ -186,8 +188,14 @@ function App() {
                     }
                 />
             </Route>
-        </Routes>
-    );
+        );
+        return (
+            <Routes>
+                {authRoutes}
+                {consoleRoutes}
+            </Routes>
+        );
+    };
     return (
         <Auth.Provider value={{ user, refresh, setupComplete: () => setInitialized(true) }}>
             <AcceptInvitation
