@@ -554,7 +554,8 @@ test("header creates and retains an authorized workspace across navigation", asy
     await menu.getByRole("menuitem", { name: "Sign out" }).press("Enter");
     await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
     await expect(selector).toHaveCount(0);
-    await expect(header.getByLabel("Language")).toBeVisible();
+    await expect(page.getByRole("banner")).toHaveCount(0);
+    await expect(page.getByLabel("Language")).toBeVisible();
 });
 
 test("TailAdmin profile dimensions and theme persist through real navigation", async ({ page }) => {
@@ -625,7 +626,7 @@ test("TailAdmin profile dimensions and theme persist through real navigation", a
     await profile.click();
     await page.getByRole("menuitem", { name: "Sign out", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
-    await expect(theme).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("button", { name: "Dark mode" })).toHaveAttribute("aria-pressed", "true");
 });
 
 test("theme still switches when browser preference storage is blocked", async ({ page }) => {
@@ -759,12 +760,12 @@ test("TailAdmin header sizes and nested language choices preserve the resource d
     await user.click();
     await expect(page.getByRole("menuitem", { name: /语言/ })).toContainText("ZH");
     await page.getByRole("menuitem", { name: "退出登录", exact: true }).click();
-    await expect(banner.getByRole("link", { name: "VeriQ", exact: true })).toBeVisible();
-    await banner.getByRole("combobox", { name: "语言" }).selectOption("en");
-    await expect(banner.getByRole("button", { name: "Dark mode" })).toBeVisible();
-    await expectBannerControls(page, 3, 48);
-    await expect(banner.locator(".vq-workspace-divider")).toHaveCount(0);
-    await expect(banner.getByText("Workspace", { exact: true })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
+    await expect(page.getByRole("banner")).toHaveCount(0);
+    await expect(page.getByRole("complementary").getByRole("img", { name: "VeriQ" })).toBeVisible();
+    await page.getByRole("combobox", { name: "语言" }).selectOption("en");
+    await expect(page.getByRole("button", { name: "Dark mode" })).toBeVisible();
+    await expect(page.getByLabel("Language")).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(1280);
 });
 
