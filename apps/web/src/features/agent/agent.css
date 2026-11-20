@@ -481,6 +481,110 @@
     overflow-wrap: anywhere;
 }
 
+.vq-agent-md {
+    min-width: 0;
+    line-height: 1.55;
+    white-space: normal;
+}
+.vq-agent-md > :first-child {
+    margin-top: 0;
+}
+.vq-agent-md > :last-child {
+    margin-bottom: 0;
+}
+.vq-agent-md p {
+    margin: 0.35rem 0;
+}
+.vq-agent-md h1,
+.vq-agent-md h2,
+.vq-agent-md h3,
+.vq-agent-md h4 {
+    margin: 0.6rem 0 0.3rem;
+    font-weight: 650;
+    line-height: 1.3;
+}
+.vq-agent-md h1 {
+    font-size: 1.25em;
+}
+.vq-agent-md h2 {
+    font-size: 1.15em;
+}
+.vq-agent-md h3 {
+    font-size: 1.05em;
+}
+.vq-agent-md h4 {
+    font-size: 1em;
+}
+.vq-agent-md ul,
+.vq-agent-md ol {
+    margin: 0.35rem 0;
+    padding-inline-start: 1.4rem;
+}
+.vq-agent-md li {
+    margin: 0.15rem 0;
+}
+.vq-agent-md code {
+    padding: 0.1rem 0.35rem;
+    border-radius: 0.3rem;
+    background: rgba(0, 0, 0, 0.06);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.9em;
+}
+.vq-agent-md pre {
+    margin: 0.5rem 0;
+    padding: 0.6rem 0.75rem;
+    border-radius: 0.5rem;
+    background: rgba(0, 0, 0, 0.06);
+    overflow-x: auto;
+    white-space: pre;
+}
+.vq-agent-md pre code {
+    padding: 0;
+    background: transparent;
+    font-size: 0.85em;
+}
+.vq-agent-md blockquote {
+    margin: 0.4rem 0;
+    padding-inline-start: 0.7rem;
+    border-inline-start: 3px solid var(--agent-border);
+    color: var(--vq-muted);
+}
+.vq-agent-md hr {
+    margin: 0.6rem 0;
+    border: none;
+    border-top: 1px solid var(--agent-border);
+}
+.vq-agent-md a {
+    color: inherit;
+    text-decoration: underline;
+}
+.vq-agent-md table {
+    border-collapse: collapse;
+    margin: 0.5rem 0;
+}
+.vq-agent-md th,
+.vq-agent-md td {
+    padding: 0.25rem 0.6rem;
+    border: 1px solid var(--agent-border);
+}
+.vq-agent-user-text .vq-agent-md {
+    color: #fff;
+}
+.vq-agent-user-text .vq-agent-md p {
+    color: #fff;
+}
+.vq-agent-user-text .vq-agent-md code,
+.vq-agent-user-text .vq-agent-md pre {
+    background: rgba(255, 255, 255, 0.16);
+}
+.vq-agent-user-text .vq-agent-md blockquote {
+    border-inline-start-color: rgba(255, 255, 255, 0.4);
+    color: inherit;
+}
+.vq-agent-user-text .vq-agent-md hr {
+    border-top-color: rgba(255, 255, 255, 0.3);
+}
+
 .vq-agent-reply-thinking {
     display: inline-flex;
     align-items: center;

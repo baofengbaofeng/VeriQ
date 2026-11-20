@@ -16,6 +16,7 @@ import { agentSubmission, clearAgentSubmission, hasPendingAgentConfirmation } fr
 import { AgentError, agentProblem } from "./feedback";
 import { Proposal, ActionReceipt } from "./Proposal";
 import { RunCard, type ReportNavigation, type RunReference } from "./RunCard";
+import { Markdown } from "./Markdown";
 
 type Turn = AgentSchemas["AgentTurnDTO"];
 
@@ -419,7 +420,9 @@ function Thread({
                             <div className="vq-agent-user">
                                 <div className="vq-agent-user-content">
                                     <span className="vq-agent-user-name">{ownerName}</span>
-                                    <p className="vq-agent-user-text">{turn.text}</p>
+                                    <div className="vq-agent-user-text">
+                                        <Markdown>{turn.text}</Markdown>
+                                    </div>
                                 </div>
                                 <Avatar name={ownerName} size={32} fontSize={13} />
                             </div>
@@ -545,7 +548,11 @@ function Thread({
                                                     ))}
                                                 </div>
                                             )}
-                                            {turn.reply && <p className="vq-agent-reply-body">{turn.reply}</p>}
+                                            {turn.reply && (
+                                                <div className="vq-agent-reply-body">
+                                                    <Markdown>{turn.reply}</Markdown>
+                                                </div>
+                                            )}
                                             {turn.status === "RUNNING" && partial && (
                                                 <p className="vq-agent-reply-body" role="status">
                                                     {partial}
