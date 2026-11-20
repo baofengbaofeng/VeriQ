@@ -452,7 +452,7 @@ export interface paths {
         delete: operations["archiveAgentSession"];
         options?: never;
         head?: never;
-        patch?: never;
+        patch: operations["renameAgentSession"];
         trace?: never;
     };
     "/api/v1/workspaces/{workspaceId}/agent/sessions/{sessionId}/turns": {
@@ -4478,6 +4478,7 @@ export interface components {
              */
             role: "OWNER" | "ADMIN" | "EDITOR" | "EXECUTOR" | "VIEWER";
             archived: boolean;
+            createdAt: components["schemas"]["Timestamp"];
         };
         WorkspaceWrite: {
             key: components["schemas"]["Key"];
@@ -4759,6 +4760,9 @@ export interface components {
         };
         AgentSessionCreate: {
             title?: string;
+        };
+        AgentSessionRename: {
+            title: string;
         };
         AgentSessionDTO: {
             id: components["schemas"]["Id"];
@@ -5548,6 +5552,12 @@ export interface components {
             displayName: string;
             disabled: boolean;
             systemAdmin: boolean;
+            createdAt: components["schemas"]["Timestamp"];
+            /**
+             * @enum {string|null}
+             */
+            role?: "OWNER" | "ADMIN" | "EDITOR" | "EXECUTOR" | "VIEWER" | null;
+            isMember?: boolean;
         };
         CreateUserRequest: {
             /**
@@ -5636,6 +5646,7 @@ export interface components {
              * @enum {string}
              */
             status: "PENDING" | "ACCEPTED" | "REVOKED" | "EXPIRED";
+            createdAt: components["schemas"]["Timestamp"];
         };
         InvitationSummaryDTOPageEnvelope: {
             data: {
@@ -10680,6 +10691,68 @@ export interface operations {
              * @description Stable JSON error; code is a machine-readable domain code.
              */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    renameAgentSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["Id"];
+                sessionId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentSessionRename"];
+            };
+        };
+        responses: {
+            /**
+             * @description Success.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentSessionDTOEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error; code is a machine-readable domain code.
+             */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -19260,6 +19333,18 @@ export interface operations {
                  * @description Filter by global administrator capability. Omit to include both.
                  */
                 systemAdmin?: boolean;
+                /**
+                 * @description Join workspace membership so each user carries role and isMember.
+                 */
+                workspaceId?: components["schemas"]["Id"];
+                /**
+                 * @description Comma-separated workspace roles to include. Ignored without workspaceId.
+                 */
+                role?: string;
+                /**
+                 * @description Filter by workspace membership. Ignored without workspaceId.
+                 */
+                membership?: "member" | "non-member";
             };
             header?: never;
             path?: never;

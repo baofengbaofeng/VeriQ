@@ -3116,6 +3116,86 @@
                         }
                     }
                 }
+            },
+            "patch": {
+                "operationId": "renameAgentSession",
+                "tags": ["agent"],
+                "security": [
+                    {
+                        "WebSession": [],
+                        "CsrfToken": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "workspaceId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/components/schemas/Id"
+                        }
+                    },
+                    {
+                        "name": "sessionId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/components/schemas/Id"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AgentSessionRename"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AgentSessionDTOEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    }
+                }
             }
         },
         "/api/v1/workspaces/{workspaceId}/agent/sessions/{sessionId}/turns": {
@@ -9313,6 +9393,27 @@
                         "required": false,
                         "description": "Filter by global administrator capability. Omit to include both.",
                         "schema": { "type": "boolean" }
+                    },
+                    {
+                        "name": "workspaceId",
+                        "in": "query",
+                        "required": false,
+                        "description": "Join workspace membership so each user carries role and isMember.",
+                        "schema": { "$ref": "#/components/schemas/Id" }
+                    },
+                    {
+                        "name": "role",
+                        "in": "query",
+                        "required": false,
+                        "description": "Comma-separated workspace roles to include. Ignored without workspaceId.",
+                        "schema": { "type": "string" }
+                    },
+                    {
+                        "name": "membership",
+                        "in": "query",
+                        "required": false,
+                        "description": "Filter by workspace membership. Ignored without workspaceId.",
+                        "schema": { "type": "string", "enum": ["member", "non-member"] }
                     }
                 ],
                 "description": "Bounded keyset pagination in stable email/ID order. Concurrent changes are not a frozen snapshot; restart paging to refresh filters or see newly inserted preceding rows."
@@ -12326,9 +12427,10 @@
                     "key": { "$ref": "#/components/schemas/Key" },
                     "name": { "type": "string", "minLength": 1, "maxLength": 160 },
                     "role": { "type": "string", "enum": ["OWNER", "ADMIN", "EDITOR", "EXECUTOR", "VIEWER"] },
-                    "archived": { "type": "boolean" }
+                    "archived": { "type": "boolean" },
+                    "createdAt": { "$ref": "#/components/schemas/Timestamp" }
                 },
-                "required": ["id", "key", "name", "role", "archived"],
+                "required": ["id", "key", "name", "role", "archived", "createdAt"],
                 "additionalProperties": false
             },
             "WorkspaceWrite": {
@@ -12713,6 +12815,9 @@
             },
             "AgentSessionCreate": {
                 "$ref": "../schemas/platform-v1.schema.json#/$defs/AgentSessionCreate"
+            },
+            "AgentSessionRename": {
+                "$ref": "../schemas/platform-v1.schema.json#/$defs/AgentSessionRename"
             },
             "AgentSessionDTO": {
                 "$ref": "../schemas/platform-v1.schema.json#/$defs/AgentSessionDTO"
@@ -14041,9 +14146,15 @@
                     "email": { "type": "string", "format": "email" },
                     "displayName": { "type": "string", "minLength": 1 },
                     "disabled": { "type": "boolean" },
-                    "systemAdmin": { "type": "boolean" }
+                    "systemAdmin": { "type": "boolean" },
+                    "createdAt": { "$ref": "#/components/schemas/Timestamp" },
+                    "role": {
+                        "type": ["string", "null"],
+                        "enum": ["OWNER", "ADMIN", "EDITOR", "EXECUTOR", "VIEWER", null]
+                    },
+                    "isMember": { "type": "boolean" }
                 },
-                "required": ["id", "email", "displayName", "disabled", "systemAdmin"],
+                "required": ["id", "email", "displayName", "disabled", "systemAdmin", "createdAt"],
                 "additionalProperties": false
             },
             "CreateUserRequest": {
@@ -14193,9 +14304,10 @@
                     "email": { "type": "string", "format": "email" },
                     "role": { "type": "string", "enum": ["ADMIN", "EDITOR", "EXECUTOR", "VIEWER"] },
                     "expiresAt": { "$ref": "#/components/schemas/Timestamp" },
-                    "status": { "type": "string", "enum": ["PENDING", "ACCEPTED", "REVOKED", "EXPIRED"] }
+                    "status": { "type": "string", "enum": ["PENDING", "ACCEPTED", "REVOKED", "EXPIRED"] },
+                    "createdAt": { "$ref": "#/components/schemas/Timestamp" }
                 },
-                "required": ["id", "email", "role", "expiresAt", "status"],
+                "required": ["id", "email", "role", "expiresAt", "status", "createdAt"],
                 "additionalProperties": false
             },
             "InvitationSummaryDTOPageEnvelope": {

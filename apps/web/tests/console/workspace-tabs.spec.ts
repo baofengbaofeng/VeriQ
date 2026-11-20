@@ -19,10 +19,10 @@ test("workspace settings tabs isolate member management and provider configurati
     await page.goto("/workspaces?view=compact#settings");
     await chooseWorkspace(page, scope.workspaceId);
     const tabs = page.getByRole("tablist", { name: "Workspace settings" });
-    await expect(tabs.getByRole("tab")).toHaveText(["Basic information", "Members", "AI settings"]);
+    await expect(tabs.getByRole("tab")).toHaveText(["Basic information", "Members", "AI providers"]);
     const basic = tabs.getByRole("tab", { name: "Basic information" });
     const members = tabs.getByRole("tab", { name: "Members" });
-    const ai = tabs.getByRole("tab", { name: "AI settings" });
+    const ai = tabs.getByRole("tab", { name: "AI providers" });
     await expect(basic).toHaveAttribute("aria-selected", "true");
     await expect(
         page.getByRole("tabpanel", { name: "Basic information" }).getByRole("button", { name: "Rename Workspace" }),
@@ -45,7 +45,7 @@ test("workspace settings tabs isolate member management and provider configurati
     await members.press("End");
     await expect(ai).toBeFocused();
     await ai.press("Space");
-    const panel = page.getByRole("tabpanel", { name: "AI settings" });
+    const panel = page.getByRole("tabpanel", { name: "AI providers" });
     const form = panel.getByRole("group", { name: "Provider", exact: true });
     await expect(form).toBeVisible();
     await form.getByLabel("Name", { exact: true }).fill("Disabled UI provider");

@@ -17,7 +17,7 @@ class AgentAPI(API):
     _methods = {
         "agent-settings": {"GET", "PUT"},
         "agent-sessions": {"GET", "POST"},
-        "agent-session": {"GET", "DELETE"},
+        "agent-session": {"GET", "PATCH", "DELETE"},
         "agent-turns": {"GET", "POST"},
         "agent-confirm": {"POST"},
     }
@@ -80,6 +80,15 @@ class AgentAPI(API):
         ):
             result = await service.write_settings(session, scope, user, data)
         self.respond(result)
+
+    async def patch(self, workspace_id: str, session_id: str) -> None:
+        """重命名个人会话标题；正文只接受新的标题字段，归属校验沿用现有服务并返回更新后的会话 DTO。"""
+        scope = WorkspaceScope(workspace_id)
+        service = self._sessions()
+        data = self.body("AgentSessionRename")
+        async with service.transaction(scope, write=True) as (session, user):
+            row = await service.rename_session(session, scope, user, session_id, data["title"].strip())
+        self.respond(session_dto(row))
 
     async def post(
         self, workspace_id: str, session_id: str | None = None, turn_id: str | None = None

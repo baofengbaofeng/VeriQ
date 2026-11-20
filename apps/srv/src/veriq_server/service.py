@@ -78,6 +78,7 @@ def user_dto(user: User) -> dict[str, Any]:
         "email": user.email,
         "displayName": user.display_name,
         "disabled": user.disabled,
+        "createdAt": stamp(user.created_at),
     }
 
 
@@ -172,6 +173,7 @@ async def create_user(s: AsyncSession, data: dict[str, Any], *, first: bool = Fa
         password_hash=await hash_password(data["password"]),
         disabled=False,
         system_admin=first or data.get("systemAdmin", False),
+        created_at=now(),
     )
     s.add(user)
     await s.flush()

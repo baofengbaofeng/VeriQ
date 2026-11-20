@@ -1,5 +1,5 @@
 from sqlalchemy import delete, select, func, and_, or_
-from ..db import User, UserToken
+from ..db import User, UserToken, WorkspaceMember
 from ..service import (
     Problem,
     admin_dto,
@@ -37,6 +37,9 @@ class AdminAPI(API):
                     )
                 disabled = boolean_filter(self, "disabled")
                 system_admin = boolean_filter(self, "systemAdmin")
+                workspace_id = self.get_query_argument("workspaceId", "")
+                membership = self.get_query_argument("membership", "")
+                roles = [role for role in (self.get_query_argument("role", "") or "").split(",") if role]
                 page = Page.read(
                     self,
                     {
@@ -45,10 +48,20 @@ class AdminAPI(API):
                         "q": query,
                         "disabled": disabled,
                         "systemAdmin": system_admin,
+                        "workspaceId": workspace_id,
+                        "membership": membership,
+                        "role": ",".join(roles),
                     },
                     self.config.signing_key.get_secret_value(),
                 )
-                statement = select(User)
+                # 左连接工作区成员关系；未提供 workspaceId 时连接条件恒不成立，成员字段保持空以保留纯系统用户列表语义。
+                statement = select(User, WorkspaceMember).outerjoin(
+                    WorkspaceMember,
+                    and_(
+                        WorkspaceMember.workspace_id == workspace_id,
+                        WorkspaceMember.user_id == User.id,
+                    ),
+                )
                 if query:
                     statement = statement.where(
                         or_(
@@ -60,23 +73,39 @@ class AdminAPI(API):
                     statement = statement.where(User.disabled.is_(disabled))
                 if system_admin is not None:
                     statement = statement.where(User.system_admin.is_(system_admin))
+                if membership == "member":
+                    statement = statement.where(WorkspaceMember.status == "ACTIVE")
+                elif membership == "non-member":
+                    statement = statement.where(
+                        or_(WorkspaceMember.user_id.is_(None), WorkspaceMember.status != "ACTIVE")
+                    )
+                if roles:
+                    statement = statement.where(WorkspaceMember.role.in_(roles))
                 if page.last:
                     email, identifier = page.last
                     statement = statement.where(
                         or_(User.email > email, and_(User.email == email, User.id > identifier))
                     )
-                rows = (
-                    (await s.execute(statement.order_by(User.email, User.id).limit(page.limit + 1)))
-                    .scalars()
-                    .all()
-                )
-                users = rows[: page.limit]
+                rows = (await s.execute(statement.order_by(User.email, User.id).limit(page.limit + 1))).all()
+                page_rows = rows[: page.limit]
                 cursor = (
-                    page.next((users[-1].email, users[-1].id), len(rows) > page.limit)
-                    if users
+                    page.next((page_rows[-1][0].email, page_rows[-1][0].id), len(rows) > page.limit)
+                    if page_rows
                     else None
                 )
-                self.respond({"items": [admin_dto(user) for user in users], "nextCursor": cursor})
+                self.respond(
+                    {
+                        "items": [
+                            {
+                                **admin_dto(user),
+                                "role": member.role if member else None,
+                                "isMember": bool(member and member.status == "ACTIVE"),
+                            }
+                            for user, member in page_rows
+                        ],
+                        "nextCursor": cursor,
+                    }
+                )
             else:
                 raise Problem(404, "NOT_FOUND", "API endpoint not found")
 

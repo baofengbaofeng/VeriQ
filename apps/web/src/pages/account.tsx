@@ -5,8 +5,9 @@
  */
 
 import { tx, useAppLocale } from "../locale";
-import { useState, useContext, useEffect, useLayoutEffect, useCallback, useRef } from "react";
+import { useState, useContext, useEffect, useLayoutEffect, useCallback, useRef, Fragment } from "react";
 import { Link, Navigate } from "react-router-dom";
+import * as Dialog from "@radix-ui/react-dialog";
 import { api, type AccountSessions } from "../api";
 import { Avatar } from "../components";
 import { Auth } from "../auth-context";
@@ -24,6 +25,8 @@ export function Account() {
     const [sessions, setSessions] = useState<AccountSessions | null>(null);
     const passwordForm = useRef<HTMLFormElement>(null);
     const [limit, setLimit] = useState(25);
+    const [showPassword, setShowPassword] = useState(false);
+    const [revokeOpen, setRevokeOpen] = useState(false);
     const userId = user?.id;
     const key = JSON.stringify([userId, limit]);
     const owner = useRef({ key, request: 0, mounted: false });
@@ -82,7 +85,6 @@ export function Account() {
                 </nav>
             </div>
             <div className="vq-profile">
-                <h2>{tx("Profile")}</h2>
                 <section className="vq-profile-card vq-profile-summary">
                     <Avatar name={user.displayName} size={80} fontSize={16} />
                     <div className="vq-profile-meta">
@@ -92,7 +94,8 @@ export function Account() {
                     <button
                         type="button"
                         className="vq-profile-edit"
-                        onClick={() => passwordForm.current?.querySelector("input")?.focus()}
+                        aria-expanded={showPassword}
+                        onClick={() => setShowPassword(!showPassword)}
                     >
                         <svg aria-hidden="true" width="18" height="18">
                             <use href={`${adminIcons}#edit`} />
@@ -117,46 +120,58 @@ export function Account() {
                         </div>
                     </dl>
                 </section>
-                <section className="vq-profile-card">
-                    <h3>{tx("Change password")}</h3>
-                    <form
-                        ref={passwordForm}
-                        onSubmit={(e) => {
-                            const v = values(e);
-                            void a.run(async () => {
-                                await api.password({
-                                    currentPassword: v.currentPassword,
-                                    newPassword: v.newPassword,
+                {showPassword && (
+                    <section className="vq-profile-card">
+                        <h3>{tx("Change password")}</h3>
+                        <form
+                            ref={passwordForm}
+                            className="vq-password-form"
+                            onSubmit={(e) => {
+                                const v = values(e);
+                                void a.run(async () => {
+                                    await api.password({
+                                        currentPassword: v.currentPassword,
+                                        newPassword: v.newPassword,
+                                    });
+                                    await signedOut();
                                 });
-                                await signedOut();
-                            });
-                        }}
-                    >
-                        <Field name="currentPassword" label={tx("Current password")} type="password" />
-                        <Field
-                            name="newPassword"
-                            label={tx("New password (at least 12 characters)")}
-                            type="password"
-                            minLength={12}
-                            longHint={tx("至少 12 个字符，建议混用字母、数字与符号。")}
-                        />
-                        <button type="submit" disabled={a.busy}>
-                            {tx("Change password and sign out")}
-                        </button>
-                    </form>
-                </section>
+                            }}
+                        >
+                            <Field name="currentPassword" label={tx("Current password")} type="password" />
+                            <Field
+                                name="newPassword"
+                                label={tx("New password (at least 12 characters)")}
+                                type="password"
+                                minLength={12}
+                                longHint={tx("至少 12 个字符，建议混用字母、数字与符号。")}
+                            />
+                            <button type="submit" disabled={a.busy}>
+                                {tx("Change password and sign out")}
+                            </button>
+                        </form>
+                    </section>
+                )}
                 <section className="vq-profile-card">
-                    <h3>{tx("Active sessions")}</h3>
-                    <label>
-                        {tx("Sessions per page")}
-                        <select value={limit} disabled={a.busy} onChange={(e) => setLimit(Number(e.target.value))}>
-                            {[1, 10, 25, 50, 100].map((value) => (
-                                <option key={value} value={value}>
-                                    {value}
-                                </option>
+                    <div className="vq-sessions-head">
+                        <h3>{tx("Active sessions")}</h3>
+                        <div className="vq-session-limit">
+                            <span>{tx("Sessions per page")}:</span>
+                            {[1, 10, 25, 50, 100].map((value, index) => (
+                                <Fragment key={value}>
+                                    {index > 0 && <span className="vq-session-limit-sep">/</span>}
+                                    <button
+                                        type="button"
+                                        className="vq-session-limit-option"
+                                        aria-pressed={limit === value}
+                                        disabled={a.busy}
+                                        onClick={() => setLimit(value)}
+                                    >
+                                        {value}
+                                    </button>
+                                </Fragment>
                             ))}
-                        </select>
-                    </label>
+                        </div>
+                    </div>
                     {!sessions ? (
                         a.error ? (
                             <div>
@@ -175,36 +190,81 @@ export function Account() {
                     ) : sessions.items.length === 0 ? (
                         <p>{tx("No active sessions.")}</p>
                     ) : (
-                        <ul>
-                            {sessions.items.map((s) => (
-                                <li key={s.id}>
-                                    {s.current ? tx("This session") : tx("Other session")} {tx(" · Expires")}{" "}
-                                    {new Date(s.expiresAt).toLocaleString()}
-                                </li>
-                            ))}
-                        </ul>
+                        <div className="table-scroll">
+                            <table className="vq-user-table">
+                                <thead>
+                                    <tr>
+                                        <th>{tx("Session")}</th>
+                                        <th>{tx("Created")}</th>
+                                        <th>{tx("Expires")}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {sessions.items.map((s) => (
+                                        <tr key={s.id}>
+                                            <td>{s.current ? tx("This session") : tx("Other session")}</td>
+                                            <td>{new Date(s.createdAt).toLocaleString()}</td>
+                                            <td>{new Date(s.expiresAt).toLocaleString()}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     )}
-                    {sessions?.nextCursor && (
+                    <div className="vq-sessions-actions">
+                        {sessions?.nextCursor && (
+                            <button
+                                type="button"
+                                disabled={a.busy}
+                                onClick={() => void a.run(() => loadSessions(sessions.nextCursor!))}
+                            >
+                                {a.busy ? tx("Loading sessions…") : tx("Load more sessions")}
+                            </button>
+                        )}
                         <button
                             type="button"
+                            className="vq-btn-danger"
                             disabled={a.busy}
-                            onClick={() => void a.run(() => loadSessions(sessions.nextCursor!))}
+                            onClick={() => setRevokeOpen(true)}
                         >
-                            {a.busy ? tx("Loading sessions…") : tx("Load more sessions")}
+                            {tx("Revoke all sessions and sign out")}
                         </button>
-                    )}
-                    <button
-                        type="button"
-                        disabled={a.busy}
-                        onClick={() =>
-                            void a.run(async () => {
-                                await api.revokeOwn();
-                                await signedOut();
-                            })
-                        }
-                    >
-                        {tx("Revoke all sessions and sign out")}
-                    </button>
+                    </div>
+                    <Dialog.Root open={revokeOpen} onOpenChange={setRevokeOpen}>
+                        <Dialog.Portal>
+                            <Dialog.Overlay className="vq-overlay vq-workspace-overlay" />
+                            <Dialog.Content className="vq-dialog vq-workspace-dialog">
+                                <div className="vq-card-heading">
+                                    <Dialog.Title>{tx("Revoke all sessions and sign out")}</Dialog.Title>
+                                    <Dialog.Close className="vq-sheet-close" aria-label={tx("Close")}>
+                                        ×
+                                    </Dialog.Close>
+                                </div>
+                                <Dialog.Description className="vq-workspace-key-hint">
+                                    {tx("Revoke all sessions hint")}
+                                </Dialog.Description>
+                                <div className="vq-workspace-form-actions">
+                                    <Dialog.Close type="button" className="vq-btn-secondary">
+                                        {tx("Cancel")}
+                                    </Dialog.Close>
+                                    <button
+                                        type="button"
+                                        className="vq-btn-danger"
+                                        disabled={a.busy}
+                                        onClick={() =>
+                                            void a.run(async () => {
+                                                await api.revokeOwn();
+                                                setRevokeOpen(false);
+                                                await signedOut();
+                                            })
+                                        }
+                                    >
+                                        {tx("Revoke all sessions and sign out")}
+                                    </button>
+                                </div>
+                            </Dialog.Content>
+                        </Dialog.Portal>
+                    </Dialog.Root>
                 </section>
                 <Notice error={a.error} />
             </div>

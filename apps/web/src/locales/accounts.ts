@@ -75,6 +75,10 @@ export const accountsMessages: Record<string, readonly [string, string]> = {
     "Working…": ["正在处理…", "Working…"],
     "One-time reset link": ["一次性重置链接", "One-time reset link"],
     Expires: ["过期时间", "Expires"],
+    "Revoke all sessions hint": [
+        "将吊销本账户的所有会话并退出登录。",
+        "This revokes all sessions for your account and signs you out.",
+    ],
     ". Share privately with this user.": ["。请通过私密方式交给该用户。", ". Share privately with this user."],
     "Reset link": ["重置链接", "Reset link"],
     "Copy link": ["复制链接", "Copy link"],

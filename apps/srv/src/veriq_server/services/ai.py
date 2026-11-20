@@ -20,7 +20,7 @@ from ..contracts import canonical_bytes, _schema, validate_schema
 from ..credentials.crypto import EncryptedValue
 from ..credentials.service import configured_keyring
 from ..db import AiProvider, AiGeneration, Database, User, UserSession
-from ..infrastructure.providers import DraftContext, ProviderGateway, ModelReply, allowed_endpoint
+from ..infrastructure.providers import DraftContext, ProviderGateway, ModelReply
 from ..pagination import Page
 from ..repositories.resource import ResourceRepository
 from ..service import Problem, lock_installation, now, stamp, audit
@@ -182,8 +182,6 @@ class AiService:
             raise Problem(404, "AI_PROVIDER_NOT_FOUND", "Provider not found")
         if enabled and not row.enabled:
             raise Problem(409, "AI_PROVIDER_DISABLED", "Provider is disabled")
-        if enabled:
-            allowed_endpoint(row.config["baseURL"], self.settings)
         return row
 
     async def budget(self, s: AsyncSession, row: AiProvider) -> dict[str, Any]:
@@ -272,11 +270,10 @@ class AiService:
     async def write_provider(
         self, scope: WorkspaceScope, data: dict[str, Any], pid: str | None = None
     ) -> dict[str, Any]:
-        """创建或更新提供方，校验允许的 base URL 白名单，AiService.write_provider 遵守本文件边界。
+        """创建或更新提供方，只校验必填字段，AiService.write_provider 遵守本文件边界。
         write_provider 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
         勿假设通用成功默认值。
         """
-        allowed_endpoint(data["baseURL"], self.settings)
         async with self.transaction(scope, Permission.MANAGE_WORKSPACE, True) as (s, user):
             config = {k: v for k, v in data.items() if k not in {"apiKey", "enabled"}}
             if pid:
@@ -540,18 +537,10 @@ class AiService:
             return {**result, "errorCode": "AI_GENERATION_EXPIRED"}
         p = await s.get(AiProvider, g.provider_id)
         public = {"inputTokens", "outputTokens", "errorCode", "pricing"}
-        endpoint_authorized = False
-        if p:
-            try:
-                allowed_endpoint(p.config["baseURL"], self.settings)
-                endpoint_authorized = True
-            except Problem:
-                pass  # 运维可独立撤销白名单中的端点，即使 Provider 记录仍然启用，历史也要扣留输出。
         if (
             p
             and not p.deleted
             and p.enabled
-            and endpoint_authorized
             and p.revision == g.data["providerRevision"]
         ):
             public |= {
