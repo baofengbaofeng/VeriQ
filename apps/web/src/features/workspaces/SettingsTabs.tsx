@@ -11,7 +11,7 @@ import { tx } from "../../locale";
 export const settingsTabs = [
     { id: "basic", label: "Basic information", icon: "settings" },
     { id: "members", label: "Members", icon: "admin" },
-    { id: "ai", label: "AI settings", icon: "ai-settings" },
+    { id: "ai-providers", label: "AI providers", icon: "ai-settings" },
 ] as const;
 /**
  * 只允许设置页公开的三种标签值，外部链接中的其他查询值由调用方退回默认的基本信息面板。

@@ -50,6 +50,10 @@ export class CloudAgentAdapter {
     session = (id: string, signal?: AbortSignal) =>
         request<AgentSchemas["AgentSessionDTO"]>(this.sessionPath(id), "GET", undefined, signal);
 
+    // 重命名只接受新的标题字段，服务端返回更新后的会话 DTO 供本地列表刷新。
+    renameSession = (id: string, data: AgentSchemas["AgentSessionRename"], signal?: AbortSignal) =>
+        request<AgentSchemas["AgentSessionDTO"]>(this.sessionPath(id), "PATCH", data, signal);
+
     // 归档只改变历史筛选状态，当前会话及轮次仍存在，因此无需提交任何正文或额外业务修订。
     archive = (id: string, signal?: AbortSignal) =>
         request<AgentSchemas["Empty"]>(this.sessionPath(id), "DELETE", undefined, signal);

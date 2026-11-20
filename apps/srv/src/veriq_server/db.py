@@ -68,6 +68,7 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255, collation="ascii_bin"))
     disabled: Mapped[bool] = mapped_column(Boolean, default=False)
     system_admin: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
 
 
 class UserSession(Base):

@@ -17,6 +17,7 @@ export function Sheet({
     title,
     description,
     fallbackFocus,
+    headerAction,
     children,
     size = "default",
 }: {
@@ -25,8 +26,9 @@ export function Sheet({
     title: string;
     description?: string;
     fallbackFocus?: RefObject<HTMLElement>;
+    headerAction?: ReactNode;
     children: ReactNode;
-    size?: "default" | "wide";
+    size?: "default" | "wide" | "third" | "full";
 }) {
     useAppLocale();
     const wasOpen = useRef(false);
@@ -43,7 +45,15 @@ export function Sheet({
             <DialogPrimitive.Portal>
                 <DialogPrimitive.Overlay className="vq-sheet-overlay" />
                 <DialogPrimitive.Content
-                    className={size === "wide" ? "vq-sheet vq-sheet-wide" : "vq-sheet"}
+                    className={`vq-sheet${
+                        size === "wide"
+                            ? " vq-sheet-wide"
+                            : size === "third"
+                              ? " vq-sheet-third"
+                              : size === "full"
+                                ? " vq-sheet-full"
+                                : ""
+                    }`}
                     onCloseAutoFocus={(event) => {
                         // 焦点作用域在严格模式下也会模拟卸载；仍打开时不能抢焦点，跨空间卸载也不返回旧入口。
                         event.preventDefault();
@@ -57,7 +67,10 @@ export function Sheet({
                     }}
                 >
                     <div className="vq-sheet-header">
-                        <DialogPrimitive.Title className="vq-sheet-title">{title}</DialogPrimitive.Title>
+                        <div className="vq-sheet-heading">
+                            <DialogPrimitive.Title className="vq-sheet-title">{title}</DialogPrimitive.Title>
+                            {headerAction}
+                        </div>
                         <DialogPrimitive.Close className="vq-sheet-close" aria-label={tx("Close")}>
                             ×
                         </DialogPrimitive.Close>

@@ -405,6 +405,62 @@
 .vq-profile-card form button[type="submit"] {
     justify-self: start;
 }
+.vq-password-form {
+    display: flex;
+    align-items: flex-end;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+.vq-password-form .vq-field {
+    flex: 0 0 auto;
+    width: 20rem;
+    max-width: 100%;
+}
+.vq-password-form .vq-field-label {
+    white-space: nowrap;
+}
+.vq-session-limit {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+    color: var(--vq-profile-body);
+}
+.vq-session-limit-option {
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--vq-brand);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+}
+.vq-session-limit-sep {
+    color: var(--vq-profile-muted);
+    font-weight: 300;
+}
+.vq-session-limit-option[aria-pressed="true"] {
+    font-weight: 650;
+    text-decoration: underline;
+}
+.vq-sessions-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+.vq-sessions-head h3 {
+    margin: 0;
+}
+.vq-sessions-actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 12px;
+    margin-top: 20px;
+}
 @media (min-width: 1024px) {
     .vq-content-inner:has(.vq-account),
     .vq-profile,

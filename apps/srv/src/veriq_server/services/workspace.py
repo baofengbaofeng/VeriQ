@@ -146,6 +146,7 @@ def workspace_dto(workspace: Workspace, role: str) -> dict[str, Any]:
         "name": workspace.name,
         "role": role,
         "archived": workspace.archived,
+        "createdAt": stamp(workspace.created_at),
     }
 
 
@@ -184,4 +185,5 @@ def invitation_dto(invite: WorkspaceInvite) -> dict[str, Any]:
         "role": invite.role,
         "expiresAt": stamp(invite.expires_at),
         "status": status,
+        "createdAt": stamp(invite.created_at),
     }

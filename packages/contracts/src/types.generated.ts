@@ -2274,6 +2274,7 @@ export interface ContractDefinitions {
   AgentSettingsWrite?: AgentSettingsWrite;
   AgentSettingsDTO?: AgentSettingsDTO;
   AgentSessionCreate?: AgentSessionCreate;
+  AgentSessionRename?: AgentSessionRename;
   AgentSessionDTO?: AgentSessionDTO;
   AgentTurnSubmit?: AgentTurnSubmit;
   AgentPlanPreview?: AgentPlanPreview;
@@ -3553,6 +3554,13 @@ export interface AgentSettingsDTO {
  */
 export interface AgentSessionCreate {
   title?: string;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "AgentSessionRename".
+ */
+export interface AgentSessionRename {
+  title: string;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema

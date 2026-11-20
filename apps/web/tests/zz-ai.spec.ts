@@ -104,11 +104,11 @@ test.afterAll(async () => {
     await new Promise<void>((resolve, reject) => model.close((e) => (e ? reject(e) : resolve())));
 });
 
-test("workspace AI settings show connection status only for the tested provider revision", async ({ page }) => {
+test("workspace AI providers show connection status only for the tested provider revision", async ({ page }) => {
     await editorScope(page, `settings-model-${randomUUID()}`);
     await page.getByRole("link", { name: "Workspace settings", exact: true }).click();
-    await page.getByRole("tab", { name: "AI settings", exact: true }).click();
-    const panel = page.getByRole("tabpanel", { name: "AI settings" });
+    await page.getByRole("tab", { name: "AI providers", exact: true }).click();
+    const panel = page.getByRole("tabpanel", { name: "AI providers" });
     const form = panel.getByRole("group", { name: "Provider", exact: true });
     await form.getByLabel("Name", { exact: true }).fill("Local HTTP protocol emulator");
     await form.getByLabel("Base URL").fill("http://127.0.0.1:18890/v1");

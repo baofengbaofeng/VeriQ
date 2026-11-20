@@ -43,6 +43,7 @@ export function AgentPage() {
                     key={`${user.id}/${workspace.id}/${initialPlan ?? ""}`}
                     workspace={workspace}
                     owner={user.id}
+                    ownerName={user.displayName}
                     adapter={adapters.agent}
                     providers={adapters.providers}
                     reports={adapters.reports}

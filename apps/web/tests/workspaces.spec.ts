@@ -116,7 +116,7 @@ test("real Workspace selection, invitation acceptance and member permissions", a
     await expect(page.getByLabel("Copy invitation link")).toBeVisible();
     expect((await page.getByLabel("Copy invitation link").inputValue()) === invitation).toBe(true);
     await page.getByRole("tab", { name: "Basic information" }).click();
-    await page.getByRole("tab", { name: "AI settings" }).click();
+    await page.getByRole("tab", { name: "AI providers" }).click();
     await page.getByRole("tab", { name: "Members" }).click();
     await expect(page.getByLabel("Copy invitation link")).toBeVisible();
     expect((await page.getByLabel("Copy invitation link").inputValue()) === invitation).toBe(true);
@@ -142,8 +142,8 @@ test("real Workspace selection, invitation acceptance and member permissions", a
     await viewer.getByRole("tab", { name: "Members" }).click();
     await expect(viewer.getByRole("tabpanel", { name: "Members" })).toContainText("Workspace Viewer");
     await expect(viewer.getByRole("button", { name: "Create invitation" })).toHaveCount(0);
-    await viewer.getByRole("tab", { name: "AI settings" }).click();
-    await expect(viewer.getByRole("tabpanel", { name: "AI settings" })).toContainText(
+    await viewer.getByRole("tab", { name: "AI providers" }).click();
+    await expect(viewer.getByRole("tabpanel", { name: "AI providers" })).toContainText(
         "Provider configuration is read-only.",
     );
     await expect(viewer.getByRole("button", { name: "Save provider" })).toHaveCount(0);
@@ -232,8 +232,8 @@ test("real Workspace selection, invitation acceptance and member permissions", a
     await page.getByRole("tab", { name: "Basic information" }).click();
     await page.getByRole("button", { name: "Archive Workspace" }).click();
     await expect(page.getByRole("article")).toContainText("Archived");
-    await page.getByRole("tab", { name: "AI settings" }).click();
-    await expect(page.getByRole("tabpanel", { name: "AI settings" })).toContainText(
+    await page.getByRole("tab", { name: "AI providers" }).click();
+    await expect(page.getByRole("tabpanel", { name: "AI providers" })).toContainText(
         "Provider configuration is read-only.",
     );
     await expect(page.getByRole("button", { name: "New provider" })).toHaveCount(0);

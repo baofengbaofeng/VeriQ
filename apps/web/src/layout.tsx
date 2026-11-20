@@ -20,6 +20,7 @@ import { Auth } from "./auth-context";
 import { tx, useAppLocale } from "./locale";
 import { LanguageControl } from "./locale-ui";
 import { WorkspaceControls } from "./features/workspaces/WorkspaceControls";
+import { AgentSheet } from "./features/agent/AgentSheet";
 
 import adminIcons from "./admin-icons.svg?no-inline";
 import logoLight from "../../../assets/branding/verifyquality-logo-light.svg";
@@ -48,7 +49,6 @@ const authoring: MenuGroup = {
         { path: "/resources", label: "Resources" },
         { path: "/environments", label: "Environments" },
         { path: "/ai", label: "AI" },
-        { path: "/agent", label: "Test Agent" },
     ],
 };
 const execution: MenuGroup = {
@@ -177,6 +177,7 @@ function Sidebar({ collapsed }: { collapsed: boolean }) {
                 {tx("Menu")}
             </button>
             <nav className="vq-nav" id="vq-navigation" aria-label={tx("Main navigation")}>
+                <span className="vq-nav-group-label">{tx("Menu")}</span>
                 {renderGroup(authoring)}
                 {renderGroup(execution)}
                 <NavLink className="vq-nav-item" to="/reports" aria-label={tx("Reports")} onClick={close}>
@@ -417,6 +418,7 @@ function Header({
                 </Link>
             )}
             {user && <WorkspaceControls visible />}
+            {user && <AgentSheet />}
             {collapsible && (
                 <button
                     ref={more}

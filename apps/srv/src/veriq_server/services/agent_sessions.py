@@ -229,6 +229,14 @@ class AgentSessionService:
             raise Problem(409, "AGENT_SESSION_ARCHIVED", "Conversation session is archived")
         return row
 
+    async def rename_session(
+        self, session: AsyncSession, scope: WorkspaceScope, user: User, session_id: str, title: str
+    ) -> AgentSession:
+        """重命名只更新个人会话标题，仍受工作区与员工归属约束；归档会话同样可改标题以保持可辨识。"""
+        row = await self.require_owned_session(session, scope, user, session_id)
+        row.title = title
+        return row
+
     async def require_owned_turn(
         self, session: AsyncSession, owned: AgentSession, turn_id: str
     ) -> AgentTurn:

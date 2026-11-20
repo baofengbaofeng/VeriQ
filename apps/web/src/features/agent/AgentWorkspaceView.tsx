@@ -1,9 +1,12 @@
 /**
  * Web 和 Electron 都使用同一工作区会话视图，当前员工的会话列表和模型状态与独立运行报告共享已有服务端授权。
  */
-import { useCallback, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
+import * as Dialog from "@radix-ui/react-dialog";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { tx, useAppLocale } from "../../locale";
+import icons from "../../admin-icons.svg?no-inline";
 import type { Workspace } from "../../api";
 import type { AiAdapter } from "../ai/adapters";
 import type { ReportAdapter } from "../reports/adapters";
@@ -12,7 +15,7 @@ import type { CloudAgentAdapter } from "./adapters";
 import { AgentError } from "./feedback";
 import { Conversation } from "./Conversation";
 import { useAgentLifetime } from "./lifetime";
-import { ModelSettings } from "./ModelSettings";
+import { useAgentSettings } from "./ModelSettings";
 import type { ReportNavigation } from "./RunCard";
 import "./agent.css";
 
@@ -46,6 +49,8 @@ interface WorkspaceProps {
     parentSignal?: AbortSignal;
     navigate: ReportNavigation;
     initialPlanId?: string;
+    wide?: boolean;
+    ownerName?: string;
 }
 
 /**
@@ -148,24 +153,42 @@ function withoutDeniedSessions(page: SessionPage, denied: ReadonlySet<string>): 
     return { ...page, items: page.items.filter((session) => !denied.has(session.id)) };
 }
 
+// 会话列表的相对时间标签，短格式展示即可。
+function formatRelativeTime(iso: string): string {
+    const minutes = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+    if (minutes < 1) return tx("Now");
+    if (minutes < 60) return `${minutes}m`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h`;
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days}d`;
+    return new Date(iso).toLocaleDateString();
+}
+
 // 工作区列表、模型设置及当前会话共用这一代有效信号，选中会话变化仍由线程自己的挂载边界取消旧请求。
 function WorkspaceConversation({
     workspace,
     owner,
     adapter,
-    providers,
     reports,
     signal,
     navigate,
     initialPlanId,
     onWorkspaceReadDenied,
+    wide = false,
+    ownerName = "",
 }: WorkspaceConversationProps) {
-    const [archived, setArchived] = useState(false);
+    const [search, setSearch] = useState("");
+    const [showAllActive, setShowAllActive] = useState(false);
+    const [showAllArchived, setShowAllArchived] = useState(false);
     const [selected, setSelected] = useState<SelectedSession>();
-    const [title, setTitle] = useState("");
     const [creating, setCreating] = useState(false);
     const [error, setError] = useState<unknown>();
     const [sessionDenial, setSessionDenial] = useState<unknown>();
+    const [renaming, setRenaming] = useState<{ id: string; title: string } | null>(null);
+    const [renameTitle, setRenameTitle] = useState("");
+    const [renamingBusy, setRenamingBusy] = useState(false);
+    const [renameError, setRenameError] = useState<unknown>();
     const ignoredSessions = useRef(new Set<string>());
     const retryingSessions = useRef(false);
     const creation = useRef(false);
@@ -173,13 +196,12 @@ function WorkspaceConversation({
     const remainingPlan = useRef(initialPlanId);
     const cache = useQueryClient();
     const key = ["workspace", workspace.id, "agent", owner, "sessions"];
-    const listKey = [...key, archived];
-    const sessions = useInfiniteQuery({
-        queryKey: listKey,
+    const activeSessions = useInfiniteQuery({
+        queryKey: [...key, false],
         queryFn: async ({ pageParam, signal: request }) => {
             const active = AbortSignal.any([signal, request]);
             const page = await observeAgentRead(
-                adapter.sessions(archived, pageParam, active),
+                adapter.sessions(false, pageParam, active),
                 active,
                 onWorkspaceReadDenied,
             );
@@ -188,8 +210,32 @@ function WorkspaceConversation({
         initialPageParam: undefined as string | undefined,
         getNextPageParam: (page) => page.nextCursor ?? undefined,
     });
-    const rows =
-        sessions.data?.pages.flatMap((page) => withoutDeniedSessions(page, ignoredSessions.current).items) ?? [];
+    const archivedSessions = useInfiniteQuery({
+        queryKey: [...key, true],
+        queryFn: async ({ pageParam, signal: request }) => {
+            const active = AbortSignal.any([signal, request]);
+            const page = await observeAgentRead(
+                adapter.sessions(true, pageParam, active),
+                active,
+                onWorkspaceReadDenied,
+            );
+            return withoutDeniedSessions(page, ignoredSessions.current);
+        },
+        initialPageParam: undefined as string | undefined,
+        getNextPageParam: (page) => page.nextCursor ?? undefined,
+    });
+    const activeRows =
+        activeSessions.data?.pages.flatMap((page) => withoutDeniedSessions(page, ignoredSessions.current).items) ?? [];
+    const archivedRows =
+        archivedSessions.data?.pages.flatMap((page) => withoutDeniedSessions(page, ignoredSessions.current).items) ??
+        [];
+    const matches = (item: { title: string }) => !search || item.title.toLowerCase().includes(search.toLowerCase());
+    const visibleActive = activeRows.filter(matches);
+    const visibleArchived = archivedRows.filter(matches);
+    const shownActive = showAllActive ? visibleActive : visibleActive.slice(0, 5);
+    const shownArchived = showAllArchived ? visibleArchived : visibleArchived.slice(0, 5);
+    const { settings } = useAgentSettings(workspace, owner, adapter, signal, onWorkspaceReadDenied);
+    const configured = settings.data?.providerStatus !== "UNCONFIGURED";
 
     function choose(id?: string, initialMessage = "") {
         activeSelection.current?.abort();
@@ -225,13 +271,12 @@ function WorkspaceConversation({
                     pages: data.pages.map((page) => withoutDeniedSessions(page, ignoredSessions.current)),
                 },
         );
-        if (!sessions.data) {
-            void sessions.refetch();
-        }
+        if (!activeSessions.data) void activeSessions.refetch();
+        if (!archivedSessions.data) void archivedSessions.refetch();
         setSessionDenial(failure);
     }
 
-    // 显式重取当前筛选的授权列表，完成前继续隐藏已拒绝的会话，返回后仍由用户自行选择会话。
+    // 显式重取授权列表，完成前继续隐藏已拒绝的会话，返回后仍由用户自行选择会话。
     async function retrySessions() {
         if (retryingSessions.current || signal.aborted) {
             return;
@@ -239,17 +284,23 @@ function WorkspaceConversation({
         retryingSessions.current = true;
         const recovering = new Set(ignoredSessions.current);
         try {
-            const page = await observeAgentRead(
-                adapter.sessions(archived, undefined, signal),
-                signal,
-                onWorkspaceReadDenied,
-            );
-            await cache.cancelQueries({ queryKey: listKey, exact: true });
+            const [activePage, archivedPage] = await Promise.all([
+                observeAgentRead(adapter.sessions(false, undefined, signal), signal, onWorkspaceReadDenied),
+                observeAgentRead(adapter.sessions(true, undefined, signal), signal, onWorkspaceReadDenied),
+            ]);
+            await cache.cancelQueries({ queryKey: key });
             signal.throwIfAborted();
             for (const id of recovering) {
                 ignoredSessions.current.delete(id);
             }
-            cache.setQueryData(listKey, firstSessionPage(withoutDeniedSessions(page, ignoredSessions.current)));
+            cache.setQueryData(
+                [...key, false],
+                firstSessionPage(withoutDeniedSessions(activePage, ignoredSessions.current)),
+            );
+            cache.setQueryData(
+                [...key, true],
+                firstSessionPage(withoutDeniedSessions(archivedPage, ignoredSessions.current)),
+            );
             if (ignoredSessions.current.size === 0) {
                 setSessionDenial(undefined);
             }
@@ -262,28 +313,18 @@ function WorkspaceConversation({
         }
     }
 
-    // 当前筛选与选中会话一同切换，归档和活动列表的签名游标不能互换，也不会复用上一会话的编辑正文。
-    function filter(next: boolean) {
-        if (next === archived) return;
-        setArchived(next);
-        choose();
-    }
-
-    // 从计划页传入的标识只用于本工作区第一个新会话的可编辑草稿，页面不主动发出模型请求。
-    async function create(event: FormEvent) {
-        event.preventDefault();
+    // 新会话不再要求用户填标题，由服务端生成默认名称；计划页传入的标识只用于本工作区第一个新会话的可编辑草稿。
+    async function createNew() {
         if (creation.current || workspace.archived || signal.aborted) return;
         creation.current = true;
         setCreating(true);
         setError(undefined);
         try {
-            const session = await adapter.createSession(title.trim() ? { title } : {}, signal);
+            const session = await adapter.createSession({}, signal);
             signal.throwIfAborted();
             const planId = remainingPlan.current;
             remainingPlan.current = undefined;
             choose(session.id, planId ? tx("Discuss changes to execution plan {{planId}}.", { planId }) : "");
-            setTitle("");
-            setArchived(false);
             void cache.invalidateQueries({ queryKey: key });
         } catch (failure) {
             if (!signal.aborted) {
@@ -292,7 +333,8 @@ function WorkspaceConversation({
                 } else {
                     setError(failure);
                     if (agentWorkspaceReadDenied(failure)) {
-                        void sessions.refetch();
+                        void activeSessions.refetch();
+                        void archivedSessions.refetch();
                     }
                 }
             }
@@ -302,97 +344,362 @@ function WorkspaceConversation({
         }
     }
 
+    function openRename(id: string, title: string) {
+        setRenaming({ id, title });
+        setRenameTitle(title);
+        setRenameError(undefined);
+    }
+
+    async function rename() {
+        if (!renaming || renamingBusy || signal.aborted) return;
+        const next = renameTitle.trim();
+        if (!next) return;
+        setRenamingBusy(true);
+        setRenameError(undefined);
+        try {
+            await adapter.renameSession(renaming.id, { title: next }, signal);
+            signal.throwIfAborted();
+            await cache.invalidateQueries({ queryKey: key });
+            setRenaming(null);
+        } catch (failure) {
+            if (!signal.aborted) setRenameError(failure);
+        } finally {
+            if (!signal.aborted) setRenamingBusy(false);
+        }
+    }
+
+    async function archiveSession(sessionId: string) {
+        if (signal.aborted) return;
+        try {
+            await adapter.archive(sessionId, signal);
+            signal.throwIfAborted();
+            if (selected?.id === sessionId) choose();
+            void cache.invalidateQueries({ queryKey: key });
+        } catch (failure) {
+            if (!signal.aborted) setError(failure);
+        }
+    }
+
+    const conversation = selected ? (
+        <Conversation
+            key={selected.id}
+            workspace={workspace}
+            owner={owner}
+            ownerName={ownerName}
+            sessionId={selected.id}
+            initialMessage={selected.initialMessage}
+            adapter={adapter}
+            reports={reports}
+            parentSignal={selected.signal}
+            navigate={navigate}
+            onReadDenied={(failure) => onConversationReadDenied(selected, failure)}
+            onWorkspaceReadDenied={onWorkspaceReadDenied}
+            onArchived={() => {
+                choose();
+                void cache.invalidateQueries({ queryKey: key });
+            }}
+        />
+    ) : (
+        <p className="vq-agent-empty">{tx("Choose or create a conversation.")}</p>
+    );
+
+    const renameButton = (id: string, title: string) => (
+        <button
+            type="button"
+            className="vq-agent-rename"
+            aria-label={tx("Rename conversation")}
+            onClick={() => openRename(id, title)}
+        >
+            <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24">
+                <use href={`${icons}#edit`} />
+            </svg>
+        </button>
+    );
+
+    const sessionRow = (item: AgentSchemas["AgentSessionDTO"], canArchive: boolean) => (
+        <li
+            key={item.id}
+            className="vq-agent-session-row"
+            data-selected={selected?.id === item.id ? "true" : undefined}
+        >
+            <button
+                type="button"
+                className="vq-agent-session"
+                aria-pressed={selected?.id === item.id}
+                onClick={() => {
+                    if (selected?.id !== item.id) choose(item.id);
+                }}
+            >
+                <span className="vq-agent-session-title">{item.title}</span>
+                <span className="vq-agent-session-time">{formatRelativeTime(item.createdAt)}</span>
+            </button>
+            <DropdownMenu.Root>
+                <DropdownMenu.Trigger className="vq-agent-session-menu" aria-label={tx("More options")}>
+                    <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none">
+                        <use href={`${icons}#horizontal-dots`} />
+                    </svg>
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Portal>
+                    <DropdownMenu.Content className="vq-dropdown" align="end" sideOffset={4} collisionPadding={8}>
+                        <DropdownMenu.Item
+                            className="vq-dropdown-item"
+                            onSelect={() => openRename(item.id, item.title)}
+                        >
+                            {tx("Rename conversation")}
+                        </DropdownMenu.Item>
+                        {canArchive && (
+                            <DropdownMenu.Item
+                                className="vq-dropdown-item"
+                                onSelect={() => void archiveSession(item.id)}
+                            >
+                                {tx("Archive conversation")}
+                            </DropdownMenu.Item>
+                        )}
+                    </DropdownMenu.Content>
+                </DropdownMenu.Portal>
+            </DropdownMenu.Root>
+        </li>
+    );
+
+    const selectedTitle = selected
+        ? ((activeRows.find((item) => item.id === selected.id) ?? archivedRows.find((item) => item.id === selected.id))
+              ?.title ?? "")
+        : "";
+
     return (
         <div className="vq-agent">
-            <ModelSettings
-                workspace={workspace}
-                owner={owner}
-                adapter={adapter}
-                providers={providers}
-                signal={signal}
-                onWorkspaceReadDenied={onWorkspaceReadDenied}
-            />
-            <div className="vq-agent-columns">
-                <aside className="vq-agent-sessions" aria-label={tx("Conversations")}>
-                    <h3>{tx("Conversations")}</h3>
-                    <div className="vq-agent-toolbar">
-                        <button type="button" aria-pressed={!archived} onClick={() => filter(false)}>
-                            {tx("Active")}
-                        </button>
-                        <button type="button" aria-pressed={archived} onClick={() => filter(true)}>
-                            {tx("Archived")}
-                        </button>
-                    </div>
-                    {sessions.isPending && <p role="status">{tx("Loading VeriQ…")}</p>}
-                    {sessions.isSuccess && !rows.length && <p>{tx("No conversations in this list.")}</p>}
-                    <AgentError error={sessions.error} retry={() => void sessions.refetch()} />
-                    <AgentError error={sessionDenial} retry={() => void retrySessions()} />
-                    <ul>
-                        {rows.map((item) => (
-                            <li key={item.id}>
+            {!configured ? (
+                <p className="vq-agent-empty">{tx("No model configured yet")}</p>
+            ) : wide ? (
+                <div className="vq-agent-columns">
+                    <aside className="vq-agent-sessions" aria-label={tx("Conversations")}>
+                        {!workspace.archived && (
+                            <button
+                                type="button"
+                                className="vq-agent-new-chat"
+                                disabled={creating}
+                                onClick={() => void createNew()}
+                            >
+                                <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none">
+                                    <path
+                                        d="M12 5v14M5 12h14"
+                                        stroke="currentColor"
+                                        strokeWidth="1.5"
+                                        strokeLinecap="round"
+                                    />
+                                </svg>
+                                {tx("New conversation")}
+                            </button>
+                        )}
+                        <div className="vq-agent-search">
+                            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.5" />
+                                <path
+                                    d="m10.5 10.5 3 3"
+                                    stroke="currentColor"
+                                    strokeWidth="1.5"
+                                    strokeLinecap="round"
+                                />
+                            </svg>
+                            <input
+                                type="search"
+                                placeholder={tx("Search conversations")}
+                                value={search}
+                                maxLength={254}
+                                onChange={(event) => setSearch(event.target.value)}
+                            />
+                        </div>
+                        <AgentError
+                            error={activeSessions.error ?? archivedSessions.error}
+                            retry={() => void retrySessions()}
+                        />
+                        <AgentError error={sessionDenial} retry={() => void retrySessions()} />
+
+                        <section className="vq-agent-session-group">
+                            <h4>{tx("Active")}</h4>
+                            {activeSessions.isPending && <p role="status">{tx("Loading VeriQ…")}</p>}
+                            {!activeSessions.isPending && visibleActive.length === 0 && (
+                                <p>{tx("No conversations in this list.")}</p>
+                            )}
+                            <ul>{shownActive.map((item) => sessionRow(item, true))}</ul>
+                            {(visibleActive.length > 5 || activeSessions.hasNextPage) && (
                                 <button
                                     type="button"
-                                    aria-pressed={selected?.id === item.id}
+                                    className="vq-agent-show-toggle"
                                     onClick={() => {
-                                        if (selected?.id !== item.id) {
-                                            choose(item.id);
+                                        setShowAllActive(!showAllActive);
+                                        if (!showAllActive && activeSessions.hasNextPage) {
+                                            void activeSessions.fetchNextPage();
                                         }
                                     }}
                                 >
-                                    {item.title}
+                                    <span>{showAllActive ? tx("Show less") : tx("Show more")}</span>
+                                    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none">
+                                        <path
+                                            d={showAllActive ? "M18 15l-6-6-6 6" : "M6 9l6 6 6-6"}
+                                            stroke="currentColor"
+                                            strokeWidth="1.5"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                        />
+                                    </svg>
                                 </button>
-                            </li>
-                        ))}
-                    </ul>
-                    {sessions.hasNextPage && (
-                        <button
-                            type="button"
-                            disabled={sessions.isFetchingNextPage}
-                            onClick={() => void sessions.fetchNextPage()}
+                            )}
+                        </section>
+
+                        <section className="vq-agent-session-group">
+                            <h4>{tx("Archived")}</h4>
+                            {archivedSessions.isPending && <p role="status">{tx("Loading VeriQ…")}</p>}
+                            {!archivedSessions.isPending && visibleArchived.length === 0 && (
+                                <p>{tx("No conversations in this list.")}</p>
+                            )}
+                            <ul>{shownArchived.map((item) => sessionRow(item, false))}</ul>
+                            {(visibleArchived.length > 5 || archivedSessions.hasNextPage) && (
+                                <button
+                                    type="button"
+                                    className="vq-agent-show-toggle"
+                                    onClick={() => {
+                                        setShowAllArchived(!showAllArchived);
+                                        if (!showAllArchived && archivedSessions.hasNextPage) {
+                                            void archivedSessions.fetchNextPage();
+                                        }
+                                    }}
+                                >
+                                    <span>{showAllArchived ? tx("Show less") : tx("Show more")}</span>
+                                    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none">
+                                        <path
+                                            d={showAllArchived ? "M18 15l-6-6-6 6" : "M6 9l6 6 6-6"}
+                                            stroke="currentColor"
+                                            strokeWidth="1.5"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                        />
+                                    </svg>
+                                </button>
+                            )}
+                        </section>
+
+                        <AgentError error={error} />
+                    </aside>
+                    {conversation}
+                </div>
+            ) : (
+                <>
+                    <div className="vq-agent-session-picker">
+                        <DropdownMenu.Root>
+                            <DropdownMenu.Trigger className="vq-filter-button vq-agent-session-trigger">
+                                <span className="vq-agent-session-label">
+                                    {selectedTitle || tx("Choose a conversation")}
+                                </span>
+                                <svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                    <path
+                                        d="m3 4.5 3 3 3-3"
+                                        stroke="currentColor"
+                                        strokeWidth="1.5"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                    />
+                                </svg>
+                            </DropdownMenu.Trigger>
+                            <DropdownMenu.Portal>
+                                <DropdownMenu.Content
+                                    className="vq-dropdown"
+                                    align="start"
+                                    sideOffset={4}
+                                    collisionPadding={8}
+                                >
+                                    <DropdownMenu.RadioGroup
+                                        value={selected?.id ?? ""}
+                                        onValueChange={(value) => choose(value || undefined)}
+                                    >
+                                        {activeRows.map((item) => (
+                                            <DropdownMenu.RadioItem
+                                                key={item.id}
+                                                value={item.id}
+                                                className="vq-dropdown-item"
+                                            >
+                                                {item.title}
+                                                <DropdownMenu.ItemIndicator className="vq-dropdown-check">
+                                                    <svg
+                                                        aria-hidden="true"
+                                                        width="14"
+                                                        height="14"
+                                                        viewBox="0 0 14 14"
+                                                        fill="none"
+                                                    >
+                                                        <path
+                                                            d="m3 7.5 2.5 2.5L11 4.5"
+                                                            stroke="currentColor"
+                                                            strokeWidth="1.5"
+                                                            strokeLinecap="round"
+                                                            strokeLinejoin="round"
+                                                        />
+                                                    </svg>
+                                                </DropdownMenu.ItemIndicator>
+                                            </DropdownMenu.RadioItem>
+                                        ))}
+                                    </DropdownMenu.RadioGroup>
+                                </DropdownMenu.Content>
+                            </DropdownMenu.Portal>
+                        </DropdownMenu.Root>
+                        {selected && renameButton(selected.id, selectedTitle)}
+                        {!workspace.archived && (
+                            <button
+                                type="button"
+                                className="vq-agent-new"
+                                aria-label={tx("New conversation")}
+                                disabled={creating}
+                                onClick={() => void createNew()}
+                            >
+                                +
+                            </button>
+                        )}
+                    </div>
+                    {conversation}
+                </>
+            )}
+            <Dialog.Root open={!!renaming} onOpenChange={(open) => !open && setRenaming(null)}>
+                <Dialog.Portal>
+                    <Dialog.Overlay className="vq-overlay vq-workspace-overlay" />
+                    <Dialog.Content className="vq-dialog vq-workspace-dialog">
+                        <div className="vq-card-heading">
+                            <Dialog.Title>{tx("Rename conversation")}</Dialog.Title>
+                            <Dialog.Close className="vq-sheet-close" aria-label={tx("Close")}>
+                                ×
+                            </Dialog.Close>
+                        </div>
+                        <form
+                            className="vq-workspace-form"
+                            onSubmit={(event) => {
+                                event.preventDefault();
+                                void rename();
+                            }}
                         >
-                            {tx("More conversations")}
-                        </button>
-                    )}
-                    {!workspace.archived && (
-                        <form onSubmit={(event) => void create(event)}>
                             <label>
                                 {tx("Conversation title")}
                                 <input
-                                    value={title}
+                                    value={renameTitle}
                                     maxLength={160}
-                                    disabled={creating}
-                                    onChange={(event) => setTitle(event.target.value)}
+                                    onChange={(event) => setRenameTitle(event.target.value)}
                                 />
                             </label>
-                            <button type="submit" disabled={creating}>
-                                {tx("New conversation")}
-                            </button>
+                            <AgentError error={renameError} />
+                            <div className="vq-workspace-form-actions">
+                                <Dialog.Close type="button" className="vq-btn-secondary">
+                                    {tx("Cancel")}
+                                </Dialog.Close>
+                                <button
+                                    type="submit"
+                                    className="vq-btn-primary"
+                                    disabled={renamingBusy || !renameTitle.trim()}
+                                >
+                                    {tx("Save")}
+                                </button>
+                            </div>
                         </form>
-                    )}
-                    <AgentError error={error} />
-                </aside>
-                {selected ? (
-                    <Conversation
-                        key={selected.id}
-                        workspace={workspace}
-                        owner={owner}
-                        sessionId={selected.id}
-                        initialMessage={selected.initialMessage}
-                        adapter={adapter}
-                        reports={reports}
-                        parentSignal={selected.signal}
-                        navigate={navigate}
-                        onReadDenied={(failure) => onConversationReadDenied(selected, failure)}
-                        onWorkspaceReadDenied={onWorkspaceReadDenied}
-                        onArchived={() => {
-                            choose();
-                            void cache.invalidateQueries({ queryKey: key });
-                        }}
-                    />
-                ) : (
-                    <p className="vq-agent-empty">{tx("Choose or create a conversation.")}</p>
-                )}
-            </div>
+                    </Dialog.Content>
+                </Dialog.Portal>
+            </Dialog.Root>
         </div>
     );
 }
