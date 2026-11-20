@@ -21,6 +21,7 @@ import { tx, useAppLocale } from "./locale";
 import { LanguageControl } from "./locale-ui";
 import { WorkspaceControls } from "./features/workspaces/WorkspaceControls";
 import { AgentSheet } from "./features/agent/AgentSheet";
+import { ThemeToggle } from "./theme-toggle";
 
 import adminIcons from "./admin-icons.svg?no-inline";
 import logoLight from "../../../assets/branding/verifyquality-logo-light.svg";
@@ -189,35 +190,6 @@ function Sidebar({ collapsed }: { collapsed: boolean }) {
         </aside>
     );
 }
-/**
- * 根节点在载入应用前已读取过浏览器主题，按钮沿用此值；存储受限时仍改变当前文档，表单及会话不必重新挂载。
- */
-function ThemeToggle() {
-    const [dark, setDark] = useState(() => document.documentElement.dataset.theme === "dark");
-    function toggle() {
-        const next = dark ? "light" : "dark";
-        document.documentElement.dataset.theme = next;
-        document.documentElement.style.colorScheme = next;
-        setDark(!dark);
-        try {
-            localStorage.setItem("veriq.theme", next);
-        } catch {
-            // 当隐私设置禁止写入偏好时，本次页面的主题仍由根节点持有，应用继续响应随后的切换操作。
-        }
-    }
-    return (
-        <button
-            type="button"
-            className="vq-theme-toggle"
-            aria-label={tx("Dark mode")}
-            aria-pressed={dark}
-            onClick={toggle}
-        >
-            <Icon name={dark ? "sun" : "moon"} />
-        </button>
-    );
-}
-
 /*
  * 通知铃为站内信占位，当前只呈现按钮而无可展开内容，图标符号与通知后端由后续任务接入，避免制造无响应的假交互。
  */
