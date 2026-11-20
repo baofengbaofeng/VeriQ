@@ -760,7 +760,7 @@ test("TailAdmin header sizes and nested language choices preserve the resource d
     await user.click();
     await expect(page.getByRole("menuitem", { name: /语言/ })).toContainText("ZH");
     await page.getByRole("menuitem", { name: "退出登录", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "登录 VeriQ" })).toBeVisible();
     await expect(page.getByRole("banner")).toHaveCount(0);
     await expect(page.getByRole("complementary").getByRole("img", { name: "VeriQ" })).toBeVisible();
     await page.getByRole("combobox", { name: "语言" }).selectOption("en");
