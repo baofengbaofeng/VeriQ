@@ -1,6 +1,9 @@
 """对话 HTTP 接口复用员工 Cookie、同源写入和分页信封，将工作区及会话归属校验委托给短事务中的服务。"""
 
+import json
 from typing import Any
+
+from tornado.iostream import StreamClosedError
 
 from ..auth.authorization import Permission, WorkspaceScope
 from ..pagination import Page, boolean_filter
@@ -19,6 +22,7 @@ class AgentAPI(API):
         "agent-sessions": {"GET", "POST"},
         "agent-session": {"GET", "PATCH", "DELETE"},
         "agent-turns": {"GET", "POST"},
+        "agent-turn-stream": {"POST"},
         "agent-confirm": {"POST"},
     }
 
@@ -43,6 +47,50 @@ class AgentAPI(API):
             {"list": self.action, "workspaceId": scope.workspace_id, "actor": user_id, **filters},
             self.config.signing_key.get_secret_value(),
         )
+
+    def on_connection_close(self) -> None:
+        """SSE 流断开时置位 disconnected，让 emit 停止向已关闭套接字写入；模型调用仍继续到结算落库，避免半份回复。"""
+        self.disconnected = True
+
+    async def _stream_turn(self, scope: WorkspaceScope, session_id: str) -> None:
+        """SSE 流式提交：先解析正文并在 submit_stream 的短事务内完成授权、重放/确认分支与轮次创建，再设置 SSE 头并逐段
+        下发 start/delta，最终以 done 事件返回权威轮次；事务内的业务错误统一写成 error 事件，客户端断开后停止写但保留
+        模型调用到结算落库。
+        """
+        self.disconnected = False
+        service = self._sessions()
+        req = self.body("AgentTurnSubmit")
+
+        async def emit(event: str, data: dict[str, Any]) -> None:
+            if self.disconnected:
+                return
+            try:
+                self.write(f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n")
+                await self.flush()
+            except StreamClosedError:
+                self.disconnected = True
+
+        self.set_header("Content-Type", "text/event-stream")
+        self.set_header("X-Accel-Buffering", "no")
+        self.set_header("Cache-Control", "no-cache")
+        try:
+            turn = await service.submit_stream(scope, session_id, req, emit)
+        except StreamClosedError:
+            return
+        except Problem as problem:
+            if not self.disconnected:
+                try:
+                    self.write(f"event: error\ndata: {json.dumps({'code': problem.code})}\n\n")
+                    await self.flush()
+                except StreamClosedError:
+                    pass
+            return
+        if not self.disconnected:
+            try:
+                self.write(f"event: done\ndata: {json.dumps(turn, ensure_ascii=False)}\n\n")
+                await self.flush()
+            except StreamClosedError:
+                return
 
     async def get(self, workspace_id: str, session_id: str | None = None) -> None:
         """设置仅返回选择和解析状态，列表仅返回本人会话，读取单个会话或其轮次都必须先校验当前成员与归属。
@@ -96,6 +144,9 @@ class AgentAPI(API):
         """创建会话只写入个人元数据；提交和确认基于同一员工身份，委托编排服务验证归属及当前业务操作权限。"""
         scope = WorkspaceScope(workspace_id)
         service = self._sessions()
+        if self.action == "agent-turn-stream":
+            await self._stream_turn(scope, session_id)
+            return
         if session_id is None:
             data = self.body("AgentSessionCreate")
             async with service.transaction(scope, write=True) as (session, user):

@@ -12840,6 +12840,9 @@
             "AgentTurnDTO": {
                 "$ref": "../schemas/platform-v1.schema.json#/$defs/AgentTurnDTO"
             },
+            "AgentTurnStepDTO": {
+                "$ref": "../schemas/platform-v1.schema.json#/$defs/AgentTurnStepDTO"
+            },
             "AgentSettingsDTOEnvelope": {
                 "type": "object",
                 "properties": {

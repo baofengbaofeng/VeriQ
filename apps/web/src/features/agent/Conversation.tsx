@@ -3,11 +3,12 @@
  */
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { EventSourceParserStream } from "eventsource-parser/stream";
 import { tx } from "../../locale";
 import * as Dialog from "@radix-ui/react-dialog";
 import icons from "../../admin-icons.svg?no-inline";
 import { Avatar } from "../../components";
-import type { Workspace } from "../../api";
+import { ApiError, type Workspace } from "../../api";
 import type { ReportAdapter } from "../reports/adapters";
 import { agentErrorCode, observeAgentRead, type AgentSchemas, type CloudAgentAdapter } from "./adapters";
 import { useAgentLifetime } from "./lifetime";
@@ -15,8 +16,18 @@ import { agentSubmission, clearAgentSubmission, hasPendingAgentConfirmation } fr
 import { AgentError, agentProblem } from "./feedback";
 import { Proposal, ActionReceipt } from "./Proposal";
 import { RunCard, type ReportNavigation, type RunReference } from "./RunCard";
+import { Markdown } from "./Markdown";
 
 type Turn = AgentSchemas["AgentTurnDTO"];
+
+// 流式期间的步骤带临时 id 用于按序更新，落库后的 steps 无 id；二者共享工具名、状态、摘要与错误码。
+type Step = {
+    id?: string;
+    name: string;
+    status: "RUNNING" | "SUCCEEDED" | "FAILED";
+    summary?: string;
+    errorCode?: string;
+};
 
 // 这三组文案对应服务端确定性短语，仅用于启用当前角色的发送操作；服务器仍验证动作和会话权限。
 const confirmAny = new Set(["confirm", "confirm action", "确认", "确认操作"]);
@@ -102,6 +113,10 @@ function Thread({
     const bottomRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const [updates, setUpdates] = useState(() => new Map<string, Turn>());
+    const [streamText, setStreamText] = useState(() => new Map<string, string>());
+    const [thinkingText, setThinkingText] = useState(() => new Map<string, string>());
+    const [streamSteps, setStreamSteps] = useState(() => new Map<string, Step[]>());
+    const [openThinking, setOpenThinking] = useState(() => new Set<string>());
     const [completedRuns, setCompletedRuns] = useState(() => new Set<string>());
     const retryKey = "veriq.agent.retry/" + JSON.stringify([owner, workspace.id, id]);
     const supersededTarget = supersededTargets.get(retryKey);
@@ -228,29 +243,109 @@ function Thread({
         if (!messageText.trim() || busy) return;
         void act("send", async () => {
             const data = await agentSubmission(retryKey, messageText, opts, signal);
-            const turn = await adapter.submit(id, data, signal).catch(async (failure: unknown) => {
-                if (
-                    signal.aborted ||
-                    !data.expectedProposalId ||
-                    agentErrorCode(failure) !== "AGENT_PROPOSAL_SUPERSEDED"
-                ) {
-                    throw failure;
-                }
-                // 只结清当前代次获明确拒绝的提交编号。保留输入并等待正常刷新，后续确认仍由用户主动发送。
+            // 确认是确定性即时路径，继续用非流式提交；普通文本走 SSE 流式逐段展示。
+            if (opts.confirmation) {
+                const turn = await adapter.submit(id, data, signal).catch(async (failure: unknown) => {
+                    if (
+                        signal.aborted ||
+                        !data.expectedProposalId ||
+                        agentErrorCode(failure) !== "AGENT_PROPOSAL_SUPERSEDED"
+                    ) {
+                        throw failure;
+                    }
+                    // 只结清当前代次获明确拒绝的提交编号。保留输入并等待正常刷新，后续确认仍由用户主动发送。
+                    clearAgentSubmission(retryKey, data.requestId);
+                    supersededTargets.set(retryKey, data.expectedProposalId);
+                    setError(failure);
+                    await refresh();
+                });
+                if (!turn) return;
+                signal.throwIfAborted();
                 clearAgentSubmission(retryKey, data.requestId);
-                supersededTargets.set(retryKey, data.expectedProposalId);
-                setError(failure);
-                await refresh();
-            });
-            if (!turn) {
+                setText("");
+                receive(turn);
                 return;
             }
-            signal.throwIfAborted();
-            if (turn.status === "RUNNING") recovering.current = { id: turn.id, requestId: data.requestId };
-            else clearAgentSubmission(retryKey, data.requestId);
-            setText("");
-            receive(turn);
+            await streamTurn(data);
         });
+    }
+
+    // 消费 SSE 流：start 挂载运行中的轮次，delta 逐段追加到生成中气泡，done 用权威轮次兜底，error 抛业务代号。
+    async function streamTurn(data: AgentSchemas["AgentTurnSubmit"]) {
+        const response = await adapter.submitStream(id, data, signal);
+        if (!response.body) throw new Error("Agent stream is unavailable.");
+        const reader = response.body
+            .pipeThrough(new TextDecoderStream())
+            .pipeThrough(new EventSourceParserStream({ maxBufferSize: 32 * 1024 * 1024, onError: "terminate" }))
+            .getReader();
+        let turnId = "";
+        try {
+            while (!signal.aborted) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                if (value.event === "start") {
+                    const turn = JSON.parse(value.data) as Turn;
+                    turnId = turn.id;
+                    signal.throwIfAborted();
+                    setText("");
+                    recovering.current = { id: turn.id, requestId: data.requestId };
+                    receive(turn);
+                } else if (value.event === "thinking") {
+                    const { text } = JSON.parse(value.data) as { text: string };
+                    setThinkingText((previous) => {
+                        const next = new Map(previous);
+                        next.set(turnId, (next.get(turnId) ?? "") + text);
+                        return next;
+                    });
+                } else if (value.event === "step") {
+                    const step = JSON.parse(value.data) as Step;
+                    setStreamSteps((previous) => {
+                        const next = new Map(previous);
+                        const list = [...(next.get(turnId) ?? [])];
+                        const index = list.findIndex((entry) => entry.id === step.id);
+                        if (index >= 0) list[index] = step;
+                        else list.push(step);
+                        next.set(turnId, list);
+                        return next;
+                    });
+                } else if (value.event === "delta") {
+                    const { text } = JSON.parse(value.data) as { text: string };
+                    setStreamText((previous) => {
+                        const next = new Map(previous);
+                        next.set(turnId, (next.get(turnId) ?? "") + text);
+                        return next;
+                    });
+                } else if (value.event === "done") {
+                    const turn = JSON.parse(value.data) as Turn;
+                    signal.throwIfAborted();
+                    clearAgentSubmission(retryKey, data.requestId);
+                    setStreamText((previous) => {
+                        const next = new Map(previous);
+                        next.delete(turn.id);
+                        return next;
+                    });
+                    setThinkingText((previous) => {
+                        const next = new Map(previous);
+                        next.delete(turn.id);
+                        return next;
+                    });
+                    setStreamSteps((previous) => {
+                        const next = new Map(previous);
+                        next.delete(turn.id);
+                        return next;
+                    });
+                    receive(turn);
+                    break;
+                } else if (value.event === "error") {
+                    const { code } = JSON.parse(value.data) as { code: string };
+                    signal.throwIfAborted();
+                    throw new ApiError(code, agentProblem(code), 0, "");
+                }
+            }
+        } finally {
+            await reader.cancel();
+            reader.releaseLock();
+        }
     }
 
     function send(event: FormEvent) {
@@ -272,6 +367,15 @@ function Thread({
         if (busy || signal.aborted) return;
         clearAgentSubmission(retryKey);
         submitText(userText, { confirmation: false });
+    }
+
+    function toggleThinking(turnId: string) {
+        setOpenThinking((previous) => {
+            const next = new Set(previous);
+            if (next.has(turnId)) next.delete(turnId);
+            else next.add(turnId);
+            return next;
+        });
     }
 
     async function copyText(key: string, value: string) {
@@ -302,6 +406,10 @@ function Thread({
             {history.isSuccess && turns.length === 0 && <p className="vq-agent-centered">{tx("No messages yet.")}</p>}
             <ol className="vq-agent-history" aria-label={tx("Conversation history")}>
                 {turns.map((turn) => {
+                    const partial = streamText.get(turn.id);
+                    const thinking = thinkingText.get(turn.id) ?? turn.thinking;
+                    const thinkingOpen = turn.status === "RUNNING" || openThinking.has(turn.id);
+                    const steps: Step[] = streamSteps.get(turn.id) ?? turn.steps ?? [];
                     const confirm =
                         reviewable &&
                         turn.id === latest?.id &&
@@ -312,7 +420,9 @@ function Thread({
                             <div className="vq-agent-user">
                                 <div className="vq-agent-user-content">
                                     <span className="vq-agent-user-name">{ownerName}</span>
-                                    <p className="vq-agent-user-text">{turn.text}</p>
+                                    <div className="vq-agent-user-text">
+                                        <Markdown>{turn.text}</Markdown>
+                                    </div>
                                 </div>
                                 <Avatar name={ownerName} size={32} fontSize={13} />
                             </div>
@@ -371,10 +481,88 @@ function Thread({
                                         </span>
                                         <div className="vq-agent-reply-content">
                                             <span className="vq-agent-reply-name">{tx("Test Agent")}</span>
-                                            {turn.reply && <p className="vq-agent-reply-body">{turn.reply}</p>}
-                                            {turn.status === "RUNNING" && (
+                                            {thinking && (
+                                                <div className="vq-agent-thinking">
+                                                    <button
+                                                        type="button"
+                                                        className="vq-agent-thinking-summary"
+                                                        aria-expanded={thinkingOpen}
+                                                        onClick={() => toggleThinking(turn.id)}
+                                                    >
+                                                        <svg
+                                                            aria-hidden="true"
+                                                            width="12"
+                                                            height="12"
+                                                            viewBox="0 0 24 24"
+                                                            fill="none"
+                                                            className="vq-agent-thinking-chevron"
+                                                            data-open={thinkingOpen}
+                                                        >
+                                                            <path
+                                                                d="M9 18l6-6-6-6"
+                                                                stroke="currentColor"
+                                                                strokeWidth="2"
+                                                                strokeLinecap="round"
+                                                                strokeLinejoin="round"
+                                                            />
+                                                        </svg>
+                                                        {tx("Thinking process")}
+                                                        {turn.status === "RUNNING" && (
+                                                            <span className="vq-agent-spinner" aria-hidden="true" />
+                                                        )}
+                                                    </button>
+                                                    {thinkingOpen && (
+                                                        <div className="vq-agent-thinking-body">{thinking}</div>
+                                                    )}
+                                                </div>
+                                            )}
+                                            {steps.length > 0 && (
+                                                <div className="vq-agent-steps">
+                                                    {steps.map((step, index) => (
+                                                        <div
+                                                            key={step.id ?? index}
+                                                            className="vq-agent-step"
+                                                            data-status={step.status}
+                                                        >
+                                                            <span className="vq-agent-step-icon" aria-hidden="true">
+                                                                {step.status === "RUNNING" ? (
+                                                                    <span className="vq-agent-spinner" />
+                                                                ) : step.status === "SUCCEEDED" ? (
+                                                                    "✓"
+                                                                ) : (
+                                                                    "✕"
+                                                                )}
+                                                            </span>
+                                                            <span className="vq-agent-step-name">{tx(step.name)}</span>
+                                                            {step.summary && (
+                                                                <span className="vq-agent-step-summary">
+                                                                    {step.summary}
+                                                                </span>
+                                                            )}
+                                                            {step.errorCode && (
+                                                                <span className="vq-agent-step-error">
+                                                                    {step.errorCode}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                            {turn.reply && (
+                                                <div className="vq-agent-reply-body">
+                                                    <Markdown>{turn.reply}</Markdown>
+                                                </div>
+                                            )}
+                                            {turn.status === "RUNNING" && partial && (
                                                 <p className="vq-agent-reply-body" role="status">
-                                                    {tx("Waiting for model response…")}
+                                                    {partial}
+                                                    <span className="vq-agent-cursor" aria-hidden="true" />
+                                                </p>
+                                            )}
+                                            {turn.status === "RUNNING" && !partial && (
+                                                <p className="vq-agent-reply-thinking" role="status">
+                                                    <span className="vq-agent-spinner" aria-hidden="true" />
+                                                    {tx("Thinking…")}
                                                 </p>
                                             )}
                                             {turn.errorCode && (
@@ -526,10 +714,11 @@ function Thread({
             {history.hasNextPage && (
                 <button
                     type="button"
+                    className="vq-agent-load-more"
                     disabled={history.isFetchingNextPage}
                     onClick={() => void history.fetchNextPage()}
                 >
-                    {tx("Load more messages")}
+                    {`—— ${tx("Load more messages")} ——`}
                 </button>
             )}
             {references.map((run) => (

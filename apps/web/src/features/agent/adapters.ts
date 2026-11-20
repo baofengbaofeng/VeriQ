@@ -3,7 +3,7 @@
  * 计划确认不接收模型参数，所有真实副作用必须通过服务端对已持久化提议的校验。
  */
 import type { PlatformComponents } from "@veriq/contracts";
-import { ApiError, request } from "../../api";
+import { ApiError, request, streamRequest } from "../../api";
 
 /**
  * 使用平台生成类型保留各业务操作的可辨识联合与可空引用，设置、轮次和报告可共享同一套版本定义。
@@ -70,6 +70,10 @@ export class CloudAgentAdapter {
     // 请求 UUID 属于单次文本提交，重试在服务器端复用原始轮次，后续新消息使用不同 UUID。
     submit = (id: string, data: AgentSchemas["AgentTurnSubmit"], signal?: AbortSignal) =>
         request<AgentSchemas["AgentTurnDTO"]>(`${this.sessionPath(id)}/turns`, "POST", data, signal);
+
+    // 流式提交沿用同一提交正文，返回原始 Response 供 SSE 解析；确认等即时路径仍走 submit。
+    submitStream = (id: string, data: AgentSchemas["AgentTurnSubmit"], signal: AbortSignal) =>
+        streamRequest(`${this.sessionPath(id)}/turns/stream`, data, signal);
 
     // 确认只选择服务器已保存的轮次，禁止在请求体增加覆盖参数，成功后读取该轮真实回执。
     confirm = (id: string, turnId: string, signal?: AbortSignal) =>

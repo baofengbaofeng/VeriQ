@@ -4874,6 +4874,17 @@ export interface components {
             relatedRunId?: components["schemas"]["Id"];
             proposal?: components["schemas"]["AgentProposal"];
             receipt?: components["schemas"]["AgentReceipt"];
+            thinking?: string;
+            steps?: components["schemas"]["AgentTurnStepDTO"][];
+        };
+        AgentTurnStepDTO: {
+            name: string;
+            summary?: string;
+            /**
+             * @enum {string}
+             */
+            status: "SUCCEEDED" | "FAILED";
+            errorCode?: string;
         };
         AgentSettingsDTOEnvelope: {
             data: components["schemas"]["AgentSettingsDTO"];
