@@ -8,7 +8,8 @@ import { useState, useContext, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { Auth } from "../auth-context";
-import { Notice, Field, useAction, values, Panel } from "../ui";
+import { Notice, Field, useAction, values } from "../ui";
+import { AuthCard } from "../auth-layout";
 /**
  * 邮箱密码登录表单：调用 api.login 后 auth.refresh，失败由 useAction 写入 Notice。已登录用户由路由层 Navigate 到
  * /account，本组件不重复判断。
@@ -18,7 +19,7 @@ export function SignIn() {
     const a = useAction(),
         auth = useContext(Auth);
     return (
-        <Panel title={tx("Sign in to VeriQ")}>
+        <AuthCard title={tx("Sign in to VeriQ")}>
             <p>{tx("Access your account and workspaces.")}</p>
             <form
                 onSubmit={(e) => {
@@ -37,7 +38,7 @@ export function SignIn() {
             </form>
             <Notice error={a.error} />
             <Link to="/reset">{tx("Forgot password?")}</Link>
-        </Panel>
+        </AuthCard>
     );
 }
 /**
@@ -50,7 +51,7 @@ export function Setup() {
         nav = useNavigate(),
         auth = useContext(Auth);
     return (
-        <Panel title={tx("Set up VeriQ")}>
+        <AuthCard title={tx("Set up VeriQ")}>
             <p>{tx("Create the first system administrator using the installation secret from your operator.")}</p>
             <form
                 onSubmit={(e) => {
@@ -81,7 +82,7 @@ export function Setup() {
                 </button>
             </form>
             <Notice error={a.error} />
-        </Panel>
+        </AuthCard>
     );
 }
 /**
@@ -92,7 +93,7 @@ export function ResetRequest() {
     useAppLocale();
     const a = useAction();
     return (
-        <Panel title={tx("Reset your password")}>
+        <AuthCard title={tx("Reset your password")}>
             <p>
                 {tx(
                     "Ask your system administrator for a short-lived reset link. If email delivery is available, res" +
@@ -115,7 +116,7 @@ export function ResetRequest() {
             </form>
             <Notice error={a.error} message={a.message} />
             <Link to="/login">{tx("Back to sign in")}</Link>
-        </Panel>
+        </AuthCard>
     );
 }
 /**
@@ -131,7 +132,7 @@ export function ResetConfirm() {
         history.replaceState(null, "", location.pathname);
     }, []);
     return (
-        <Panel title={tx("Choose a new password")}>
+        <AuthCard title={tx("Choose a new password")}>
             {!token ? (
                 <p role="alert">{tx("This reset link is missing its token. Ask your administrator for a new link.")}</p>
             ) : (
@@ -161,6 +162,6 @@ export function ResetConfirm() {
             )}
             <Notice error={a.error} message={a.message} />
             <Link to="/login">{tx("Sign in")}</Link>
-        </Panel>
+        </AuthCard>
     );
 }
