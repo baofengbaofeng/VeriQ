@@ -555,7 +555,7 @@ test("header creates and retains an authorized workspace across navigation", asy
     await expect(page.getByRole("heading", { name: "Sign in to VeriQ" })).toBeVisible();
     await expect(selector).toHaveCount(0);
     await expect(page.getByRole("banner")).toHaveCount(0);
-    await expect(page.getByLabel("Language")).toBeVisible();
+    await expect(page.getByRole("button", { name: "English" })).toBeVisible();
 });
 
 test("TailAdmin profile dimensions and theme persist through real navigation", async ({ page }) => {
@@ -763,9 +763,10 @@ test("TailAdmin header sizes and nested language choices preserve the resource d
     await expect(page.getByRole("heading", { name: "登录 VeriQ" })).toBeVisible();
     await expect(page.getByRole("banner")).toHaveCount(0);
     await expect(page.getByRole("complementary").getByRole("img", { name: "VeriQ" })).toBeVisible();
-    await page.getByRole("combobox", { name: "语言" }).selectOption("en");
+    await page.getByRole("button", { name: "中文" }).click();
+    await page.getByRole("menuitemradio", { name: "English" }).click();
     await expect(page.getByRole("button", { name: "Dark mode" })).toBeVisible();
-    await expect(page.getByLabel("Language")).toBeVisible();
+    await expect(page.getByRole("button", { name: "English" })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(1280);
 });
 

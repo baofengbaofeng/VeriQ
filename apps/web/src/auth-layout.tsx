@@ -6,9 +6,9 @@
 import type { ReactNode } from "react";
 import { Outlet } from "react-router-dom";
 import { tx, useAppLocale } from "./locale";
-import { LanguageControl } from "./locale-ui";
+import { LanguageDropdown } from "./locale-ui";
 import { ThemeToggle } from "./theme-toggle";
-import logoLight from "../../../assets/branding/verifyquality-logo-light.svg";
+import logoDark from "../../../assets/branding/verifyquality-logo-dark.svg";
 /**
  * 认证卡片：渲染一级标题（tabIndex=-1 供跳转链接聚焦）与调用方表单内容，样式由 auth.css 的 vq-auth-card 承载。
  * title 沿用 Panel 语义——调用方传入已翻译文本，此处再次 tx 因别名映射保持幂等。
@@ -29,13 +29,13 @@ export function AuthLayout() {
     return (
         <div className="vq-auth">
             <aside className="vq-auth-panel">
-                <img className="vq-auth-logo" src={logoLight} alt="VeriQ" />
+                <img className="vq-auth-logo" src={logoDark} alt="VeriQ" />
                 <p className="vq-auth-tagline">{tx("Reproducible verification, reliable software quality.")}</p>
             </aside>
             <main id="main-content" className="vq-auth-main" tabIndex={-1}>
                 <div className="vq-auth-tools">
                     <ThemeToggle />
-                    <LanguageControl />
+                    <LanguageDropdown />
                 </div>
                 <div className="vq-auth-content">
                     <Outlet />

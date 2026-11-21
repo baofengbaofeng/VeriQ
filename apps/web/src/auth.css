@@ -4,7 +4,7 @@
  */
 .vq-auth {
     display: grid;
-    grid-template-columns: minmax(360px, 5fr) minmax(0, 7fr);
+    grid-template-columns: 1fr 1fr;
     min-height: 100vh;
 }
 /*
@@ -22,6 +22,7 @@
         radial-gradient(1200px 600px at 20% -10%, rgb(70 95 255 / 30%), transparent 60%),
         linear-gradient(160deg, #101828 0%, #182230 100%);
     overflow: hidden;
+    border-radius: 0;
 }
 .vq-auth-panel::before {
     content: "";
@@ -67,6 +68,13 @@
     display: flex;
     align-items: center;
     gap: 12px;
+}
+/*
+ * 语言下拉与主题切换在工具行并排，将默认下拉触发器的高度与圆角对齐到三十二像素按钮，避免相邻控件高度不齐。
+ */
+.vq-auth-tools .vq-filter-button {
+    height: var(--vq-banner-control-size);
+    border-radius: 8px;
 }
 .vq-auth-content {
     flex: 1;

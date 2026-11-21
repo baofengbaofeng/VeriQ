@@ -20,7 +20,7 @@ test("sign-in page renders the standalone split layout", async ({ page }) => {
     await expect(panel).toBeVisible();
     await expect(panel.getByRole("img", { name: "VeriQ" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Dark mode" })).toBeVisible();
-    await expect(page.getByLabel("Language")).toBeVisible();
+    await expect(page.getByRole("button", { name: "English" })).toBeVisible();
     await expect(page.getByRole("textbox", { name: "Email" })).toBeVisible();
     await expect(page.getByLabel("Password")).toBeVisible();
 });
