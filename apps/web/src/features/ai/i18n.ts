@@ -82,6 +82,14 @@ const en = {
     searchProviders: "Search providers",
     editProvider: "Edit",
     removeHint: "This permanently deletes the provider configuration. Historical generation records are retained.",
+    time: "Time",
+    cost: "Cost",
+    tokensIn: "Input tokens",
+    tokensOut: "Output tokens",
+    action: "Actions",
+    view: "View",
+    previous: "Previous",
+    next: "Next",
 };
 const zh: typeof en = {
     title: "AI 辅助",
@@ -152,6 +160,14 @@ const zh: typeof en = {
     searchProviders: "搜索 Provider",
     editProvider: "编辑",
     removeHint: "将永久删除该 Provider 配置，历史生成记录会保留。",
+    time: "时间",
+    cost: "费用",
+    tokensIn: "Token（输入）",
+    tokensOut: "Token（输出）",
+    action: "操作",
+    view: "查看",
+    previous: "上一页",
+    next: "下一页",
 };
 /**
  * 已 init 的 i18next 实例，供 AiPage 的 useTranslation('ai', { i18n: aiI18n }) 使用。initImmediate 关闭时仍同步注册资
