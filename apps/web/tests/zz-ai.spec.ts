@@ -594,7 +594,7 @@ test("AI request inputs invalidate reviewed context and preserve manual scope", 
     expect((await refreshed).status()).toBe(200);
     await expect(page.getByLabel("Provider")).toHaveValue(selected.id);
     await expect(workspacePicker(page)).toHaveAttribute("data-workspace-id", manualWorkspace);
-    await page.getByRole("link", { name: "Resources", exact: true }).click();
+    await page.getByRole("link", { name: "Cases", exact: true }).click();
     await expect(workspacePicker(page)).toHaveAttribute("data-workspace-id", manualWorkspace);
     const returned = aiEffectLists(page, manualWorkspace);
     await page.getByRole("link", { name: "AI", exact: true }).click();

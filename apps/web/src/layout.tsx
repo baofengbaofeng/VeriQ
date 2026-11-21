@@ -47,8 +47,14 @@ const authoring: MenuGroup = {
     icon: "design",
     label: "测试设计",
     items: [
-        { path: "/resources", label: "Resources" },
+        { path: "/resources/element-catalogs", label: "Element catalogs" },
+        { path: "/resources/datasets", label: "Datasets" },
+        { path: "/resources/fixtures", label: "Fixtures" },
+        { path: "/resources/assertion-templates", label: "Assertion templates" },
         { path: "/environments", label: "Environments" },
+        { path: "/resources/flows", label: "Flows" },
+        { path: "/resources/cases", label: "Cases" },
+        { path: "/resources/suites", label: "Suites" },
         { path: "/ai", label: "AI" },
     ],
 };

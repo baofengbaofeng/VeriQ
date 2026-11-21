@@ -171,8 +171,17 @@ function App() {
                 <Route path="/admin/users" element={<AdminUsers />} />
                 <Route path="/workspaces" element={<WorkspacePage />} />
                 <Route path="/runtimes" element={<RuntimePage />} />
-                <Route path="/resources" element={<ResourcePage />} />
+                <Route path="/resources/element-catalogs" element={<ResourcePage initialKind="ELEMENT_CATALOG" />} />
+                <Route path="/resources/datasets" element={<ResourcePage initialKind="DATASET" />} />
+                <Route path="/resources/fixtures" element={<ResourcePage initialKind="FIXTURE" />} />
+                <Route
+                    path="/resources/assertion-templates"
+                    element={<ResourcePage initialKind="ASSERTION_TEMPLATE" />}
+                />
                 <Route path="/environments" element={<EnvironmentPage />} />
+                <Route path="/resources/flows" element={<ResourcePage initialKind="FLOW" />} />
+                <Route path="/resources/cases" element={<ResourcePage initialKind="CASE" />} />
+                <Route path="/resources/suites" element={<ResourcePage initialKind="SUITE" />} />
                 <Route path="/agent" element={<AgentPage />} />
                 <Route path="/ai" element={<AiPage />} />
                 <Route path="/reports" element={<ReportPage />} />
