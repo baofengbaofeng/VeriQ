@@ -4,13 +4,15 @@
  */
 
 import { tx, useAppLocale } from "../../locale";
-import { useCallback, useContext, useMemo, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import * as Dialog from "@radix-ui/react-dialog";
 import { useTranslation } from "react-i18next";
 import { validateSchema, type PlatformComponents } from "@veriq/contracts";
 import { type Workspace } from "../../api";
 import { Auth } from "../../auth-context";
+import { Button } from "../../components";
 import { Panel } from "../../ui";
 import { useWorkspaceDirectory, WorkspaceStatus } from "../workspaces/WorkspaceDirectory";
 import { useWorkspace } from "../workspaces/WorkspaceContext";
@@ -18,7 +20,7 @@ import { ResourceEditorView } from "../resources/ResourcePage";
 import { CloudResourceAdapter, type ResourceAdapter } from "../resources/adapters";
 import { CloudAiAdapter, type AiAdapter, type Generation, type GenerationRequest } from "./adapters";
 import { aiI18n } from "./i18n";
-import { ProviderControls, useProviderDirectory } from "./ProviderControls";
+import { useProviderDirectory } from "./ProviderControls";
 type S = PlatformComponents["schemas"];
 const useLabels = () => useTranslation("ai", { i18n: aiI18n }).t;
 const json = (v: unknown) => JSON.stringify(v, null, 2);
@@ -90,8 +92,7 @@ export function AiWorkspaceView({
 }) {
     useAppLocale();
     const t = useLabels();
-    const directory = useProviderDirectory(workspace, adapter, parent);
-    const { signal, providers, rows, busy, error, setError, action } = directory;
+    const { signal, providers, rows, busy, error, setError, action } = useProviderDirectory(workspace, adapter, parent);
     const edit = ["OWNER", "ADMIN", "EDITOR"].includes(workspace.role) && !workspace.archived;
     const [generating, setGenerating] = useState(false);
     const [requestState, setRequestState] = useState<RequestState>({
@@ -125,14 +126,14 @@ export function AiWorkspaceView({
         );
     }, []);
     const [generation, setGeneration] = useState<Generation>(),
-        [key, setResourceKey] = useState(""),
-        [name, setName] = useState(""),
+        [viewed, setViewed] = useState<Generation | null>(null),
         [editorId, setEditorId] = useState("");
-    const history = useInfiniteQuery({
-        queryKey: ["workspace", workspace.id, "ai", "history"],
-        queryFn: ({ pageParam }) => adapter.history(pageParam, signal),
-        initialPageParam: undefined as string | undefined,
-        getNextPageParam: (p) => p.nextCursor ?? undefined,
+    const [historyCursor, setHistoryCursor] = useState<string | null>(null);
+    const [historyStack, setHistoryStack] = useState<(string | null)[]>([]);
+    const history = useQuery({
+        queryKey: ["workspace", workspace.id, "ai", "history", historyCursor],
+        queryFn: ({ signal: querySignal }) =>
+            adapter.history(historyCursor ?? undefined, AbortSignal.any([signal, querySignal])),
     });
     const sources = useInfiniteQuery({
         queryKey: ["workspace", workspace.id, "ai", "sources"],
@@ -140,13 +141,26 @@ export function AiWorkspaceView({
         initialPageParam: undefined as string | undefined,
         getNextPageParam: (p) => p.nextCursor ?? undefined,
     });
-    const calls = history.data?.pages.flatMap((p) => p.items) ?? [];
+    const calls = history.data?.items ?? [];
+    const nextCursor = history.data?.nextCursor ?? null;
+    const nextHistoryPage = () => {
+        if (!nextCursor) return;
+        setHistoryStack((stack) => [...stack, historyCursor]);
+        setHistoryCursor(nextCursor);
+    };
+    const prevHistoryPage = () => {
+        if (!historyStack.length) return;
+        const prev = historyStack[historyStack.length - 1];
+        setHistoryCursor(prev);
+        setHistoryStack((stack) => stack.slice(0, -1));
+    };
     const provider = rows.find((p) => p.id === providerId);
     const setProvider = useCallback((id: string) => changeInput("providerId", id), [changeInput]);
-    const refresh = async () => {
-        const [updated] = await Promise.all([directory.refreshProviders(), history.refetch()]);
-        return updated;
-    };
+    const firstProviderId = rows[0]?.id;
+    useEffect(() => {
+        if (!providerId && firstProviderId) setProvider(firstProviderId);
+    }, [providerId, firstProviderId, setProvider]);
+    const refresh = () => history.refetch();
     const makeRequest = (): GenerationRequest => ({
         requestId: crypto.randomUUID(),
         providerId,
@@ -181,14 +195,18 @@ export function AiWorkspaceView({
                 </p>
             )}
             {(busy || providers.isPending) && <p role="status">{t("loading")}</p>}
-            <ProviderControls
-                key={directory.manage ? "manage" : "read-only"}
-                directory={directory}
-                providerId={providerId}
-                onSelect={setProvider}
-                refresh={refresh}
-                onTest={(result) => setGeneration(result)}
-            />
+            {!providers.isPending && !rows.length && <p>{t("empty")}</p>}
+            <label>
+                {t("provider")}
+                <select value={providerId} onChange={(e) => setProvider(e.target.value)}>
+                    <option value="">—</option>
+                    {rows.map((p) => (
+                        <option key={p.id} value={p.id}>
+                            {p.name} · {p.enabled ? t("enabled") : t("disabled")}
+                        </option>
+                    ))}
+                </select>
+            </label>
             <fieldset disabled={!edit || busy || generating}>
                 <legend>{t("selected")}</legend>
                 <p>{t("privacy")}</p>
@@ -325,134 +343,136 @@ export function AiWorkspaceView({
             )}
             {generating && <p role="status">{t("pending")}</p>}
             <section>
-                <h3>{t("history")}</h3>
-                <button type="button" onClick={() => void action(refresh)}>
-                    {t("refresh")}
-                </button>
-                {!calls.length && <p>{t("noHistory")}</p>}
-                <ul>
-                    {calls.map((g) => (
-                        <li key={g.id}>
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    void action(async () => {
-                                        const value = await adapter.get(g.id, signal);
-                                        if (!signal.aborted) setGeneration(value);
-                                    })
-                                }
-                            >
-                                {g.purpose} · {g.status} · {g.createdAt}
-                            </button>{" "}
-                            {`${g.costState === "UNKNOWN" ? t("unknown") : "USD " + g.costUsd}` +
-                                ` (${g.inputTokens ?? "?"} / ${g.outputTokens ?? "?"} ${tx(" tokens)")}`}{" "}
-                            {g.status === "RUNNING" && edit && (
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        void action(async () => {
-                                            await adapter.cancel(g.id, signal);
-                                            await refresh();
-                                        })
-                                    }
-                                >
-                                    {t("cancel")}
-                                </button>
-                            )}
-                        </li>
-                    ))}
-                </ul>
-                {history.hasNextPage && (
-                    <button type="button" onClick={() => void history.fetchNextPage()}>
-                        {t("more")}
+                <div className="vq-ai-pagination">
+                    <h3>{t("history")}</h3>
+                    <button
+                        type="button"
+                        className="vq-icon-button"
+                        aria-label={t("refresh")}
+                        onClick={() => void action(refresh)}
+                    >
+                        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                            <path
+                                d="M13.5 8a5.5 5.5 0 1 1-1.61-3.89"
+                                stroke="currentColor"
+                                strokeWidth="1.5"
+                                strokeLinecap="round"
+                            />
+                            <path
+                                d="M13.5 2.5V6H10"
+                                stroke="currentColor"
+                                strokeWidth="1.5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                            />
+                        </svg>
                     </button>
+                </div>
+                {!calls.length && <p>{t("noHistory")}</p>}
+                {!!calls.length && (
+                    <div className="table-scroll">
+                        <table className="vq-user-table">
+                            <thead>
+                                <tr>
+                                    <th>{t("purpose")}</th>
+                                    <th>{t("status")}</th>
+                                    <th>{t("time")}</th>
+                                    <th>{t("cost")}</th>
+                                    <th>{t("tokensIn")}</th>
+                                    <th>{t("tokensOut")}</th>
+                                    <th>{t("action")}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {calls.map((g) => (
+                                    <tr key={g.id}>
+                                        <td>{g.purpose}</td>
+                                        <td>{g.status}</td>
+                                        <td>{g.createdAt}</td>
+                                        <td>{g.costState === "UNKNOWN" ? t("unknown") : "USD " + g.costUsd}</td>
+                                        <td>{g.inputTokens ?? "?"}</td>
+                                        <td>{g.outputTokens ?? "?"}</td>
+                                        <td>
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    void action(async () => {
+                                                        const value = await adapter.get(g.id, signal);
+                                                        if (!signal.aborted) setViewed(value);
+                                                    })
+                                                }
+                                            >
+                                                {t("view")}
+                                            </button>
+                                            {g.status === "RUNNING" && edit && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        void action(async () => {
+                                                            await adapter.cancel(g.id, signal);
+                                                            await refresh();
+                                                        })
+                                                    }
+                                                >
+                                                    {t("cancel")}
+                                                </button>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 )}
+                <div className="vq-pagination">
+                    <button
+                        type="button"
+                        aria-label={t("previous")}
+                        disabled={!historyStack.length}
+                        onClick={prevHistoryPage}
+                    >
+                        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                            <path
+                                d="m10 4-4 4 4 4"
+                                stroke="currentColor"
+                                strokeWidth="1.5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                            />
+                        </svg>
+                    </button>
+                    <button type="button" className="vq-page" aria-current="page">
+                        {historyStack.length + 1}
+                    </button>
+                    <button type="button" aria-label={t("next")} disabled={!nextCursor} onClick={nextHistoryPage}>
+                        <svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                            <path
+                                d="m6 4 4 4-4 4"
+                                stroke="currentColor"
+                                strokeWidth="1.5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                            />
+                        </svg>
+                    </button>
+                </div>
             </section>
             {generation && (
                 <section>
                     <h3>
                         {t("output")} · {generation.status}
                     </h3>
-                    <p>{t("review")}</p>
-                    {generation.errorCode && <p role="alert">{generation.errorCode}</p>}
-                    {generation.diagnostics && (
-                        <pre>
-                            {t("diagnostics")}: {json(generation.diagnostics)}
-                        </pre>
-                    )}
-                    <div className="vq-ai-diff">
-                        <div>
-                            <h4>{t("original")}</h4>
-                            <pre>{json(generation.original ?? null)}</pre>
-                        </div>
-                        <div>
-                            <h4>{t("output")}</h4>
-                            <pre>{json(generation.output ?? null)}</pre>
-                        </div>
-                    </div>
-                    {generation.status === "SUCCEEDED" && edit && (
-                        <fieldset disabled={busy}>
-                            {!generation.resourceId && generation.purpose === "CASE_DRAFT" && (
-                                <>
-                                    <label>
-                                        {t("keyName")}
-                                        <input value={key} onChange={(e) => setResourceKey(e.target.value)} />
-                                    </label>
-                                    <label>
-                                        {t("resourceName")}
-                                        <input value={name} onChange={(e) => setName(e.target.value)} />
-                                    </label>
-                                </>
-                            )}
-                            {generation.purpose === "CASE_DRAFT" && (
-                                <button
-                                    type="button"
-                                    disabled={
-                                        generation.resourceId
-                                            ? !generation.revision
-                                            : !name.trim() || name.length > 160 || validateSchema("Key", key).length > 0
-                                    }
-                                    onClick={() =>
-                                        void action(async () => {
-                                            const g = await adapter.review(
-                                                generation.id,
-                                                {
-                                                    decision: "ACCEPT_DRAFT",
-                                                    ...(generation.resourceId
-                                                        ? { revision: generation.revision }
-                                                        : { key, name }),
-                                                },
-                                                signal,
-                                            );
-                                            if (signal.aborted) return;
-                                            setGeneration(g);
-                                            await refresh();
-                                        })
-                                    }
-                                >
-                                    {t("apply")}
-                                </button>
-                            )}
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    void action(async () => {
-                                        const g = await adapter.review(generation.id, { decision: "REJECT" }, signal);
-                                        if (signal.aborted) return;
-                                        setGeneration(g);
-                                        await refresh();
-                                    })
-                                }
-                            >
-                                {t("reject")}
-                            </button>
-                        </fieldset>
-                    )}
-                    {generation.status === "REVIEWED" && generation.resourceId && (
-                        <button type="button" onClick={() => setEditorId(generation.resourceId!)}>
-                            {t("edit")}
-                        </button>
-                    )}
+                    <GenerationDetail
+                        generation={generation}
+                        onReviewed={setGeneration}
+                        onEdit={setEditorId}
+                        edit={edit}
+                        busy={busy}
+                        action={action}
+                        adapter={adapter}
+                        signal={signal}
+                        refresh={refresh}
+                    />
                 </section>
             )}
             {editor.error && <p role="alert">{editor.error.message}</p>}
@@ -470,6 +490,155 @@ export function AiWorkspaceView({
                     onResource={() => void editor.refetch()}
                 />
             )}
+            <Dialog.Root
+                open={!!viewed}
+                onOpenChange={(open) => {
+                    if (!open) setViewed(null);
+                }}
+            >
+                <Dialog.Portal>
+                    <Dialog.Overlay className="vq-ai-dialog-overlay" />
+                    <Dialog.Content className="vq-ai-dialog">
+                        <div className="vq-card-heading">
+                            <Dialog.Title>
+                                {t("output")} · {viewed?.status ?? ""}
+                            </Dialog.Title>
+                            <Dialog.Close className="vq-sheet-close" aria-label={tx("Close")}>
+                                ×
+                            </Dialog.Close>
+                        </div>
+                        {viewed && (
+                            <GenerationDetail
+                                generation={viewed}
+                                onReviewed={setViewed}
+                                onEdit={(id) => {
+                                    setViewed(null);
+                                    setEditorId(id);
+                                }}
+                                edit={edit}
+                                busy={busy}
+                                action={action}
+                                adapter={adapter}
+                                signal={signal}
+                                refresh={refresh}
+                            />
+                        )}
+                    </Dialog.Content>
+                </Dialog.Portal>
+            </Dialog.Root>
         </div>
+    );
+}
+
+/**
+ * 生成详情：展示一次 AI 生成的状态、诊断与 original/output diff，并对 SUCCEEDED 记录提供接受/拒绝审核。
+ * 内联「输出」区与「查看」弹窗共用；审核完成后通过 onReviewed 交回宿主更新对应状态。
+ */
+function GenerationDetail({
+    generation,
+    onReviewed,
+    onEdit,
+    edit,
+    busy,
+    action,
+    adapter,
+    signal,
+    refresh,
+}: {
+    generation: Generation;
+    onReviewed: (g: Generation) => void;
+    onEdit: (resourceId: string) => void;
+    edit: boolean;
+    busy: boolean;
+    action: (fn: () => Promise<unknown>) => void;
+    adapter: AiAdapter;
+    signal: AbortSignal;
+    refresh: () => Promise<unknown>;
+}) {
+    const t = useLabels();
+    const [key, setResourceKey] = useState("");
+    const [name, setName] = useState("");
+    return (
+        <>
+            <p>{t("review")}</p>
+            {generation.errorCode && <p role="alert">{generation.errorCode}</p>}
+            {generation.diagnostics && (
+                <pre>
+                    {t("diagnostics")}: {json(generation.diagnostics)}
+                </pre>
+            )}
+            <div className="vq-ai-diff">
+                <div>
+                    <h4>{t("original")}</h4>
+                    <pre>{json(generation.original ?? null)}</pre>
+                </div>
+                <div>
+                    <h4>{t("output")}</h4>
+                    <pre>{json(generation.output ?? null)}</pre>
+                </div>
+            </div>
+            {generation.status === "SUCCEEDED" && edit && (
+                <fieldset disabled={busy}>
+                    {!generation.resourceId && generation.purpose === "CASE_DRAFT" && (
+                        <>
+                            <label>
+                                {t("keyName")}
+                                <input value={key} onChange={(e) => setResourceKey(e.target.value)} />
+                            </label>
+                            <label>
+                                {t("resourceName")}
+                                <input value={name} onChange={(e) => setName(e.target.value)} />
+                            </label>
+                        </>
+                    )}
+                    {generation.purpose === "CASE_DRAFT" && (
+                        <Button
+                            disabled={
+                                generation.resourceId
+                                    ? !generation.revision
+                                    : !name.trim() || name.length > 160 || validateSchema("Key", key).length > 0
+                            }
+                            onClick={() =>
+                                void action(async () => {
+                                    const g = await adapter.review(
+                                        generation.id,
+                                        {
+                                            decision: "ACCEPT_DRAFT",
+                                            ...(generation.resourceId
+                                                ? { revision: generation.revision }
+                                                : { key, name }),
+                                        },
+                                        signal,
+                                    );
+                                    if (signal.aborted) return;
+                                    onReviewed(g);
+                                    await refresh();
+                                })
+                            }
+                        >
+                            {t("apply")}
+                        </Button>
+                    )}
+                    <Button
+                        tone="danger"
+                        onClick={() =>
+                            void action(async () => {
+                                const g = await adapter.review(generation.id, { decision: "REJECT" }, signal);
+                                if (signal.aborted) return;
+                                onReviewed(g);
+                                await refresh();
+                            })
+                        }
+                    >
+                        {t("reject")}
+                    </Button>
+                </fieldset>
+            )}
+            {generation.status === "REVIEWED" && generation.resourceId && (
+                <Button tone="secondary" onClick={() => onEdit(generation.resourceId!)}>
+                    {t("edit")}
+                </Button>
+            )}
+        </>
     );
 }

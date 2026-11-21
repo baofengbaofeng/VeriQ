@@ -77,7 +77,7 @@ test("resources restore workspace focus on selection and retain unsaved values a
         if (request.method() === "GET" && /\/workspaces\/[^/]+\/resources$/.test(new URL(request.url()).pathname))
             queried.push(request.url());
     });
-    await page.goto("/resources");
+    await page.goto("/resources/datasets");
     const firstPage = (await (await listing).json()).data;
     const first = firstPage.items[0].id as string;
     let lastLoadedId = firstPage.items.at(-1).id as string;
@@ -172,12 +172,10 @@ test("resources restore workspace focus on selection and retain unsaved values a
     };
     await page.route(path, barrier);
     try {
-        await page.getByRole("link", { name: "Resources", exact: true }).click();
+        await page.getByRole("link", { name: "Datasets", exact: true }).click();
         await backendCompleted;
         await chooseWorkspace(page, beta);
         await expect(page.getByText("No resources in this Workspace.")).toBeVisible();
-        await page.getByRole("button", { name: "New resource", exact: true }).click();
-        await resourceCreateForm(page).getByRole("combobox", { name: "Kind", exact: true }).selectOption("DATASET");
         await page.getByLabel("Key").fill("unsaved_beta");
         const name = page.getByLabel("Name");
         await name.fill("Unsaved Beta resource");
@@ -203,12 +201,11 @@ test("resources restore workspace focus on selection and retain unsaved values a
         await expect(selector).toHaveAttribute("data-workspace-id", alpha);
         await expect(selector).toBeFocused();
         await expect(page.getByText("No resources in this Workspace.")).toBeVisible();
-        await page.getByRole("button", { name: "New resource", exact: true }).click();
         await expect(page.getByLabel("Key")).toHaveValue("");
         await expect(page.getByLabel("Name")).toHaveValue("");
-        await expect(resourceCreateForm(page).getByRole("combobox", { name: "Kind", exact: true })).toHaveValue("CASE");
-        await page.getByRole("button", { name: "Back to list" }).click();
-        await expect(page.getByText("No resources in this Workspace.")).toBeVisible();
+        await expect(resourceCreateForm(page).getByRole("combobox", { name: "Kind", exact: true })).toHaveValue(
+            "DATASET",
+        );
     } finally {
         release();
         if (held) await finished;

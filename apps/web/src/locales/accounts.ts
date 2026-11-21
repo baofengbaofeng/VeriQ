@@ -28,6 +28,10 @@ export const accountsMessages: Record<string, readonly [string, string]> = {
     "Revoke all sessions and sign out": ["吊销全部会话并退出登录", "Revoke all sessions and sign out"],
     "Sign in to VeriQ": ["登录 VeriQ", "Sign in to VeriQ"],
     "Access your account and workspaces.": ["访问您的账号和工作区。", "Access your account and workspaces."],
+    "Reproducible verification, reliable software quality.": [
+        "用可复现的验证，支撑软件质量。",
+        "Reproducible verification, reliable software quality.",
+    ],
     Password: ["密码", "Password"],
     "Signing in…": ["正在登录…", "Signing in…"],
     "Forgot password?": ["忘记密码？", "Forgot password?"],

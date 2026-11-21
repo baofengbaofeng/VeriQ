@@ -5,6 +5,7 @@
 import { useEffect, useId, useRef, type ComponentProps, type ReactNode } from "react";
 import { useLocation } from "react-router-dom";
 import { I18nextProvider } from "react-i18next";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { ConfirmDialog as SharedConfirmDialog } from "@veriq/ui";
 import { appI18n, tx, useAppLocale } from "./locale";
 
@@ -32,6 +33,65 @@ export function LanguageControl() {
                 <option value="en">English</option>
             </select>
         </label>
+    );
+}
+
+/**
+ * 语言下拉切换沿用 TailAdmin Default Dropdown 外观，以按钮加单选菜单替代原生 select，触发按钮只显示当前语言名与下拉箭头，
+ * 打开后由 RadioGroup 在两个持久化语言值之间互斥选择。
+ */
+export function LanguageDropdown() {
+    const { language, setLanguage } = useAppLocale();
+    const active = language === "zh" ? "中文" : "English";
+    return (
+        <DropdownMenu.Root>
+            <DropdownMenu.Trigger className="vq-filter-button">
+                {active}
+                <svg aria-hidden="true" width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <path
+                        d="m3 4.5 3 3 3-3"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                    />
+                </svg>
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Portal>
+                <DropdownMenu.Content className="vq-dropdown" align="start" sideOffset={4} collisionPadding={8}>
+                    <DropdownMenu.RadioGroup value={language} onValueChange={setLanguage}>
+                        <DropdownMenu.RadioItem value="zh" className="vq-dropdown-item">
+                            中文
+                            <DropdownMenu.ItemIndicator className="vq-dropdown-check">
+                                <svg aria-hidden="true" width="14" height="14" viewBox="0 0 14 14" fill="none">
+                                    <path
+                                        d="m3 7.5 2.5 2.5L11 4.5"
+                                        stroke="currentColor"
+                                        strokeWidth="1.5"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                    />
+                                </svg>
+                            </DropdownMenu.ItemIndicator>
+                        </DropdownMenu.RadioItem>
+                        <DropdownMenu.RadioItem value="en" className="vq-dropdown-item">
+                            English
+                            <DropdownMenu.ItemIndicator className="vq-dropdown-check">
+                                <svg aria-hidden="true" width="14" height="14" viewBox="0 0 14 14" fill="none">
+                                    <path
+                                        d="m3 7.5 2.5 2.5L11 4.5"
+                                        stroke="currentColor"
+                                        strokeWidth="1.5"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                    />
+                                </svg>
+                            </DropdownMenu.ItemIndicator>
+                        </DropdownMenu.RadioItem>
+                    </DropdownMenu.RadioGroup>
+                </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+        </DropdownMenu.Root>
     );
 }
 

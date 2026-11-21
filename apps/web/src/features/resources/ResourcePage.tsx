@@ -104,7 +104,7 @@ export function ResourcePage({
             </section>
         );
     return (
-        <Panel title={t(initialKind === "ENVIRONMENT" ? "environments" : "resources")}>
+        <Panel title={t(initialKind ? `kinds.${initialKind}` : "resources")}>
             <WorkspaceStatus />
             {view}
         </Panel>
@@ -406,7 +406,6 @@ export function ResourceWorkspaceView({
                 </>
             ) : (
                 <>
-                    {kindField}
                     {datasetFormatField}
                     {keyField}
                     {nameField}
@@ -479,10 +478,7 @@ export function ResourceWorkspaceView({
                 </>
             ) : (
                 <>
-                    <Section title={tx("资源列表 / Resource library")}>
-                        {filter}
-                        {rows}
-                    </Section>
+                    <Section title={tx("资源列表 / Resource library")}>{rows}</Section>
                     {copyButton}
                     {!adapter.readOnly && <Section title={t("create")}>{form}</Section>}
                 </>

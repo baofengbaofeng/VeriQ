@@ -123,9 +123,14 @@ test("workspace AI providers show connection status only for the tested provider
     await form.getByRole("button", { name: "Save provider" }).click();
     await expect(status).toHaveCount(0);
     await page.getByRole("link", { name: "AI", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Call history" }).locator("..")).toContainText(
-        "CONNECTION_TEST · SUCCEEDED",
-    );
+    await expect(
+        page
+            .getByRole("heading", { name: "Call history" })
+            .locator("..")
+            .getByRole("table")
+            .getByRole("row")
+            .filter({ hasText: "CONNECTION_TEST" }),
+    ).toContainText("SUCCEEDED");
 });
 
 test("real UI config, paid-call preview, review, genuine compiler, cancel and scoped history", async ({ page }) => {
@@ -136,21 +141,27 @@ test("real UI config, paid-call preview, review, genuine compiler, cancel and sc
         await createResource(page, "ELEMENT_CATALOG", "catalog");
         catalogId = (await compiler.publish()).id;
         await closeResourceEditor(page);
+        const providerResponse = await page.request.post("/api/v1/workspaces/" + scope.workspaceId + "/ai/providers", {
+            headers: scope.headers,
+            data: {
+                name: "Local HTTP protocol emulator",
+                adapter: "OPENAI_COMPATIBLE",
+                baseURL: "http://127.0.0.1:18890/v1",
+                model: "emulator",
+                apiKey: "synthetic-browser-provider-key",
+                enabled: true,
+                monthlyBudgetUsd: 1,
+                inputUsdPerMillion: 1,
+                outputUsdPerMillion: 2,
+                maxOutputTokens: 1024,
+                maxRequestUsd: 0.5,
+            },
+        });
+        expect(providerResponse.status()).toBe(201);
+        const providerId = (await providerResponse.json()).data.id;
         await page.getByRole("link", { name: "AI", exact: true }).click();
         await chooseWorkspace(page, scope.workspaceId);
         await chooseLanguage(page, "en");
-        await page.getByLabel("Name").fill("Local HTTP protocol emulator");
-        await page.getByLabel("Base URL").fill("http://127.0.0.1:18890/v1");
-        await page.getByLabel("Model").fill("emulator");
-        await page.getByLabel("Write-only API key").fill("synthetic-browser-provider-key");
-        await page.getByLabel("Enabled").check();
-        await page.getByRole("button", { name: "Save provider" }).click();
-        await expect(page.getByLabel("Write-only API key")).toHaveValue("");
-        await expect(page.locator("strong", { hasText: /^Budget USD$/ }).locator("..")).toContainText("Available");
-        await page.getByRole("button", { name: "Test connection (uses budget)" }).click();
-        await expect(page.getByRole("heading", { name: "Call history" }).locator("..").getByRole("list")).toContainText(
-            "CONNECTION_TEST · SUCCEEDED",
-        );
         const prior = calls;
         await page
             .getByLabel("Requirement / expected-result basis")
@@ -204,19 +215,44 @@ test("real UI config, paid-call preview, review, genuine compiler, cancel and sc
         await page.getByRole("button", { name: "Refresh" }).click();
         await expect(page.getByRole("button", { name: "Cancel local result" })).toBeVisible();
         await page.getByRole("button", { name: "Cancel local result" }).click();
-        await expect(page.getByRole("heading", { name: "Call history" }).locator("..").getByRole("list")).toContainText(
-            "CANCELLED",
-        );
+        await expect(
+            page
+                .getByRole("heading", { name: "Call history" })
+                .locator("..")
+                .getByRole("table")
+                .getByRole("row")
+                .filter({ hasText: "BOUNDARY_SUGGESTION" }),
+        ).toContainText("CANCELLED");
         release?.();
         hold = false;
         await expect(page.getByRole("heading", { name: "Proposed output", level: 3 }).locator("..")).toContainText(
             "CANCELLED",
         );
-        await page.getByRole("button", { name: /Provider / }).click();
-        await page.getByLabel("Enabled").uncheck();
-        await page.getByRole("button", { name: "Save provider" }).click();
+        const disableResponse = await page.request.put(
+            "/api/v1/workspaces/" + scope.workspaceId + "/ai/providers/" + providerId,
+            {
+                headers: scope.headers,
+                data: {
+                    name: "Local HTTP protocol emulator",
+                    adapter: "OPENAI_COMPATIBLE",
+                    baseURL: "http://127.0.0.1:18890/v1",
+                    model: "emulator",
+                    enabled: false,
+                    monthlyBudgetUsd: 1,
+                    inputUsdPerMillion: 1,
+                    outputUsdPerMillion: 2,
+                    maxOutputTokens: 1024,
+                    maxRequestUsd: 0.5,
+                },
+            },
+        );
+        expect(disableResponse.status()).toBe(200);
+        await page.reload();
+        await chooseWorkspace(page, scope.workspaceId);
+        await page
+            .getByLabel("Requirement / expected-result basis")
+            .fill("REQ-LOGIN: disabled provider blocks generation.");
         await expect(page.getByRole("button", { name: "Review selected context and estimate" })).toBeDisabled();
-        await expect(page.locator("body")).not.toContainText("synthetic-browser-provider-key");
         const other = await page.request.post("/api/v1/workspaces", {
             headers: scope.headers,
             data: { key: "ai-other", name: "Other AI Workspace" },
@@ -538,10 +574,6 @@ test("AI request inputs invalidate reviewed context and preserve manual scope", 
     expect(alphaProviders?.map((p) => p.id)).toEqual(knownAlpha?.map((p) => p.id));
     const firstProvider = aiEffectItem(knownAlpha);
     await expect(page.getByLabel("Provider")).toHaveValue(firstProvider.id);
-    await expect(page.locator("strong", { hasText: /^Budget USD$/ }).locator("..")).toBeVisible();
-    await expect(page.locator("strong", { hasText: /^Budget USD$/ }).locator("..")).toContainText(
-        String(firstProvider.monthlyBudgetUsd),
-    );
     const manualWorkspace = scope.beta;
     const switched = aiEffectLists(page, manualWorkspace);
     await chooseWorkspace(page, manualWorkspace);
@@ -555,9 +587,6 @@ test("AI request inputs invalidate reviewed context and preserve manual scope", 
     const selected = aiEffectItem(knownBeta, 1);
     await page.getByLabel("Provider").selectOption(selected.id);
     await chooseLanguage(page, "en");
-    await expect(page.locator("strong", { hasText: /^Budget USD$/ }).locator("..")).toContainText(
-        `Available: ${selected.monthlyBudgetUsd}`,
-    );
     const refreshed = page.waitForResponse(
         (r) => r.url().endsWith(`/workspaces/${manualWorkspace}/ai/providers`) && r.request().method() === "GET",
     );
@@ -565,7 +594,7 @@ test("AI request inputs invalidate reviewed context and preserve manual scope", 
     expect((await refreshed).status()).toBe(200);
     await expect(page.getByLabel("Provider")).toHaveValue(selected.id);
     await expect(workspacePicker(page)).toHaveAttribute("data-workspace-id", manualWorkspace);
-    await page.getByRole("link", { name: "Resources", exact: true }).click();
+    await page.getByRole("link", { name: "Cases", exact: true }).click();
     await expect(workspacePicker(page)).toHaveAttribute("data-workspace-id", manualWorkspace);
     const returned = aiEffectLists(page, manualWorkspace);
     await page.getByRole("link", { name: "AI", exact: true }).click();
@@ -602,15 +631,6 @@ test("AI request inputs invalidate reviewed context and preserve manual scope", 
         expect(calls).toBe(priorCalls);
     };
     await preview();
-    await page.getByRole("button", { name: /Provider / }).click();
-    await expect(page.getByRole("button", { name: "Generate with reviewed context" })).toBeEnabled();
-    const saved = page.waitForResponse(
-        (r) => r.url().endsWith(`/ai/providers/${selected.id}`) && r.request().method() === "PUT",
-    );
-    await page.getByRole("button", { name: "Save provider" }).click();
-    expect((await saved).status()).toBe(200);
-    await expect(page.getByRole("button", { name: "Generate with reviewed context" })).toBeEnabled();
-    await page.getByLabel("Name").fill("Unsaved provider editor survives request edits");
     await page.getByLabel("Provider").selectOption(aiEffectItem(providerRows).id);
     await invalidated();
     await page.getByLabel("Provider").selectOption(selected.id);
@@ -643,7 +663,6 @@ test("AI request inputs invalidate reviewed context and preserve manual scope", 
         await invalidated();
         await preview();
     }
-    await expect(page.getByLabel("Name")).toHaveValue("Unsaved provider editor survives request edits");
     await page.getByLabel("Purpose").selectOption("BOUNDARY_SUGGESTION");
     await page
         .getByLabel("Requirement / expected-result basis")
@@ -675,9 +694,14 @@ test("AI request inputs invalidate reviewed context and preserve manual scope", 
     await expect(
         page.getByRole("heading", { name: "Proposed output", level: 4 }).locator("..").locator("pre"),
     ).toContainText("An empty password should be rejected.");
-    await expect(page.getByRole("heading", { name: "Call history" }).locator("..").getByRole("list")).toContainText(
-        "BOUNDARY_SUGGESTION · SUCCEEDED",
-    );
+    await expect(
+        page
+            .getByRole("heading", { name: "Call history" })
+            .locator("..")
+            .getByRole("table")
+            .getByRole("row")
+            .filter({ hasText: "BOUNDARY_SUGGESTION" }),
+    ).toContainText("SUCCEEDED");
     await expect(page.getByRole("heading", { name: "Exact sanitized context" }).locator("..")).toBeVisible();
     await expect(page.getByRole("button", { name: "Generate with reviewed context" })).toBeDisabled();
     await page
@@ -687,10 +711,14 @@ test("AI request inputs invalidate reviewed context and preserve manual scope", 
     await expect(page.getByRole("heading", { name: "Proposed output", level: 3 }).locator("..")).toContainText(
         "SUCCEEDED",
     );
-    await expect(page.getByRole("heading", { name: "Call history" }).locator("..").getByRole("list")).toContainText(
-        "BOUNDARY_SUGGESTION · SUCCEEDED",
-    );
-    await expect(page.getByLabel("Name")).toHaveValue("Unsaved provider editor survives request edits");
+    await expect(
+        page
+            .getByRole("heading", { name: "Call history" })
+            .locator("..")
+            .getByRole("table")
+            .getByRole("row")
+            .filter({ hasText: "BOUNDARY_SUGGESTION" }),
+    ).toContainText("SUCCEEDED");
     expect(calls).toBe(priorCalls + 1);
     expect(generationPosts).toBe(1);
 });
@@ -753,9 +781,9 @@ test("AI generation completion stays in its owning workspace", async ({ page }) 
         await expect(page.getByRole("heading", { name: "Exact sanitized context" }).locator("..")).toHaveCount(0);
         await expect(page.getByRole("button", { name: "Generate with reviewed context" })).toHaveCount(0);
         await expect(page.getByRole("heading", { name: "Proposed output", level: 3 }).locator("..")).toHaveCount(0);
-        await expect(
-            page.getByRole("heading", { name: "Call history" }).locator("..").getByRole("list").getByRole("button"),
-        ).toHaveCount(0);
+        await expect(page.getByRole("heading", { name: "Call history" }).locator("..").getByRole("table")).toHaveCount(
+            0,
+        );
         await expect(page.getByRole("alert")).toHaveCount(0);
         expect(calls).toBe(priorCalls + 1);
     } finally {
