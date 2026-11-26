@@ -1,0 +1,138 @@
+/*
+ * 顶栏保留 TailAdmin 的右对齐弹层、未读圆点和独立滚动列表；宽度限制在可见区域内，长摘要不扩大外壳。
+ */
+.vq-notification-anchor {
+    position: relative;
+}
+.vq-notification-dot {
+    position: absolute;
+    inset-block-start: 3px;
+    inset-inline-end: 3px;
+    inline-size: 8px;
+    block-size: 8px;
+    border-radius: 50%;
+    background: #f79009;
+    box-shadow: 0 0 0 2px var(--vq-surface);
+    pointer-events: none;
+}
+.vq-notification-menu {
+    position: absolute;
+    z-index: 60;
+    inset-block-start: calc(100% + 10px);
+    inset-inline-end: 0;
+    width: min(360px, calc(100vw - 30px));
+    padding: 12px;
+    border: 1px solid var(--vq-border);
+    border-radius: 12px;
+    background: var(--vq-surface);
+    color: var(--vq-text);
+    box-shadow: 0 8px 24px #1018281a;
+}
+.vq-notification-heading,
+.vq-notification-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: space-between;
+}
+.vq-notification-heading {
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--vq-border);
+}
+.vq-notification-heading h2 {
+    flex: 1;
+    margin: 0;
+    font-size: calc(14px - var(--vq-font-reduction, 0px));
+}
+.vq-notification-scroll {
+    max-block-size: min(390px, calc(100vh - 155px));
+    overflow-y: auto;
+}
+.vq-notification-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.vq-notification-row {
+    display: grid;
+    gap: 5px;
+    padding: 10px 6px;
+    border-bottom: 1px solid var(--vq-border);
+    font-size: calc(12px - var(--vq-font-reduction, 0px));
+}
+.vq-notification-row[data-unread="true"] {
+    background: var(--vq-hover, var(--vq-surface-muted));
+    box-shadow: inset 2px 0 var(--vq-brand);
+}
+.vq-notification-row-title {
+    display: block;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    padding: 0 2px;
+    overflow: hidden;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    text-align: start;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-weight: 600;
+}
+.vq-notification-meta .vq-notification-row-title {
+    font-size: calc(14px - var(--vq-font-reduction, 0px));
+}
+.vq-notice-summary {
+    display: grid;
+    min-inline-size: 0;
+    font-size: calc(12px - var(--vq-font-reduction, 0px));
+}
+.vq-notice-summary > * {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.vq-notice-time {
+    color: var(--vq-muted);
+    white-space: nowrap;
+    font-size: calc(10px - var(--vq-font-reduction, 0px));
+}
+.vq-notice-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+}
+.vq-notice-actions .vq-btn,
+.vq-notification-heading .vq-btn,
+.vq-notification-view-all {
+    font-size: calc(12px - var(--vq-font-reduction, 0px));
+}
+.vq-notification-view-all {
+    display: block;
+    margin-top: 10px;
+    padding: 7px 10px;
+    text-align: center;
+}
+.vq-notification-empty {
+    padding: 12px;
+    text-align: center;
+    font-size: calc(12px - var(--vq-font-reduction, 0px));
+}
+.vq-notification-table {
+    overflow: auto;
+}
+.vq-notification-table .vq-notice-summary {
+    max-inline-size: 460px;
+}
+.vq-notification-detail {
+    display: grid;
+    gap: 8px;
+    margin-block-end: 16px;
+    padding: 12px;
+    border: 1px solid var(--vq-border);
+    border-radius: 8px;
+}
+.vq-notification-detail h2 {
+    margin: 0;
+    font-size: calc(14px - var(--vq-font-reduction, 0px));
+}

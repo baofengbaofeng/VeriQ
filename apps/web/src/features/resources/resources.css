@@ -1,0 +1,517 @@
+.vq-resources {
+    min-width: 0;
+}
+.vq-section {
+    border-top: 1px solid var(--vq-border);
+    padding: 20px 0;
+    margin-top: 18px;
+    min-width: 0;
+}
+.vq-section h3 {
+    font-size: calc(17px - var(--vq-font-reduction, 0px));
+    margin: 0 0 16px;
+}
+.vq-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin: 12px 0;
+}
+.vq-actions h2 {
+    margin: 0;
+    flex: 1;
+}
+.vq-actions input,
+.vq-actions select {
+    width: auto;
+    max-width: 100%;
+}
+.vq-actions label {
+    flex: 1;
+    min-width: 160px;
+}
+.vq-actions label input,
+.vq-actions label select {
+    width: 100%;
+}
+.vq-button + .vq-button {
+    margin-left: 0;
+}
+.vq-secondary {
+    background: var(--vq-surface);
+    color: var(--vq-brand);
+}
+.vq-danger {
+    background: #fff3f0;
+    color: #962e24;
+    border-color: #c46c63;
+}
+.vq-editor-fields {
+    min-width: 0;
+    border: 0;
+    padding: 0;
+    margin: 20px 0;
+    display: grid;
+    gap: 16px;
+}
+/*
+ * 一级页签下的面板保留内层表格滚动，搜索框随抽屉收窄，表单与编辑器本身从内容区左侧起始位置对齐。
+ */
+.vq-dataset-panels .vq-user-search {
+    max-width: 100%;
+}
+.vq-dataset-panels,
+.vq-dataset-panels > [role="tabpanel"] {
+    min-width: 0;
+}
+.vq-dataset-panels > [role="tabpanel"] > .vq-editor-fields {
+    border: 0;
+    padding: 0;
+    margin-block-start: 0;
+    background: transparent;
+}
+.vq-dataset-panels .vq-editor-fields > .vq-monaco-field > .vq-monaco {
+    margin-block-start: 0;
+}
+.vq-section.vq-dataset-field-section,
+.vq-dataset-import-fields > .vq-section {
+    border-block-start: 0;
+    margin-block-start: 0;
+    padding-block-start: 0;
+}
+.vq-editor-fields .vq-dataset-control-lock,
+fieldset.vq-dataset-control-lock {
+    min-inline-size: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+.vq-dataset-tabs {
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+.vq-dataset-tabs > button[role="tab"] {
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+/*
+ * 字段定义和数据记录分别使用原生表格，列宽由表头与列定义统一约束，超宽内容仅在所在表格内横向滚动。
+ */
+.vq-dataset-table-scroll {
+    min-width: 0;
+    margin-block: 8px;
+    border: 1px solid var(--vq-border);
+    border-radius: 8px;
+}
+.vq-dataset-table {
+    table-layout: fixed;
+}
+.vq-dataset-definition-table {
+    min-width: 38rem;
+}
+/*
+ * 字段名称获得额外编辑空间，开关列只为表头和复选框保留足够宽度，类型列仍需要容纳最长选项和箭头。
+ */
+.vq-dataset-name-column {
+    width: 34%;
+}
+.vq-dataset-type-column {
+    width: 21%;
+}
+.vq-dataset-flag-column {
+    width: 13%;
+}
+.vq-dataset-add-icon {
+    margin-inline-end: 6px;
+}
+.vq-section > .vq-dataset-add-action {
+    margin-block-start: 12px;
+}
+/*
+ * 导入表单复用上方表格的面板层次和边距，格式与上传同排，窄工作区通过比例列宽保留文件拖放目标空间。
+ */
+.vq-dataset-import-body {
+    min-inline-size: 0;
+    padding: 10px 12px;
+    border: 1px solid var(--vq-border);
+    border-radius: 10px;
+    background: var(--vq-surface, var(--vq-text-input-background));
+}
+.vq-dataset-import-guidance {
+    margin: 0 0 12px;
+    color: var(--vq-muted, var(--vq-brand-text));
+    font-size: 10px;
+    line-height: 16px;
+}
+.vq-dataset-import-sources {
+    display: grid;
+    grid-template-columns: minmax(0, min(42%, 9rem)) minmax(0, 1fr);
+    gap: 6px 12px;
+}
+.vq-dataset-import-sources > label,
+.vq-dataset-import-file {
+    display: grid;
+    grid-row: span 2;
+    grid-template-rows: subgrid;
+    align-items: start;
+    min-inline-size: 0;
+}
+.vq-dataset-import-sources > label > .vq-select-trigger {
+    inline-size: 100%;
+}
+.vq-dataset-import-sources .vq-select-trigger > span:first-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+/*
+ * 导入页签的原生单选保留同组方向键导航，圆形选中标记在两种主题下保持清晰，较窄时整组选项自然折行。
+ */
+.vq-dataset-import-formats {
+    margin-block-end: 12px;
+}
+.vq-dataset-import-formats > span {
+    display: block;
+    margin-block-end: 4px;
+}
+.vq-dataset-import-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+}
+.vq-dataset-import-options label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    padding: 4px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+.vq-dataset-import-options label > input[type="radio"] {
+    appearance: none;
+    display: grid;
+    place-items: center;
+    flex: none;
+    box-sizing: border-box;
+    inline-size: 16px;
+    block-size: 16px;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--vq-muted);
+    border-radius: 50%;
+    background: var(--vq-surface, var(--vq-text-input-background));
+    cursor: inherit;
+}
+.vq-dataset-import-options label > input[type="radio"]:checked {
+    border-color: var(--vq-button-fill, var(--vq-brand));
+    background: var(--vq-button-fill, var(--vq-brand));
+}
+.vq-dataset-import-options label > input[type="radio"]:checked::after {
+    content: "";
+    inline-size: 8px;
+    block-size: 8px;
+    border-radius: 50%;
+    background: #fff;
+}
+.vq-dataset-import-options label:has(> input:disabled) {
+    opacity: 0.6;
+    cursor: default;
+}
+.vq-dataset-import-radio-source .vq-dataset-import-file {
+    grid-template-rows: auto auto;
+    gap: 6px;
+}
+@media (forced-colors: active) {
+    .vq-dataset-import-options label > input[type="radio"] {
+        appearance: auto;
+        forced-color-adjust: auto;
+    }
+    .vq-dataset-import-options label > input[type="radio"]:checked::after {
+        display: none;
+    }
+}
+/*
+ * 按 TailAdmin 的文件拖放样式安排虚线边框和居中操作，原生按钮负责键盘选文件，拖入反馈沿用当前主题变量。
+ */
+.vq-dataset-import-file .vq-dataset-dropzone {
+    inline-size: 100%;
+    display: grid;
+    justify-items: center;
+    gap: 4px;
+    min-inline-size: 0;
+    border: 1px dashed var(--vq-border);
+    border-radius: 12px;
+    padding: 12px;
+    background: var(--vq-hover, var(--vq-dropdown-hover));
+    color: var(--vq-secondary, var(--vq-brand-text));
+    font: inherit;
+    text-align: center;
+}
+.vq-dataset-import-file .vq-dataset-dropzone:hover:where(:not(:disabled, :focus-visible)),
+.vq-dataset-import-file .vq-dataset-dropzone[data-dragging]:where(:not(:disabled)) {
+    border-color: var(--vq-brand);
+    background: var(--vq-brand-soft);
+}
+.vq-dataset-upload-icon {
+    display: grid;
+    place-items: center;
+    inline-size: 34px;
+    block-size: 34px;
+    border-radius: 50%;
+    background: var(--vq-surface, var(--vq-text-input-background));
+    color: var(--vq-brand);
+}
+.vq-dataset-upload-title {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+.vq-dataset-upload-hint {
+    font-size: 10px;
+}
+.vq-dataset-import-text {
+    margin-block-start: 12px;
+}
+/*
+ * 独立导入的两种输入按边框盒共用默认高度，长文件名仍可折行以免遮挡下方的文件类型及容量提示。
+ */
+.vq-dataset-import-fields .vq-dataset-import-text > textarea,
+.vq-dataset-import-fields .vq-dataset-dropzone {
+    box-sizing: border-box;
+    min-block-size: 132px;
+}
+.vq-dataset-import-fields .vq-dataset-dropzone {
+    align-content: center;
+}
+.vq-section .vq-dataset-import-action {
+    margin-block-start: 12px;
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+.vq-dataset-import-body > .vq-dataset-import-action + .vq-dataset-import-action {
+    margin-inline-start: 8px;
+}
+/*
+ * 预检列名与样例值来自文件，换行和内部滚动可保留原文，同时避免推窗被超长内容撑开或遮挡应用操作。
+ */
+.vq-dataset-import-columns {
+    table-layout: fixed;
+}
+.vq-dataset-import-columns :is(th, td) {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+.vq-dataset-import-preview {
+    min-width: 0;
+    margin-inline: 0;
+}
+.vq-dataset-import-preview > pre {
+    max-height: 18rem;
+    overflow: auto;
+}
+.vq-dataset-key-column {
+    width: 9rem;
+}
+.vq-dataset-order-column {
+    width: 7rem;
+}
+.vq-dataset-field-column {
+    width: 16rem;
+}
+.vq-dataset-action-column {
+    width: 8rem;
+}
+.vq-dataset-table :is(th, td) {
+    padding: 4px 8px;
+    vertical-align: top;
+}
+.vq-dataset-table th {
+    text-overflow: ellipsis;
+    overflow: hidden;
+    vertical-align: middle;
+}
+.vq-dataset-table tr:last-child td {
+    border-bottom: 0;
+}
+.vq-dataset-table td > :is(input, select) {
+    width: 100%;
+}
+.vq-dataset-definition-table td > .vq-select-trigger {
+    width: 100%;
+    margin: 0;
+}
+.vq-dataset-table td > input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin: 8px 0;
+}
+.vq-dataset-cell {
+    display: flex;
+    align-items: flex-start;
+    gap: 4px;
+    min-width: 0;
+}
+.vq-dataset-cell > :is(.vq-value, details, .vq-dataset-cell-state) {
+    flex: 1;
+    min-width: 0;
+}
+.vq-dataset-cell > .vq-value {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    gap: 4px;
+    padding: 0;
+    border: 0;
+}
+.vq-dataset-cell-state {
+    display: grid;
+    justify-items: start;
+    gap: 4px;
+    overflow-wrap: anywhere;
+}
+.vq-dataset-cell > .vq-value > label {
+    gap: 0;
+    font-size: 0;
+    min-width: 0;
+}
+.vq-dataset-cell > .vq-value > label > :is(input, textarea, select) {
+    width: 100%;
+    min-width: 0;
+    font-size: calc(13px - var(--vq-font-reduction, 0px));
+}
+.vq-dataset-cell > .vq-value > label > input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin-block: 8px;
+}
+.vq-dataset-cell > .vq-value > label > textarea {
+    display: block;
+    height: 34px;
+    min-height: 0;
+    resize: vertical;
+}
+/*
+ * 独立详情继续允许手动调整多行单元格高度，焦点离开时保持行高，避免下方保存按钮在一次鼠标点击过程中移位。
+ */
+.vq-dataset-cell > .vq-value > label > textarea:focus:where(:not(.vq-resource-editor[data-standalone] *)) {
+    height: 6rem;
+}
+.vq-dataset-cell > details {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+.vq-dataset-cell > details > summary {
+    padding-block: 6px;
+    cursor: pointer;
+}
+.vq-dataset-cell > details > .vq-value {
+    padding: 6px;
+}
+.vq-dataset-set {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.vq-fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    margin-top: 12px;
+}
+.vq-fields > .vq-section,
+.vq-fields > .vq-value,
+.vq-fields > small,
+.vq-fields > div:not(.vq-actions, .vq-field),
+.vq-fields > details {
+    grid-column: 1 / -1;
+}
+.vq-item {
+    padding: 16px;
+    background: var(--vq-field);
+    border: 1px solid var(--vq-border);
+    border-radius: 8px;
+    margin: 12px 0;
+    min-width: 0;
+}
+.vq-item .vq-item {
+    background: var(--vq-surface);
+}
+.vq-check {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.vq-check input[type="checkbox"],
+.vq-resources input[type="checkbox"] {
+    width: 19px;
+    height: 19px;
+    flex: 0 0 19px;
+}
+.vq-create {
+    max-width: none;
+    grid-template-columns: 1.2fr 1fr 1.5fr auto;
+    align-items: end;
+}
+.vq-editor-fields .vq-monaco-field {
+    min-inline-size: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+}
+.vq-monaco {
+    height: 390px;
+    width: 100%;
+    border: 1px solid var(--vq-border);
+    margin: 14px 0;
+    min-width: 0;
+}
+.vq-value {
+    padding: 14px;
+    border: 1px solid var(--vq-border);
+    border-radius: 6px;
+    display: grid;
+    gap: 10px;
+    min-width: 0;
+}
+.vq-value label,
+.vq-value input,
+.vq-value select {
+    min-width: 0;
+}
+.vq-drop {
+    outline: 3px solid var(--vq-brand);
+}
+.vq-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgb(16 24 40 / 47%);
+    z-index: 1000;
+}
+.vq-dialog {
+    position: fixed;
+    z-index: 1001;
+    inset: 20% auto auto 50%;
+    transform: translateX(-50%);
+    width: min(540px, 90vw);
+    background: var(--vq-surface);
+    padding: 28px;
+    border-radius: 12px;
+    box-shadow: 0 20px 80px rgb(16 24 40 / 40%);
+}
+.vq-resources p,
+.vq-resources li,
+.vq-resources span {
+    overflow-wrap: anywhere;
+}
+.vq-resources [role="alert"] {
+    white-space: pre-wrap;
+}
+@media (max-width: 800px) {
+    .vq-create,
+    .vq-fields {
+        grid-template-columns: 1fr;
+    }
+}

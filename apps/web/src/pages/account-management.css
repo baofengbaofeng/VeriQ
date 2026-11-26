@@ -1,0 +1,147 @@
+/*
+ * 全局用户页以紧凑筛选和目录为主体。字段按可用宽度换行，长用户资料或行操作仅撑开表格内部滚动区。
+ */
+.vq-admin-user-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+}
+
+.vq-admin-user-filters > .vq-btn {
+    flex: 0 0 auto;
+    margin: 0;
+}
+
+.vq-admin-user-create-trigger[aria-disabled="true"] {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+/*
+ * 列表加载、失败和空表均使用表格区域，错误重试同行显示。单行列值保留原文，只在本地滚动时移出视野。
+ */
+.vq-admin-user-list {
+    min-height: 42px;
+}
+
+.vq-admin-user-query-error {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.vq-admin-user-query-error p {
+    margin: 0;
+}
+
+.vq-admin-user-table.vq-user-table :is(th, td) {
+    padding: 8px 12px;
+    font-size: calc(12px - var(--vq-font-reduction, 0px));
+    white-space: nowrap;
+}
+
+.vq-admin-user-table td:last-child {
+    width: 1%;
+}
+
+.vq-admin-user-table small {
+    color: var(--vq-muted);
+    font-size: inherit;
+}
+
+.vq-admin-user-table .vq-state {
+    font-size: inherit;
+}
+
+/*
+ * 操作组不依赖全局相邻按钮外边距，抽屉和重置交付区可以紧凑排列，表格动作留在同一行便于横向扫描。
+ */
+.vq-admin-user-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.vq-admin-user-actions .vq-btn {
+    flex-shrink: 0;
+    margin: 0;
+    white-space: nowrap;
+}
+
+.vq-admin-user-table .vq-admin-user-actions .vq-btn {
+    font-size: inherit;
+}
+
+/*
+ * 会话日期和设备摘要保持单行，长内容由表格区域横向滚动，单条吊销按钮沿用普通行操作的紧凑尺寸。
+ */
+.vq-account-sessions-table.vq-user-table :is(th, td) {
+    white-space: nowrap;
+}
+
+.vq-account-sessions-table .vq-account-session-action {
+    width: 1%;
+    min-width: 0;
+}
+
+.vq-account-sessions-table .vq-account-session-revoke {
+    min-block-size: 28px;
+    margin: 0;
+    padding: 2px 8px;
+    font-size: inherit;
+}
+
+.vq-account-session-read-error {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 12px;
+}
+
+.vq-account-session-read-error p {
+    margin: 0;
+}
+
+.vq-admin-user-create {
+    grid-template-columns: minmax(0, 1fr);
+    margin: 0;
+    gap: 12px;
+}
+
+.vq-admin-user-create .vq-admin-user-actions {
+    justify-content: flex-end;
+}
+
+.vq-admin-user-check p {
+    margin: 4px 0 0;
+}
+
+.vq-admin-reset-link {
+    margin: 0 0 12px;
+    padding: 12px;
+    border: 1px solid var(--vq-border);
+    border-radius: 8px;
+    background: var(--vq-surface);
+}
+
+.vq-admin-reset-link :is(h2, p) {
+    margin: 0 0 6px;
+}
+
+.vq-admin-reset-link h2 {
+    font-size: calc(14px - var(--vq-font-reduction, 0px));
+}
+
+.vq-admin-reset-link .vq-admin-user-actions {
+    flex-wrap: wrap;
+}
+
+.vq-admin-reset-link input {
+    flex: 1 1 15rem;
+}

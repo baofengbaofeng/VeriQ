@@ -1,0 +1,148 @@
+/**
+ * 本文件定义 HTTP 夹具生命周期契约：prepare/cleanup 与清理回执：以及可注入的客户端工厂（client）。
+ */
+
+import { Ajv2020 } from "ajv/dist/2020.js";
+import addFormats from "ajv-formats";
+import type { FixtureV1, JsonObject, JsonValue } from "@veriq/contracts";
+import type { FixtureServiceContext, LifecycleContext, LifecycleProvider } from "../register-case.js";
+import { authorizedURL } from "../http.js";
+import { authenticatedRequest, authenticateBusiness } from "./auth.js";
+const schemas = new Ajv2020({ strict: false, allErrors: true });
+addFormats.default(schemas);
+/**
+ * 公开接口 FixtureRequest 描述夹具准备请求：含夹具文档与执行上下文：供 prepareFixture 使用。
+ */
+export interface FixtureRequest {
+    fixture: FixtureV1;
+    context: FixtureServiceContext | LifecycleContext;
+}
+/**
+ * 公开接口 FixtureContext 提供夹具准备/清理时的执行、信号与凭证解析能力（FixtureContext/FIXTURE_IDENTITY_REQUIRED）。
+ */
+export interface FixtureContext extends FixtureRequest {
+    fixtureId: string;
+    namespace: string;
+    variables: JsonObject;
+    cleanupToken: JsonValue;
+}
+/**
+ * 公开接口 CleanupReceipt 记录清理是否成功及可选诊断：供 CaseResult.cleanupStatus 汇总。
+ */
+export interface CleanupReceipt {
+    status: "CLEANED" | "ALREADY_CLEANED";
+    fixtureId?: string;
+}
+function envelope(context: FixtureServiceContext) {
+    const e = context.execution;
+    return {
+        workspaceId: e.workspaceId,
+        caseExecutionId: e.caseExecutionId,
+        attemptNo: e.attemptNo,
+        namespace: e.namespace,
+        idempotencyKey: `${e.workspaceId}:${e.caseExecutionId}:${e.attemptNo}`,
+    };
+}
+async function call(request: FixtureRequest, operation: "prepare" | "cleanup", token?: JsonValue): Promise<JsonObject> {
+    const { context, fixture } = request;
+    const identity = context.execution.environment.fixtureIdentity,
+        base = context.execution.environment.fixtureBaseURL;
+    if (!identity || !base) throw new Error("FIXTURE_IDENTITY_REQUIRED");
+    const endpoint = fixture[operation],
+        url = authorizedURL(endpoint.path, base, context.execution.environment.allowedOrigins).href;
+    const authenticated = await authenticatedRequest(context, identity, base);
+    try {
+        const response = await authenticated.client.fetch(url, {
+            method: endpoint.method,
+            data: {
+                ...envelope(context),
+                ...(operation === "prepare"
+                    ? {
+                          input: context.fixtureInput ?? {},
+                          ttlSeconds: fixture.ttlSeconds,
+                      }
+                    : { ...(token === undefined ? {} : { cleanupToken: token }) }),
+            },
+            maxRedirects: 0,
+            maxRetries: 0,
+            timeout: 15000,
+        });
+        try {
+            if (response.status() === 409) throw new Error("FIXTURE_CONFLICT");
+            if (!response.ok()) throw new Error("FIXTURE_REQUEST_FAILED");
+            return (await response.json()) as JsonObject;
+        } finally {
+            await response.dispose();
+        }
+    } catch (error) {
+        if (context.signal.aborted) throw new Error("CANCELLED");
+        if (error instanceof Error && error.message === "FIXTURE_CONFLICT") throw error;
+        // Playwright 调用日志可能包含请求头，所以仅保留已知冲突与取消信号，其他错误统一转为夹具请求失败。
+        throw new Error("FIXTURE_REQUEST_FAILED");
+    } finally {
+        await authenticated.dispose();
+    }
+}
+/**
+ * 公开函数 prepareFixture 调用夹具提供者准备环境：校验 outputSchema：并把 cleanupToken 登记进证据策略。
+ */
+export async function prepareFixture(request: FixtureRequest): Promise<FixtureContext> {
+    if (!schemas.compile(request.fixture.inputSchema)(request.context.fixtureInput ?? {}))
+        throw new Error("FIXTURE_INPUT_INVALID");
+    const result = await call(request, "prepare");
+    request.context.protect?.(result.cleanupToken ?? null);
+    if (
+        typeof result.fixtureId !== "string" ||
+        result.namespace !== request.context.execution.namespace ||
+        !Object.hasOwn(result, "cleanupToken")
+    )
+        throw new Error("FIXTURE_RESPONSE_INVALID");
+    if (!schemas.compile(request.fixture.outputSchema)(result.variables)) throw new Error("FIXTURE_OUTPUT_INVALID");
+    return {
+        ...request,
+        fixtureId: result.fixtureId,
+        namespace: result.namespace,
+        variables: result.variables as JsonObject,
+        cleanupToken: result.cleanupToken!,
+    };
+}
+/**
+ * 公开函数 cleanupFixture 在独立预算信号下执行幂等清理：即使业务失败或取消也必须尝试（cleanupFixture/CLEANUP_RESPONSE_
+ * INVALID）。
+ */
+export async function cleanupFixture(context: FixtureRequest & { cleanupToken?: JsonValue }): Promise<CleanupReceipt> {
+    const result = await call(context, "cleanup", context.cleanupToken);
+    if (result.status !== "CLEANED" && result.status !== "ALREADY_CLEANED") throw new Error("CLEANUP_RESPONSE_INVALID");
+    return {
+        status: result.status,
+        ...(typeof result.fixtureId === "string" ? { fixtureId: result.fixtureId } : {}),
+    };
+}
+/**
+ * 公开函数 createHttpLifecycle 创建基于 HTTP 的夹具生命周期实现：供工作进程注入：真正 Provider 集成由 T07 负责。
+ */
+export function createHttpLifecycle(): LifecycleProvider & {
+    dispose(): Promise<void>;
+} {
+    let release: (() => Promise<void>) | undefined;
+    return {
+        async authenticate(context) {
+            const auth = await authenticateBusiness(context);
+            release = auth.dispose;
+            return { identityId: auth.identityId };
+        },
+        async prepare(fixture, context) {
+            return prepareFixture({ fixture, context });
+        },
+        async cleanup(fixture, cleanupToken, context) {
+            await cleanupFixture({
+                fixture,
+                context,
+                ...(cleanupToken === undefined ? {} : { cleanupToken }),
+            });
+        },
+        async dispose() {
+            await release?.();
+        },
+    };
+}

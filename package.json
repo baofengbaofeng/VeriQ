@@ -1,0 +1,27 @@
+{
+    "name": "veriq",
+    "version": "0.1.0",
+    "private": true,
+    "license": "AGPL-3.0-only",
+    "packageManager": "pnpm@11.25.0",
+    "engines": {
+        "node": ">=24 <25",
+        "pnpm": "11.25.0"
+    },
+    "scripts": {
+        "test": "pnpm --filter @veriq/contracts test && pnpm --filter @veriq/compiler test && pnpm --filter @veriq/runner-sdk test && pnpm --filter @veriq/runtime test",
+        "check": "pnpm --filter @veriq/contracts check && pnpm --filter @veriq/compiler check && pnpm --filter @veriq/runner-sdk check && pnpm --filter @veriq/runtime check && pnpm --filter @veriq/desktop check",
+        "contracts:generate": "pnpm --filter @veriq/contracts generate",
+        "lint": "pnpm lint:width && pnpm lint:comments && biome lint apps packages scripts tests",
+        "lint:width": "python3 scripts/line_width.py",
+        "lint:comments": "uv run --project apps/srv --frozen --no-sync python scripts/comment_blocks.py",
+        "format:check": "prettier --check apps packages scripts tests biome.json",
+        "release": "./build.sh",
+        "desktop:test": "pnpm --filter @veriq/desktop test:e2e"
+    },
+    "devDependencies": {
+        "@biomejs/biome": "2.6.7",
+        "@types/node": "24.10.1",
+        "prettier": "3.6.2"
+    }
+}

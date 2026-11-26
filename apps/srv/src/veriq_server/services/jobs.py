@@ -1,0 +1,519 @@
+"""
+任务领取按 Runtime 能力和容量筛选候选任务，锁定后递增围栏并原子分配 Attempt 与租约。
+
+claim 使用数据库 UTC，核对原始发起者的当前权限，并用 FOR UPDATE SKIP LOCKED 锁定待领任务。
+没有可领任务或重放空回执时可返回 None，授权、请求冲突与回执上限各有错误分支。
+"""
+
+import secrets
+from dataclasses import dataclass, field
+from collections.abc import AsyncIterator
+from datetime import timedelta, datetime
+from hashlib import sha256
+from typing import Any, cast
+from uuid import uuid4, UUID
+from sqlalchemy import func, select, or_, and_
+from sqlalchemy.ext.asyncio import AsyncSession
+from ..contracts import canonical_bytes
+from ..auth.authorization import WorkspaceScope
+from ..repositories.resource import ResourceRepository
+from ..db import (
+    Attempt,
+    ClaimReceipt,
+    Job,
+    User,
+    ValidationReceipt,
+    Run,
+    CaseExecution,
+    ServiceToken,
+    ServiceAccount,
+    RuntimeBinding,
+)
+from ..service import Problem, audit, digest, stamp
+from ..settings import Settings
+from .capacity import CapacityService
+from .compilation_provenance import validation_origin_matches
+from .runtime import RuntimeService
+from .notification_events import record_run_transition
+
+
+@dataclass(frozen=True)
+class RuntimeIdentity:
+    """封装领取方 Runtime 身份与能力，供 claim 过滤候选 Job 与容量键，RuntimeIdentity 遵守本文件边界。
+    RuntimeIdentity 实现于 apps/srv/src/veriq_server/services/jobs.py：请按该符号的输入校验、错误码与调用方契约阅读，
+    勿假设通用成功默认值。
+    """
+
+    authorization: str = field(repr=False)
+
+
+ClaimRequest = dict[str, Any]
+ClaimDTO = dict[str, Any]
+
+
+async def database_time(session: AsyncSession) -> datetime:
+    """读取数据库 UTC 当前时间，作为租约与过期判断的权威时钟，避免节点时钟漂移，database_time 遵守本文件边界。
+    database_time 实现于 apps/srv/src/veriq_server/services/jobs.py：请按该符号的输入校验、错误码与调用方契约阅读，
+    勿假设通用成功默认值。
+    """
+    return cast(datetime, (await session.execute(select(func.utc_timestamp(6)))).scalar_one())
+
+
+async def require_requester(session: AsyncSession, job: Job, runtime_id: str) -> User | None:
+    """每次领取、续租和结果提交都重验最初请求者的当前权限，执行令牌必须匹配冻结运行关联并保有计划与设备派发权；
+    维护令牌继续走清理专用范围，普通用户仍通过原有成员和所有者检查。
+    """
+    if (
+        job.requester_service_token_id
+        and job.kind == "VALIDATE"
+        and job.required_capabilities.get("revalidationPlanId")
+    ):
+        from .execution_principal import ServicePrincipal
+
+        await ServicePrincipal(job.requester_service_token_id, job.created_by).runtime(
+            session, job.workspace_id, job.required_capabilities["revalidationPlanId"], runtime_id
+        )
+        return None
+    if job.requester_service_token_id and job.kind == "TEST":
+        from .execution_principal import ServicePrincipal
+
+        run = await session.get(Run, job.run_id)
+        if (
+            not run
+            or not run.plan_id
+            or run.requester_service_token_id != job.requester_service_token_id
+        ):
+            raise Problem(403, "REQUESTER_REVOKED", "Frozen service plan association required")
+        await ServicePrincipal(job.requester_service_token_id, job.created_by).runtime(
+            session, job.workspace_id, run.plan_id, runtime_id
+        )
+        return None
+    if job.requester_service_token_id:
+        token = await session.get(ServiceToken, job.requester_service_token_id)
+        account = await session.get(ServiceAccount, token.service_account_id) if token else None
+        binding = await session.get(RuntimeBinding, (runtime_id, job.workspace_id))
+        if (
+            job.kind != "CLEANUP"
+            or not token
+            or token.purpose != "MAINTENANCE"
+            or token.revoked_at
+            or token.expires_at <= await database_time(session)
+            or "fixture-cleanups/reconcile" not in (token.operation_scopes or [])
+            or not account
+            or account.disabled
+            or account.workspace_id != job.workspace_id
+            or not binding
+            or not binding.active
+            or not binding.shared_with_workspace
+        ):
+            raise Problem(
+                403,
+                "REQUESTER_REVOKED",
+                "Current scoped maintenance grant and shared Runtime required",
+            )
+        return None
+    actor = await session.get(User, job.created_by)
+    if not actor or actor.disabled:
+        raise Problem(403, "REQUESTER_REVOKED", "Execution requester authorization is inactive")
+    await RuntimeService(session).require_dispatch(actor, job.workspace_id, runtime_id)
+    return actor
+
+
+class JobService:
+    """编排候选扫描、容量预留与 claim 提交，产出含租约秘密的 ClaimDTO，JobService 遵守本文件边界，失败返回稳定 Problem。
+    JobService 必须坚持 Workspace 归属与成员授权，
+
+    嵌套资源引用不得跨空间隐式放行。
+    """
+
+    def __init__(self, session: AsyncSession, settings: Settings):
+        """注入会话与 Settings，供容量槽位与租约时长配置读取，JobService.__init__ 遵守本文件边界，失败返回稳定 Problem。
+        __init__ 实现于 apps/srv/src/veriq_server/services/jobs.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
+        """
+        self.session, self.settings = session, settings
+
+    def response(self, job: Job, attempt: Attempt, secret: str, current: Any) -> ClaimDTO:
+        """将 Job/Attempt 与明文 lease secret 组装为 ClaimDTO 响应，JobService.response 遵守本文件边界。
+        response 实现于 apps/srv/src/veriq_server/services/jobs.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
+        """
+        return {
+            "jobId": job.id,
+            "jobKind": job.kind,
+            "attemptId": attempt.id,
+            "leaseToken": secret,
+            "fencingToken": attempt.fencing_token,
+            "expiresAt": stamp(attempt.lease_expires_at),
+            "serverTime": stamp(current),
+            "leaseDurationMs": max(
+                0, int((attempt.lease_expires_at - current).total_seconds() * 1000)
+            ),
+            "activationRequired": True,
+            "snapshotUrl": (
+                f"{self.settings.public_url}/internal/v1/workspaces/{job.workspace_id}/attempts/{attempt.id}/content/"
+                f"{job.manifest_hash}"
+            ),
+            "snapshotSha256": job.manifest_hash,
+        }
+
+    async def candidates(
+        self,
+        workspace_id: str,
+        runtime_id: str,
+        location: str,
+        capabilities: dict[str, Any],
+        current: datetime,
+    ) -> AsyncIterator[Job]:
+        """按能力与状态筛选可领 Job，使用 SKIP LOCKED 避免领取互撞，JobService.candidates 遵守本文件边界。candidates
+        必须坚持 Workspace 归属与成员授权，
+
+        嵌套资源引用不得跨空间隐式放行。
+        """
+        query = select(Job).where(
+            Job.workspace_id == workspace_id,
+            Job.state == "QUEUED",
+            Job.kind != "VALIDATE",
+            Job.created_at <= current,
+            or_(Job.requested_runtime_id.is_(None), Job.requested_runtime_id == runtime_id),
+            or_(Job.requested_location.is_(None), Job.requested_location == location),
+            Job.kind.in_(capabilities.get("jobKinds", ["TEST", "CLEANUP"])),
+            Job.required_capabilities["engineVersion"].as_string() == capabilities["engineVersion"],
+        )
+        cursor: tuple[datetime, str] | None = None
+        while True:
+            page_query = query
+            if cursor:
+                page_query = page_query.where(
+                    or_(
+                        Job.created_at > cursor[0],
+                        and_(Job.created_at == cursor[0], Job.id > cursor[1]),
+                    )
+                )
+            page = (
+                (await self.session.execute(page_query.order_by(Job.created_at, Job.id).limit(100)))
+                .scalars()
+                .all()
+            )
+            if not page:
+                return
+            cursor = page[-1].created_at, page[-1].id
+            for job in page:
+                yield job
+            if len(page) < 100:
+                return
+
+    async def fail_candidate(self, job: Job, run: Run | None, *, invalid_source: bool) -> None:
+        """永久损坏的候选项在未启动进程时直接终止，关联用例走统一聚合，审计记录只写固定错误类别和任务编号。"""
+        job.state, job.outcome, job.wait_reason = "FINISHED", "ERROR", None
+        if invalid_source:
+            audit(
+                self.session,
+                "job.compiled_provenance_failed",
+                None,
+                job.id,
+                workspace_id=job.workspace_id,
+            )
+        if job.case_execution_id and run:
+            case = await self.session.get(CaseExecution, job.case_execution_id)
+            if case and case.workspace_id == job.workspace_id and case.run_id == run.id:
+                case.state, case.outcome = "FINISHED", "ERROR"
+            if invalid_source:
+                run.reason_code = "COMPILED_PROVENANCE_REQUIRED"
+            from .completion import CompletionService
+
+            await CompletionService(self.session, self.settings).aggregate_run(run.id)
+
+    async def prepare_candidate(
+        self, job: Job, run: Run | None, compatible: bool, http_compatible: bool
+    ) -> bool:
+        """在单项保存点内核验历史源、验证依赖与已发布回执；正常等待保留候选状态，只有来源不可恢复才终止该项。"""
+        repo = ResourceRepository(self.session, WorkspaceScope(job.workspace_id))
+        from .connected_datasets import (
+            frozen_object,
+            pending_validation,
+            upgrade_queued,
+            revalidate_bundle,
+        )
+
+        if await upgrade_queued(repo, job) and not compatible:
+            job.wait_reason = "NO_CAPABILITY"
+            return False
+        if job.required_capabilities.get("httpDatasets") and not http_compatible:
+            job.wait_reason = "NO_CAPABILITY"
+            return False
+        if dependency := pending_validation(job):
+            compiled_receipt = (
+                await self.session.execute(
+                    select(ValidationReceipt).where(
+                        ValidationReceipt.workspace_id == job.workspace_id,
+                        ValidationReceipt.job_id == dependency,
+                    )
+                )
+            ).scalar_one_or_none()
+            if not compiled_receipt:
+                failed_dependency = await self.session.get(Job, dependency)
+                if not failed_dependency or failed_dependency.workspace_id != job.workspace_id:
+                    raise Problem(409, "COMPILED_PROVENANCE_REQUIRED", "Validation job not found")
+                if failed_dependency.state == "FINISHED":
+                    await self.fail_candidate(job, run, invalid_source=False)
+                else:
+                    job.wait_reason = "NO_CAPABILITY"
+                return False
+            frozen = await frozen_object(repo, job.snapshot_hash)
+            dependency_job = await self.session.get(Job, dependency)
+            if (
+                not dependency_job
+                or not validation_origin_matches(dependency_job, compiled_receipt)
+                or compiled_receipt.source_hash != frozen.get("assetSourceHash")
+            ):
+                raise Problem(
+                    409,
+                    "COMPILED_PROVENANCE_REQUIRED",
+                    "Draft validation receipt does not match frozen candidate",
+                )
+            manifest = await frozen_object(repo, job.manifest_hash)
+            if any(
+                job.required_capabilities.get(k) and not dependency_job.required_capabilities.get(k)
+                for k in ("connectedDatasets", "httpDatasets")
+            ):
+                source = await frozen_object(repo, dependency_job.snapshot_hash, "AssetSnapshotV1")
+                bundle = await frozen_object(
+                    repo, compiled_receipt.compiled_bundle_sha256, "CompiledAssetBundle"
+                )
+                current, _ = await revalidate_bundle(
+                    repo,
+                    dependency_job,
+                    source,
+                    bundle,
+                    compiled_receipt,
+                    requester=job.created_by,
+                    service_token=job.requester_service_token_id,
+                    plan_id=run.plan_id if run else None,
+                )
+                job.required_capabilities = {
+                    **job.required_capabilities,
+                    "validationJobId": current.id,
+                }
+                return False
+            manifest.pop("pendingValidationJobId", None)
+            manifest["compiledBundleSha256"] = compiled_receipt.compiled_bundle_sha256
+            job.manifest_hash = await repo.store(canonical_bytes(manifest))
+            job.required_capabilities = {
+                k: v for k, v in job.required_capabilities.items() if k != "validationJobId"
+            }
+        return True
+
+    async def claim(self, identity: RuntimeIdentity, req: ClaimRequest) -> ClaimDTO | None:
+        """领取在安装锁和任务锁保护下预留容量、递增栅栏并建立租约，计划任务还必须等待前驱逻辑结束和物理占用释放；
+        任何授权或容量条件不满足都不启动执行，未知进程不能凭时间超期重用容量。
+        """
+        req = {
+            **req,
+            "clientRequestId": str(UUID(req["clientRequestId"])),
+            "runnerId": str(UUID(req["runnerId"])),
+        }
+        runtime, binding, _ = await RuntimeService(self.session).require_device(
+            identity.authorization
+        )
+        if req["runnerId"] != runtime.id:
+            raise Problem(403, "DEVICE_MISMATCH", "Claim must use the authenticated Runtime")
+        current = await database_time(self.session)
+        runtime.last_seen_at = current
+        request_hash = sha256(canonical_bytes(req)).hexdigest()
+        old = await self.session.get(ClaimReceipt, (runtime.id, req["clientRequestId"]))
+        if old:
+            if old.workspace_id != binding.workspace_id or old.request_hash != request_hash:
+                raise Problem(409, "IDEMPOTENCY_CONFLICT", "Claim request changed")
+            if not old.attempt_id:
+                return None
+            attempt = await self.session.get(Attempt, old.attempt_id)
+            assert attempt
+            job = await self.session.get(Job, attempt.job_id)
+            assert job
+            await require_requester(self.session, job, runtime.id)
+            if attempt.activated_at is not None:
+                raise Problem(
+                    409,
+                    "ATTEMPT_ALREADY_ACTIVATED",
+                    "Existing Attempt requires reconciliation; no new execution authority issued",
+                )
+            if (
+                attempt.lease_expires_at <= current
+                or attempt.phase == "FINISHED"
+                or job.active_attempt_id != attempt.id
+            ):
+                raise Problem(409, "LEASE_EXPIRED", "Claim lease cannot be recovered")
+            secret = secrets.token_urlsafe(32)
+            if job.fence >= 9007199254740991:
+                raise Problem(409, "FENCE_EXHAUSTED", "Job fencing token is exhausted")
+            job.fence += 1
+            attempt.fencing_token, attempt.lease_token_hash = job.fence, digest(secret)
+            audit(
+                self.session,
+                "attempt.proof_rotated",
+                None,
+                attempt.id,
+                workspace_id=job.workspace_id,
+            )
+            return self.response(job, attempt, secret, current)
+        # 先处理已有领取请求的重放。即使外部维护停摆，同一 Runtime 的空领取回执也限制在 10000 条，
+        # 只统计 attempt_id 为 NULL 的回执，达到上限后拒绝新的领取请求。
+        count = (
+            await self.session.execute(
+                select(func.count())
+                .select_from(ClaimReceipt)
+                .where(ClaimReceipt.runtime_id == runtime.id, ClaimReceipt.attempt_id.is_(None))
+            )
+        ).scalar_one()
+        if count >= 10000:
+            raise Problem(
+                429, "CLAIM_RECEIPT_LIMIT", "External claim-receipt maintenance is required"
+            )
+        receipt = ClaimReceipt(
+            runtime_id=runtime.id,
+            workspace_id=binding.workspace_id,
+            client_request_id=req["clientRequestId"],
+            request_hash=request_hash,
+            created_at=current,
+        )
+        self.session.add(receipt)
+        if req["availableSlots"] == 0:
+            return None
+        capacity = CapacityService(self.session, self.settings)
+        async for job in self.candidates(
+            binding.workspace_id, runtime.id, runtime.location, runtime.capabilities, current
+        ):
+            # 固定派发对象或联网格式已排除此设备时，可跳过这项任务的数据库授权查询；实际可领的任务仍须复核当前权限。
+            if (
+                job.required_capabilities.get("runtimeIds")
+                and runtime.id not in job.required_capabilities["runtimeIds"]
+            ):
+                continue
+            compatible = req["capabilities"].get("connectedDatasets") == "2.0"
+            if (job.required_capabilities.get("connectedDatasets") and not compatible) or (
+                job.required_capabilities.get("httpDatasets")
+                and req["capabilities"].get("httpDatasets") != "1.0"
+            ):
+                job.wait_reason = "NO_CAPABILITY"
+                continue
+            run = await self.session.get(Run, job.run_id) if job.run_id else None
+            if run and (
+                run.state in {"CANCEL_REQUESTED", "FINISHED"}
+                or run.created_at + timedelta(minutes=30) <= current
+            ):
+                continue
+            if run and run.plan_id:
+                from .execution_plan import earlier_plan_work
+
+                if await earlier_plan_work(self.session, run.plan_id, run.plan_sequence):
+                    job.wait_reason = "RESOURCE_LOCK"
+                    continue
+            try:
+                await require_requester(self.session, job, runtime.id)
+            except Problem:
+                continue
+            if job.origin_attempt_id:
+                origin = await self.session.get(Attempt, job.origin_attempt_id)
+                if (
+                    not origin
+                    or origin.workspace_id != job.workspace_id
+                    or origin.capacity_state != "RELEASED"
+                ):
+                    job.wait_reason = "QUARANTINED"
+                    continue
+            # 单项旧任务可能在升级快照后才发现回执失配，保存点回滚这一项的改写，保留本轮认领及后续候选的事务。
+            candidate_id = job.id
+            try:
+                async with self.session.begin_nested():
+                    ready = await self.prepare_candidate(
+                        job, run, compatible, req["capabilities"].get("httpDatasets") == "1.0"
+                    )
+            except Problem as error:
+                if error.code not in {
+                    "COMPILED_PROVENANCE_REQUIRED",
+                    "INVALID_ARTIFACT",
+                    "JOB_NOT_FOUND",
+                }:
+                    raise
+                job = await self.session.get(Job, candidate_id)
+                assert job is not None
+                await self.fail_candidate(job, run, invalid_source=True)
+                continue
+            if not ready:
+                continue
+            if job.requested_runtime_id and job.requested_runtime_id != runtime.id:
+                continue
+            if job.requested_location and job.requested_location != runtime.location:
+                continue
+            caps = runtime.capabilities
+            if job.required_capabilities.get("engineVersion") != caps["engineVersion"]:
+                job.wait_reason = "NO_CAPABILITY"
+                continue
+            if job.kind not in caps.get("jobKinds", ["TEST", "CLEANUP"]):
+                continue
+            browser = job.required_capabilities.get("browser")
+            if browser and browser not in caps["browsers"]:
+                continue
+            pools = await capacity.available(job, runtime.id)
+            if pools is None:
+                job.wait_reason = "CAPACITY"
+                continue
+            locked = (
+                await self.session.execute(
+                    select(Job)
+                    .where(Job.id == job.id, Job.state == "QUEUED")
+                    .with_for_update(skip_locked=True)
+                )
+            ).scalar_one_or_none()
+            if locked is None:
+                continue
+            number = (
+                await self.session.execute(
+                    select(func.count()).select_from(Attempt).where(Attempt.job_id == job.id)
+                )
+            ).scalar_one() + 1
+            if number > 2:
+                continue
+            secret = secrets.token_urlsafe(32)
+            if job.fence >= 9007199254740991:
+                raise Problem(409, "FENCE_EXHAUSTED", "Job fencing token is exhausted")
+            job.fence += 1
+            attempt = Attempt(
+                id=str(uuid4()),
+                workspace_id=job.workspace_id,
+                job_id=job.id,
+                runtime_id=runtime.id,
+                attempt_no=number,
+                snapshot_hash=job.snapshot_hash,
+                manifest_hash=job.manifest_hash,
+                lease_token_hash=digest(secret),
+                fencing_token=job.fence,
+                lease_expires_at=min(
+                    current + timedelta(seconds=60), run.created_at + timedelta(minutes=30)
+                )
+                if run
+                else current + timedelta(seconds=60),
+                phase="LEASED",
+                capacity_state="HELD",
+                created_at=current,
+                facts={},
+                last_sequence=0,
+            )
+            self.session.add(attempt)
+            await self.session.flush()
+            job.active_attempt_id, job.state, job.wait_reason = attempt.id, "LEASED", None
+            receipt.attempt_id = attempt.id
+            capacity.reserve(attempt, pools)
+            if job.run_id:
+                run = await self.session.get(Run, job.run_id)
+                if run:
+                    previous = run.state
+                    run.state = "RUNNING"
+                    await record_run_transition(self.session, run, previous)
+            if job.case_execution_id:
+                execution = await self.session.get(CaseExecution, job.case_execution_id)
+                if execution:
+                    execution.state = "RUNNING"
+            return self.response(job, attempt, secret, current)
+        return None

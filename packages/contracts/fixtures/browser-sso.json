@@ -1,0 +1,13 @@
+{
+    "kind": "BROWSER_SSO",
+    "entryPath": "/employees",
+    "idpOrigin": "https://idp.sso.test:8443",
+    "idpLoginPath": "/login",
+    "idpSubmitPath": "/session",
+    "callbackPath": "/sso/callback",
+    "identityPath": "/me",
+    "identityPointer": "/id",
+    "usernameLabel": "Username",
+    "passwordLabel": "Password",
+    "submitName": "Sign in"
+}

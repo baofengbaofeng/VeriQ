@@ -1,0 +1,776 @@
+"""
+报告服务在 Workspace 授权下读取 Run 与 Attempt 的事件和产物元数据，供报告和审计使用。
+
+在线投影使用 redact 递归脱敏，离线事件只提供结构字段，offline_report 保留保守的正式门禁。
+下载 Trace 等受限产物的原始字节，另须 Workspace 的 MANAGE_ENVIRONMENT 权限和精确 Attempt 关联。
+"""
+
+import base64
+import json
+from hashlib import sha256
+from typing import Any
+from urllib.parse import quote
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from ..auth.authorization import WorkspaceScope
+from ..credentials.crypto import EncryptedValue
+from ..credentials.service import configured_keyring
+from ..db import (
+    Run,
+    CaseExecution,
+    Job,
+    Attempt,
+    AttemptEvent,
+    AttemptUpload,
+    Artifact,
+    User,
+    SecretVersion,
+    AuditLog,
+    OfflineImport,
+    OfflineAttempt,
+    OfflineImportUpload,
+)
+from ..service import Problem, stamp
+from ..contracts import canonical_bytes, validate_schema
+from cryptography.exceptions import InvalidTag
+from ..settings import Settings
+from .workspace import WorkspaceRepository
+from .execution_principal import ServicePrincipal
+from .runs import run_dto
+from .gate import gate, current_gate
+from .artifact import listed_offline_artifact
+
+SENSITIVE = {
+    "authorization",
+    "proxy-authorization",
+    "cookie",
+    "set-cookie",
+    "cleanuptoken",
+    "x-veriq-lease-token",
+    "x-veriq-fencing-token",
+    "password",
+    "token",
+    "storagestate",
+}
+
+
+def protected_string_variants(secrets: set[str]) -> list[str]:
+    """列出模型和报告需要共同识别的秘密表示，长形式优先匹配，避免只替换重叠编码中较短的一部分。"""
+    return sorted(
+        {
+            v
+            for s in secrets
+            for v in (s, quote(s, safe=""), base64.b64encode(s.encode()).decode())
+            if v
+        },
+        key=len,
+        reverse=True,
+    )
+
+
+def redact(value: Any, secrets: set[str], *, dynamic_keys: bool = True) -> Any:
+    """递归脱敏结构中的秘密字符串与动态键，避免报告响应泄露凭据材料，redact 遵守本文件边界，失败返回稳定 Problem。
+    redact 处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载 Trace。
+    """
+    protected = protected_string_variants(secrets)
+
+    def visit(item: Any) -> Any:
+        if isinstance(item, str):
+            for secret in protected:
+                item = item.replace(secret, "[REDACTED]")
+            return item
+        if isinstance(item, list):
+            return [visit(v) for v in item]
+        if isinstance(item, dict):
+            # 动态 JSON 对象的任一键命中受保护值时，整对象都替换为 [REDACTED]，避免逐个改写键名
+            # 时合并不同成员，或撞上已经存在的字面键 [REDACTED]。
+            if dynamic_keys and any(secret in k for k in item for secret in protected):
+                return "[REDACTED]"
+            if str(item.get("name", "")).lower() in SENSITIVE and "value" in item:
+                item = {**item, "value": "[REDACTED]"}
+            return {
+                k: "[REDACTED]" if k.lower() in SENSITIVE else visit(v) for k, v in item.items()
+            }
+        return item
+
+    return visit(value)
+
+
+class ReportService:
+    """组装报告 DTO、事件流、产物列表与审计页，强制 Workspace 边界，ReportService 遵守本文件边界。ReportService
+    处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载
+
+    Trace。
+    """
+
+    def __init__(self, session: AsyncSession, user: User | ServicePrincipal, settings: Settings):
+        """报告服务接收员工或独立服务主体以复用同一权威运行事实，服务主体仅供安全计划摘要路径使用；原始事件、
+        制品和审计入口仍明确要求员工，不能因为支持 CI 汇总而继承原始证据访问权。
+        """
+        self.session, self.user, self.settings = session, user, settings
+
+    def employee(self) -> User:
+        """普通事件、证据和审计读取仍必须由员工主体发起，执行令牌只能使用按计划授权的运行汇总；
+        此处集中拒绝独立服务主体，避免新增安全摘要接口时意外扩大原始报告材料的访问面。
+        """
+        if isinstance(self.user, ServicePrincipal):
+            raise Problem(403, "EMPLOYEE_REQUIRED", "Employee report permission required")
+        return self.user
+
+    async def run(self, scope: WorkspaceScope, run_id: str) -> Run:
+        """加载运行前按主体类型检查当前空间成员权或显式计划读取范围，服务令牌还需保有快照设备的当前授权；
+        离线导入不进入服务计划读取路径，跨空间编号始终不能用于绕过归属校验。
+        """
+        if isinstance(self.user, ServicePrincipal):
+            return await self.user.run(self.session, scope.workspace_id, run_id)
+        await WorkspaceRepository(self.session, scope).authorize(self.employee())
+        run = await self.session.get(Run, run_id)
+        if not run or run.workspace_id != scope.workspace_id:
+            raise Problem(404, "RUN_NOT_FOUND", "Run not found")
+        return run
+
+    async def attempts(self, scope: WorkspaceScope, run_id: str) -> list[Attempt | OfflineAttempt]:
+        """列出 Run 下在线与离线 Attempt，供报告时间线展示，ReportService.attempts 遵守本文件边界。attempts
+        处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载
+
+        Trace。
+        """
+        run = await self.run(scope, run_id)
+        if run.source == "OFFLINE_IMPORT":
+            return list(
+                (
+                    await self.session.execute(
+                        select(OfflineAttempt)
+                        .join(OfflineImport, OfflineImport.id == OfflineAttempt.import_id)
+                        .where(
+                            OfflineAttempt.workspace_id == scope.workspace_id,
+                            OfflineImport.run_id == run_id,
+                        )
+                        .order_by(OfflineAttempt.id)
+                        .limit(2001)
+                    )
+                ).scalars()
+            )
+        return list(
+            (
+                await self.session.execute(
+                    select(Attempt)
+                    .join(Job, Job.id == Attempt.job_id)
+                    .where(
+                        Job.workspace_id == scope.workspace_id,
+                        Job.run_id == run_id,
+                        Job.kind == "TEST",
+                    )
+                    .order_by(Attempt.id)
+                    .limit(2001)
+                )
+            ).scalars()
+        )
+
+    async def get(self, scope: WorkspaceScope, run_id: str) -> dict[str, Any]:
+        """构建 Run 级报告摘要，包含聚合结果与门禁信息，ReportService.get 遵守本文件边界，失败返回稳定 Problem。get
+        处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载
+
+        Trace。
+        """
+        run = await self.run(scope, run_id)
+        if run.source == "OFFLINE_IMPORT":
+            return await self.offline_report(scope, run)
+        cases = list(
+            (
+                await self.session.execute(
+                    select(CaseExecution)
+                    .where(
+                        CaseExecution.workspace_id == scope.workspace_id,
+                        CaseExecution.run_id == run_id,
+                    )
+                    .order_by(CaseExecution.id)
+                    .limit(1001)
+                )
+            ).scalars()
+        )
+        attempts = [a for a in await self.attempts(scope, run_id) if isinstance(a, Attempt)]
+        if any(case.provenance.get("metadataExpiredAt") for case in cases) or any(
+            attempt.facts.get("metadataExpiredAt") for attempt in attempts
+        ):
+            raise Problem(410, "REPORT_EXPIRED", "Report metadata retention has expired")
+        if len(cases) > 1000 or len(attempts) > 2000:
+            raise Problem(409, "REPORT_LIMIT", "Run exceeds the admitted report bound")
+        jobs = list(
+            (
+                await self.session.execute(
+                    select(Job).where(Job.workspace_id == scope.workspace_id, Job.run_id == run_id)
+                )
+            ).scalars()
+        )
+        by_case = {job.id: job.case_execution_id for job in jobs}
+        cleanup_rows = list(
+            (
+                await self.session.execute(
+                    select(Job).where(
+                        Job.workspace_id == scope.workspace_id,
+                        Job.kind == "CLEANUP",
+                        Job.origin_attempt_id.in_([a.id for a in attempts]),
+                    )
+                )
+            ).scalars()
+        )
+        cleanups: dict[str, list[dict[str, Any]]] = {}
+        for cleanup in cleanup_rows:
+            assert cleanup.origin_attempt_id
+            cleanups.setdefault(cleanup.origin_attempt_id, []).append(
+                {"id": cleanup.id, "state": cleanup.state, "outcome": cleanup.outcome}
+            )
+        projected: dict[str, list[dict[str, Any]]] = {case.id: [] for case in cases}
+        execution_gates, current_gates = [], []
+        for attempt in attempts:
+            at_execution = gate(attempt.outcome, attempt.execution_provenance)
+            current = await current_gate(self.session, attempt)
+            execution_gates.append(at_execution)
+            current_gates.append(current)
+            facts = {
+                k: v
+                for k, v in attempt.facts.items()
+                if k
+                in {
+                    "outcome",
+                    "business",
+                    "cleanup",
+                    "evidence",
+                    "errorCode",
+                    "retryReasonCode",
+                    "diagnostics",
+                    "processStopped",
+                    "processStopScope",
+                }
+            }
+            case_id = by_case[attempt.job_id]
+            assert case_id is not None
+            projected[case_id].append(
+                {
+                    "id": attempt.id,
+                    "attemptNo": attempt.attempt_no,
+                    "runtimeId": attempt.runtime_id,
+                    "phase": attempt.phase,
+                    "outcome": attempt.outcome,
+                    "facts": facts,
+                    "createdAt": stamp(attempt.created_at),
+                    "activatedAt": stamp(attempt.activated_at) if attempt.activated_at else None,
+                    "finishedAt": stamp(attempt.finished_at) if attempt.finished_at else None,
+                    "lastSequence": attempt.last_sequence,
+                    "provenance": attempt.execution_provenance,
+                    "gateAtExecution": at_execution,
+                    "gateNow": current,
+                    "compensations": cleanups.get(attempt.id, []),
+                }
+            )
+
+        def combined(gates: list[dict[str, Any]]) -> dict[str, Any]:
+            reasons = sorted({reason for item in gates for reason in item["reasons"]})
+            if run.outcome != "PASSED":
+                reasons.append("RUN_NOT_PASSED")
+            if not gates:
+                reasons.append("NO_EXECUTION")
+            return {"passed": not reasons, "reasons": reasons}
+
+        return {
+            "run": run_dto(run),
+            "cases": [
+                {
+                    "id": case.id,
+                    "caseVersionId": case.case_version_id,
+                    "state": case.state,
+                    "outcome": case.outcome,
+                    "provenance": case.provenance,
+                    "attempts": sorted(projected[case.id], key=lambda a: a["attemptNo"]),
+                }
+                for case in cases
+            ],
+            "gateAtExecution": combined(execution_gates),
+            "gateNow": combined(current_gates),
+            "statistics": {
+                "caseCount": len(cases),
+                "firstPassCount": sum(
+                    any(a["attemptNo"] == 1 and a["outcome"] == "PASSED" for a in projected[c.id])
+                    for c in cases
+                ),
+                "retryPassCount": sum(
+                    any(a["attemptNo"] == 2 and a["outcome"] == "PASSED" for a in projected[c.id])
+                    for c in cases
+                ),
+                "infrastructureErrorCount": sum(a.outcome == "ERROR" for a in attempts),
+            },
+        }
+
+    async def attempt(self, scope: WorkspaceScope, attempt_id: str) -> Attempt:
+        """按 ID 加载 Attempt，并校验 Workspace 归属关系，ReportService.attempt 遵守本文件边界。attempt
+        处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载
+
+        Trace。
+        """
+        await WorkspaceRepository(self.session, scope).authorize(self.employee())
+        attempt = await self.session.get(Attempt, attempt_id)
+        if not attempt or attempt.workspace_id != scope.workspace_id:
+            raise Problem(404, "ATTEMPT_NOT_FOUND", "Attempt not found")
+        if attempt.facts.get("metadataExpiredAt"):
+            raise Problem(410, "REPORT_EXPIRED", "Report metadata retention has expired")
+        return attempt
+
+    async def secrets(self, attempt: Attempt) -> tuple[set[str], bool]:
+        """收集 Attempt 相关密钥材料集合，供后续 redact 使用，ReportService.secrets 遵守本文件边界。secrets
+        触及凭证材料：管理面不得回传明文，日志与审计只能保留摘要或引用标识。
+
+        secrets 处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载 Trace。
+        """
+        snapshot = await self.session.get(Artifact, (attempt.workspace_id, attempt.snapshot_hash))
+        if (
+            not snapshot
+            or snapshot.content is None
+            or snapshot.expired_at
+            or snapshot.size_bytes != len(snapshot.content)
+            or sha256(snapshot.content).hexdigest() != snapshot.sha256
+        ):
+            return set(), False
+        secrets: set[str] = set()
+
+        def collect(value: Any) -> None:
+            if isinstance(value, str) and value:
+                secrets.add(value)
+            elif isinstance(value, list):
+                for v in value:
+                    collect(v)
+            elif isinstance(value, dict):
+                for v in value.values():
+                    collect(v)
+
+        try:
+            pins = json.loads(snapshot.content).get("secretVersions", [])
+            ring = configured_keyring(self.settings)
+            for pin in pins:
+                row = await self.session.get(SecretVersion, pin["versionId"])
+                if (
+                    not row
+                    or row.workspace_id != attempt.workspace_id
+                    or row.secret_ref != pin["secretRef"]
+                ):
+                    return set(), False
+                collect(
+                    ring.decrypt(
+                        row.workspace_id,
+                        row.secret_ref,
+                        row.id,
+                        EncryptedValue(row.key_id, row.nonce, row.ciphertext),
+                    )
+                )
+        except (ValueError, KeyError, InvalidTag):
+            return set(), False
+        return secrets, True
+
+    async def events(
+        self,
+        scope: WorkspaceScope,
+        attempt_id: str,
+        after: int,
+        limit: int = 100,
+        byte_budget: int = 1024 * 1024,
+    ) -> dict[str, Any]:
+        """分页或游标读取事件并脱敏，供报告流式展示，ReportService.events 遵守本文件边界，失败返回稳定 Problem。events
+        处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载
+
+        Trace。
+        """
+        offline = await self.session.get(OfflineAttempt, attempt_id)
+        if offline and offline.workspace_id == scope.workspace_id:
+            await WorkspaceRepository(self.session, scope).authorize(self.employee())
+            if offline.facts.get("metadataExpiredAt"):
+                raise Problem(410, "REPORT_EXPIRED", "Report metadata retention has expired")
+            rows = offline.document["events"][after : after + limit + 1]
+            offline_items: list[dict[str, Any]] = []
+            total = 0
+            for event in rows[:limit]:
+                # 服务端无法获知离线本地库的凭据值，导入历史通过授权与保留期检查后只投影白名单内的结构事实，
+                # 显式标记 valuesAvailable=False，返回时使用服务端保存的离线 Attempt ID。
+                payload = {
+                    k: v
+                    for k, v in event["payload"].items()
+                    if k
+                    in {
+                        "status",
+                        "durationMs",
+                        "severity",
+                        "cleanupStatus",
+                        "outcome",
+                        "observerId",
+                        "code",
+                    }
+                }
+                item = {
+                    **event,
+                    "attemptId": offline.id,
+                    "payload": payload,
+                    "valuesAvailable": False,
+                }
+                size = len(canonical_bytes(item))
+                if offline_items and total + size > byte_budget:
+                    break
+                offline_items.append(item)
+                total += size
+            return {
+                "items": offline_items,
+                "nextSequence": offline_items[-1]["sequence"] if offline_items else after,
+                "hasMore": len(rows) > len(offline_items),
+            }
+        attempt = await self.attempt(scope, attempt_id)
+        rows = list(
+            (
+                await self.session.execute(
+                    select(AttemptEvent)
+                    .where(AttemptEvent.attempt_id == attempt.id, AttemptEvent.sequence > after)
+                    .order_by(AttemptEvent.sequence)
+                    .limit(limit + 1)
+                )
+            ).scalars()
+        )
+        secrets, available = await self.secrets(attempt)
+        items: list[dict[str, Any]] = []
+        total_bytes = 0
+        for row in rows[:limit]:
+            e = row.document
+            payload = e["payload"]
+            if e["type"] in {"LOG", "ARTIFACT_CREATED", "VARIABLE_EXTRACTED"}:
+                payload = {"withheld": True}
+            elif not available:
+                payload = {
+                    k: v
+                    for k, v in payload.items()
+                    if k in {"status", "durationMs", "severity", "cleanupStatus", "outcome"}
+                }
+            elif e["type"] == "ASSERTION_RESULT":
+                payload = {
+                    **payload,
+                    "expected": redact(payload["expected"], secrets),
+                    "actual": {
+                        **payload["actual"],
+                        **(
+                            {"value": redact(payload["actual"]["value"], secrets)}
+                            if "value" in payload["actual"]
+                            else {}
+                        ),
+                    },
+                }
+            # 断言的 expected 和存在时的 actual.value 是 JsonValue，可能含响应选定的动态键，须先脱敏。
+            # 事件信封、payload 和 ActualValue 的外层键由协议定义，处理外层时保留原键。
+            item = redact(
+                {**e, "payload": payload, "valuesAvailable": available},
+                secrets,
+                dynamic_keys=False,
+            )
+            authentication = e["payload"].get("authentication")
+            if (
+                e["type"] == "ATTEMPT_FINISHED"
+                and authentication
+                and not validate_schema("BrowserSsoResultV1", authentication)
+            ):
+                # 认证阶段、结果、错误码和耗时均为有界协议值，不依赖凭据可读，也不受凭据碰巧等于枚举值的影响。
+                item["payload"]["authentication"] = authentication
+            size = len(canonical_bytes(item))
+            if items and total_bytes + size > byte_budget:
+                break
+            items.append(item)
+            total_bytes += size
+        return {
+            "items": items,
+            "nextSequence": items[-1]["sequence"] if items else after,
+            "hasMore": len(rows) > len(items),
+        }
+
+    async def artifacts(self, scope: WorkspaceScope, attempt_id: str) -> list[dict[str, Any]]:
+        """列出产物元数据；敏感下载另走更强授权路径，ReportService.artifacts 遵守本文件边界，失败返回稳定 Problem。
+        artifacts 处理报告或证据访问：原始制品与结构化报告权限需分开校验，
+
+        避免越权下载 Trace。
+        """
+        offline = await self.session.get(OfflineAttempt, attempt_id)
+        if offline and offline.workspace_id == scope.workspace_id:
+            await WorkspaceRepository(self.session, scope).authorize(self.employee())
+            if offline.facts.get("metadataExpiredAt"):
+                raise Problem(410, "REPORT_EXPIRED", "Report metadata retention has expired")
+            imported = await self.session.get(OfflineImport, offline.import_id)
+            assert imported is not None
+            offline_rows = (
+                await self.session.execute(
+                    select(OfflineImportUpload, Artifact)
+                    .join(
+                        Artifact,
+                        (Artifact.workspace_id == OfflineImportUpload.workspace_id)
+                        & (Artifact.sha256 == OfflineImportUpload.sha256),
+                    )
+                    .where(
+                        OfflineImportUpload.workspace_id == scope.workspace_id,
+                        OfflineImportUpload.bundle_id == imported.bundle_id,
+                        OfflineImportUpload.local_run_id == imported.local_run_id,
+                        OfflineImportUpload.local_attempt_id == offline.local_attempt_id,
+                        OfflineImportUpload.state == "COMPLETE",
+                    )
+                    .limit(1000)
+                )
+            ).all()
+            return [
+                {
+                    "id": u.id,
+                    "attemptId": attempt_id,
+                    "sha256": u.sha256,
+                    "sizeBytes": u.size_bytes,
+                    "kind": u.kind,
+                    "sensitivity": "CREDENTIAL_RESTRICTED",
+                    "state": "EXPIRED" if u.expired_at or a.expired_at else "AVAILABLE",
+                }
+                for u, a in offline_rows
+                if listed_offline_artifact(offline.document, u)
+            ]
+        await self.attempt(scope, attempt_id)
+        rows = (
+            await self.session.execute(
+                select(AttemptUpload, Artifact)
+                .join(
+                    Artifact,
+                    (Artifact.workspace_id == AttemptUpload.workspace_id)
+                    & (Artifact.sha256 == AttemptUpload.sha256),
+                )
+                .where(AttemptUpload.attempt_id == attempt_id, AttemptUpload.complete.is_(True))
+                .order_by(AttemptUpload.id)
+                .limit(1000)
+            )
+        ).all()
+        return [
+            {
+                "id": upload.id,
+                "attemptId": attempt_id,
+                "sha256": upload.sha256,
+                "sizeBytes": upload.size_bytes,
+                "kind": upload.metadata_json["kind"],
+                "sensitivity": "CREDENTIAL_RESTRICTED",
+                "state": "EXPIRED" if upload.expired_at or artifact.expired_at else "AVAILABLE",
+            }
+            for upload, artifact in rows
+        ]
+
+    async def audit(self, scope: WorkspaceScope, after: str = "") -> dict[str, Any]:
+        """读取 Workspace 审计日志页，支持 after 游标翻页，ReportService.audit 遵守本文件边界。audit
+        处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载 Trace。
+        """
+        await WorkspaceRepository(self.session, scope).authorize(self.employee())
+        rows = list(
+            (
+                await self.session.execute(
+                    select(AuditLog)
+                    .where(AuditLog.workspace_id == scope.workspace_id, AuditLog.id > after)
+                    .order_by(AuditLog.id)
+                    .limit(101)
+                )
+            ).scalars()
+        )
+        return {
+            "items": [
+                {
+                    "id": r.id,
+                    "actorId": r.actor_id,
+                    "targetId": r.target_id,
+                    "action": r.action,
+                    "createdAt": stamp(r.created_at),
+                }
+                for r in rows[:100]
+            ],
+            "nextCursor": rows[99].id if len(rows) > 100 else None,
+        }
+
+    async def display(self, scope: WorkspaceScope, run_id: str, attempt_id: str) -> dict[str, Any]:
+        """构建单 Attempt 展示载荷，含归约后的步骤断言树，ReportService.display 遵守本文件边界，失败返回稳定 Problem。
+        display 处理报告或证据访问：原始制品与结构化报告权限需分开校验，
+
+        避免越权下载 Trace。
+        """
+        from ..repositories.resource import ResourceRepository
+
+        await self.run(scope, run_id)
+        offline = await self.session.get(OfflineAttempt, attempt_id)
+        if offline and offline.workspace_id == scope.workspace_id:
+            imported = await self.session.get(OfflineImport, offline.import_id)
+            if not imported or imported.run_id != run_id:
+                raise Problem(404, "ATTEMPT_NOT_FOUND", "Attempt not found in Run")
+            if offline.facts.get("metadataExpiredAt"):
+                raise Problem(410, "REPORT_EXPIRED", "Report metadata retention has expired")
+            environment = imported.declared["actualEnvironment"]
+            return {
+                "display": None,
+                "metadataStatus": "REDACTED",
+                "environment": {
+                    k: v
+                    for k, v in environment.items()
+                    if k in {"baseURL", "apiBaseURL", "locale", "timezone"}
+                },
+            }
+        attempt = await self.attempt(scope, attempt_id)
+        job = await self.session.get(Job, attempt.job_id)
+        if not job or job.run_id != run_id or job.kind != "TEST":
+            raise Problem(404, "ATTEMPT_NOT_FOUND", "Attempt not found in this Run")
+        repo = ResourceRepository(self.session, scope)
+        snapshot = json.loads((await repo.artifact(attempt.snapshot_hash)).content)
+        secrets, available = await self.secrets(attempt)
+        environment = {k: snapshot[k] for k in ["browser", "environmentVersionId"] if k in snapshot}
+        environment.update(
+            {
+                k: v
+                for k, v in snapshot.get("environment", {}).items()
+                if k in {"baseURL", "apiBaseURL", "locale", "timezone"}
+            }
+        )
+        result: dict[str, Any] = {
+            "display": None,
+            "metadataStatus": "ABSENT",
+            "environment": redact(environment, secrets, dynamic_keys=False) if available else {},
+        }
+        if not available:
+            result["metadataStatus"] = "REDACTED"
+            return result
+        manifest = json.loads((await repo.artifact(attempt.manifest_hash)).content)
+        if not manifest.get("compiledBundleSha256"):
+            return result
+        bundle = json.loads((await repo.artifact(manifest["compiledBundleSha256"])).content)
+        member = next(
+            (f for f in bundle["files"] if f["path"] == "metadata/report-display.json"), None
+        )
+        if not member:
+            return result
+        artifact = await repo.artifact(member["sha256"])
+        if artifact.size_bytes != member["sizeBytes"]:
+            raise Problem(409, "INVALID_ARTIFACT", "Report display size differs from descriptor")
+        display = json.loads(artifact.content)
+        if validate_schema("ReportDisplayV1", display) or len(
+            {c["caseVersionId"] for c in display["cases"]}
+        ) != len(display["cases"]):
+            raise Problem(409, "INVALID_REPORT_DISPLAY", "Report display metadata is invalid")
+        selected = next(
+            (c for c in display["cases"] if c["caseVersionId"] == manifest["caseVersionId"]), None
+        )
+        expected_member = next(
+            (f for f in bundle["files"] if f["path"] == "metadata/expected-plans.json"), None
+        )
+        if not selected or not expected_member:
+            raise Problem(409, "INVALID_REPORT_DISPLAY", "Report case metadata is missing")
+        expected = json.loads((await repo.artifact(expected_member["sha256"])).content)
+        plan = next(
+            (c for c in expected["cases"] if c["caseVersionId"] == selected["caseVersionId"]), None
+        )
+        steps = selected["steps"]
+        if (
+            not plan
+            or len({s["id"] for s in steps}) != len(steps)
+            or len(steps) != len(plan["steps"])
+        ):
+            raise Problem(409, "INVALID_REPORT_DISPLAY", "Report steps differ from expected plan")
+        for actual, planned in zip(steps, plan["steps"], strict=True):
+            if (
+                any(actual.get(k) != planned.get(k) for k in ["id", "order", "parentId"])
+                or len({a["id"] for a in actual["assertions"]}) != len(actual["assertions"])
+                or {a["id"] for a in actual["assertions"]}
+                != {a["id"] for a in planned["assertions"]}
+                or [o["id"] for o in actual["observers"]] != planned["observers"]
+            ):
+                raise Problem(
+                    409, "INVALID_REPORT_DISPLAY", "Report labels do not match expected execution"
+                )
+        projected = redact(selected, secrets, dynamic_keys=False)
+        if validate_schema("ReportDisplayV1", {"schemaVersion": "1.0", "cases": [projected]}):
+            return {**result, "metadataStatus": "REDACTED"}
+        return {**result, "display": projected, "metadataStatus": "AVAILABLE"}
+
+    async def offline_report(self, scope: WorkspaceScope, run: Run) -> dict[str, Any]:
+        """为离线导入 Run 生成保守门禁下的只读报告，ReportService.offline_report 遵守本文件边界。offline_report
+        处理报告或证据访问：原始制品与结构化报告权限需分开校验，
+
+        避免越权下载 Trace。
+        """
+        imported = (
+            await self.session.execute(
+                select(OfflineImport).where(
+                    OfflineImport.workspace_id == scope.workspace_id, OfflineImport.run_id == run.id
+                )
+            )
+        ).scalar_one()
+        cases = list(
+            (
+                await self.session.execute(
+                    select(CaseExecution).where(
+                        CaseExecution.workspace_id == scope.workspace_id,
+                        CaseExecution.run_id == run.id,
+                    )
+                )
+            ).scalars()
+        )
+        attempts = list(
+            (
+                await self.session.execute(
+                    select(OfflineAttempt).where(
+                        OfflineAttempt.workspace_id == scope.workspace_id,
+                        OfflineAttempt.import_id == imported.id,
+                    )
+                )
+            ).scalars()
+        )
+        if any(case.provenance.get("metadataExpiredAt") for case in cases) or any(
+            attempt.facts.get("metadataExpiredAt") for attempt in attempts
+        ):
+            raise Problem(410, "REPORT_EXPIRED", "Report metadata retention has expired")
+        blocked = {"passed": False, "reasons": ["OFFLINE_IMPORT", "RESULT_AUTHENTICITY_UNVERIFIED"]}
+        projected = []
+        for case in cases:
+            rows = [a for a in attempts if a.case_execution_id == case.id]
+            projected.append(
+                {
+                    "id": case.id,
+                    "caseVersionId": case.case_version_id,
+                    "state": case.state,
+                    "outcome": case.outcome,
+                    "provenance": case.provenance,
+                    "attempts": [
+                        {
+                            "id": a.id,
+                            "attemptNo": a.attempt_no,
+                            "runtimeId": None,
+                            "phase": "FINISHED",
+                            "outcome": a.outcome,
+                            "facts": a.facts,
+                            "createdAt": stamp(imported.created_at),
+                            "activatedAt": None,
+                            "finishedAt": stamp(imported.created_at),
+                            "lastSequence": a.document["lastSequence"],
+                            "provenance": {
+                                "source": "OFFLINE_IMPORT",
+                                "declared": imported.declared,
+                                "verified": imported.verified,
+                            },
+                            "gateAtExecution": blocked,
+                            "gateNow": blocked,
+                            "compensations": [],
+                        }
+                        for a in sorted(rows, key=lambda a: a.attempt_no)
+                    ],
+                }
+            )
+        return {
+            "run": run_dto(run),
+            "cases": projected,
+            "gateAtExecution": blocked,
+            "gateNow": blocked,
+            "statistics": {
+                "caseCount": len(cases),
+                "firstPassCount": sum(
+                    a.attempt_no == 1 and a.outcome == "PASSED" for a in attempts
+                ),
+                "retryPassCount": sum(
+                    a.attempt_no == 2 and a.outcome == "PASSED" for a in attempts
+                ),
+                "infrastructureErrorCount": sum(a.outcome == "ERROR" for a in attempts),
+            },
+        }

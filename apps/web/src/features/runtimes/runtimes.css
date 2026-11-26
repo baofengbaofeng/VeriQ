@@ -1,0 +1,28 @@
+/*
+ * 设备列表和登记区保留原有分组，工具栏用独立布局对齐标题和刷新入口，长设备名称不改变控件宽度。
+ */
+.vq-runtime-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 12px;
+}
+
+.vq-runtime-toolbar h2 {
+    margin: 0;
+}
+
+.vq-runtime-workspace form > .vq-field {
+    width: min(100%, 360px);
+}
+
+.vq-runtime-workspace .vq-field :is(input, .vq-select-trigger) {
+    width: 100%;
+}
+
+.vq-runtime-workspace .vq-select-trigger > span:first-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

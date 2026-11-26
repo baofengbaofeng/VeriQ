@@ -1,0 +1,209 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { randomUUID } from "node:crypto";
+test("local execution ownership survives reopen and unknown stop never frees the single context", async () => {
+    const { LocalStore } = await import("../src/offline/store.ts");
+    const directory = await mkdtemp(join(tmpdir(), "veriq-local-store-"));
+    try {
+        const first = await LocalStore.open(directory);
+        const workspaceId = randomUUID(),
+            runId = randomUUID(),
+            attemptId = randomUUID();
+        first.reserve(workspaceId, runId, attemptId);
+        first.spawning(runId, attemptId, first.active()!);
+        first.close();
+        const reopened = await LocalStore.open(directory);
+        assert.equal(reopened.active()?.attemptId, attemptId);
+        assert.throws(() => reopened.reserve(workspaceId, randomUUID(), randomUUID()), /LOCAL_CAPACITY_HELD/);
+        reopened.stopped(
+            runId,
+            {
+                attemptId,
+                processStopped: false,
+                reason: "UNKNOWN_PROCESS",
+                stoppedAt: new Date().toISOString(),
+            },
+            reopened.active()!,
+        );
+        assert.equal(reopened.active()?.state, "QUARANTINED");
+        assert.throws(() => reopened.reserve(workspaceId, randomUUID(), randomUUID()), /LOCAL_CAPACITY_HELD/);
+        reopened.close();
+    } finally {
+        await rm(directory, { recursive: true, force: true });
+    }
+});
+test("local event mapping uses canonical attempt sequence without cloud transport", async () => {
+    const { sdkFact, executionEvent } = await import("../src/execution/events.ts");
+    const fact = sdkFact({ type: "STEP_STARTED", stepId: "open" });
+    assert.deepEqual(fact, { type: "STEP_STARTED", stepId: "open", payload: {} });
+    const attemptId = randomUUID();
+    assert.equal(executionEvent(attemptId, 2, fact).sequence, 2);
+    assert.throws(() => executionEvent(attemptId, 0, fact), /INVALID_EXECUTION_EVENT/);
+});
+
+test("browser SSO result survives SDK event translation into a bounded Attempt fact", async () => {
+    const { sdkFact, executionEvent } = await import("../src/execution/events.ts");
+    const authentication = {
+        stage: "IDP",
+        outcome: "FAILED",
+        durationMs: 110,
+        errorCode: "SSO_CHALLENGE_REQUIRED",
+    } as const;
+    const fact = sdkFact({
+        type: "CASE_FINISHED",
+        result: {
+            outcome: "ERROR",
+            businessOutcome: "ERROR",
+            cleanupStatus: "NOT_REQUIRED",
+            steps: [],
+            authentication,
+        },
+    });
+    assert.deepEqual(executionEvent(randomUUID(), 3, fact).payload, {
+        outcome: "ERROR",
+        cleanupStatus: "NOT_REQUIRED",
+        authentication,
+    });
+});
+test("initial local report commits atomically with ownership before any child is spawned", async () => {
+    const { LocalStore } = await import("../src/offline/store.ts");
+    const dir = await mkdtemp(join(tmpdir(), "veriq-local-checkpoint-"));
+    try {
+        const store = await LocalStore.open(dir),
+            runId = randomUUID(),
+            ws = randomUUID(),
+            attemptId = randomUUID();
+        const checkpoint: import("@veriq/contracts").OfflineResultV1 = {
+            schemaVersion: "1.0",
+            workspaceId: ws,
+            bundleId: randomUUID(),
+            localRunId: runId,
+            deviceId: randomUUID(),
+            source: "OFFLINE_IMPORT",
+            trustStatus: "USER_REGISTERED",
+            dirty: false,
+            revocationStatus: "UNKNOWN",
+            manifestSha256: "a".repeat(64),
+            startedAt: new Date().toISOString(),
+            finishedAt: new Date().toISOString(),
+            outcome: "INCOMPLETE",
+            actualEnvironment: {
+                schemaVersion: "1.0",
+                baseURL: "https://business.test",
+                apiBaseURL: "https://business.test",
+                allowedOrigins: ["https://business.test"],
+                locale: "en",
+                timezone: "UTC",
+                roles: [
+                    {
+                        roleKey: "reader",
+                        authAdapterVersionId: randomUUID(),
+                        secretRef: "reader",
+                        secretVersionId: randomUUID(),
+                    },
+                ],
+            },
+            attempts: [
+                {
+                    attemptId,
+                    caseVersionId: randomUUID(),
+                    attemptNo: 1,
+                    outcome: "INCOMPLETE",
+                    cleanupStatus: "PENDING",
+                    lastSequence: 0,
+                    events: [],
+                    artifacts: [],
+                },
+            ],
+        };
+        store.reserve(ws, runId, attemptId, checkpoint);
+        store.close();
+        const reopened = await LocalStore.open(dir);
+        assert.equal(reopened.result(ws, runId).outcome, "INCOMPLETE");
+        reopened.close();
+    } finally {
+        await rm(dir, { recursive: true, force: true });
+    }
+});
+test("two OS processes compete for one durable local context", async () => {
+    const { LocalStore } = await import("../src/offline/store.ts");
+    const { spawn } = await import("node:child_process");
+    const dir = await mkdtemp(join(tmpdir(), "veriq-local-race-"));
+    try {
+        const initialized = await LocalStore.open(dir);
+        initialized.close();
+        const script =
+            `import {LocalStore} from './src/offline/store.ts';import {randomUUID} from 'node:crypto';co` +
+            `nst store=await LocalStore.open(process.argv[1]);try{store.reserve(randomUUID(),randomUUID(` +
+            `),randomUUID());console.log('ACQUIRED');}catch(e){console.log(e.message);}finally{store.clo` +
+            `se();}`;
+        /**
+         * 两个独立子进程仍同时争抢同一自有 SQLite 档案，失败时保留有限输出与真实退出状态以定位原因；这只增加诊断，不改
+         * 变竞争时序、断言、重试次数或把子进程失败当作容量已释放。
+         */
+        const compete = () =>
+            new Promise<string>((resolve, reject) => {
+                const child = spawn(process.execPath, ["--import", "tsx", "--input-type=module", "-e", script, dir], {
+                    stdio: ["ignore", "pipe", "pipe"],
+                });
+                let output = "",
+                    errors = "";
+                child.stdout.on("data", (b) => (output = (output + b).slice(0, 8192)));
+                child.stderr.on("data", (b) => (errors = (errors + b).slice(0, 8192)));
+                child.once("error", reject);
+                child.once("exit", (code, signal) =>
+                    code === 0
+                        ? resolve(output.trim())
+                        : reject(
+                              new Error(
+                                  "STORE_CHILD_FAILED " +
+                                      JSON.stringify({
+                                          code,
+                                          signal,
+                                          stdout: output,
+                                          stderr: errors,
+                                      }),
+                              ),
+                          ),
+                );
+            });
+        assert.deepEqual((await Promise.all([compete(), compete()])).sort(), ["ACQUIRED", "LOCAL_CAPACITY_HELD"]);
+    } finally {
+        await rm(dir, { recursive: true, force: true });
+    }
+});
+
+/**
+ * 启动完成只推进相同持久代际的状态而不重贴新代际，旧 SPAWNING 令牌及重复提交必须拒绝；重开后 RUNNING 仍持有容量，既不
+ * 能借内存状态释放，也不能成为没有派生的停止依据。
+ */
+test("running admission commits the launch generation and rejects stale state after reopen", async () => {
+    const { LocalStore } = await import("../src/offline/store.ts");
+    const directory = await mkdtemp(join(tmpdir(), "veriq-local-running-"));
+    let store = await LocalStore.open(directory);
+    try {
+        const runId = randomUUID(),
+            attemptId = randomUUID();
+        const allocated = store.reserve(randomUUID(), runId, attemptId);
+        const spawning = store.spawning(runId, attemptId, allocated);
+        const running = store.running(runId, attemptId, spawning);
+        assert.equal(running.generation, spawning.generation);
+        assert.equal(running.state, "RUNNING");
+        assert.throws(() => store.running(runId, attemptId, spawning), /LOCAL_OWNERSHIP_LOST/);
+        assert.throws(() => store.running(runId, attemptId, running), /LOCAL_OWNERSHIP_LOST/);
+        store.close();
+        store = await LocalStore.open(directory);
+        assert.deepEqual({ ...store.active() }, running);
+        assert.equal(store.unspawnedStop(running), undefined);
+        const recovery = store.claimRecovery(running)!;
+        assert.equal(recovery.state, "RECOVERING");
+        assert.equal(recovery.generation, running.generation + 1);
+        assert.throws(() => store.ensureOwner(running), /LOCAL_OWNERSHIP_LOST/);
+    } finally {
+        store.close();
+        await rm(directory, { recursive: true, force: true });
+    }
+});

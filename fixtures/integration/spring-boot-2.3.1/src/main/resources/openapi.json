@@ -1,0 +1,1437 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "VeriQ Spring Boot 2.3.1 controlled fixture example",
+        "version": "1.0.0",
+        "description": "Source example; unverified until V06. Bearer identities, private POSIX JSON store with process lock, external maintenance; no session login."
+    },
+    "paths": {
+        "/prepare": {
+            "post": {
+                "summary": "Idempotent isolated fixture preparation",
+                "security": [
+                    {
+                        "FixtureBearer": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful JSON result",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "fixtureId": {
+                                            "type": "string"
+                                        },
+                                        "namespace": {
+                                            "type": "string"
+                                        },
+                                        "cleanupToken": {
+                                            "type": "string",
+                                            "description": "Sensitive cleanup authority; return only to the authenticated fixture client, never log or expose as an ordinary business variable"
+                                        },
+                                        "variables": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "code"
+                                            ],
+                                            "additionalProperties": false
+                                        }
+                                    },
+                                    "required": [
+                                        "fixtureId",
+                                        "namespace",
+                                        "cleanupToken",
+                                        "variables"
+                                    ],
+                                    "additionalProperties": false
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Missing identity",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Wrong identity",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not found",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Changed idempotency parameters or closed namespace",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "workspaceId": {
+                                        "type": "string",
+                                        "minLength": 1
+                                    },
+                                    "caseExecutionId": {
+                                        "type": "string",
+                                        "minLength": 1
+                                    },
+                                    "attemptNo": {
+                                        "type": "integer",
+                                        "enum": [
+                                            1,
+                                            2
+                                        ]
+                                    },
+                                    "namespace": {
+                                        "type": "string",
+                                        "minLength": 1
+                                    },
+                                    "idempotencyKey": {
+                                        "type": "string",
+                                        "minLength": 1
+                                    },
+                                    "input": {
+                                        "type": "object",
+                                        "properties": {
+                                            "name": {
+                                                "type": "string",
+                                                "minLength": 1
+                                            }
+                                        },
+                                        "required": [
+                                            "name"
+                                        ],
+                                        "additionalProperties": false
+                                    },
+                                    "ttlSeconds": {
+                                        "type": "integer",
+                                        "minimum": 1,
+                                        "maximum": 604800
+                                    }
+                                },
+                                "required": [
+                                    "workspaceId",
+                                    "caseExecutionId",
+                                    "attemptNo",
+                                    "namespace",
+                                    "idempotencyKey",
+                                    "input",
+                                    "ttlSeconds"
+                                ],
+                                "additionalProperties": false
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/cleanup": {
+            "post": {
+                "summary": "Close namespace and delete precisely owned employees",
+                "security": [
+                    {
+                        "FixtureBearer": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful JSON result",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "status": {
+                                            "enum": [
+                                                "CLEANED",
+                                                "ALREADY_CLEANED"
+                                            ]
+                                        },
+                                        "fixtureId": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "status"
+                                    ],
+                                    "additionalProperties": false
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Missing identity",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Wrong identity",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not found",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Changed idempotency parameters or closed namespace",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "workspaceId": {
+                                        "type": "string",
+                                        "minLength": 1
+                                    },
+                                    "caseExecutionId": {
+                                        "type": "string",
+                                        "minLength": 1
+                                    },
+                                    "attemptNo": {
+                                        "type": "integer",
+                                        "enum": [
+                                            1,
+                                            2
+                                        ]
+                                    },
+                                    "namespace": {
+                                        "type": "string",
+                                        "minLength": 1
+                                    },
+                                    "idempotencyKey": {
+                                        "type": "string",
+                                        "minLength": 1
+                                    },
+                                    "cleanupToken": {
+                                        "type": "string",
+                                        "minLength": 1
+                                    }
+                                },
+                                "required": [
+                                    "workspaceId",
+                                    "caseExecutionId",
+                                    "attemptNo",
+                                    "namespace",
+                                    "idempotencyKey"
+                                ],
+                                "additionalProperties": false
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "summary": "Close namespace and delete precisely owned employees",
+                "security": [
+                    {
+                        "FixtureBearer": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful JSON result",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "status": {
+                                            "enum": [
+                                                "CLEANED",
+                                                "ALREADY_CLEANED"
+                                            ]
+                                        },
+                                        "fixtureId": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "status"
+                                    ],
+                                    "additionalProperties": false
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Missing identity",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Wrong identity",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not found",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Changed idempotency parameters or closed namespace",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "workspaceId": {
+                                        "type": "string",
+                                        "minLength": 1
+                                    },
+                                    "caseExecutionId": {
+                                        "type": "string",
+                                        "minLength": 1
+                                    },
+                                    "attemptNo": {
+                                        "type": "integer",
+                                        "enum": [
+                                            1,
+                                            2
+                                        ]
+                                    },
+                                    "namespace": {
+                                        "type": "string",
+                                        "minLength": 1
+                                    },
+                                    "idempotencyKey": {
+                                        "type": "string",
+                                        "minLength": 1
+                                    },
+                                    "cleanupToken": {
+                                        "type": "string",
+                                        "minLength": 1
+                                    }
+                                },
+                                "required": [
+                                    "workspaceId",
+                                    "caseExecutionId",
+                                    "attemptNo",
+                                    "namespace",
+                                    "idempotencyKey"
+                                ],
+                                "additionalProperties": false
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/query": {
+            "get": {
+                "summary": "Read fixture state by idempotency key",
+                "security": [
+                    {
+                        "FixtureBearer": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful JSON result",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "fixtureId": {
+                                            "type": "string"
+                                        },
+                                        "namespace": {
+                                            "type": "string"
+                                        },
+                                        "state": {
+                                            "enum": [
+                                                "OPEN",
+                                                "CLOSED"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "fixtureId",
+                                        "namespace",
+                                        "state"
+                                    ],
+                                    "additionalProperties": false
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Missing identity",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Wrong identity",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not found",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Changed idempotency parameters or closed namespace",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "idempotencyKey",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "minLength": 1
+                        }
+                    }
+                ]
+            }
+        },
+        "/me": {
+            "get": {
+                "summary": "Verify ordinary or fixture service identity",
+                "security": [
+                    {
+                        "BusinessBearer": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful JSON result",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "id": {
+                                            "enum": [
+                                                "editor",
+                                                "fixture-service",
+                                                "maintenance"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "id"
+                                    ],
+                                    "additionalProperties": false
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Missing identity",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Wrong identity",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not found",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Changed idempotency parameters or closed namespace",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/employees": {
+            "post": {
+                "summary": "Business write with atomic open-namespace check",
+                "security": [
+                    {
+                        "BusinessBearer": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful JSON result",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "id": {
+                                            "type": "string"
+                                        },
+                                        "status": {
+                                            "const": "CREATED"
+                                        }
+                                    },
+                                    "required": [
+                                        "id",
+                                        "status"
+                                    ],
+                                    "additionalProperties": false
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Missing identity",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Wrong identity",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not found",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Changed idempotency parameters or closed namespace",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "namespace": {
+                                        "type": "string",
+                                        "minLength": 1
+                                    },
+                                    "name": {
+                                        "type": "string",
+                                        "minLength": 1,
+                                        "maxLength": 160
+                                    },
+                                    "code": {
+                                        "type": "string",
+                                        "minLength": 1
+                                    }
+                                },
+                                "required": [
+                                    "name"
+                                ],
+                                "additionalProperties": false,
+                                "oneOf": [
+                                    {
+                                        "required": [
+                                            "namespace"
+                                        ],
+                                        "not": {
+                                            "required": [
+                                                "code"
+                                            ]
+                                        }
+                                    },
+                                    {
+                                        "required": [
+                                            "code"
+                                        ],
+                                        "not": {
+                                            "required": [
+                                                "namespace"
+                                            ]
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                }
+            },
+            "get": {
+                "summary": "Read owned employees",
+                "security": [
+                    {
+                        "BusinessBearer": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful JSON result",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "items": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "string"
+                                                    },
+                                                    "name": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "id",
+                                                    "name"
+                                                ],
+                                                "additionalProperties": false
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "items"
+                                    ],
+                                    "additionalProperties": false
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Missing identity",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Wrong identity",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not found",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Changed idempotency parameters or closed namespace",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "namespace",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "minLength": 1
+                        }
+                    },
+                    {
+                        "name": "code",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "minLength": 1
+                        }
+                    }
+                ],
+                "description": "Provide exactly one of namespace or the public fixture output code. Both select only this fixture owned data."
+            }
+        },
+        "/maintenance": {
+            "post": {
+                "summary": "Externally triggered bounded TTL cleanup",
+                "security": [
+                    {
+                        "MaintenanceBearer": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful JSON result",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "processed": {
+                                            "type": "integer",
+                                            "minimum": 0,
+                                            "maximum": 100
+                                        },
+                                        "hasMore": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": [
+                                        "processed",
+                                        "hasMore"
+                                    ],
+                                    "additionalProperties": false
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Missing identity",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Wrong identity",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not found",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Changed idempotency parameters or closed namespace",
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "limit": {
+                                        "type": "integer",
+                                        "minimum": 1,
+                                        "maximum": 100
+                                    }
+                                },
+                                "required": [],
+                                "additionalProperties": false
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/build-info": {
+            "get": {
+                "summary": "Read the actual configured target build SHA",
+                "security": [],
+                "responses": {
+                    "200": {
+                        "description": "Target build",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "buildSha": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "buildSha"
+                                    ],
+                                    "additionalProperties": false
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Server generated correlation identifier; never an authentication token"
+                            },
+                            "X-Build-Sha": {
+                                "schema": {
+                                    "type": "string"
+                                },
+                                "description": "Actual configured target application build"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "securitySchemes": {
+            "BusinessBearer": {
+                "type": "http",
+                "scheme": "bearer"
+            },
+            "FixtureBearer": {
+                "type": "http",
+                "scheme": "bearer"
+            },
+            "MaintenanceBearer": {
+                "type": "http",
+                "scheme": "bearer"
+            }
+        }
+    }
+}

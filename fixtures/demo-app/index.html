@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>VeriQ employee demo</title>
+    <main veriq-id="employee.page">
+        <h1>Employees</h1>
+        <form veriq-id="employee.form">
+            <label for="name">Name</label>
+            <input id="name" name="name" veriq-id="name" maxlength="160" required>
+            <button type="submit" veriq-id="save">Save</button>
+        </form>
+        <p role="status" veriq-id="result" aria-live="polite"></p>
+        <table veriq-id="employee.table">
+            <caption>Persisted employees</caption>
+            <thead><tr><th>Name</th></tr></thead>
+            <tbody></tbody>
+        </table>
+    </main>
+    <script type="module" src="/demo.js"></script>
+</html>

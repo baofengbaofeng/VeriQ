@@ -1,0 +1,885 @@
+/**
+ * 本文件驱动断网宿主执行离线包：不经 AgentClient、租约或平台传输：并支持显式恢复与取消时隔离未知进程（run）。
+ */
+
+/**
+ * 离线宿主从已安装且重新核验的包生成执行变体，用本机存储与进程监督管理尝试，全程无需 AgentClient 或平台租约。
+ */
+import { randomUUID } from "node:crypto";
+import { mkdir, mkdtemp, readFile, writeFile, copyFile, readdir, rm } from "node:fs/promises";
+import { join, dirname, resolve } from "node:path";
+import { tmpdir } from "node:os";
+import { pathToFileURL } from "node:url";
+import { setTimeout as delay } from "node:timers/promises";
+import {
+    canonicalBytes,
+    validateSchema,
+    type AssetSnapshotV1,
+    type ExecutionSnapshotV1,
+    type EnvironmentV1,
+    type OfflineResultV1,
+    type OfflineAttemptV1,
+    type CompiledAssetBundle,
+    type Browser,
+    type Outcome,
+} from "@veriq/contracts";
+import type { CaseResult } from "@veriq/runner-sdk";
+import { ProcessRecords } from "../execution/records.ts";
+import { ProcessSupervisor, type StopReceipt, type OwnedProcess } from "../execution/processes.ts";
+import { AttemptBroker, createDarwinBrokerDirectory } from "../execution/broker.ts";
+import { requireDarwinSource, type DarwinSourceCapability } from "../execution/darwin-source.ts";
+import { executionEvent, sdkFact, type Fact, type SdkEvent } from "../execution/events.ts";
+import { loadRelease, sha256 } from "../execution/release.ts";
+import { monitorStorage } from "../execution/storage.ts";
+import { type SecretStore, SecretResolver } from "../credentials/store.ts";
+import { LocalStore, type Ownership } from "./store.ts";
+import { reverifyInstalled, type VerifiedBundle } from "./verify.ts";
+import type { TrustStore } from "./trust.ts";
+import { readBoundedFile } from "./config.ts";
+import { developmentExecutionPaths, containedPath, type ExecutionPaths } from "../execution/paths.ts";
+import { offlineWorkerEnvironment } from "./worker-environment.ts";
+/**
+ * 公开接口 OfflineConfig 描述断网执行所需的本机目录、浏览器与发行配置：不含任何平台租约字段（OfflineConfig）。
+ */
+export interface OfflineConfig {
+    root: string;
+    trust: TrustStore;
+    secrets: SecretStore;
+    releaseDirectory: string;
+    browserExecutable: string;
+    /**
+     * 离线宿主从完整发行清单选择执行角色及辅助模块路径，签名包仅选择受支持引擎版本而不携带可执行路径；
+     * 源码开发调用可缺省，已安装入口必须显式提供已验证配置。
+     */
+    execution?: ExecutionPaths;
+    /**
+     * 当前源码宿主可显式借用工厂私有品牌能力，真实平台核验后才连接 Darwin 受控后端；离线包、Job 和 renderer
+     * 不能反序列化此对象，缺失能力不会因 headless、路径或系统名称而自动开放执行。
+     */
+    darwinSource?: DarwinSourceCapability;
+    deviceId: string;
+    debug?: boolean;
+    /**
+     * 桌面宿主可以明确选择可见浏览器，默认仍保持无头执行；此字段只影响当前启动配置，不修改签名业务快照，
+     * 宿主必须先证明安装的浏览器具备所选择的显示能力。
+     */
+    headless?: boolean;
+    signal?: AbortSignal;
+    browsers?: Browser[];
+    retry?: boolean;
+    /**
+     * 可信宿主须逐项授权业务页、接口及夹具地址的覆盖，执行只修改环境的副本，原始签名快照仍可用于核验。
+     */
+    overrides?: {
+        baseURL?: string;
+        apiBaseURL?: string;
+        fixtureBaseURL?: string;
+    };
+    authorizeOverride?: (field: string, value: string) => boolean;
+}
+type Checked = Awaited<ReturnType<typeof reverifyInstalled>>;
+const variantKey = (execution: ExecutionSnapshotV1) =>
+    sha256(
+        canonicalBytes([
+            execution.caseVersionId,
+            execution.suiteEntryIndex ?? 0,
+            execution.roleKey,
+            execution.browser,
+            execution.datasetVersionId ?? null,
+            execution.dataRow?.key ?? null,
+        ]),
+    );
+const code = (error: unknown) =>
+    error instanceof Error && /^[A-Z_]{1,80}$/.test(error.message) ? error.message : "OFFLINE_EXECUTION_ERROR";
+const aggregate = (outcomes: string[]): Outcome =>
+    (["ERROR", "INCOMPLETE", "FAILED", "CANCELLED", "UNSTABLE", "SKIPPED", "PASSED"] as Outcome[]).find((o) =>
+        outcomes.includes(o),
+    ) ?? "INCOMPLETE";
+function selectedSuite(checked: Checked): string | undefined {
+    const selection = JSON.parse(checked.contents.get("selection.json")!.toString()) as {
+        suiteVersionId?: string;
+    };
+    return (
+        selection.suiteVersionId ??
+        (checked.dslOnly &&
+        checked.snapshot.assets.some(
+            (a) => a.versionId === checked.snapshot.validationTarget?.versionId && a.kind === "SUITE",
+        )
+            ? checked.snapshot.validationTarget!.versionId
+            : undefined)
+    );
+}
+function compilationRoot(checked: Checked, caseVersionId: string): string {
+    return selectedSuite(checked) ?? caseVersionId;
+}
+function variants(checked: Checked, runId: string, config: OfflineConfig): ExecutionSnapshotV1[] {
+    const source = checked.snapshot;
+    const selection = JSON.parse(checked.contents.get("selection.json")!.toString()) as {
+        environmentVersionId: string;
+        suiteVersionId?: string;
+        caseVersionIds?: string[];
+    };
+    const environment = structuredClone(
+        source.assets.find((a) => a.versionId === selection.environmentVersionId)?.document,
+    ) as unknown as EnvironmentV1;
+    if (!environment) throw new Error("BUNDLE_ENVIRONMENT_MISSING");
+    for (const [field, value] of Object.entries(config.overrides ?? {})) {
+        if (!["baseURL", "apiBaseURL", "fixtureBaseURL"].includes(field) || !config.authorizeOverride?.(field, value))
+            throw new Error("ENVIRONMENT_OVERRIDE_UNAUTHORIZED");
+        const url = new URL(value);
+        if (!["http:", "https:"].includes(url.protocol) || url.username || url.password)
+            throw new Error("INVALID_ENVIRONMENT_OVERRIDE");
+        (environment as unknown as Record<string, unknown>)[field] = value;
+        if (!environment.allowedOrigins.includes(url.origin)) environment.allowedOrigins.push(url.origin);
+    }
+    const suiteId = selectedSuite(checked);
+    const suite = suiteId ? source.assets.find((a) => a.versionId === suiteId) : undefined;
+    type Entry = {
+        versionId: string;
+        roleKeys?: string[];
+        browsers?: Browser[];
+        datasetVersionId?: string;
+    };
+    const entries: Entry[] = suite
+        ? (
+              suite.document as unknown as {
+                  cases: Entry[];
+              }
+          ).cases
+        : (selection.caseVersionIds ?? source.entryCaseVersionIds).map((versionId) => ({
+              versionId,
+          }));
+    const executions: ExecutionSnapshotV1[] = [];
+    for (const [index, entry] of entries.entries()) {
+        const asset = source.assets.find((a) => a.versionId === entry.versionId && a.kind === "CASE");
+        if (!asset) throw new Error("BUNDLE_CASE_MISSING");
+        const document = asset.document as unknown as {
+            roleKey: string;
+            datasetVersionId?: string;
+            fixtureVersionId?: string;
+        };
+        const datasetId = entry.datasetVersionId ?? document.datasetVersionId;
+        /**
+         * 旧签名包只解释旧版数据行。新版静态数据集必须通过联网准入冻结，种类不符仍报缺失数据集。
+         */
+        const dataset = datasetId ? source.assets.find((candidate) => candidate.versionId === datasetId) : undefined;
+        const datasetDocument = dataset?.kind === "DATASET" ? dataset.document : undefined;
+        if (datasetId && !datasetDocument) throw new Error("BUNDLE_DATASET_MISSING");
+        if (datasetDocument && datasetDocument.schemaVersion !== "1.0")
+            throw new Error("OFFLINE_DATASET_VERSION_UNSUPPORTED");
+        const rows = datasetDocument?.rows ?? [undefined];
+        const original = checked.dslOnly
+            ? (JSON.parse(checked.contents.get("draft/source.json")!.toString()) as AssetSnapshotV1)
+            : (JSON.parse(
+                  checked.contents
+                      .get(`provenance/${compilationRoot(checked, entry.versionId)}/source.json`)!
+                      .toString(),
+              ) as AssetSnapshotV1);
+        for (const roleKey of entry.roleKeys ?? [document.roleKey])
+            for (const browser of entry.browsers ?? config.browsers ?? ["chromium"])
+                for (const dataRow of rows) {
+                    const role = environment.roles.find((r) => r.roleKey === roleKey);
+                    if (!role) throw new Error("ROLE_UNAVAILABLE");
+                    const identities = [
+                        role,
+                        ...(document.fixtureVersionId && environment.fixtureIdentity
+                            ? [environment.fixtureIdentity]
+                            : []),
+                    ];
+                    if (document.fixtureVersionId && !environment.fixtureIdentity)
+                        throw new Error("FIXTURE_IDENTITY_REQUIRED");
+                    const caseExecutionId = randomUUID();
+                    const execution: ExecutionSnapshotV1 = {
+                        schemaVersion: "1.0",
+                        workspaceId: source.workspaceId,
+                        runId,
+                        caseExecutionId,
+                        caseVersionId: entry.versionId,
+                        assetSourceHash: original.sourceHash,
+                        environmentVersionId: selection.environmentVersionId,
+                        environment,
+                        roleKey,
+                        browser,
+                        variables: {},
+                        secretVersions: identities.map((r) => ({
+                            secretRef: r.secretRef,
+                            versionId: r.secretVersionId,
+                        })),
+                        authAdapters: source.authAdapters ?? [],
+                        namespace: "attempt_" + caseExecutionId.replaceAll("-", ""),
+                        attemptNo: 1,
+                        suiteEntryIndex: index,
+                        ...(dataRow ? { dataRow, datasetVersionId: datasetId! } : {}),
+                    };
+                    if (validateSchema("ExecutionSnapshotV1", execution).length)
+                        throw new Error("INVALID_EXECUTION_SNAPSHOT");
+                    executions.push(execution);
+                    if (executions.length > 1000) throw new Error("MATRIX_LIMIT");
+                }
+    }
+    if (!executions.length) throw new Error("EMPTY_EXECUTION_MATRIX");
+    return executions;
+}
+async function attempt(
+    checked: Checked,
+    execution: ExecutionSnapshotV1,
+    attemptId: string,
+    config: OfflineConfig,
+    store: LocalStore,
+    processes: ProcessSupervisor,
+    ownership: Ownership,
+): Promise<{
+    result: OfflineAttemptV1;
+    owner: Ownership;
+}> {
+    const source = config.darwinSource === undefined ? undefined : requireDarwinSource(config.darwinSource);
+    let owner = ownership;
+    const runId = execution.runId,
+        work = join(config.root, "work", attemptId),
+        artifacts: OfflineAttemptV1["artifacts"] = [];
+    let diagnostics: OfflineAttemptV1["diagnostics"];
+    let sequence = 0,
+        caseResult: CaseResult | undefined,
+        child: OwnedProcess | undefined,
+        broker: AttemptBroker | undefined,
+        tmp: string | undefined,
+        stop: StopReceipt | undefined,
+        failure: string | undefined,
+        spawning = false;
+    let monitor: ReturnType<typeof monitorStorage> | undefined;
+    let brokerDirectory: Awaited<ReturnType<typeof createDarwinBrokerDirectory>> | undefined;
+    let startIssued = false,
+        stopOperation: Promise<StopReceipt> | undefined;
+    let privateEndpoint: string | undefined,
+        retainPrivateReports = false;
+    const pendingDownloads: string[] = [];
+    const privacyReporter = join(work, "node_modules/@veriq/runner-sdk/src/endpoint-json-reporter.js");
+    let cancellationObserver: ReturnType<typeof setInterval> | undefined;
+    const controller = new AbortController();
+    /**
+     * Darwin 的首次取消立即调用并保存唯一终结操作，start 尚未返回 child 时也已同步登记准入；后续轮询、存储错误和
+     * finally 共享同一预算，不以 ACK、短等待或未赋值的 child 推断已经退出或没
+     * 有派生。
+     */
+    const stopOnce = (why: string) => (stopOperation ??= processes.terminateAttempt(attemptId, why));
+    const unspawned = async () => {
+        if (spawning) return;
+        if (source) {
+            let records: ProcessRecords | undefined;
+            try {
+                records = await ProcessRecords.open(join(config.root, "processes"));
+                if (records)
+                    for (const suffix of ["process.json", "controlled.json", "drained.json"]) {
+                        try {
+                            await records.read(`${attemptId}.${suffix}`, 65536);
+                            return;
+                        } catch (error) {
+                            if ((error as NodeJS.ErrnoException).code !== "ENOENT") return;
+                        }
+                    }
+            } catch {
+                return;
+            } finally {
+                await records?.close();
+            }
+        }
+        return store.unspawnedStop(owner);
+    };
+    const stopRequest = (why: string) => {
+        failure ??= why;
+        controller.abort();
+        if (source && startIssued) void stopOnce(failure).catch(() => {});
+    };
+    const abort = () => stopRequest("USER_CANCELLED");
+    config.signal?.addEventListener("abort", abort, { once: true });
+    if (config.signal?.aborted) abort();
+    const append = (fact: Fact) => store.append(runId, executionEvent(attemptId, ++sequence, fact), owner);
+    const resolver = new SecretResolver(config.secrets);
+    const context = {
+        issuerId: checked.manifest.issuerId,
+        workspaceId: execution.workspaceId,
+        secretVersions: execution.secretVersions,
+    };
+    const add = async (
+        path: string,
+        kind: NonNullable<OfflineAttemptV1["artifacts"][number]["kind"]>,
+        name: string,
+    ) => {
+        const bytes = await readBoundedFile(path, 32 * 1024 * 1024);
+        await mkdir(join(work, "evidence"), { recursive: true, mode: 0o700 });
+        await writeFile(join(work, "evidence", name), bytes, {
+            mode: 0o600,
+            flag: "wx",
+            flush: true,
+        });
+        const file = {
+            path: name,
+            sha256: sha256(bytes),
+            sizeBytes: bytes.length,
+            sensitivity: "CREDENTIAL_RESTRICTED" as const,
+        };
+        const artifactId = randomUUID();
+        artifacts.push({ ...file, kind, artifactId });
+        append({ type: "ARTIFACT_CREATED", payload: { artifactId, kind, file } });
+    };
+    try {
+        append({
+            type: "ATTEMPT_STARTED",
+            payload: {
+                engineVersion: checked.manifest.engineVersion,
+                sourceHash: execution.assetSourceHash,
+            },
+        });
+        if (controller.signal.aborted || store.cancelled(runId)) throw new Error("USER_CANCELLED");
+        // 启动工作进程前逐个试解析冻结的凭据版本，解析失败时立即中止，工作进程另经私有控制通道请求凭据。
+        for (const pin of execution.secretVersions)
+            await resolver.resolve({ ...context, secretRef: pin.secretRef, versionId: pin.versionId }, context);
+        const release = await loadRelease(config.releaseDirectory, checked.manifest.engineVersion);
+        if (source) source.native.openPrivateDirectory(work, true).close();
+        else await mkdir(work, { recursive: true, mode: 0o700 });
+        tmp = await mkdtemp(join(source?.temporaryDirectory ?? tmpdir(), "veriq-o-"));
+        if (source) {
+            source.native.openPrivateDirectory(tmp, false).close();
+            brokerDirectory = await createDarwinBrokerDirectory();
+        }
+        const write = async (path: string, bytes: Uint8Array) => {
+            await mkdir(dirname(join(work, path)), { recursive: true, mode: 0o700 });
+            await writeFile(join(work, path), bytes, { mode: 0o600, flag: "wx" });
+        };
+        if (checked.dslOnly) {
+            for (const [path, bytes] of Object.entries(release.files)) await write(path, bytes);
+            await write("source/asset-snapshot.json", checked.contents.get("draft/source.json")!);
+        } else {
+            const descriptor = JSON.parse(
+                checked.contents
+                    .get(`provenance/${compilationRoot(checked, execution.caseVersionId)}/descriptor.json`)!
+                    .toString(),
+            ) as CompiledAssetBundle;
+            await write("bundle.json", canonicalBytes(descriptor));
+            for (const file of descriptor.files)
+                await write(
+                    file.path,
+                    checked.contents.get(`compiled/${compilationRoot(checked, execution.caseVersionId)}/${file.path}`)!,
+                );
+            for (const [path, bytes] of Object.entries(release.files)) {
+                if (path === "engine/compiler.tgz") await write(path, bytes);
+                else if (sha256(await readFile(join(work, path))) !== sha256(bytes))
+                    throw new Error("UNAPPROVED_ENGINE_BYTES");
+            }
+        }
+        await write("execution.json", canonicalBytes(execution));
+        await write("release.json", canonicalBytes(release.entry));
+        broker = new AttemptBroker(join(brokerDirectory?.path ?? tmp, "control.sock"), async (message) => {
+            if (message.type === "status") return { cancelled: controller.signal.aborted || store.cancelled(runId) };
+            if (message.type === "credential") {
+                if (controller.signal.aborted || store.cancelled(runId)) throw new Error("ATTEMPT_STOPPING");
+                return resolver.resolve(
+                    {
+                        ...(message.reference as {
+                            workspaceId: string;
+                            secretRef: string;
+                            versionId: string;
+                        }),
+                        issuerId: checked.manifest.issuerId,
+                    },
+                    context,
+                );
+            }
+            if (message.type === "event") {
+                const event = message.event as SdkEvent;
+                append(sdkFact(event));
+                if (event.type === "CASE_FINISHED") caseResult = event.result;
+                return {};
+            }
+            if (message.type === "restricted") {
+                const evidence = message.evidence as {
+                    kind: string;
+                    path: string;
+                    sensitivity: string;
+                };
+                if (
+                    evidence.kind !== "DOWNLOAD" ||
+                    evidence.sensitivity !== "CREDENTIAL_RESTRICTED" ||
+                    !containedPath(source ? join(work, "downloads") : tmp!, resolve(evidence.path))
+                )
+                    throw new Error("UNSAFE_EVIDENCE");
+                if (source) pendingDownloads.push(evidence.path);
+                else await add(evidence.path, "DOWNLOAD", `download-${artifacts.length}.bin`);
+                return {};
+            }
+            throw new Error("INVALID_IPC_OPERATION");
+        });
+        await broker.open();
+        const executionPaths = config.execution ?? developmentExecutionPaths();
+        const invocation = {
+            kind: "TEST",
+            work,
+            tmp,
+            socket: broker.path,
+            nonce: broker.nonce,
+            downloads: join(source ? work : tmp, "downloads"),
+            downloadLimit: 16 * 1024 * 1024,
+            npmCli: executionPaths.npmCli,
+            tsx: executionPaths.tsx,
+            localDraftCompile: checked.dslOnly,
+        };
+        await mkdir(invocation.downloads, { mode: 0o700 });
+        if (!source) await write("invocation.json", canonicalBytes(invocation));
+        for (const file of ["provider.mjs", "compile-entry.mjs"])
+            await copyFile(
+                file === "provider.mjs" ? executionPaths.providerEntry : executionPaths.compileEntry,
+                join(work, file),
+            );
+        const pw = {
+            testDir: "./cases",
+            testMatch: `${execution.caseVersionId}.test.ts`,
+            workers: 1,
+            retries: 0,
+            reporter: [
+                ["json", { outputFile: join(tmp, "playwright.json") }],
+                ["junit", { outputFile: join(tmp, "junit.xml") }],
+                ["html", { outputFolder: join(tmp, "html"), open: "never" }],
+            ],
+            outputDir: join(tmp, "test-results"),
+            use: {
+                headless: config.headless ?? true,
+                browserName: execution.browser,
+                locale: execution.environment.locale,
+                timezoneId: execution.environment.timezone,
+                serviceWorkers: "block",
+                trace: "on",
+                launchOptions: {
+                    executablePath: config.browserExecutable,
+                    args: ["--no-sandbox"],
+                    downloadsPath: invocation.downloads,
+                },
+            },
+        };
+        if (!source) await write("playwright.config.mjs", Buffer.from(`export default ${JSON.stringify(pw)};`));
+        if (controller.signal.aborted || store.cancelled(runId)) throw new Error("USER_CANCELLED");
+        const environment = offlineWorkerEnvironment(
+            tmp,
+            join(work, "provider.mjs"),
+            config.headless ?? true,
+            process.env,
+            { runnerExecutable: executionPaths.runnerExecutable },
+        );
+        /**
+         * 在尝试提交启动意图之前关闭未派生快捷路径，SQLite 提交抛错也不能继续使用内存中的旧 ALLOCATED；
+         * 只有完整成功取得新代际状态之后才允许调用原生监督器拉起进程。
+         */
+        spawning = true;
+        owner = store.spawning(runId, attemptId, owner);
+        if (controller.signal.aborted || store.cancelled(runId)) throw new Error("USER_CANCELLED");
+        startIssued = true;
+        /**
+         * 持久取消由其他 SQLite 连接写入而不会派发当前 AbortSignal，因此在实际启动准入之前武装相同一百毫秒观察；
+         * 启动仍在等待 Chrome 或 READY 时也走首次停止操作，读取异常同样关闭准入，f
+         * inally 清除后才允许关闭数据库。
+         */
+        if (source)
+            cancellationObserver = setInterval(() => {
+                if (controller.signal.aborted) return;
+                try {
+                    if (store.cancelled(runId)) stopRequest("USER_CANCELLED");
+                } catch {
+                    stopRequest("LOCAL_CANCELLATION_READ_FAILED");
+                }
+            }, 100);
+        const starting = processes.start(
+            attemptId,
+            {
+                executable: executionPaths.runnerExecutable,
+                args: [executionPaths.workerEntry, join(work, "invocation.json")],
+                cwd: work,
+                env: environment,
+            },
+            source
+                ? {
+                      kind: "TEST",
+                      ownerGeneration: owner.generation,
+                      headless: config.headless ?? true,
+                      downloadsPath: invocation.downloads,
+                      prepare: (context) => {
+                          if (controller.signal.aborted || store.cancelled(runId)) throw new Error("USER_CANCELLED");
+                          if (!context.wsEndpoint) throw new Error("DARWIN_BROWSER_ENDPOINT_REQUIRED");
+                          context.publish(
+                              "invocation.json",
+                              Buffer.from(canonicalBytes({ ...invocation, controlled: context.controlled })),
+                          );
+                          privateEndpoint = context.wsEndpoint;
+                          const { launchOptions: _launchOptions, ...use } = pw.use;
+                          context.publish(
+                              "playwright.config.mjs",
+                              Buffer.from(
+                                  `export default ${JSON.stringify({
+                                      ...pw,
+                                      reporter: [
+                                          ...pw.reporter,
+                                          [
+                                              privacyReporter,
+                                              {
+                                                  outputFile: join(tmp!, "playwright.json"),
+                                              },
+                                          ],
+                                      ],
+                                      use: {
+                                          ...use,
+                                          connectOptions: { wsEndpoint: context.wsEndpoint },
+                                      },
+                                  })};`,
+                              ),
+                          );
+                      },
+                  }
+                : undefined,
+        );
+        if ((controller.signal.aborted || store.cancelled(runId)) && source) stopRequest("USER_CANCELLED");
+        child = await starting;
+        if (controller.signal.aborted || store.cancelled(runId)) {
+            stopRequest("USER_CANCELLED");
+            throw new Error("USER_CANCELLED");
+        }
+        owner = store.running(runId, attemptId, owner);
+        if (controller.signal.aborted || store.cancelled(runId)) {
+            stopRequest("USER_CANCELLED");
+            throw new Error("USER_CANCELLED");
+        }
+        monitor = monitorStorage(tmp, 64 * 1024 * 1024, async (why) => {
+            stopRequest(why);
+            await stopOnce(why);
+        });
+        child.send({ type: "START" });
+        let exited = false;
+        void child.exited.then(() => {
+            exited = true;
+        });
+        while (!exited && !controller.signal.aborted && !store.cancelled(runId))
+            await Promise.race([child.exited, delay(100)]);
+        if (!exited) {
+            stopRequest("USER_CANCELLED");
+            if (!source) await Promise.race([child.exited, delay(1000)]);
+        }
+        stop = await stopOnce(failure ?? "COMPLETED");
+        if (!stop.processStopped) throw new Error("PROCESS_STOP_UNCONFIRMED");
+        /**
+         * 与线上保持独立的磁盘门禁：真实 CLI 停止之后但任何 add、哈希、证据事件和本地报告呈现之前验证最终 JSON；
+         * 错误不借用 CLI 的业务退出码或受控停止范围，私有原始目录仅在保密定稿不确定时保留用于定位。
+         */
+        if (source) {
+            if (controller.signal.aborted || store.cancelled(runId)) throw new Error(failure ?? "USER_CANCELLED");
+            try {
+                source.native.openPrivateDirectory(tmp, false).close();
+                if (!privateEndpoint) throw new Error("REPORT_PRIVACY_UNCONFIRMED");
+                const gate = (await import(pathToFileURL(privacyReporter).href)) as {
+                    verifyEndpointJsonFile?: (path: string, endpoints: readonly string[]) => Promise<void>;
+                };
+                if (typeof gate.verifyEndpointJsonFile !== "function") throw new Error("REPORT_PRIVACY_UNCONFIRMED");
+                await gate.verifyEndpointJsonFile(join(tmp, "playwright.json"), [privateEndpoint]);
+                source.native.openPrivateDirectory(tmp, false).close();
+            } catch {
+                retainPrivateReports = true;
+                throw new Error("REPORT_PRIVACY_UNCONFIRMED");
+            }
+            for (const path of pendingDownloads) await add(path, "DOWNLOAD", `download-${artifacts.length}.bin`);
+        }
+        if (!caseResult) {
+            try {
+                const worker = JSON.parse(await readFile(join(work, "worker-result.json"), "utf8"));
+                failure ??= worker.failureCode;
+                diagnostics = worker.diagnostics;
+            } catch (e) {
+                if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+            }
+            failure ??= "MISSING_CASE_RESULT";
+        }
+        for (const [path, name, kind] of [
+            ["junit.xml", "junit.xml", "JUNIT"],
+            ["html/index.html", "report.html", "HTML"],
+            ["screenshot.png", "screenshot.png", "SCREENSHOT"],
+        ] as const) {
+            try {
+                await add(join(tmp, path), kind, name);
+            } catch (e) {
+                if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+            }
+        }
+        const traces: string[] = [];
+        async function visit(path: string): Promise<void> {
+            for (const entry of await readdir(path, { withFileTypes: true })) {
+                if (entry.isDirectory()) await visit(join(path, entry.name));
+                else if (entry.name === "trace.zip") traces.push(join(path, entry.name));
+            }
+        }
+        await visit(tmp);
+        for (const path of traces) await add(path, "TRACE", `trace-${artifacts.length}.zip`);
+        if (caseResult && !traces.length) failure ??= "REQUIRED_EVIDENCE_MISSING";
+    } catch (error) {
+        failure ??= code(error);
+    } finally {
+        clearInterval(cancellationObserver);
+        monitor?.close();
+        config.signal?.removeEventListener("abort", abort);
+        stop ??= stopOperation
+            ? await stopOperation
+            : ((await unspawned()) ?? (await stopOnce(failure ?? "EXECUTION_ERROR")));
+        try {
+            await broker?.close();
+        } finally {
+            await brokerDirectory?.close();
+        }
+        owner = store.stopped(runId, stop, owner);
+        if (stop.processStopped) {
+            if (tmp && !retainPrivateReports) await rm(tmp, { recursive: true, force: true });
+            await rm(join(work, "node_modules"), { recursive: true, force: true });
+        }
+    }
+    if (!caseResult) {
+        append({
+            type: "CLEANUP_RESULT",
+            payload: { cleanupStatus: spawning ? "PENDING" : "NOT_REQUIRED" },
+        });
+        append({
+            type: "ATTEMPT_FINISHED",
+            payload: {
+                outcome: failure === "USER_CANCELLED" ? "CANCELLED" : "ERROR",
+                cleanupStatus: spawning ? "PENDING" : "NOT_REQUIRED",
+            },
+        });
+    }
+    const outcome = failure
+        ? failure === "USER_CANCELLED"
+            ? "CANCELLED"
+            : failure === "REQUIRED_EVIDENCE_MISSING"
+              ? "INCOMPLETE"
+              : "ERROR"
+        : (caseResult?.outcome ?? "INCOMPLETE");
+    return {
+        owner,
+        result: {
+            attemptId,
+            caseVersionId: execution.caseVersionId,
+            attemptNo: execution.attemptNo,
+            outcome,
+            cleanupStatus: caseResult?.cleanupStatus ?? (spawning ? "PENDING" : "NOT_REQUIRED"),
+            lastSequence: sequence,
+            events: store.events(execution.workspaceId, runId, attemptId, 0, 10000),
+            artifacts,
+            execution,
+            processStopped: stop.processStopped,
+            ...(stop.processStopScope !== undefined ? { processStopScope: stop.processStopScope } : {}),
+            retrySafety: caseResult?.retrySafety ?? "UNKNOWN",
+            sourceKind: checked.dslOnly ? "DRAFT_DEBUG" : "PUBLISHED",
+            variantKey: variantKey(execution),
+            ...((failure ?? caseResult?.errorCode) ? { failureCode: (failure ?? caseResult?.errorCode)! } : {}),
+            ...(diagnostics ? { diagnostics } : {}),
+        },
+    };
+}
+/**
+ * 公开函数 runOffline 校验包后在本机监督器中执行离线用例：结果写入 LocalStore：全程不创建 AgentClient。
+ */
+export async function runOffline(
+    bundle: Pick<VerifiedBundle, "directory">,
+    config: OfflineConfig,
+): Promise<OfflineResultV1> {
+    if (config.darwinSource !== undefined) requireDarwinSource(config.darwinSource);
+    if (config.headless !== undefined && typeof config.headless !== "boolean") throw new Error("INVALID_BROWSER_MODE");
+    const checked = await reverifyInstalled(bundle.directory, {
+        trust: config.trust,
+        ...(config.debug !== undefined ? { debug: config.debug } : {}),
+    });
+    const choices = { browsers: config.browsers ?? ["chromium"] };
+    if (validateSchema("OfflineExecutionChoicesV1", choices).length) throw new Error("INVALID_EXECUTION_CHOICES");
+    const executionChoices = choices as NonNullable<OfflineResultV1["executionChoices"]>;
+    const runId = randomUUID(),
+        executions = variants(checked, runId, config),
+        attempts: OfflineAttemptV1[] = [];
+    const store = await LocalStore.open(config.root),
+        processes = new ProcessSupervisor(
+            join(config.root, "processes"),
+            500,
+            config.execution?.guardianExecutable,
+            config.darwinSource,
+        );
+    const startedAt = new Date().toISOString();
+    let attemptId = randomUUID();
+    try {
+        const initial = (execution: ExecutionSnapshotV1): OfflineResultV1 => {
+            const pending: OfflineResultV1["attempts"] = [
+                {
+                    attemptId,
+                    caseVersionId: execution.caseVersionId,
+                    attemptNo: execution.attemptNo,
+                    outcome: "INCOMPLETE",
+                    cleanupStatus: "PENDING",
+                    lastSequence: 0,
+                    events: [],
+                    artifacts: [],
+                    execution,
+                    variantKey: variantKey(execution),
+                    processStopped: false,
+                },
+            ];
+            // 检查点将已结束的尝试按原顺序排在待执行项之前，使存储层在交接执行所有权时一并保存尝试历史。
+            pending.unshift(...attempts);
+            return {
+                schemaVersion: "1.0",
+                workspaceId: checked.manifest.workspaceId,
+                bundleId: checked.manifest.bundleId,
+                localRunId: runId,
+                deviceId: config.deviceId,
+                source: "OFFLINE_IMPORT",
+                trustStatus: "USER_REGISTERED",
+                dirty: checked.debug || Object.keys(config.overrides ?? {}).length > 0,
+                revocationStatus: "UNKNOWN",
+                manifestSha256: sha256(checked.manifestRaw),
+                startedAt,
+                finishedAt: startedAt,
+                outcome: "INCOMPLETE",
+                executionChoices,
+                actualEnvironment: executions[0]!.environment,
+                attempts: pending,
+            };
+        };
+        let owner = store.reserve(checked.manifest.workspaceId, runId, attemptId, initial(executions[0]!));
+        for (const execution of executions) {
+            if (attempts.length) {
+                attemptId = randomUUID();
+                owner = store.nextAttempt(runId, attemptId, owner, initial(execution));
+            }
+            store.checkpoint(initial(execution), owner);
+            const firstRun = await attempt(checked, execution, attemptId, config, store, processes, owner);
+            owner = firstRun.owner;
+            const first = firstRun.result;
+            attempts.push(first);
+            if (!first.processStopped || store.cancelled(runId) || config.signal?.aborted) break;
+            if (
+                config.retry &&
+                ["FAILED", "ERROR"].includes(first.outcome) &&
+                (await safeRetry(checked, first, config.root))
+            ) {
+                attemptId = randomUUID();
+                const retriedExecution = {
+                    ...execution,
+                    attemptNo: 2,
+                    namespace: "attempt_" + randomUUID().replaceAll("-", ""),
+                };
+                owner = store.nextAttempt(runId, attemptId, owner, initial(retriedExecution));
+                const secondRun = await attempt(checked, retriedExecution, attemptId, config, store, processes, owner);
+                owner = secondRun.owner;
+                const second = secondRun.result;
+                attempts.push(second);
+                if (!second.processStopped) break;
+            }
+        }
+        const caseOutcomes = executions.map((e) => {
+            const rows = attempts.filter((a) => a.execution?.caseExecutionId === e.caseExecutionId);
+            return rows.length === 2 && rows[1]!.outcome === "PASSED"
+                ? "UNSTABLE"
+                : (rows.at(-1)?.outcome ?? "CANCELLED");
+        });
+        const result: OfflineResultV1 = {
+            schemaVersion: "1.0",
+            workspaceId: checked.manifest.workspaceId,
+            bundleId: checked.manifest.bundleId,
+            localRunId: runId,
+            deviceId: config.deviceId,
+            source: "OFFLINE_IMPORT",
+            trustStatus: "USER_REGISTERED",
+            dirty: checked.debug || Object.keys(config.overrides ?? {}).length > 0,
+            revocationStatus: "UNKNOWN",
+            manifestSha256: sha256(checked.manifestRaw),
+            startedAt,
+            finishedAt: new Date().toISOString(),
+            outcome: aggregate(caseOutcomes),
+            executionChoices,
+            actualEnvironment: executions[0]!.environment,
+            attempts: attempts as OfflineResultV1["attempts"],
+        };
+        if (validateSchema("OfflineResultV1", result).length) throw new Error("INVALID_OFFLINE_RESULT");
+        store.finish(result, owner);
+        return result;
+    } finally {
+        store.close();
+    }
+}
+/**
+ * 公开函数 recoverOffline 由原生宿主显式触发恢复或取消：对未知进程隔离容量：绝不自动释放未排空进程（
+ * recoverOffline/LOCAL_OWNERSHIP_CHANGED）。
+ */
+export async function recoverOffline(
+    root: string,
+    options?: {
+        execution?: ExecutionPaths;
+        darwinSource?: DarwinSourceCapability;
+    },
+): Promise<StopReceipt | undefined> {
+    if (options?.darwinSource !== undefined) requireDarwinSource(options.darwinSource);
+    const store = await LocalStore.open(root);
+    try {
+        let owner: Ownership | undefined;
+        for (let tries = 0; tries < 3 && !owner; tries++) {
+            const observed = store.active();
+            if (!observed) return;
+            owner = store.claimRecovery(observed);
+        }
+        if (!owner) throw new Error("LOCAL_OWNERSHIP_CHANGED");
+        const stop =
+            store.unspawnedStop(owner) ??
+            (await new ProcessSupervisor(
+                join(root, "processes"),
+                500,
+                options?.execution?.guardianExecutable,
+                options?.darwinSource,
+            ).terminateAttempt(owner.attemptId, "LOCAL_RECOVERY"));
+        owner = store.stopped(owner.runId, stop, owner);
+        const result = store.result(owner.workspaceId, owner.runId);
+        result.outcome = "INCOMPLETE";
+        result.finishedAt = new Date().toISOString();
+        for (const attempt of result.attempts) {
+            if (attempt.attemptId !== owner.attemptId) continue;
+            attempt.events = store.events(owner.workspaceId, owner.runId, attempt.attemptId, 0, 10000);
+            attempt.lastSequence = attempt.events.length;
+            attempt.processStopped = stop.processStopped;
+            if (stop.processStopScope !== undefined) attempt.processStopScope = stop.processStopScope;
+            else delete attempt.processStopScope;
+            attempt.outcome = "INCOMPLETE";
+            attempt.failureCode = "LOCAL_RECOVERY";
+        }
+        store.finish(result, owner);
+        return stop;
+    } finally {
+        store.close();
+    }
+}
+async function safeRetry(checked: Checked, attempt: OfflineAttemptV1, root: string): Promise<boolean> {
+    const asset = checked.snapshot.assets.find((a) => a.versionId === attempt.caseVersionId);
+    const fixture = (
+        asset?.document as
+            | {
+                  fixtureVersionId?: string;
+              }
+            | undefined
+    )?.fixtureVersionId;
+    if (fixture && attempt.cleanupStatus === "SUCCEEDED") return true;
+    if (attempt.retrySafety !== "READ_ONLY_OBSERVED") return false;
+    try {
+        const raw = await readBoundedFile(
+            join(root, "work", attempt.attemptId, "metadata/expected-plans.json"),
+            1024 * 1024,
+        );
+        const plan = (
+            JSON.parse(raw.toString()) as {
+                cases: {
+                    caseVersionId: string;
+                    hasPotentialWrites?: boolean;
+                }[];
+            }
+        ).cases.find((p) => p.caseVersionId === attempt.caseVersionId);
+        return plan?.hasPotentialWrites === false;
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+        throw error;
+    }
+}

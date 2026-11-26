@@ -1,0 +1,108 @@
+/*
+ * 报告历史使用共享表格的工具栏，较长的标识只会增大表格内部宽度，较窄的桌面窗口内仍能滚动读完同一行。
+ */
+.veriq-reports {
+    min-width: 0;
+}
+
+.report-history-heading {
+    margin: 0 0 10px;
+    white-space: nowrap;
+}
+
+.report-history-table {
+    min-width: 44rem;
+}
+
+.report-history-table :is(td, th) {
+    padding: 7px 10px;
+    white-space: nowrap;
+}
+
+.report-history-table td .vq-btn {
+    margin: 0;
+}
+
+.report-history-table .vq-btn[aria-pressed="true"]:where(:not(:focus-visible)) {
+    background: var(--vq-brand-soft);
+    color: var(--vq-brand-text);
+}
+
+.report-history-id {
+    width: 42%;
+}
+
+.report-history-time {
+    width: 19%;
+}
+
+.report-history-source {
+    width: 16%;
+}
+
+.report-history-status {
+    width: 15%;
+}
+
+.report-history-outcome {
+    width: 8%;
+}
+
+.veriq-reports pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+.report-case {
+    border-top: 1px solid var(--vq-border);
+    margin-top: 1.5rem;
+    padding-top: 0.5rem;
+}
+.report-steps {
+    padding-left: 1.5rem;
+}
+.report-steps > li {
+    margin: 1rem 0;
+    padding: 0.75rem;
+    background: var(--vq-field);
+    border-radius: 0.5rem;
+}
+.report-assertion {
+    padding: 0.75rem;
+    margin-top: 0.75rem;
+    background: var(--vq-surface);
+    border: 1px solid var(--vq-border);
+}
+.report-assertion h5 {
+    font-size: calc(1rem - var(--vq-font-reduction, 0px));
+    margin: 0;
+}
+.report-assertion-values {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    border: 1px solid var(--vq-border);
+}
+.report-assertion-values > div + div {
+    border-inline-start: 1px solid var(--vq-border);
+}
+.report-assertion-values dt,
+.report-assertion-values dd {
+    margin: 0;
+    padding: 0.5rem;
+}
+.report-assertion-values dt {
+    border-bottom: 1px solid var(--vq-border);
+    font-weight: 700;
+}
+.report-assertion pre {
+    margin: 0;
+}
+.veriq-reports details {
+    margin: 0.75rem 0;
+}
+.veriq-reports li > button {
+    margin: 0.25rem;
+}
+.report-screenshot {
+    max-width: 100%;
+    height: auto;
+}

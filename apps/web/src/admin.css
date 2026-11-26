@@ -1,0 +1,1284 @@
+/*
+ * 服务端入口在共享样式后加载本主题，使渲染到 body 的 Radix 弹层也能使用相同字号、颜色与焦点标记。
+ * 桌面入口继续单独打包原有共享样式。
+ */
+/*
+ * Outfit 字体由仓库自托管（SIL OFL 1.1 许可），避免运行时依赖外部字体 CDN；
+ * 拉丁与扩展子集覆盖界面拉丁字符，其余文字回退系统字体。
+ */
+@font-face {
+    font-family: "Outfit";
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url("./fonts/outfit-latin.woff2") format("woff2");
+    unicode-range:
+        U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F,
+        U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+    font-family: "Outfit";
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url("./fonts/outfit-latin-ext.woff2") format("woff2");
+    unicode-range:
+        U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF,
+        U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+:root {
+    --vq-brand: #465fff;
+    --vq-brand-dark: #3641f5;
+    --vq-brand-soft: #ecf3ff;
+    --vq-brand-soft-strong: #dde9ff;
+    --vq-brand-text: #1d2939;
+    --vq-border: #e4e7ec;
+    --vq-field: #f9fafb;
+    --vq-rail: #f2f4f7;
+    --vq-secondary: #344054;
+    --vq-muted: #667085;
+    --vq-surface: #ffffff;
+    --vq-canvas: #f9fafb;
+    --vq-hover: #f2f4f7;
+    --vq-sidebar-width: 220px;
+    --vq-sidebar-collapsed-width: 90px;
+    --vq-header-height: 64px;
+    font-family:
+        "Outfit",
+        ui-sans-serif,
+        system-ui,
+        -apple-system,
+        "Segoe UI",
+        Roboto,
+        "Helvetica Neue",
+        Arial,
+        "PingFang SC",
+        "Microsoft YaHei",
+        sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+    color: var(--vq-secondary);
+    background: var(--vq-canvas);
+}
+/*
+ * 紧凑视口统一调整继承正文及各控件字号。文档根节点仍保留原字号，使使用 rem 的间距、宽度和弹窗布局维持原有尺寸。
+ */
+@media (max-width: 1366px) {
+    :root[data-veriq-web] {
+        --vq-font-reduction: 2px;
+    }
+}
+:root[data-veriq-web] body {
+    font-size: calc(16px - var(--vq-font-reduction, 0px));
+}
+/*
+ * 管理台正文和右侧编辑区共享紧凑字号，保留根字号来维持各组件的间距，并让侧栏和账户菜单继续使用各自的字号。
+ * 抽屉和对话框可能由 Radix 挂在文档主体，因此独立列出这些容器。
+ */
+:root[data-veriq-web] {
+    --vq-console-text-size: calc(12px - var(--vq-font-reduction, 0px));
+    --vq-console-title-size: calc(16px - var(--vq-font-reduction, 0px));
+}
+:root[data-veriq-web] :is(.vq-shell .vq-content, .vq-sheet, .vq-dialog, .vq-workspace-dialog) {
+    font-size: var(--vq-console-text-size);
+}
+:root[data-veriq-web] :is(.vq-shell .vq-content h1, .vq-sheet-title) {
+    font-size: var(--vq-console-title-size);
+}
+:root[data-veriq-web]
+    :where(.vq-content, .vq-sheet, .vq-dialog, .vq-workspace-dialog)
+    :is(input, select, textarea, .vq-select-trigger) {
+    font-size: var(--vq-console-text-size);
+}
+/*
+ * 外壳改为横向两列：左列侧栏全高，右列头部与内容纵向排列，为侧栏折叠与内容区留出独立滚动空间。
+ */
+.vq-shell {
+    display: flex;
+    flex-direction: row;
+    min-height: 100vh;
+    background: var(--vq-canvas);
+}
+/*
+ * 左侧栏通栏全高并固定在视口左侧，宽度由令牌控制，折叠态通过 data-collapsed 收窄为图标栏宽度。
+ */
+.vq-sidebar {
+    width: var(--vq-sidebar-width);
+    flex: 0 0 var(--vq-sidebar-width);
+    background: var(--vq-surface);
+    border-right: 1px solid var(--vq-border);
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    padding: 0;
+}
+.vq-sidebar[data-collapsed="true"] {
+    width: var(--vq-sidebar-collapsed-width);
+    flex-basis: var(--vq-sidebar-collapsed-width);
+}
+/*
+ * 右列承载 sticky 头部与可滚动内容，采用纵向弹性布局，使头部在内容滚动时始终停留在顶部。
+ */
+.vq-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+.vq-header {
+    --vq-banner-control-size: 32px;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: var(--vq-header-height);
+    padding: 16px 24px;
+    background: var(--vq-surface);
+    border-bottom: 1px solid var(--vq-border);
+}
+.vq-content {
+    flex: 1;
+    min-width: 0;
+}
+.vq-content-inner {
+    min-inline-size: 0;
+    max-width: 1536px;
+    margin: 0 auto;
+    padding: 16px;
+}
+@media (min-width: 768px) {
+    .vq-content-inner {
+        padding: 20px;
+    }
+}
+/*
+ * 面板作为内容卡片保留白色底，外壳与内容区改用画布色，以区分页面背景与可交互内容区域。
+ */
+.panel {
+    background: var(--vq-surface);
+}
+.vq-brand {
+    --vq-banner-control-size: 42px;
+    width: var(--vq-banner-control-size);
+    justify-content: center;
+    font-size: calc(14px - var(--vq-font-reduction, 0px));
+}
+.vq-user-trigger {
+    gap: 7px;
+    padding: 5px 8px;
+    border: 0;
+    border-radius: 6px;
+}
+.vq-user-name {
+    font-size: calc(13px - var(--vq-font-reduction, 0px));
+    max-width: 16ch;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+}
+.vq-avatar {
+    color: var(--vq-brand-text);
+}
+.vq-topbar .veriq-language {
+    gap: 4px;
+    font-weight: 450;
+}
+.vq-nav {
+    gap: 3px;
+}
+.vq-mobile-menu {
+    display: none;
+}
+.vq-nav-icon {
+    flex: 0 0 16px;
+}
+.vq-nav-item,
+.vq-nav-sub,
+.vq-mobile-menu {
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    margin: 0;
+    padding: 6px 8px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--vq-secondary);
+    text-align: start;
+    font-size: calc(13px - var(--vq-font-reduction, 0px));
+    font-weight: 550;
+}
+.vq-nav-group {
+    margin: 0;
+}
+.vq-topbar-workspaces :is(button, a):hover {
+    background: var(--vq-hover);
+}
+/*
+ * 侧栏头部在展开与折叠时均水平居中品牌标识，保留上下内边距，为下方分组导航提供稳定起点。
+ */
+.vq-sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px 20px 32px;
+}
+.vq-sidebar-brand {
+    display: flex;
+    align-items: center;
+    text-decoration: none;
+}
+.vq-sidebar-brand .vq-brand-light {
+    display: block;
+    height: 40px;
+}
+.vq-sidebar-brand .vq-brand-dark {
+    display: none;
+    height: 40px;
+}
+/*
+ * 导航在剩余高度内独立滚动，中文与英文标签都使用单行。展开态缩小横向内边距，为标签留出完整的显示宽度。
+ */
+.vq-sidebar .vq-nav {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px 20px 16px;
+    gap: 4px;
+    white-space: nowrap;
+}
+.vq-sidebar[data-collapsed="false"] .vq-nav {
+    padding-inline: 16px;
+}
+/*
+ * 分组标签沿用 demo 的 12 号大写灰色文字标注当前导航分组；一级导航项由图标、文字与右对齐折叠箭头组成，统一行高与圆角。
+ */
+.vq-nav-group-label {
+    display: block;
+    margin-bottom: 12px;
+    padding: 0 12px;
+    font-size: calc(12px - var(--vq-font-reduction, 0px));
+    line-height: 20px;
+    color: #98a2b3;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.vq-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    color: var(--vq-secondary);
+    font-size: calc(14px - var(--vq-font-reduction, 0px));
+    font-weight: 500;
+    text-decoration: none;
+}
+.vq-nav-item:hover {
+    background: var(--vq-hover);
+}
+.vq-nav-item[aria-current="page"],
+.vq-nav-item[aria-expanded="true"] {
+    background: var(--vq-brand-soft);
+    color: var(--vq-brand);
+}
+.vq-nav-item .vq-nav-icon:last-child {
+    margin-inline-start: auto;
+}
+.vq-nav-item[aria-expanded="false"] .vq-nav-icon:last-child {
+    transform: rotate(-90deg);
+}
+/*
+ * 子菜单相对一级项缩进三十六像素并与上方保持八像素间距，组内链接之间用四像素间距对齐 demo 的层级节奏。
+ */
+.vq-nav-children {
+    margin-inline-start: 36px;
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+/*
+ * 分组折叠时组件输出 hidden 属性，作者样式的 display 会覆盖浏览器默认隐藏，这里显式恢复隐藏语义。
+ */
+.vq-nav-children[hidden] {
+    display: none;
+}
+.vq-nav-sub {
+    display: block;
+    padding: 10px 12px;
+    border-radius: 8px;
+    color: var(--vq-secondary);
+    font-size: calc(14px - var(--vq-font-reduction, 0px));
+    font-weight: 450;
+    text-decoration: none;
+}
+.vq-nav-sub:hover {
+    background: var(--vq-hover);
+}
+.vq-nav-sub[aria-current="page"] {
+    background: var(--vq-brand-soft);
+    color: var(--vq-brand);
+    font-weight: 600;
+}
+/*
+ * 折叠成图标时隐藏文字与子菜单，仅保留一级图标并居中排列，使窄栏保持整齐清晰的图标导航。
+ */
+.vq-sidebar[data-collapsed="true"] .vq-sidebar-header {
+    padding: 20px 0 32px;
+}
+.vq-sidebar[data-collapsed="true"] .vq-sidebar-brand .vq-brand-light,
+.vq-sidebar[data-collapsed="true"] .vq-sidebar-brand .vq-brand-dark {
+    display: none;
+}
+.vq-sidebar[data-collapsed="true"] .vq-nav-item {
+    justify-content: center;
+    padding: 8px;
+}
+.vq-sidebar[data-collapsed="true"] .vq-nav-item > :not(.vq-nav-icon:first-child),
+.vq-sidebar[data-collapsed="true"] .vq-nav-children {
+    display: none;
+}
+.panel {
+    min-width: 0;
+    border: 1px solid var(--vq-border);
+    border-radius: 16px;
+    padding: 24px;
+    background: var(--vq-surface);
+    box-shadow: 0 1px 2px rgb(16 24 40 / 5%);
+}
+.vq-content .panel {
+    padding: 16px;
+}
+.vq-standalone {
+    max-width: none;
+    margin: 16px;
+    padding: 0;
+}
+h1,
+.vq-sheet-title {
+    font-size: calc(18px - var(--vq-font-reduction, 0px));
+    line-height: 1.4;
+    font-weight: 600;
+}
+h1 {
+    margin: 0 0 12px;
+}
+h2,
+h3,
+h4,
+h5,
+.vq-section h3,
+.report-assertion h5 {
+    font-size: calc(16px - var(--vq-font-reduction, 0px));
+    line-height: 1.4;
+}
+h2 {
+    margin: 18px 0 8px;
+}
+.vq-section h3 {
+    margin: 0 0 8px;
+}
+p {
+    line-height: 1.45;
+    color: var(--vq-secondary);
+}
+a {
+    color: var(--vq-brand);
+}
+/*
+ * 面包屑在顶部栏下沿内容容器左侧对齐，图标与祖先文字使用灰阶，当前项和可访问焦点沿用主题令牌。
+ */
+.vq-breadcrumb {
+    margin-block-end: 12px;
+    background: var(--vq-canvas);
+    color: var(--vq-muted);
+}
+.vq-breadcrumb ol {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: calc(12px - var(--vq-font-reduction, 0px));
+}
+.vq-breadcrumb :is(li, a, span) {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.vq-breadcrumb a {
+    gap: 4px;
+    color: inherit;
+    text-decoration: none;
+}
+.vq-breadcrumb a:hover {
+    color: var(--vq-brand);
+}
+.vq-breadcrumb [aria-current="page"] {
+    color: var(--vq-brand-text);
+}
+small,
+dt,
+.vq-sheet-desc,
+.vq-tooltip {
+    font-size: calc(12px - var(--vq-font-reduction, 0px));
+}
+small,
+dt,
+.vq-field-hint,
+.vq-sheet-desc {
+    color: var(--vq-muted);
+}
+.vq-menu-item {
+    font-size: calc(14px - var(--vq-font-reduction, 0px));
+}
+.vq-select-item {
+    font-size: calc(12px - var(--vq-font-reduction, 0px));
+}
+form {
+    gap: 10px 14px;
+    margin: 10px 0 14px;
+    grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+}
+.panel form,
+.vq-ai fieldset,
+.panel > dl,
+.vq-dialog,
+.vq-editor-fields,
+.vq-item {
+    border: 1px solid var(--vq-border);
+    border-radius: 8px;
+    padding: 12px;
+    background: var(--vq-field);
+}
+/*
+ * 计划、Runtime 和凭据区域复用原生字段分组，默认最小宽度会被长 UUID 撑开；组内控件仍按可用列宽折行。
+ */
+.panel fieldset {
+    min-width: 0;
+    border: 1px solid var(--vq-border);
+    border-radius: 8px;
+    padding: 12px;
+    background: var(--vq-field);
+}
+.panel fieldset legend {
+    color: var(--vq-secondary);
+    font-weight: 600;
+}
+.panel form > :is(h2, h3, p, [role="alert"], [role="status"]) {
+    grid-column: 1 / -1;
+    margin: 0;
+}
+.panel label:has(> input:is([type="checkbox"], [type="radio"])) {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.panel input:is([type="checkbox"], [type="radio"]) {
+    width: auto;
+    accent-color: var(--vq-brand);
+}
+.vq-ai {
+    max-width: none;
+}
+.report-assertion {
+    overflow-x: auto;
+}
+.panel pre {
+    max-width: 100%;
+    overflow-x: auto;
+}
+.panel > .table-scroll {
+    border: 1px solid var(--vq-border);
+    border-radius: 8px;
+}
+.panel > dl {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 6px 14px;
+}
+.panel > dl dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+label,
+.vq-field {
+    min-width: 0;
+    gap: 4px;
+}
+input,
+select,
+textarea,
+.vq-input,
+.vq-select-trigger {
+    min-width: 0;
+    max-width: 100%;
+    padding: 6px 8px;
+    color: var(--vq-brand-text);
+    background: var(--vq-surface);
+    border: 1px solid var(--vq-border);
+    border-radius: 8px;
+    font-size: calc(13px - var(--vq-font-reduction, 0px));
+}
+input:not([type="checkbox"], [type="radio"]),
+select,
+.vq-select-trigger {
+    min-height: 34px;
+}
+.vq-select-trigger[data-appearance="default-dropdown"] {
+    padding: 6px 16px;
+    border-radius: 10px;
+    font-size: calc(14px - var(--vq-font-reduction, 0px));
+    font-weight: 500;
+    line-height: 20px;
+}
+.vq-select-trigger[data-appearance="default-dropdown"] .vq-select-icon {
+    color: currentColor;
+}
+textarea {
+    font: inherit;
+}
+.vq-btn {
+    border-radius: 8px;
+    border-color: var(--vq-border);
+}
+button {
+    padding: 6px 10px;
+    border-color: var(--vq-button-fill, var(--vq-brand));
+    background: var(--vq-button-fill, var(--vq-brand));
+    color: #fff;
+}
+button:not(:disabled):hover {
+    filter: brightness(0.96);
+}
+.vq-btn-primary {
+    background: var(--vq-brand);
+    border-color: var(--vq-brand);
+    color: #fff;
+}
+.vq-btn-primary:hover:not(:disabled) {
+    background: var(--vq-brand-dark);
+}
+.vq-secondary,
+.vq-btn-secondary {
+    background: var(--vq-surface);
+    border-color: var(--vq-border);
+    color: var(--vq-secondary);
+}
+.vq-danger,
+.vq-btn-danger {
+    background: #fff3f0;
+    border-color: #c46c63;
+}
+.vq-btn-ghost,
+.vq-sheet-close,
+.vq-hint-icon {
+    background: transparent;
+}
+.vq-btn-ghost {
+    border-color: transparent;
+}
+.vq-sheet-close,
+.vq-hint-icon {
+    color: var(--vq-secondary);
+}
+.vq-user-trigger {
+    background: transparent;
+    color: var(--vq-secondary);
+}
+.vq-section {
+    margin: 12px 0;
+    padding: 12px 0;
+    border-color: var(--vq-border);
+}
+.vq-fields,
+.vq-editor-fields {
+    gap: 10px 14px;
+}
+.vq-actions {
+    gap: 6px 8px;
+    margin: 8px 0;
+}
+.vq-sheet-header {
+    padding: 12px 16px;
+    min-height: var(--vq-header-height);
+}
+.vq-sheet-body {
+    padding: 12px 16px;
+}
+.vq-sheet-desc {
+    padding-inline: 16px;
+}
+.vq-sheet .vq-sheet-close {
+    display: grid;
+    flex: 0 0 32px;
+    block-size: 32px;
+    place-items: center;
+    padding: 0;
+    font-size: calc(16px - var(--vq-font-reduction, 0px));
+}
+.vq-sheet-wide {
+    width: min(1000px, 96vw);
+}
+.vq-dialog {
+    background: var(--vq-surface);
+}
+/*
+ * 贴边抽屉与悬浮菜单、对话框共用细边框和双层阴影；悬浮的菜单和对话框保留十二像素圆角，形成清晰边界。
+ */
+.vq-menu,
+.vq-dialog {
+    border-radius: 12px;
+}
+.vq-menu,
+.vq-sheet,
+.vq-dialog {
+    border: 1px solid var(--vq-border);
+    box-shadow:
+        0 12px 16px -4px rgb(16 24 40 / 8%),
+        0 4px 6px -2px rgb(16 24 40 / 3%);
+}
+.vq-tooltip {
+    color: white;
+}
+/*
+ * Monaco 在组合控件外层绘制查找和命令输入框，这里同步文本框底色与聚焦边框，保留编辑器内联校验颜色。
+ */
+:root :is(.monaco-editor, .monaco-diff-editor, .monaco-component) {
+    --vscode-list-focusOutline: transparent;
+    --vscode-quickInputList-focusBackground: var(--vq-focus-background);
+    --vscode-quickInputList-focusForeground: var(--vq-focus-foreground);
+    --vscode-quickInputList-focusIconForeground: var(--vq-focus-foreground);
+}
+:root :is(.monaco-editor, .monaco-component) :is(.find-widget, .quick-input-widget) .monaco-inputbox.synthetic-focus {
+    outline: none;
+}
+:root :is(.monaco-editor, .monaco-component) .monaco-inputbox:not(.info, .warning, .error) {
+    background-color: var(--vq-text-input-background) !important;
+}
+:root :is(.monaco-editor, .monaco-component) .monaco-inputbox.synthetic-focus:not(.info, .warning, .error) {
+    border-color: var(--vq-text-input-focus-border) !important;
+    forced-color-adjust: var(--vq-focus-forced-color-adjust, auto);
+}
+@media (forced-colors: active) {
+    :root :is(.monaco-editor, .monaco-component) .monaco-inputbox input:focus {
+        color: CanvasText !important;
+    }
+}
+:root :is(.quick-input-list, .quick-input-tree) .monaco-list:focus .monaco-list-row.focused {
+    outline: none !important;
+    forced-color-adjust: var(--vq-focus-forced-color-adjust, auto);
+}
+table,
+th,
+td,
+td button {
+    font-size: calc(12px - var(--vq-font-reduction, 0px));
+}
+th,
+td {
+    text-align: start;
+    padding: 6px 11px;
+    border-bottom: 1px solid var(--vq-border);
+}
+th {
+    height: 32px;
+    background: var(--vq-field);
+    color: var(--vq-secondary);
+    font-weight: 600;
+}
+td {
+    height: 38px;
+}
+td button {
+    margin: 2px;
+    padding: 4px 6px;
+    white-space: nowrap;
+}
+tbody tr:hover td {
+    background: var(--vq-hover);
+}
+.vq-card-heading small {
+    font-size: calc(12px - var(--vq-font-reduction, 0px));
+    color: var(--vq-muted);
+}
+.vq-library-table td button {
+    border: 0;
+    padding: 0;
+    margin: 0;
+    color: var(--vq-brand);
+    background: transparent;
+    font-weight: 550;
+}
+.vq-library-table td button:hover {
+    text-decoration: underline;
+}
+.vq-page-heading,
+.vq-card-heading,
+.vq-library-toolbar,
+.vq-workspace-context,
+.vq-create-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.vq-page-heading,
+.vq-card-heading {
+    justify-content: space-between;
+}
+.vq-page-heading {
+    min-height: 34px;
+    margin-bottom: 12px;
+}
+.vq-page-heading h1,
+.vq-card-heading h2,
+.vq-card-heading small {
+    margin: 0;
+}
+.vq-library-toolbar,
+.vq-library-fields {
+    padding: 10px 12px;
+    border: 1px solid var(--vq-border);
+    border-radius: 8px;
+    background: var(--vq-field);
+}
+.vq-library-toolbar {
+    margin-bottom: 12px;
+    gap: 10px 16px;
+}
+.vq-library-toolbar label,
+.vq-workspace-context label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+    color: var(--vq-secondary);
+}
+.vq-library-toolbar select,
+.vq-workspace-context select {
+    width: auto;
+    max-width: min(28ch, 60vw);
+}
+.vq-library-toolbar .vq-select-trigger[data-appearance="default-dropdown"] {
+    min-width: 120px;
+}
+.vq-library-table {
+    min-width: 0;
+    overflow: hidden;
+    border-radius: 8px;
+    border: 1px solid var(--vq-border);
+}
+.vq-card-heading {
+    padding: 8px 11px;
+    min-height: 40px;
+}
+.vq-library-table > :is(p, button, [role="alert"]) {
+    margin: 8px 11px;
+}
+.vq-library-table tbody tr:last-child td {
+    border-bottom: none;
+}
+.vq-library-table td:nth-child(2) {
+    font-family: ui-monospace, monospace;
+    color: var(--vq-muted);
+}
+.vq-state {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    color: var(--vq-secondary);
+    background: var(--vq-hover);
+}
+.vq-state::before {
+    content: "";
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: currentColor;
+}
+.vq-state[data-status="PUBLISHED"],
+.vq-workspace-state[data-tone="success"] {
+    color: #12654d;
+    background: #e5f5ed;
+}
+.vq-state[data-status="DRAFT"],
+.vq-workspace-state[data-tone="warning"] {
+    color: #79520e;
+    background: #fdf2d9;
+}
+.vq-workspace-state[data-tone="danger"] {
+    color: #b42318;
+    background: #fff3f0;
+}
+.panel .vq-library-form {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+}
+.vq-library-fields h2 {
+    margin: 0 0 10px;
+}
+.vq-library-fields > div {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 14px;
+}
+.vq-resource-key {
+    grid-column: 1/-1;
+}
+.vq-create-actions {
+    justify-content: flex-end;
+}
+@media (max-width: 700px) {
+    .vq-mobile-menu {
+        display: flex;
+        min-height: 36px;
+    }
+    .vq-mobile-menu[aria-expanded="false"] + nav {
+        display: none;
+    }
+    .vq-nav {
+        padding: 0 8px 8px;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        align-items: start;
+    }
+    .vq-actions label {
+        min-width: min(160px, 100%);
+    }
+}
+@media (max-width: 480px) {
+    .vq-user-name {
+        max-width: 12ch;
+    }
+    .vq-library-fields > div,
+    .vq-fields,
+    form {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .vq-content {
+        overflow: visible;
+    }
+    .vq-ai label {
+        min-width: 0;
+    }
+}
+@media (pointer: coarse) {
+    input:not([type="checkbox"], [type="radio"]),
+    textarea,
+    .vq-input {
+        font-size: calc(16px - var(--vq-font-reduction, 0px));
+    }
+    .vq-nav :is(a, button),
+    .vq-mobile-menu,
+    .vq-page-heading button,
+    .vq-create-actions button {
+        min-height: 44px;
+    }
+}
+
+.vq-topbar-workspaces {
+    --vq-workspace-controls-gap: 6px;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    gap: var(--vq-workspace-controls-gap);
+}
+.vq-topbar-workspaces button {
+    border: 1px solid var(--vq-border);
+    color: var(--vq-secondary);
+    background: var(--vq-surface);
+}
+
+.vq-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.vq-menu-item [data-state="checked"] {
+    margin-inline-start: auto;
+}
+.vq-menu-separator {
+    border-top: 1px solid var(--vq-border);
+    margin: 4px 0;
+}
+.vq-workspace-overlay {
+    background: rgb(16 24 40 / 45%);
+    backdrop-filter: blur(3px);
+}
+[data-theme="dark"] .vq-workspace-overlay {
+    background: rgb(0 0 0 / 62%);
+}
+.vq-workspace-dialog {
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: min(400px, calc(100vw - 32px));
+    max-height: calc(100dvh - 32px);
+    overflow-y: auto;
+    padding: clamp(16px, 4vw, 24px);
+    border-radius: 16px;
+    box-shadow:
+        0 12px 24px -4px rgb(16 24 40 / 16%),
+        0 4px 8px -2px rgb(16 24 40 / 8%);
+}
+.vq-workspace-dialog .vq-card-heading {
+    min-height: 28px;
+    padding: 0;
+}
+.vq-workspace-dialog h2 {
+    color: var(--vq-profile-heading);
+    font-size: calc(16px - var(--vq-font-reduction, 0px));
+    font-weight: 600;
+}
+.vq-workspace-dialog .vq-sheet-close {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border-radius: 50%;
+    color: var(--vq-profile-muted);
+}
+.vq-workspace-dialog .vq-sheet-close:hover {
+    background: var(--vq-hover);
+}
+.vq-workspace-key-hint {
+    margin: 12px 0 0;
+    color: var(--vq-profile-muted);
+    font-size: calc(13px - var(--vq-font-reduction, 0px));
+    line-height: 18px;
+}
+/*
+ * 工作区基本信息按「标签 | 值」两列排布，只读展示标识、名称与状态，长 UUID 换行避免撑破卡片布局。
+ */
+.vq-workspace-meta {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 18px 16px;
+    margin: 0 0 16px;
+    align-items: center;
+}
+.vq-workspace-meta dt {
+    margin: 0;
+    color: var(--vq-muted);
+    font-weight: 500;
+    font-size: calc(14px - var(--vq-font-reduction, 0px));
+}
+.vq-workspace-meta dd {
+    margin: 0;
+    font-weight: 500;
+    overflow-wrap: anywhere;
+    font-size: calc(14px - var(--vq-font-reduction, 0px));
+}
+/*
+ * 用户目录工具栏把搜索与多选筛选排列在同一行，搜索区尺寸与常规操作对齐，较窄时各控件可以自然换行。
+ */
+.vq-user-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+}
+.vq-user-search {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 34px;
+    min-width: 0;
+    padding: 0 10px;
+    border: 1px solid var(--vq-border);
+    border-radius: 10px;
+    background: var(--vq-surface);
+    color: var(--vq-muted);
+}
+.vq-user-search input {
+    border: 0;
+    padding: 0;
+    min-height: 0;
+    width: 240px;
+    background: transparent;
+    color: var(--vq-secondary);
+    font-size: calc(12px - var(--vq-font-reduction, 0px));
+}
+.vq-user-filters {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.vq-filter-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 40px;
+    padding: 0 14px;
+    border: 1px solid var(--vq-border);
+    border-radius: 10px;
+    background: var(--vq-surface);
+    color: var(--vq-secondary);
+    font-size: calc(14px - var(--vq-font-reduction, 0px));
+    font-weight: 500;
+}
+.vq-filter-button:hover,
+.vq-filter-button[data-state="open"] {
+    background: var(--vq-hover);
+}
+.vq-filter-button .vq-nav-icon {
+    width: 16px;
+    height: 16px;
+}
+.vq-filter-menu {
+    max-height: 300px;
+    overflow-y: auto;
+    padding: 6px;
+}
+/*
+ * 筛选下拉沿用 Default Dropdown 的圆角和双层阴影，菜单的尺寸与选项间距统一由网页和桌面共用样式控制。
+ */
+.vq-dropdown {
+    max-height: 320px;
+    overflow-y: auto;
+    border: 1px solid var(--vq-border);
+    border-radius: 16px;
+    z-index: 1000;
+    box-shadow:
+        0 12px 16px -4px rgb(16 24 40 / 8%),
+        0 4px 6px -2px rgb(16 24 40 / 3%);
+}
+.vq-dropdown-item {
+    gap: 12px;
+    border-radius: 8px;
+    color: var(--vq-secondary);
+    font-size: calc(14px - var(--vq-font-reduction, 0px));
+    font-weight: 500;
+    cursor: pointer;
+    outline: none;
+}
+.vq-select-content[data-appearance="default-dropdown"] .vq-select-item {
+    border-radius: 8px;
+    font-weight: 500;
+}
+.vq-select-content[data-appearance="default-dropdown"]
+    .vq-select-item:where(:not(:focus-visible), [data-vq-pointer-menu] *) {
+    color: var(--vq-secondary);
+}
+.vq-dropdown-separator {
+    height: 1px;
+    margin: 2px -4px;
+    background: var(--vq-border);
+}
+/*
+ * 用户及成员目录沿用带分隔线的表头和数据行，行与单元格使用共享表格字号和间距，长名称可在外层容器滚动查看。
+ */
+.vq-user-table {
+    width: 100%;
+    border-collapse: collapse;
+    overflow: hidden;
+    border-radius: 8px;
+    border: 1px solid var(--vq-border);
+}
+.vq-user-table th {
+    background: var(--vq-field);
+    border-top: 1px solid var(--vq-border);
+    border-bottom: 1px solid var(--vq-border);
+    padding: 6px 11px;
+    text-align: start;
+    font-size: calc(12px - var(--vq-font-reduction, 0px));
+    font-weight: 500;
+    color: var(--vq-muted);
+}
+.vq-user-table td {
+    border-bottom: 1px solid var(--vq-border);
+    color: var(--vq-secondary);
+}
+.vq-user-table tbody tr:last-child td {
+    border-bottom: 0;
+}
+.vq-user-table tbody tr:hover td {
+    background: var(--vq-hover);
+}
+.vq-user-table .vq-user-email {
+    color: var(--vq-brand-text);
+}
+.vq-user-table .vq-user-id {
+    font-family: ui-monospace, monospace;
+    font-size: calc(12px - var(--vq-font-reduction, 0px));
+    color: var(--vq-muted);
+}
+/*
+ * 邀请表单：邮箱、角色、邮件开关与提交按钮同行排列，窄屏自动折行；邀请链接用等宽字体展示。
+ */
+.vq-invite-form {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 16px 0;
+}
+.vq-invite-form input[type="email"],
+.vq-invite-form select {
+    width: auto;
+    min-width: 200px;
+}
+.vq-invite-form button[type="submit"] {
+    grid-column: auto;
+    justify-self: auto;
+    margin: 0;
+}
+.vq-invite-link {
+    width: 100%;
+    margin: 12px 0 0;
+    font-family: ui-monospace, monospace;
+    font-size: calc(13px - var(--vq-font-reduction, 0px));
+}
+.vq-invite-add {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 1px solid var(--vq-border);
+    border-radius: 10px;
+    background: var(--vq-surface);
+    color: var(--vq-secondary);
+}
+.vq-invite-add:hover {
+    background: var(--vq-hover);
+    color: var(--vq-brand-text);
+}
+.vq-invite-filters {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0 12px;
+}
+.vq-workspace-form {
+    margin: 16px 0 0;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+}
+.vq-workspace-form label {
+    gap: 6px;
+    color: var(--vq-profile-body);
+    font-weight: 500;
+}
+.vq-workspace-form input {
+    font-weight: 500;
+    height: 36px;
+    padding-inline: 10px;
+    border-radius: 8px;
+}
+/*
+ * 创建工作区时加粗正在编辑的字段标签，输入框的焦点背景和正常边框继续沿用共用规则及系统的强制配色。
+ */
+.vq-workspace-form .vq-field:focus-within > label {
+    color: var(--vq-profile-heading);
+}
+.vq-workspace-form .vq-field:focus-within .vq-field-label {
+    font-weight: 700;
+}
+.vq-workspace-form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding-top: 16px;
+}
+.vq-workspace-form-actions button {
+    min-height: 34px;
+    margin: 0;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-weight: 500;
+}
+/*
+ * 头部左侧的折叠、通知与主题按钮统一为三十二像素方形轮廓，采用主题边框和表面色，使浅色下三个控件外观一致。
+ */
+.vq-hamburger,
+.vq-icon-button,
+.vq-theme-toggle,
+.vq-header-more {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 1px solid var(--vq-border);
+    border-radius: 8px;
+    background: var(--vq-surface);
+    color: var(--vq-secondary);
+}
+/*
+ * 悬停时改用浅色高亮与品牌文字色，为鼠标和键盘用户提供一致反馈，同时不改变按钮尺寸以避免头部布局抖动。
+ */
+.vq-hamburger:hover,
+.vq-icon-button:hover,
+.vq-theme-toggle:hover,
+.vq-header-more:hover {
+    background: var(--vq-hover);
+    color: var(--vq-brand-text);
+}
+/*
+ * 右侧工具区依靠自动外边距贴齐头部末端，内部采用八像素间距并与三十二像素控件同高，形成稳定的横向节奏。
+ */
+.vq-header-tools {
+    margin-inline-start: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+/*
+ * 用户菜单由文字和头像组成，在工具区中移除边框，避免与相邻图标按钮产生重复轮廓线并保持轻量入口观感。
+ */
+.vq-header-tools .vq-user-trigger {
+    border: 0;
+}
+/*
+ * 窄屏收起工具组时用 hidden 属性彻底退出布局与键盘顺序，作者样式显式恢复浏览器默认的隐藏语义。
+ */
+.vq-header-tools[hidden] {
+    display: none;
+}
+/*
+ * 窄屏头部允许换行：折叠、工作区与更多按钮留在首行，展开的工具组独占第二行，保持 72 像素基准高度且不横向溢出。
+ */
+@media (max-width: 1024px) {
+    .vq-header {
+        flex-wrap: wrap;
+        height: auto;
+        min-height: var(--vq-header-height);
+        /*
+         * 两行三十二像素控件加七像素间距和一像素底边，保持展开工具栏的总高度与原有窄屏布局一致。
+         */
+        row-gap: 7px;
+    }
+    .vq-header > .vq-header-tools {
+        flex-basis: 100%;
+        margin-inline-start: 0;
+        justify-content: flex-end;
+    }
+}
+/*
+ * 手机宽度收紧头部内边距与控件间距，让汉堡、工作区切换和“更多”按钮在单行内排布。
+ */
+@media (max-width: 560px) {
+    .vq-header {
+        padding-inline: 12px;
+        gap: 6px;
+    }
+}

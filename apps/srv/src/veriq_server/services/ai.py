@@ -1,0 +1,897 @@
+"""
+管理 Workspace 内的模型提供方、脱敏上下文预览与调用预算，记录生成和人工审核的状态。
+
+生成前持久化费用预留，模型返回后重新检查当前权限。接受 CASE 候选只写资源草稿，发布仍走正常资源流程。
+"""
+
+from contextlib import asynccontextmanager
+from decimal import Decimal, ROUND_CEILING
+from hashlib import sha256
+from typing import Any, AsyncIterator, Awaitable, Callable
+from uuid import uuid4
+import asyncio
+
+from sqlalchemy import select, func, case
+from sqlalchemy.ext.asyncio import AsyncSession
+from jsonschema import Draft202012Validator
+
+from ..auth.authorization import Permission, WorkspaceScope
+from ..contracts import canonical_bytes, _schema, validate_schema
+from ..credentials.crypto import EncryptedValue
+from ..credentials.service import configured_keyring
+from ..db import AiProvider, AiGeneration, Database, User, UserSession
+from ..infrastructure.providers import DraftContext, ProviderGateway, ModelReply
+from ..pagination import Page
+from ..repositories.resource import ResourceRepository
+from ..service import Problem, lock_installation, now, stamp, audit
+from ..settings import Settings
+from .workspace import WorkspaceRepository
+from .resource import ResourceService, asset_references
+from .report import ReportService, redact
+
+AGENT_PURPOSE = "CONVERSATION"
+PURPOSE = "veriq-ai-provider-v1"
+ADVICE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "suggestions": {
+            "type": "array",
+            "maxItems": 30,
+            "items": {"type": "string", "maxLength": 2000},
+        },
+        "basis": {"type": "string", "maxLength": 4000},
+    },
+    "required": ["suggestions", "basis"],
+    "additionalProperties": False,
+}
+
+
+def output_schema(purpose: str) -> dict[str, Any]:
+    """按生成目的返回期望输出 JSON schema，供模型响应结构校验，output_schema 遵守本文件边界，失败返回稳定 Problem。
+    output_schema 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+    勿假设通用成功默认值。
+    """
+    if purpose != "CASE_DRAFT":
+        return ADVICE_SCHEMA
+    definitions = _schema()["$defs"]
+    needed: dict[str, Any] = {}
+
+    def visit(value: Any) -> None:
+        if isinstance(value, dict):
+            if "$ref" in value:
+                name = value["$ref"].split("/")[-1]
+                if name not in needed:
+                    needed[name] = definitions[name]
+                    visit(needed[name])
+            for v in value.values():
+                visit(v)
+        elif isinstance(value, list):
+            for v in value:
+                visit(v)
+
+    result = {
+        "type": "object",
+        "properties": {"kind": {"const": "CASE"}, "document": {"$ref": "#/$defs/CaseDslV1"}},
+        "required": ["kind", "document"],
+        "additionalProperties": False,
+    }
+    visit(result)
+    return {**result, "$defs": needed}
+
+
+def micros(value: Any) -> int:
+    """将价格输入规范为微单位整数，拒绝非有限或非法数值，micros 遵守本文件边界，失败返回稳定 Problem，
+    并在事务提交前完成全部不变量检查。
+    micros 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+    勿假设通用成功默认值。
+    """
+    return int((Decimal(str(value)) * 1000000).to_integral_value(rounding=ROUND_CEILING))
+
+
+def priced(input_tokens: int, output_tokens: int, prices: dict[str, Any]) -> int:
+    """按输入输出 token 数量与单价计算费用微单位，priced 遵守本文件边界，失败返回稳定 Problem，
+    并在事务提交前完成全部不变量检查。
+    priced 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+    勿假设通用成功默认值。
+    """
+    return int(
+        (
+            Decimal(input_tokens) * Decimal(str(prices["inputUsdPerMillion"]))
+            + Decimal(output_tokens) * Decimal(str(prices["outputUsdPerMillion"]))
+        ).to_integral_value(rounding=ROUND_CEILING)
+    )
+
+
+def sanitize(value: Any, protected: set[str] | None = None) -> Any:
+    """递归清理提示与上下文中的受保护密钥字段，防止回显泄露，sanitize 遵守本文件边界，失败返回稳定 Problem，
+    并在事务提交前完成全部不变量检查。
+    sanitize 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+    勿假设通用成功默认值。
+    """
+    value = redact(value, protected or set())
+    if isinstance(value, str):
+        return "[WITHHELD_REFERENCE]" if "secretRef" in value or "{{secret" in value else value
+    if isinstance(value, list):
+        return [sanitize(v, protected) for v in value]
+    if isinstance(value, dict):
+        return {
+            k: "[WITHHELD]"
+            if k.lower()
+            in {
+                "secretref",
+                "secretrefs",
+                "secretversions",
+                "credentialreferences",
+                "apikey",
+                "api_key",
+                "headers",
+                "cookies",
+                "securityschemes",
+                "authorization",
+                "x-api-key",
+            }
+            else sanitize(v, protected)
+            for k, v in value.items()
+        }
+    return value
+
+
+class AiService:
+    """编排提供方 CRUD、生成、预览、取消与审核，强制 Workspace 与预算边界，AiService 遵守本文件边界。AiService 属于 AI
+    辅助路径：无有效 Provider 时不得假装成功，
+
+    模型输出不得自动发布为正式资产。
+    """
+
+    def __init__(
+        self,
+        db: Database,
+        settings: Settings,
+        identity: Callable[[AsyncSession], Awaitable[tuple[User, UserSession]]],
+        registry: Any = None,
+    ):
+        """注入依赖，包括会话工厂、设置与可选模型调用端口，AiService.__init__ 遵守本文件边界，失败返回稳定 Problem。
+        __init__ 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
+        """
+        self.db, self.settings, self.identity, self.registry = db, settings, identity, registry
+
+    @asynccontextmanager
+    async def transaction(
+        self, scope: WorkspaceScope, permission: Permission = Permission.VIEW, write: bool = False
+    ) -> AsyncIterator[tuple[AsyncSession, User]]:
+        """在事务中执行 AI 相关写操作并统一映射为 Problem，AiService.transaction 遵守本文件边界。
+        transaction 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
+        """
+        async with self.db.sessions.begin() as s:
+            await lock_installation(s)
+            user, _ = await self.identity(s)
+            await WorkspaceRepository(s, scope).authorize(user, permission, write=write)
+            yield s, user
+
+    async def provider(
+        self, s: AsyncSession, scope: WorkspaceScope, pid: str, *, enabled: bool = False
+    ) -> AiProvider:
+        """按 ID 加载本 Workspace 的 AI 提供方配置行，AiService.provider 遵守本文件边界，失败返回稳定 Problem。
+        provider 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
+        """
+        row = await s.get(AiProvider, pid)
+        if not row or row.workspace_id != scope.workspace_id or row.deleted:
+            raise Problem(404, "AI_PROVIDER_NOT_FOUND", "Provider not found")
+        if enabled and not row.enabled:
+            raise Problem(409, "AI_PROVIDER_DISABLED", "Provider is disabled")
+        return row
+
+    async def budget(self, s: AsyncSession, row: AiProvider) -> dict[str, Any]:
+        """计算提供方剩余预算与当前用量快照信息，AiService.budget 遵守本文件边界，失败返回稳定 Problem，
+        并在事务提交前完成全部不变量检查。
+        budget 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
+        """
+        month = now().strftime("%Y-%m")
+        used, held = (
+            await s.execute(
+                select(
+                    func.coalesce(
+                        func.sum(
+                            case((AiGeneration.month == month, AiGeneration.cost_micros), else_=0)
+                        ),
+                        0,
+                    ),
+                    func.coalesce(
+                        func.sum(
+                            case(
+                                (AiGeneration.cost_micros.is_(None), AiGeneration.reserved_micros),
+                                else_=0,
+                            )
+                        ),
+                        0,
+                    ),
+                ).where(AiGeneration.provider_id == row.id)
+            )
+        ).one()
+        return {
+            "month": month,
+            "estimatedUsedUsd": int(used) / 1000000,
+            "heldUsd": int(held) / 1000000,
+            "availableUsd": max(0, micros(row.config["monthlyBudgetUsd"]) - int(used) - int(held))
+            / 1000000,
+            "pricingBasis": "CONFIGURED_ESTIMATE",
+        }
+
+    async def provider_dto(self, s: AsyncSession, row: AiProvider) -> dict[str, Any]:
+        """导出提供方 DTO，并遮蔽任何密钥明文材料，AiService.provider_dto 遵守本文件边界，失败返回稳定 Problem。
+        provider_dto 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
+        """
+        return {
+            **row.config,
+            "id": row.id,
+            "revision": row.revision,
+            "enabled": row.enabled,
+            "keyConfigured": bool(row.ciphertext),
+            "budget": await self.budget(s, row),
+        }
+
+    async def providers(
+        self, scope: WorkspaceScope, page: Page, pid: str | None = None
+    ) -> dict[str, Any]:
+        """列出当前 Workspace 内全部 AI 提供方配置，AiService.providers 遵守本文件边界，失败返回稳定 Problem。
+        providers 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
+        """
+        async with self.transaction(scope) as (s, _):
+            if pid:
+                return await self.provider_dto(s, await self.provider(s, scope, pid))
+            query = select(AiProvider).where(
+                AiProvider.workspace_id == scope.workspace_id, AiProvider.deleted.is_(False)
+            )
+            if page.last:
+                query = query.where(AiProvider.id > page.last[1])
+            rows = list(
+                (await s.scalars(query.order_by(AiProvider.id).limit(page.limit + 1))).all()
+            )
+            result: dict[str, Any] = {
+                "items": [await self.provider_dto(s, r) for r in rows[: page.limit]],
+                "nextCursor": None,
+            }
+            if rows:
+                result["nextCursor"] = page.next(
+                    (
+                        rows[min(len(rows), page.limit) - 1].id,
+                        rows[min(len(rows), page.limit) - 1].id,
+                    ),
+                    len(rows) > page.limit,
+                )
+            return result
+
+    async def write_provider(
+        self, scope: WorkspaceScope, data: dict[str, Any], pid: str | None = None
+    ) -> dict[str, Any]:
+        """创建或更新提供方，只校验必填字段，AiService.write_provider 遵守本文件边界。
+        write_provider 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
+        """
+        async with self.transaction(scope, Permission.MANAGE_WORKSPACE, True) as (s, user):
+            config = {k: v for k, v in data.items() if k not in {"apiKey", "enabled"}}
+            if pid:
+                row = await self.provider(s, scope, pid)
+                # 旧管理客户端省略该字段，继续保留已经配置的视觉能力，避免普通编辑意外禁用图片会话。
+                if "supportsImages" not in config and "supportsImages" in row.config:
+                    config["supportsImages"] = row.config["supportsImages"]
+                held = await self.budget(s, row)
+                if micros(data["monthlyBudgetUsd"]) < micros(held["heldUsd"]) + micros(
+                    held["estimatedUsedUsd"]
+                ):
+                    raise Problem(
+                        409, "AI_BUDGET_HELD", "Budget is below existing spending and reservations"
+                    )
+                running = await s.scalar(
+                    select(func.count())
+                    .select_from(AiGeneration)
+                    .where(AiGeneration.provider_id == pid, AiGeneration.status == "RUNNING")
+                )
+                if running and (config != row.config or data.get("apiKey")):
+                    raise Problem(
+                        409,
+                        "AI_PROVIDER_BUSY",
+                        "Only enable/disable is allowed during an active call",
+                    )
+                row.config = config
+                row.enabled = data["enabled"]
+                row.revision += 1
+            else:
+                if not data.get("apiKey"):
+                    raise Problem(
+                        422, "AI_KEY_REQUIRED", "Enter a provider key in the protected form"
+                    )
+                count = await s.scalar(
+                    select(func.count())
+                    .select_from(AiProvider)
+                    .where(
+                        AiProvider.workspace_id == scope.workspace_id, AiProvider.deleted.is_(False)
+                    )
+                )
+                if count and count >= 20:
+                    raise Problem(
+                        409, "AI_PROVIDER_LIMIT", "At most 20 active provider configurations"
+                    )
+                row = AiProvider(
+                    id=str(uuid4()),
+                    workspace_id=scope.workspace_id,
+                    revision=1,
+                    config=config,
+                    enabled=data["enabled"],
+                    deleted=False,
+                )
+                s.add(row)
+            if data.get("apiKey"):
+                row.key_version = str(uuid4())
+                sealed = configured_keyring(self.settings, purpose=PURPOSE).encrypt(
+                    scope.workspace_id, row.id, row.key_version, data["apiKey"]
+                )
+                row.key_id, row.nonce, row.ciphertext = (
+                    sealed.key_id,
+                    sealed.nonce,
+                    sealed.ciphertext,
+                )
+            await s.flush()
+            audit(s, "ai.provider_configured", user.id, row.id, workspace_id=scope.workspace_id)
+            return await self.provider_dto(s, row)
+
+    async def delete_provider(self, scope: WorkspaceScope, pid: str) -> dict[str, Any]:
+        """删除提供方配置，不影响既有生成历史行，AiService.delete_provider 遵守本文件边界，失败返回稳定 Problem。
+        delete_provider 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
+        """
+        async with self.transaction(scope, Permission.MANAGE_WORKSPACE, True) as (s, user):
+            row = await self.provider(s, scope, pid)
+            row.enabled = False
+            row.deleted = True
+            row.revision += 1
+            audit(s, "ai.provider_deleted", user.id, pid, workspace_id=scope.workspace_id)
+            return {}
+
+    async def context(
+        self,
+        s: AsyncSession,
+        user: User,
+        scope: WorkspaceScope,
+        req: dict[str, Any],
+        provider: AiProvider,
+    ) -> tuple[dict[str, Any], DraftContext]:
+        """组装生成上下文预览，内容已经过 sanitize 处理，AiService.context 遵守本文件边界，失败返回稳定 Problem。
+        context 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
+        """
+        repo = ResourceRepository(s, scope)
+        context = {
+            "purpose": req["purpose"],
+            "requirement": req["prompt"],
+            "openapi": req.get("openapi", {}),
+            "data": req.get("data", {}),
+            "resources": [],
+        }
+        provenance: list[dict[str, Any]] = []
+        original = None
+        revision = None
+        selected = set(req.get("versionIds", []))
+        if req.get("resourceId"):
+            r = await repo.resource(req["resourceId"])
+            if r.kind != "CASE" or r.status == "ARCHIVED":
+                raise Problem(422, "AI_SOURCE_KIND", "Only an active CASE can be a draft target")
+            draft = await repo.draft(r.id)
+            original = draft.document_json
+            revision = draft.revision
+            context["candidate"] = original
+            provenance.append({"resourceId": r.id, "revision": revision})
+            selected.update(v for v, _ in asset_references(original))
+        if len(selected) > 20:
+            raise Problem(
+                413, "AI_CONTEXT_LIMIT", "Selected dependency context exceeds 20 versions"
+            )
+        for vid in sorted(selected):
+            version = await repo.version(vid)
+            resource = await repo.resource(version.resource_id)
+            if resource.status == "ARCHIVED" or resource.kind not in {
+                "ELEMENT_CATALOG",
+                "DATASET",
+                "FLOW",
+                "ASSERTION_TEMPLATE",
+                "FIXTURE",
+            }:
+                raise Problem(422, "AI_SOURCE_KIND", "Selected version kind is not permitted")
+            # FIXTURE 的 document 只保留 inputSchema，kind 与外层 versionId 仍进入上下文，执行身份和传输配置留在服务端。
+            if resource.kind == "FIXTURE":
+                value = {
+                    "kind": "FIXTURE",
+                    "document": {
+                        "inputSchema": version.document_json["document"].get("inputSchema", {})
+                    },
+                }
+            else:
+                value = version.document_json
+            context["resources"].append({"versionId": vid, "content": value})
+            provenance.append(
+                {
+                    "versionId": vid,
+                    "resourceId": resource.id,
+                    "kind": resource.kind,
+                    "sha256": version.sha256,
+                }
+            )
+        if req["purpose"] == "FAILURE_ANALYSIS":
+            if not req.get("runId"):
+                raise Problem(422, "AI_RUN_REQUIRED", "Choose a Run for sanitized failure analysis")
+            report = ReportService(s, user, self.settings)
+            run = await report.get(scope, req["runId"])
+            # 失败分析仅取当前 Workspace 的报告投影与限量事件，模型上下文排除原始日志、制品和凭据解析结果。
+            context["report"] = run
+            events = []
+            for attempt in (await report.attempts(scope, req["runId"]))[:10]:
+                projection = await report.events(scope, attempt.id, 0, limit=30, byte_budget=8192)
+                events.append(
+                    {
+                        "attemptId": attempt.id,
+                        "events": projection["items"],
+                        "hasMore": projection["hasMore"],
+                    }
+                )
+            context["events"] = events
+            provenance.append(
+                {
+                    "runId": req["runId"],
+                    "projection": "sanitized",
+                    "attemptLimit": 10,
+                    "eventsPerAttempt": 30,
+                }
+            )
+        key = self.key(provider)
+        context = sanitize(context, {key})
+        if len(canonical_bytes(context)) > 65536:
+            raise Problem(
+                413, "AI_CONTEXT_LIMIT", "Selected context exceeds 64 KiB; select fewer inputs"
+            )
+        dc = DraftContext(
+            context, output_schema(req["purpose"]), provider.config["maxOutputTokens"]
+        )
+        bound = dc.input_bound()
+        reserve = priced(bound, dc.max_output_tokens, provider.config)
+        if bound > 262144 or reserve > micros(provider.config["maxRequestUsd"]):
+            raise Problem(
+                422, "AI_REQUEST_LIMIT", "Context and output reservation exceed request limits"
+            )
+        result = {
+            "context": context,
+            "contextHash": sha256(canonical_bytes(context)).hexdigest(),
+            "inputTokenBound": bound,
+            "reservedUsd": reserve / 1000000,
+            "provenance": provenance,
+        }
+        # 原始候选的脱敏副本和绑定的草稿修订号供生成记录及审核使用，预览响应会滤掉这两个内部字段。
+        if original is not None:
+            result["_original"] = sanitize(original, {key})
+            result["_revision"] = revision
+        return result, dc
+
+    def key(self, row: AiProvider) -> str:
+        """派生提供方缓存或幂等键，结果中不含密钥明文，AiService.key 遵守本文件边界，失败返回稳定 Problem，
+        并在事务提交前完成全部不变量检查。
+        key 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
+        """
+        try:
+            result = configured_keyring(self.settings, purpose=PURPOSE).decrypt(
+                row.workspace_id,
+                row.id,
+                row.key_version,
+                EncryptedValue(row.key_id, row.nonce, row.ciphertext),
+            )
+            if not isinstance(result, str):
+                raise ValueError
+            return result
+        except Exception:
+            raise Problem(
+                409, "AI_KEY_UNAVAILABLE", "Provider key is unavailable; configure it again"
+            ) from None
+
+    async def preview(self, scope: WorkspaceScope, req: dict[str, Any]) -> dict[str, Any]:
+        """预览生成请求费用与上下文，不落库正式草稿，AiService.preview 遵守本文件边界，失败返回稳定 Problem。
+        preview 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
+        """
+        async with self.transaction(scope, Permission.EDIT) as (s, user):
+            p = await self.provider(s, scope, req["providerId"], enabled=True)
+            result, _ = await self.context(s, user, scope, req, p)
+            return {k: v for k, v in result.items() if not k.startswith("_")}
+
+    async def generation(self, s: AsyncSession, scope: WorkspaceScope, gid: str) -> AiGeneration:
+        """加载生成记录并校验属于当前 Workspace，AiService.generation 遵守本文件边界，失败返回稳定 Problem。
+        generation 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
+        """
+        g = await s.get(AiGeneration, gid)
+        if not g or g.workspace_id != scope.workspace_id or g.purpose == AGENT_PURPOSE:
+            raise Problem(404, "AI_GENERATION_NOT_FOUND", "Generation not found")
+        if g.data.get("metadataExpiredAt"):
+            raise Problem(410, "AI_GENERATION_EXPIRED", "Generation metadata retention has expired")
+        return g
+
+    async def dto(self, s: AsyncSession, scope: WorkspaceScope, g: AiGeneration) -> dict[str, Any]:
+        """导出生成记录 DTO，含状态与费用，不含原始密钥，AiService.dto 遵守本文件边界，失败返回稳定 Problem。
+        dto 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
+        """
+        result = {
+            "id": g.id,
+            "providerId": g.provider_id,
+            "requestId": g.request_id,
+            "createdAt": stamp(g.created_at),
+            "status": g.status,
+            "purpose": g.purpose,
+            "reservedUsd": g.reserved_micros / 1000000,
+            "costState": "UNKNOWN" if g.cost_micros is None else "ESTIMATED",
+        }
+        if g.cost_micros is not None:
+            result["costUsd"] = g.cost_micros / 1000000
+        if g.data.get("metadataExpiredAt"):
+            return {**result, "errorCode": "AI_GENERATION_EXPIRED"}
+        p = await s.get(AiProvider, g.provider_id)
+        public = {"inputTokens", "outputTokens", "errorCode", "pricing"}
+        if (
+            p
+            and not p.deleted
+            and p.enabled
+            and p.revision == g.data["providerRevision"]
+        ):
+            public |= {
+                "output",
+                "context",
+                "provenance",
+                "diagnostics",
+                "resourceId",
+                "resourceState",
+                "revision",
+                "original",
+            }
+        else:
+            result["errorCode"] = "AI_OUTPUT_WITHHELD"
+        result.update({k: v for k, v in g.data.items() if k in public and k != "errorCode"})
+        if "errorCode" not in result and "errorCode" in g.data:
+            result["errorCode"] = g.data["errorCode"]
+        return result
+
+    async def history(
+        self, scope: WorkspaceScope, page: Page, gid: str | None = None
+    ) -> dict[str, Any]:
+        """分页列出 Workspace 内的 AI 生成历史记录，AiService.history 遵守本文件边界，失败返回稳定 Problem。
+        history 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
+        """
+        async with self.transaction(scope) as (s, _):
+            if gid:
+                return await self.dto(s, scope, await self.generation(s, scope, gid))
+            q = select(AiGeneration).where(
+                AiGeneration.workspace_id == scope.workspace_id,
+                AiGeneration.purpose != AGENT_PURPOSE,
+            )
+            if page.last:
+                q = q.where(AiGeneration.id > page.last[1])
+            rows = list((await s.scalars(q.order_by(AiGeneration.id).limit(page.limit + 1))).all())
+            return {
+                "items": [await self.dto(s, scope, g) for g in rows[: page.limit]],
+                "nextCursor": page.next(
+                    (
+                        rows[min(len(rows), page.limit) - 1].id,
+                        rows[min(len(rows), page.limit) - 1].id,
+                    ),
+                    len(rows) > page.limit,
+                )
+                if rows
+                else None,
+            }
+
+    async def reserve_usage(
+        self,
+        s: AsyncSession,
+        p: AiProvider,
+        user: User,
+        request_id: str,
+        request_hash: str,
+        purpose: str,
+        reserve: int,
+        data: dict[str, Any],
+    ) -> AiGeneration:
+        """在调用者已取得的安装锁内核对月度余额并创建用量记录，让一次生成与私人对话竞争同一份可用预算。"""
+        budget = await self.budget(s, p)
+        if micros(p.config["monthlyBudgetUsd"]) == 0 or reserve > micros(budget["availableUsd"]):
+            raise Problem(
+                429, "AI_BUDGET_EXHAUSTED", "Provider budget cannot cover this bounded request"
+            )
+        g = AiGeneration(
+            id=str(uuid4()),
+            workspace_id=p.workspace_id,
+            provider_id=p.id,
+            actor_id=user.id,
+            request_id=request_id,
+            request_hash=request_hash,
+            created_at=now(),
+            month=budget["month"],
+            status="RUNNING",
+            purpose=purpose,
+            reserved_micros=reserve,
+            cost_micros=None,
+            data=data,
+        )
+        s.add(g)
+        return g
+
+    @staticmethod
+    def settle_usage(g: AiGeneration, reply: ModelReply | None, d: dict, config: dict) -> None:
+        """仅接受预留范围内的非负整数用量来结算费用，供应商缺失用量或返回超限数字时继续保留整笔预留。工具调用循环
+        跨轮次累加输出，调用方可传入 outputTokenBound 放宽单轮上限。"""
+        output_bound = d.get("outputTokenBound", config["maxOutputTokens"])
+        if (
+            reply
+            and type(reply.input_tokens) is int
+            and type(reply.output_tokens) is int
+            and 0 <= reply.input_tokens <= d["inputTokenBound"]
+            and 0 <= reply.output_tokens <= output_bound
+        ):
+            g.cost_micros = priced(reply.input_tokens, reply.output_tokens, config)
+            d.update(inputTokens=reply.input_tokens, outputTokens=reply.output_tokens)
+
+    async def create_draft(
+        self, scope: WorkspaceScope, req: dict[str, Any], *, connection: bool = False
+    ) -> dict[str, Any]:
+        """创建生成草稿并调用模型端口；失败记 FAILED 且不发布，AiService.create_draft 遵守本文件边界。
+        create_draft 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
+        """
+        request_hash = sha256(canonical_bytes(req)).hexdigest()
+        async with self.transaction(
+            scope, Permission.MANAGE_WORKSPACE if connection else Permission.EDIT, True
+        ) as (s, user):
+            p = await self.provider(s, scope, req["providerId"], enabled=True)
+            existing = await s.scalar(
+                select(AiGeneration).where(
+                    AiGeneration.workspace_id == scope.workspace_id,
+                    AiGeneration.request_id == req["requestId"],
+                )
+            )
+            if existing:
+                if existing.purpose == AGENT_PURPOSE or existing.request_hash != request_hash:
+                    raise Problem(
+                        409, "IDEMPOTENCY_CONFLICT", "Request id already represents different input"
+                    )
+                # 幂等重放前仍按当前 Workspace 重新解析引用与上下文，校验通过后返回已有记录，避免再次调用模型。
+                await self.context(s, user, scope, req, p)
+                return await self.dto(s, scope, existing)
+            preview, context = await self.context(s, user, scope, req, p)
+            if req.get("contextHash") and req["contextHash"] != preview["contextHash"]:
+                raise Problem(409, "AI_CONTEXT_CHANGED", "Preview context changed; review it again")
+            reserve = micros(preview["reservedUsd"])
+            data = {
+                "context": preview["context"],
+                "provenance": preview["provenance"],
+                "providerRevision": p.revision,
+                "pricing": {**p.config, "currency": "USD", "basis": "CONFIGURED_ESTIMATE"},
+                "inputTokenBound": preview["inputTokenBound"],
+                "selectedVersionIds": [
+                    v["versionId"] for v in preview["provenance"] if "versionId" in v
+                ],
+            }
+            if req.get("resourceId"):
+                data.update(
+                    resourceId=req["resourceId"],
+                    revision=preview["_revision"],
+                    original=preview["_original"],
+                )
+            if req.get("runId"):
+                data["runId"] = req["runId"]
+            g = await self.reserve_usage(
+                s,
+                p,
+                user,
+                req["requestId"],
+                request_hash,
+                "CONNECTION_TEST" if connection else req["purpose"],
+                reserve,
+                data,
+            )
+            key = self.key(p)
+            config = dict(p.config)
+            gid = g.id
+            audit(s, "ai.request_reserved", user.id, gid, workspace_id=scope.workspace_id)
+        reply: ModelReply | None = None
+        error = None
+        try:
+            reply = await asyncio.wait_for(
+                ProviderGateway(config, key).generate(context), timeout=35
+            )
+        except asyncio.CancelledError:
+            # 调用前已提交 RUNNING 记录，协程取消时保留预留额和未知费用状态，因为尚无可核实的用量。
+            raise
+        except Exception:
+            error = "AI_PROVIDER_ERROR"
+        # 模型请求在预留事务提交后执行，结果写入前另开事务重新验证会话、Workspace 权限及 Provider 修订。
+        async with self.transaction(
+            scope, Permission.MANAGE_WORKSPACE if connection else Permission.EDIT, True
+        ) as (s, user):
+            g = await self.generation(s, scope, gid)
+            p = await self.provider(s, scope, req["providerId"], enabled=True)
+            if p.revision != g.data["providerRevision"]:
+                raise Problem(
+                    409, "AI_PROVIDER_CHANGED", "Provider changed while the call was running"
+                )
+            d = dict(g.data)
+            self.settle_usage(g, reply, d, config)
+            if g.status == "CANCELLED":
+                g.data = d
+                return await self.dto(s, scope, g)
+            if reply and reply.error_code:
+                error = reply.error_code
+            if reply and not error:
+                repo = ResourceRepository(s, scope)
+                try:
+                    if d.get("resourceId"):
+                        resource = await repo.resource(d["resourceId"])
+                        current = await repo.draft(resource.id)
+                        if resource.status == "ARCHIVED" or current.revision != d["revision"]:
+                            error = "AI_CONTEXT_CHANGED"
+                    for version_id in d["selectedVersionIds"]:
+                        version = await repo.version(version_id)
+                        source = await repo.resource(version.resource_id)
+                        if source.status == "ARCHIVED":
+                            error = "AI_CONTEXT_CHANGED"
+                except Problem:
+                    error = "AI_CONTEXT_CHANGED"
+            if reply and not error:
+                diagnostics = []
+                output = None
+                # 模型输出的格式、结构或引用校验失败时记为生成诊断，使已核实的用量随失败结果一并保存。
+                # 数据库和授权检查仍在这段内容校验之外。
+                try:
+                    canonical_bytes(reply.output)
+                    output = sanitize(reply.output, {key})
+                    canonical_bytes(output)
+                    if req["purpose"] == "CASE_DRAFT":
+                        if (
+                            validate_schema("ResourceDocumentV1", output)
+                            or not isinstance(output, dict)
+                            or output.get("kind") != "CASE"
+                        ):
+                            diagnostics = [
+                                {
+                                    "code": "AI_SCHEMA_INVALID",
+                                    "message": "Output must be a canonical CASE resource document",
+                                }
+                            ]
+                        elif any(
+                            v not in d["selectedVersionIds"] for v, _ in asset_references(output)
+                        ):
+                            diagnostics = [
+                                {
+                                    "code": "AI_REFERENCE_UNSELECTED",
+                                    "message": "Output references a version outside reviewed context",
+                                }
+                            ]
+                    elif not Draft202012Validator(ADVICE_SCHEMA).is_valid(output):
+                        diagnostics = [
+                            {
+                                "code": "AI_SCHEMA_INVALID",
+                                "message": "Advice must contain bounded suggestions and basis",
+                            }
+                        ]
+                except RecursionError:
+                    diagnostics = [
+                        {
+                            "code": "AI_OUTPUT_NESTING_LIMIT",
+                            "message": "Model output exceeds supported JSON nesting",
+                        }
+                    ]
+                except ValueError:
+                    diagnostics = [
+                        {
+                            "code": "AI_OUTPUT_NOT_PORTABLE",
+                            "message": "Model output must contain portable Unicode JSON",
+                        }
+                    ]
+                if diagnostics:
+                    error = "AI_OUTPUT_INVALID"
+                    d["diagnostics"] = diagnostics
+                else:
+                    d["output"] = output
+            if error:
+                d["errorCode"] = error
+            g.status = "FAILED" if error else "SUCCEEDED"
+            g.data = d
+            audit(s, "ai.request_finished", user.id, gid, workspace_id=scope.workspace_id)
+            return await self.dto(s, scope, g)
+
+    async def cancel(self, scope: WorkspaceScope, gid: str) -> dict[str, Any]:
+        """取消进行中的生成任务并更新状态机，AiService.cancel 遵守本文件边界，失败返回稳定 Problem，
+        并在事务提交前完成全部不变量检查。
+        cancel 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
+        """
+        async with self.transaction(scope, Permission.EDIT, True) as (s, user):
+            g = await self.generation(s, scope, gid)
+            if g.status == "RUNNING":
+                g.status = "CANCELLED"
+                g.data = {**g.data, "errorCode": "AI_CANCELLED_UPSTREAM_UNKNOWN"}
+                audit(s, "ai.cancelled", user.id, gid, workspace_id=scope.workspace_id)
+            return await self.dto(s, scope, g)
+
+    async def review(self, scope: WorkspaceScope, gid: str, data: dict[str, Any]) -> dict[str, Any]:
+        """人工审核生成结果，通过后才可进入资源草稿编辑流，AiService.review 遵守本文件边界，失败返回稳定 Problem。
+        review 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
+        勿假设通用成功默认值。
+        """
+        async with self.transaction(scope, Permission.EDIT, True) as (s, user):
+            g = await self.generation(s, scope, gid)
+            p = await self.provider(s, scope, g.provider_id, enabled=True)
+            if p.revision != g.data["providerRevision"]:
+                raise Problem(409, "AI_PROVIDER_CHANGED", "Provider changed since generation")
+            if g.status != "SUCCEEDED":
+                raise Problem(
+                    409, "AI_REVIEW_STATE", "Only successful unreviewed output can be reviewed"
+                )
+            if data["decision"] == "REJECT":
+                g.status = "REJECTED"
+            else:
+                if g.purpose != "CASE_DRAFT":
+                    raise Problem(
+                        422,
+                        "AI_ADVICE_ONLY",
+                        "Analysis and boundary suggestions cannot be applied automatically",
+                    )
+                output = g.data["output"]
+                repo = ResourceRepository(s, scope)
+                for vid, kind in asset_references(output):
+                    v = await repo.version(vid)
+                    r = await repo.resource(v.resource_id)
+                    if r.kind != kind or r.status == "ARCHIVED":
+                        raise Problem(422, "INVALID_REFERENCE", "Referenced version is unavailable")
+                resources = ResourceService(
+                    s, user, self.registry, engine_version=self.settings.validation_engine_version
+                )
+                if g.data.get("resourceId"):
+                    if data.get("revision") != g.data["revision"]:
+                        raise Problem(
+                            409,
+                            "STALE_REVISION",
+                            "Review must match the original candidate revision",
+                        )
+                    draft = await resources.update_draft(
+                        scope, g.data["resourceId"], data["revision"], output
+                    )
+                    rid = g.data["resourceId"]
+                    revision = draft["revision"]
+                else:
+                    if not data.get("key") or not data.get("name"):
+                        raise Problem(
+                            422, "AI_DRAFT_NAME_REQUIRED", "Provide a resource key and name"
+                        )
+                    resource = await resources.create(
+                        scope,
+                        {
+                            "kind": "CASE",
+                            "key": data["key"],
+                            "name": data["name"],
+                            "content": output,
+                        },
+                    )
+                    rid = resource["id"]
+                    revision = 1
+                g.data = {
+                    **g.data,
+                    "resourceId": rid,
+                    "revision": revision,
+                    "resourceState": "DRAFT",
+                }
+                g.status = "REVIEWED"
+            audit(s, "ai.reviewed", user.id, gid, workspace_id=scope.workspace_id)
+            return await self.dto(s, scope, g)

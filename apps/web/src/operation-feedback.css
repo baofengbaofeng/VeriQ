@@ -1,0 +1,132 @@
+/*
+ * 结果框置于普通抽屉与确认框上方；外观只使用该组件自己的类，使网页管理台和桌面共用时不受容器表单规则影响。
+ */
+.vq-operation-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 3200;
+    background: rgb(16 24 40 / 45%);
+    backdrop-filter: blur(3px);
+}
+.vq-operation-result {
+    position: fixed;
+    z-index: 3201;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    box-sizing: border-box;
+    width: min(448px, calc(100vw - 32px));
+    max-height: calc(100dvh - 32px);
+    overflow: auto;
+    padding: 24px;
+    border: 1px solid var(--vq-border, #e4e7ec);
+    border-radius: 16px;
+    background: var(--vq-surface, #fff);
+    box-shadow: 0 16px 32px rgb(16 24 40 / 16%);
+    color: var(--vq-brand-text, #1d2939);
+    text-align: center;
+}
+.vq-operation-result[data-result="success"] {
+    --vq-result-mark: #079455;
+    --vq-result-halo: #dcfae6;
+}
+.vq-operation-result[data-result="failure"] {
+    --vq-result-mark: #d92d20;
+    --vq-result-halo: #fee4e2;
+}
+.vq-operation-result[data-result="pending"] {
+    --vq-result-mark: var(--vq-brand, #465fff);
+    --vq-result-halo: var(--vq-brand-soft, #ecf3ff);
+}
+@media (prefers-reduced-motion: no-preference) {
+    .vq-operation-result[data-result="pending"] .vq-operation-mark svg {
+        animation: vq-operation-waiting 1s linear infinite;
+    }
+}
+@keyframes vq-operation-waiting {
+    to {
+        transform: rotate(1turn);
+    }
+}
+[data-theme="dark"] .vq-operation-result[data-result="success"] {
+    --vq-result-mark: #75e0a7;
+    --vq-result-halo: #153e30;
+}
+[data-theme="dark"] .vq-operation-result[data-result="failure"] {
+    --vq-result-mark: #fda29b;
+    --vq-result-halo: #40282c;
+}
+.vq-operation-mark {
+    display: grid;
+    width: 90px;
+    height: 90px;
+    margin: 4px auto 16px;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--vq-result-halo);
+    color: var(--vq-result-mark);
+}
+.vq-operation-result h2 {
+    margin: 0 0 8px;
+    color: inherit;
+    font-size: calc(20px - var(--vq-font-reduction, 0px));
+    font-weight: 600;
+}
+.vq-operation-message {
+    overflow-wrap: anywhere;
+    color: var(--vq-secondary, #344054);
+    font-size: calc(14px - var(--vq-font-reduction, 0px));
+    white-space: pre-line;
+}
+.vq-operation-result .vq-operation-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    display: grid;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    place-items: center;
+    border: 0;
+    border-radius: 50%;
+    background: var(--vq-hover, #f2f4f7);
+    color: var(--vq-muted, #667085);
+}
+.vq-operation-result .vq-operation-acknowledge {
+    min-width: 96px;
+    min-height: 40px;
+    margin: 0;
+    padding: 8px 20px;
+    border: 0;
+    border-radius: 8px;
+    background: #465fff;
+    color: #fff;
+    font-size: calc(14px - var(--vq-font-reduction, 0px));
+    font-weight: 500;
+}
+.vq-operation-actions {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 20px;
+}
+.vq-operation-result .vq-operation-retry {
+    border: 1px solid var(--vq-border, #e4e7ec);
+    background: var(--vq-surface, #fff);
+    color: var(--vq-secondary, #344054);
+}
+.vq-operation-result .vq-operation-acknowledge:not(.vq-operation-retry):hover {
+    background: #3641f5;
+}
+.vq-operation-result .vq-operation-retry:is(:hover, :focus-visible) {
+    background: var(--vq-hover, #f2f4f7);
+}
+/*
+ * 网页结果框用管理台字号，确认按钮保持原有点击区；桌面单独加载此文件时仍由共享样式提供原有显示尺寸。
+ */
+:root[data-veriq-web] .vq-operation-result h2 {
+    font-size: var(--vq-console-title-size);
+}
+:root[data-veriq-web] .vq-operation-result :is(.vq-operation-message, .vq-operation-acknowledge) {
+    font-size: var(--vq-console-text-size);
+}

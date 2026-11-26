@@ -1,0 +1,184 @@
+/*
+ * 计划列表、触发回执和管理表单共用紧凑的分区；分隔线标记不同任务，输入网格在窄视口还原为一栏。
+ */
+.vq-plan-workspace {
+    display: grid;
+    min-width: 0;
+    gap: 16px;
+}
+
+.vq-plan-section {
+    display: grid;
+    min-width: 0;
+    gap: 10px;
+    margin: 0;
+    padding-top: 14px;
+    border-top: 1px solid var(--vq-border);
+}
+
+.vq-plan-section :is(h2, p, small) {
+    margin: 0;
+}
+
+/*
+ * 顶层表单只排布完整字段组，组内两列由页面控制；通用表单的自动列数不能再次挤压版本选择器。
+ */
+.vq-plan-workspace form {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+form.vq-plan-section {
+    width: 100%;
+    max-width: 880px;
+}
+
+.vq-plan-section form {
+    display: grid;
+    max-width: 720px;
+    gap: 10px;
+    margin: 0;
+}
+
+.vq-plan-section fieldset {
+    display: grid;
+    min-width: 0;
+    gap: 6px;
+    padding: 6px 10px 10px;
+    border: 1px solid var(--vq-border);
+    border-radius: 6px;
+}
+
+.vq-plan-section legend {
+    padding-inline: 4px;
+    font-weight: 550;
+}
+
+.vq-plan-fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 10px 14px;
+}
+
+.vq-plan-section .vq-field {
+    width: min(100%, 360px);
+}
+
+.vq-plan-section .vq-field-label {
+    white-space: nowrap;
+}
+
+.vq-plan-section :is(input:not([type="checkbox"]), .vq-select-trigger, textarea) {
+    min-width: 0;
+    width: 100%;
+}
+
+.vq-plan-section .vq-select-trigger > span:first-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vq-plan-section .vq-btn {
+    justify-self: start;
+    margin: 0;
+    white-space: nowrap;
+}
+
+.vq-plan-choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+}
+
+.vq-plan-choices .check {
+    gap: 6px;
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.vq-plan-choices input {
+    flex: 0 0 auto;
+}
+
+/*
+ * 操作栏保持单行并在所属区域滚动，表格列给状态和值分配宽度；比列宽更长的名称仍以完整文字展示。
+ */
+.vq-plan-toolbar,
+.vq-plan-actions {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+}
+
+.vq-plan-toolbar {
+    justify-content: space-between;
+    overflow-x: auto;
+}
+
+.vq-plan-section .vq-plan-toolbar:has(.vq-field) {
+    align-items: end;
+    justify-content: start;
+}
+
+.vq-plan-table {
+    min-width: 52rem;
+}
+
+.vq-plan-table :is(th, td) {
+    padding: 7px 10px;
+    white-space: nowrap;
+}
+
+.vq-plan-table tbody th {
+    background: none;
+    font-weight: 550;
+}
+
+.vq-plan-name-column {
+    width: 26%;
+}
+
+.vq-plan-policy-column {
+    width: 14%;
+}
+
+.vq-plan-revision-column,
+.vq-plan-status-column {
+    width: 10%;
+}
+
+.vq-plan-actions-column {
+    width: 40%;
+}
+
+.vq-token-table th:nth-child(2),
+.vq-token-table th:nth-child(3),
+.vq-token-table th:nth-child(6) {
+    min-width: 8rem;
+}
+
+/*
+ * 一次性凭证保持在交付区域内，显示长令牌时允许换行，以免明文出现后挤动页面宽度或底部操作按钮。
+ */
+.vq-token-delivery {
+    display: grid;
+    gap: 8px;
+    padding: 10px;
+    background: var(--vq-field);
+    border: 1px solid var(--vq-border);
+    border-radius: 6px;
+}
+
+.vq-token-delivery output {
+    overflow-wrap: anywhere;
+    user-select: all;
+}
+
+@media (max-width: 760px) {
+    .vq-plan-fields {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

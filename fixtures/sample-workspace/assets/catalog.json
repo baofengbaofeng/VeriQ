@@ -1,0 +1,72 @@
+{
+    "kind": "ELEMENT_CATALOG",
+    "document": {
+        "schemaVersion": "1.0",
+        "elements": [
+            {
+                "key": "employee.page",
+                "locator": {
+                    "by": "veriqId",
+                    "value": "employee.page"
+                }
+            },
+            {
+                "key": "employee.form",
+                "locator": {
+                    "by": "veriqId",
+                    "value": "employee.form"
+                },
+                "scope": "employee.page"
+            },
+            {
+                "key": "employee.form.name",
+                "locator": {
+                    "by": "veriqId",
+                    "value": "name"
+                },
+                "scope": "employee.form"
+            },
+            {
+                "key": "employee.form.save",
+                "locator": {
+                    "by": "veriqId",
+                    "value": "save"
+                },
+                "scope": "employee.form"
+            },
+            {
+                "key": "employee.result",
+                "locator": {
+                    "by": "veriqId",
+                    "value": "result"
+                },
+                "scope": "employee.page"
+            },
+            {
+                "key": "employee.table",
+                "locator": {
+                    "by": "veriqId",
+                    "value": "employee.table"
+                },
+                "scope": "employee.page"
+            },
+            {
+                "key": "employee.row",
+                "locator": {
+                    "by": "veriqId",
+                    "value": "employee.row"
+                },
+                "scope": "employee.table",
+                "recordKey": "{{vars.employeeId}}"
+            },
+            {
+                "key": "employee.row.name",
+                "locator": {
+                    "by": "veriqId",
+                    "value": "employee.name"
+                },
+                "scope": "employee.row"
+            }
+        ]
+    }
+}

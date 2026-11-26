@@ -1,0 +1,218 @@
+/*
+ * 资源列表的表格随内容区收窄，设定最小列宽后只在表格所在区域滚动；名称和标识过长时能打开全文查看。
+ */
+.vq-resources[data-console] .vq-resource-table-scroll {
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    overflow-x: auto;
+}
+
+.vq-resources[data-console] .vq-resource-table-scroll > table {
+    min-inline-size: 34rem;
+}
+
+.vq-resources[data-console] .vq-resource-table-scroll :is(th, td) {
+    white-space: nowrap;
+}
+
+/*
+ * 独立详情使用真实链接保留浏览器的导航行为，行内仍沿用紧凑操作的命中高度、品牌色和悬停下划线。
+ */
+.vq-dataset-details-link {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: 28px;
+    color: var(--vq-brand);
+    font-weight: 550;
+    text-decoration: none;
+}
+
+.vq-dataset-details-link:hover {
+    text-decoration: underline;
+}
+
+/*
+ * 待发布说明放在原状态的下方，独立阅读且保持表格字号；深浅主题继续使用同一套次要文案颜色。
+ */
+.vq-dataset-pending {
+    display: block;
+    margin-block-start: 3px;
+    color: var(--vq-muted);
+}
+
+.vq-resources[data-console] .vq-resource-table-value {
+    display: inline-block;
+    font: inherit;
+    max-inline-size: min(72vw, 64rem);
+    overflow: hidden;
+    text-align: start;
+    text-overflow: ellipsis;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+.vq-resources[data-console] .vq-resource-table-value[aria-haspopup="dialog"] {
+    border: 0;
+    padding: 0;
+}
+
+.vq-resource-value-dialog p {
+    user-select: text;
+    overflow-wrap: anywhere;
+}
+
+/*
+ * 数据集弹窗的选项由 Radix 挂到页面根节点，显式沿用通用选择器层级，避免普通下拉样式覆盖该层级后被弹窗挡住。
+ */
+.vq-select-content.vq-dataset-dialog-select {
+    z-index: 3000;
+}
+
+.vq-resources[data-console] .vq-library-toolbar {
+    gap: 8px 12px;
+}
+
+.vq-resources .vq-library-table {
+    overflow: visible;
+    border: 0;
+}
+
+.vq-resource-filters,
+.vq-resource-filters > label {
+    display: flex;
+    align-items: center;
+    gap: 8px 12px;
+}
+
+.vq-resource-filters {
+    flex-wrap: wrap;
+}
+
+.vq-resource-filters > label {
+    min-inline-size: 0;
+    white-space: nowrap;
+}
+
+/*
+ * 编辑区按容器宽度调整字段和标题，避免长文字撑开详情页面或抽屉，表格的横向滚动仍限制在自身区域内。
+ */
+.vq-resource-editor[data-console] {
+    container-type: inline-size;
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
+}
+
+.vq-resource-editor[data-console] .vq-resource-editor-heading {
+    align-items: baseline;
+}
+
+.vq-resource-editor[data-console] .vq-section h3 {
+    font-size: calc(16px - var(--vq-font-reduction, 0px));
+}
+
+/*
+ * 独立数据集详情为传统滚动条留出稳定宽度，避免长表单切换为整屏源码时整个页面横向移动。
+ * 在正文上设置滚动方式，结果弹窗仍可使用共享的正文滚动锁。
+ */
+body:has(.vq-resource-editor[data-standalone]) {
+    overflow-y: scroll;
+}
+/*
+ * 修订区与页签只使用页签自身的起始间距，表单的块布局与源码的弹性布局都会得到同样的垂直位置。
+ */
+.vq-resource-editor[data-standalone] > .vq-resource-editor-heading {
+    margin-block-end: 0;
+}
+
+/*
+ * 源码工具栏仅在独立详情的当前源码页签出现，沿可见内容层分配余下高度，面包屑和草稿提示仍随内容占用空间。
+ */
+.vq-content:has(.vq-dataset-json-actions) {
+    display: flex;
+    flex-direction: column;
+}
+.vq-content-inner:has(> .panel .vq-dataset-json-actions) {
+    inline-size: 100%;
+}
+.vq-content-inner:has(> .panel .vq-dataset-json-actions),
+.vq-content-inner > .panel:has(.vq-dataset-json-actions),
+.vq-content-inner > .panel:has(.vq-dataset-json-actions) > .vq-resources,
+.vq-resource-editor[data-standalone]:has(.vq-dataset-json-actions),
+.vq-resource-editor[data-standalone] > .vq-dataset-panels:has(.vq-dataset-json-actions),
+.vq-dataset-panels > [role="tabpanel"]:has(.vq-dataset-json-actions),
+[role="tabpanel"]:has(.vq-dataset-json-actions) > .vq-editor-fields,
+[role="tabpanel"]:has(.vq-dataset-json-actions) :is(.vq-monaco-field, .vq-monaco-frame) {
+    display: flex;
+    flex: 1 0 auto;
+    flex-direction: column;
+}
+/*
+ * 源码框共享一个边框，底部操作占用独立空间，滚动条和 Monaco 文本区都留在编辑器宿主内部。
+ */
+.vq-resource-editor[data-standalone] .vq-monaco-frame {
+    min-inline-size: 0;
+    border: 1px solid var(--vq-border);
+}
+.vq-resource-editor[data-standalone] .vq-monaco-frame > .vq-monaco {
+    block-size: 0;
+    min-block-size: 12rem;
+    flex: 1 0 auto;
+    border: 0;
+    margin: 0;
+}
+.vq-dataset-json-tools {
+    display: flex;
+    flex: none;
+    justify-content: flex-end;
+    gap: 4px;
+    padding: 4px 6px;
+    border-block-start: 1px solid var(--vq-border);
+}
+.vq-dataset-json-tools > .vq-btn {
+    inline-size: 30px;
+    block-size: 30px;
+    padding: 0;
+    color: var(--vq-secondary);
+}
+.vq-dataset-json-tools > .vq-btn:enabled:is(:hover, :focus-visible) {
+    background: var(--vq-hover);
+}
+.vq-dataset-json-actions {
+    justify-content: flex-end;
+}
+
+/*
+ * 独立详情的页签面板操作沿用添加行按钮的行高与纵向内边距，表单、导入和 Monaco 内部的控件保留各自尺寸。
+ */
+.vq-resource-editor[data-standalone] .vq-dataset-panels :is(.vq-btn, .vq-button):where(:not(.vq-editor-fields *)) {
+    line-height: 1.5;
+    padding-block: 6px;
+}
+
+.vq-resource-editor[data-console] :is(.vq-fields, .vq-item, .vq-dataset-panels, input, .vq-select-trigger, textarea) {
+    min-inline-size: 0;
+    max-inline-size: 100%;
+}
+
+.vq-resource-copy {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+}
+
+.vq-resource-copy :is(.vq-select-trigger, input) {
+    min-inline-size: 0;
+}
+
+.vq-resource-copy > button[type="submit"] {
+    justify-self: end;
+}
+
+@container (max-width: 28rem) {
+    .vq-resource-editor[data-console] .vq-resource-editor-heading > h2 {
+        flex-basis: 100%;
+    }
+
+    .vq-resource-editor[data-console] .vq-fields {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

@@ -1,0 +1,143 @@
+/*
+ * 认证分区采用 TailAdmin 的纵向标签布局，表单和已保存摘要占据右侧同一列，公共状态覆盖两列。
+ * 未激活的面板保留当前工作区内的草稿，显式隐藏以免名义上不可见的控件仍被其他布局样式展示。
+ */
+.vq-identity-manager {
+    display: grid;
+    grid-template-columns: minmax(180px, max-content) minmax(0, 1fr);
+    align-items: start;
+    gap: 12px 32px;
+}
+.vq-identity-manager > :is(p, [role="alert"]) {
+    grid-column: 1 / -1;
+    min-width: 0;
+}
+.vq-identity-manager > :is([role="alert"], [role="status"]) {
+    margin: 0;
+}
+.vq-identity-manager > [role="status"] {
+    color: var(--vq-muted);
+}
+.vq-identity-manager > [role="tabpanel"][hidden] {
+    display: none;
+}
+.vq-identity-manager > [role="tabpanel"] > .vq-section {
+    min-width: 0;
+    margin: 0;
+    padding: 0 16px 16px;
+    border: 1px solid var(--vq-border);
+    border-radius: 12px;
+    background: var(--vq-surface);
+}
+.vq-identity-manager > [role="tabpanel"] > .vq-section > h3 {
+    margin: 0 -16px 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--vq-border);
+}
+.panel .vq-identity-form {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+    align-items: end;
+    margin: 0 0 12px;
+}
+.vq-identity-form label {
+    min-width: 0;
+}
+.vq-identity-wide,
+.vq-identity-form-actions {
+    grid-column: 1 / -1;
+}
+.vq-identity-form-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+.vq-identity-form-actions button {
+    white-space: normal;
+}
+
+/*
+ * 认证适配器字段在同一行从顶部对齐，使下拉框及输入框不会因字段说明长短不同而上下错位。
+ * 弹层沿用管理台 Default Dropdown 的边框和阴影，限定在本次启用该外观的选择框上。
+ * 凭证目标使用两列，类型与凭证值使用三列；令牌占据右侧两列，账号和密码各占一列。
+ */
+.panel .vq-auth-adapter-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+}
+.vq-credential-targets,
+.vq-credential-values {
+    display: grid;
+    grid-column: 1 / -1;
+    align-items: start;
+    column-gap: inherit;
+}
+.vq-credential-targets {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.vq-credential-values {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.vq-credential-token-field {
+    grid-column: 2 / -1;
+}
+.vq-auth-adapter-form > div:not(.vq-identity-form-actions),
+.vq-credential-target-field {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+}
+:is(.vq-auth-adapter-form, .vq-credential-target-field) .vq-select-trigger[data-appearance="default-dropdown"] {
+    width: 100%;
+}
+.vq-credential-target-field .vq-select-trigger > span:first-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+/*
+ * 适配器和凭证共用管理台表头与分隔线，表格中保留紧凑的单元格边距，长版本标识由外层滚动区容纳。
+ */
+.vq-identity-table :is(th, td) {
+    padding: 10px;
+}
+:is(.vq-identity-table, .vq-identity-details) .vq-state[data-status="ACTIVE"] {
+    color: var(--vq-brand);
+    background: var(--vq-brand-soft);
+}
+.vq-identity-actions {
+    display: flex;
+    gap: 4px;
+}
+.vq-identity-actions button {
+    margin: 0;
+    white-space: nowrap;
+}
+.vq-dialog.vq-identity-details-dialog {
+    width: min(560px, calc(100vw - 32px));
+}
+.vq-dialog.vq-credential-revoke-dialog {
+    width: min(460px, calc(100vw - 32px));
+}
+.vq-workspace-meta.vq-revocation-target {
+    margin-top: 12px;
+}
+.vq-identity-version {
+    white-space: nowrap;
+}
+/*
+ * 详情两列保留较小值字体，通过字段之间的独立间距分隔较长的配置；只有版本号禁止断行，其他内容可以换行。
+ */
+.vq-identity-details {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 10px 12px;
+    margin: 12px 0 0;
+}
+.vq-identity-details dd {
+    min-width: 0;
+    margin: 0;
+    font-size: calc(13px - var(--vq-font-reduction, 0px));
+    overflow-wrap: anywhere;
+}
+.vq-identity-details dd code {
+    font-size: inherit;
+}

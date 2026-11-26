@@ -1,0 +1,158 @@
+/*
+ * 数据表格由工具栏、可横向滚动的数据区和页脚组成。单元格及业务行操作保留所在视图的字号和列宽配置。
+ * 工具栏与页脚在小容器内自然换行，操作始终在滚动区外，避免抽屉内需要横向拖动才能触达工具。
+ */
+.vq-data-table {
+    --vq-table-control-height: 34px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    border: 1px solid var(--vq-border);
+    border-radius: 10px;
+    background: var(--vq-surface, var(--vq-text-input-background));
+}
+
+.vq-data-table-toolbar,
+.vq-data-table-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    min-inline-size: 0;
+    gap: 8px 12px;
+    padding: 10px 12px;
+    font-size: var(--vq-console-text-size, 12px);
+}
+
+.vq-data-table-toolbar {
+    border-block-end: 1px solid var(--vq-border);
+}
+
+.vq-data-table-footer {
+    border-block-start: 1px solid var(--vq-border);
+}
+
+.vq-data-table-size,
+.vq-data-table-controls {
+    display: flex;
+    align-items: center;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    gap: 8px;
+}
+
+.vq-data-table-size {
+    white-space: nowrap;
+}
+
+.vq-data-table-controls {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    margin-inline-start: auto;
+}
+
+.vq-data-table .vq-data-table-download {
+    min-block-size: var(--vq-table-control-height);
+    margin: 0;
+    border-radius: 8px;
+    font-size: inherit;
+}
+
+.vq-data-table .vq-data-table-download {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    gap: 6px;
+    padding: 4px 10px;
+    border-color: var(--vq-border);
+    background-color: var(--vq-surface, var(--vq-text-input-background));
+    color: var(--vq-secondary, var(--vq-brand-text));
+    white-space: nowrap;
+}
+
+.vq-data-table .vq-data-table-download:hover:where(:not(:disabled, :focus-visible)) {
+    background-color: var(--vq-hover, var(--vq-brand-soft));
+}
+
+.vq-data-table .vq-data-table-download:disabled {
+    cursor: default;
+}
+
+.vq-data-table-controls .vq-user-search {
+    display: flex;
+    align-items: center;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    block-size: var(--vq-table-control-height);
+    gap: 8px;
+    padding-inline: 10px;
+    border: 1px solid var(--vq-border);
+    border-radius: 8px;
+    background-color: var(--vq-text-input-background);
+    color: var(--vq-muted, var(--vq-brand-text));
+}
+
+.vq-data-table-controls .vq-user-search svg {
+    flex: none;
+}
+
+.vq-data-table-controls .vq-user-search input {
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    inline-size: 190px;
+    min-block-size: 0;
+    padding: 0;
+    border: 0;
+    font-size: inherit;
+}
+
+.vq-data-table-filters {
+    min-inline-size: 0;
+    padding: 0 12px 10px;
+    border-block-end: 1px solid var(--vq-border);
+}
+
+.vq-data-table > .table-scroll {
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+}
+
+.vq-data-table > .table-scroll > table {
+    border: 0;
+    border-radius: 0;
+}
+
+.vq-data-table > .table-scroll > table th,
+.vq-data-table > .table-scroll > table td {
+    border-color: var(--vq-border);
+}
+
+.vq-data-table > .table-scroll > table thead th {
+    border-block-start: 0;
+    background: var(--vq-rail, var(--vq-brand-soft));
+}
+
+.vq-data-table > .table-scroll > table tbody tr:last-child td {
+    border-block-end: 0;
+}
+
+.vq-data-table-count {
+    color: var(--vq-muted, var(--vq-brand-text));
+}
+
+.vq-data-table-footer .vq-pagination {
+    justify-content: flex-end;
+    gap: 4px;
+    margin: 0 0 0 auto;
+}
+
+.vq-data-table-footer .vq-pagination button {
+    margin: 0;
+}
+
+.vq-data-table-footer .vq-pagination button:not(.vq-page) {
+    border: 1px solid var(--vq-border);
+}
