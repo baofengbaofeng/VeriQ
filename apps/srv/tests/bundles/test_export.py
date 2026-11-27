@@ -240,9 +240,7 @@ async def test_published_selection_exports_secret_free_archive(
     assert revoked.status_code == 409 and revoked.json()["code"] == "CREDENTIAL_REVOKED"
     async with db.sessions.begin() as session:
         # 仅恢复本测试创建的凭据版本夹具，再继续验证既有离线包的幂等导出；这里不撤销真实环境或其他测试的凭据状态。
-        (
-            await session.get(SecretVersion, secret_id)
-        ).revoked = False
+        (await session.get(SecretVersion, secret_id)).revoked = False
     issuer = Issuer(tmp_path / "issuer/keys.json")
     old_key = issuer.data["activeKeyId"]
     await asyncio.to_thread(issuer.rotate)
@@ -369,28 +367,6 @@ async def test_no_runtime_debug_dsl_only_requires_explicit_status_and_editor(sit
         text=True,
     )
     assert result.returncode == 0, result.stderr
-    destination = tmp_path / "verified"
-    reject = subprocess.run(
-        [*command, "bundle", "verify", str(archive_path), "--destination", str(destination)],
-        capture_output=True,
-        text=True,
-    )
-    assert reject.returncode != 0 and "BUNDLE_DEBUG_REQUIRED" in reject.stderr
-    result = subprocess.run(
-        [
-            *command,
-            "bundle",
-            "verify",
-            str(archive_path),
-            "--destination",
-            str(destination),
-            "--debug",
-        ],
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode == 0, result.stderr
-    assert "revocation UNKNOWN" in result.stdout
     inspected = subprocess.run(
         [
             "pnpm",

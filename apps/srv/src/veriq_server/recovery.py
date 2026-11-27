@@ -17,7 +17,8 @@ from sqlalchemy import MetaData, select, text, func, and_, exists
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from . import __version__
-from .db import Base, Database
+from .db import Base, Database, Installation
+from .file_volume import check_volume
 from .handlers.static import load_published_site
 from .migrate import _migration_lock_name
 from .readiness import packaged_heads
@@ -168,6 +169,11 @@ async def backup(
     async with maintenance_connection(db, freeze=True) as connection:
         metadata = await installed_tables(connection)
         await require_quiescent(connection, metadata)
+        volume = await connection.scalar(
+            select(Installation.file_volume_id).where(Installation.id == 1)
+        )
+        if volume:
+            check_volume(artifact_root, volume)
         tables = {}
         for name, table in metadata.tables.items():
             path = destination / "tables" / (name + ".jsonl")

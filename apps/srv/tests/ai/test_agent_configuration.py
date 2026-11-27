@@ -79,9 +79,8 @@ def test_resource_preview_rejects_protected_data_instead_of_mutating_the_draft()
         "proposal": {"type": "SAVE_RESOURCE_DRAFT", "resource": dataset},
     }
     assert sanitize_proposal_output(proposed, {"test-private-provider-key"}) == proposed
-    dataset["content"]["document"]["source"]["rows"][0]["values"][
-        "name"
-    ] = "test-private-provider-key"
+    row = dataset["content"]["document"]["source"]["rows"][0]
+    row["values"]["name"] = "test-private-provider-key"
     with pytest.raises(Problem) as rejected:
         sanitize_proposal_output(proposed, {"test-private-provider-key"})
     assert rejected.value.code == "AGENT_RESOURCE_INVALID"
@@ -250,9 +249,8 @@ async def test_streamed_configuration_discovery_proposes_but_does_not_save(site)
     ws = await workspace(c, "stream-agent-config")
     resources = f"/api/v1/workspaces/{ws}/resources"
     existing = _dataset()
-    existing["content"]["document"]["source"]["rows"][0]["values"][
-        "name"
-    ] = "private-unselected-row-value"
+    row = existing["content"]["document"]["source"]["rows"][0]
+    row["values"]["name"] = "private-unselected-row-value"
     response = await c.post(resources, json=existing)
     assert response.is_success, response.text
     rid = response.json()["data"]["id"]

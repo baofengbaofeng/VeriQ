@@ -22,8 +22,8 @@ async def begin(c, **extra):
     return r.json()["data"]
 
 
-async def enroll(c, ws, *, private=True, users=None):
-    device = await begin(c)
+async def enroll(c, ws, *, private=True, users=None, capabilities=None):
+    device = await begin(c, capabilities=CAPABILITIES if capabilities is None else capabilities)
     approved = await c.post(
         f"/api/v1/runtime-enrollments/{device['id']}/approve",
         json={

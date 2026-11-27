@@ -340,9 +340,11 @@ async def test_managed_real_compilation_finishes_once_and_can_publish(site, tmp_
     wrong_source_hash = await upload(c, d, claim, wrong_source, "wrong-source.json")
     wrong_bundle = json.loads((output / "bundle.json").read_bytes())
     wrong_bundle["files"] = [
-        {**file, "sha256": wrong_source_hash, "sizeBytes": len(wrong_source)}
-        if file["path"] == "source/asset-snapshot.json"
-        else file
+        (
+            {**file, "sha256": wrong_source_hash, "sizeBytes": len(wrong_source)}
+            if file["path"] == "source/asset-snapshot.json"
+            else file
+        )
         for file in wrong_bundle["files"]
     ]
     wrong_bundle_hash = await upload(
@@ -361,9 +363,8 @@ async def test_managed_real_compilation_finishes_once_and_can_publish(site, tmp_
         json={**finish, "manifestSha256": wrong_completion_hash},
         headers=auth(d),
     )
-    assert rejected.status_code == 409 and rejected.json()["code"] == "INVALID_COMPILED_SOURCE", (
-        rejected.text
-    )
+    assert rejected.status_code == 409, rejected.text
+    assert rejected.json()["code"] == "INVALID_COMPILED_SOURCE", rejected.text
     result = await c.post(endpoint + "/finish", json=finish, headers=auth(d))
     assert result.status_code == 200, result.text
     assert result.json()["data"]["outcome"] == "PASSED"

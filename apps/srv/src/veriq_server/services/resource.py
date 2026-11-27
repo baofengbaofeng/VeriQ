@@ -545,9 +545,11 @@ class ResourceService:
         entries = (
             [root_id]
             if resource.kind == "CASE"
-            else sorted({c["versionId"] for c in draft.document_json["document"]["cases"]})
-            if resource.kind == "SUITE"
-            else []
+            else (
+                sorted({c["versionId"] for c in draft.document_json["document"]["cases"]})
+                if resource.kind == "SUITE"
+                else []
+            )
         )
         snapshot = {
             "schemaVersion": "1.0",

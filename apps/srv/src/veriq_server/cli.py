@@ -22,6 +22,8 @@ from tornado.httpserver import HTTPServer
 from .app import make_app
 from .handlers.base import MAX_HTTP_BODY_BYTES
 from .db import Database
+from .file_volume import check_volume
+from .services.artifact import bind_volume
 from .migrate import migrate
 from .service import Problem, digest, initialize, lock_installation
 from .settings import Settings, load_settings, resolve_settings_values, operator_config_values
@@ -139,6 +141,19 @@ async def run(args: argparse.Namespace) -> None:
         return
     db = Database(settings)
     try:
+        if args.command == "bind-file-volume" or (
+            args.command == "serve" and settings.artifact_backend == "FILE"
+        ):
+            root = Path(settings.artifact_directory)
+            async with db.sessions.begin() as session:
+                installation = await lock_installation(session)
+                volume_id = await bind_volume(
+                    session, installation, root, adopt=args.command == "bind-file-volume"
+                )
+                await asyncio.to_thread(check_volume, root, volume_id)
+            if args.command == "bind-file-volume":
+                print("Verified the registered FILE artifact volume.")
+                return
         if args.command == "backup":
             from .recovery import backup
 
@@ -263,6 +278,9 @@ def main() -> None:
     sub.add_parser("migrate")
     sub.add_parser("serve")
     sub.add_parser("doctor")
+    sub.add_parser(
+        "bind-file-volume", help="Verify historical FILE evidence and bind its original volume"
+    )
     worker = sub.add_parser("compile-worker", help="Process trusted server-side validation jobs")
     worker.add_argument("--once", action="store_true", help="Process at most one validation job")
     backup_parser = sub.add_parser(

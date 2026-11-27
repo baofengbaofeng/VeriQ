@@ -37,7 +37,7 @@ from ..settings import Settings
 from .workspace import WorkspaceRepository
 from .execution_principal import ServicePrincipal
 from .runs import run_dto
-from .gate import gate, current_gate
+from .gate import ReportAuthorities, gate, current_gate, report_authorities
 from .artifact import listed_offline_artifact
 
 SENSITIVE = {
@@ -135,7 +135,10 @@ class ReportService:
 
         Trace。
         """
-        run = await self.run(scope, run_id)
+        return await self._attempts(await self.run(scope, run_id))
+
+    async def _attempts(self, run: Run) -> list[Attempt | OfflineAttempt]:
+        """按照已授权运行的来源读取在线或离线尝试，使用稳定标识排序以保持事件游标与报告内的尝试对应。"""
         if run.source == "OFFLINE_IMPORT":
             return list(
                 (
@@ -143,8 +146,8 @@ class ReportService:
                         select(OfflineAttempt)
                         .join(OfflineImport, OfflineImport.id == OfflineAttempt.import_id)
                         .where(
-                            OfflineAttempt.workspace_id == scope.workspace_id,
-                            OfflineImport.run_id == run_id,
+                            OfflineAttempt.workspace_id == run.workspace_id,
+                            OfflineImport.run_id == run.id,
                         )
                         .order_by(OfflineAttempt.id)
                         .limit(2001)
@@ -157,8 +160,8 @@ class ReportService:
                     select(Attempt)
                     .join(Job, Job.id == Attempt.job_id)
                     .where(
-                        Job.workspace_id == scope.workspace_id,
-                        Job.run_id == run_id,
+                        Job.workspace_id == run.workspace_id,
+                        Job.run_id == run.id,
                         Job.kind == "TEST",
                     )
                     .order_by(Attempt.id)
@@ -167,12 +170,14 @@ class ReportService:
             ).scalars()
         )
 
-    async def get(self, scope: WorkspaceScope, run_id: str) -> dict[str, Any]:
-        """构建 Run 级报告摘要，包含聚合结果与门禁信息，ReportService.get 遵守本文件边界，失败返回稳定 Problem。get
-        处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载
-
-        Trace。
-        """
+    async def get(
+        self,
+        scope: WorkspaceScope,
+        run_id: str,
+        *,
+        authorities: ReportAuthorities | None = None,
+    ) -> dict[str, Any]:
+        """重新核验当前主体对运行的访问权，流订阅可复用本轮一致读验证的设备门禁来组装同一份报告。"""
         run = await self.run(scope, run_id)
         if run.source == "OFFLINE_IMPORT":
             return await self.offline_report(scope, run)
@@ -189,7 +194,7 @@ class ReportService:
                 )
             ).scalars()
         )
-        attempts = [a for a in await self.attempts(scope, run_id) if isinstance(a, Attempt)]
+        attempts = [a for a in await self._attempts(run) if isinstance(a, Attempt)]
         if any(case.provenance.get("metadataExpiredAt") for case in cases) or any(
             attempt.facts.get("metadataExpiredAt") for attempt in attempts
         ):
@@ -203,7 +208,19 @@ class ReportService:
                 )
             ).scalars()
         )
-        by_case = {job.id: job.case_execution_id for job in jobs}
+        jobs_by_id = {job.id: job for job in jobs}
+        if authorities is None:
+            authorities = await report_authorities(
+                self.session,
+                scope.workspace_id,
+                {
+                    (a.job_id, a.runtime_id): (
+                        jobs_by_id[a.job_id].created_by,
+                        jobs_by_id[a.job_id].requester_service_token_id,
+                    )
+                    for a in attempts
+                },
+            )
         cleanup_rows = list(
             (
                 await self.session.execute(
@@ -225,7 +242,7 @@ class ReportService:
         execution_gates, current_gates = [], []
         for attempt in attempts:
             at_execution = gate(attempt.outcome, attempt.execution_provenance)
-            current = await current_gate(self.session, attempt)
+            current = current_gate(attempt, authorities[(attempt.job_id, attempt.runtime_id)])
             execution_gates.append(at_execution)
             current_gates.append(current)
             facts = {
@@ -244,7 +261,7 @@ class ReportService:
                     "processStopScope",
                 }
             }
-            case_id = by_case[attempt.job_id]
+            case_id = jobs_by_id[attempt.job_id].case_execution_id
             assert case_id is not None
             projected[case_id].append(
                 {

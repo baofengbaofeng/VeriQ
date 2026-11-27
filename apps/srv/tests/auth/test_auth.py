@@ -464,9 +464,9 @@ async def test_production_https_browser_uses_built_frontend(site, static_package
     # 若构建未执行应明确失败，不能自动调用发行流水线或默默跳过浏览器验收。复制目的地仅为此测试的 tmp_path 包目录。已有
     # source/static/dist 不会被创建或清理。
     built = Path("apps/web/dist")
-    assert (built / ".vite/manifest.json").is_file(), (
-        "Run pnpm --filter @veriq/web build before production browser tests"
-    )
+    manifest_path = built / ".vite/manifest.json"
+    build_hint = "Run pnpm --filter @veriq/web build before production browser tests"
+    assert manifest_path.is_file(), build_hint
     shutil.rmtree(static_package)
     shutil.copytree(built, static_package)
     # 测试库存只为观察服务端完整性门禁准备输入，逐个文件读取精确内容并记录稳定的相对路径；正式库存 writer、

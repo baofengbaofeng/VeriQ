@@ -14,6 +14,7 @@ from test_conversational_agent import conversation, submit
 from veriq_server.db import AgentTurn
 from veriq_server.service import now
 
+
 async def test_automatic_title_tracks_topics_but_preserves_followup_context(site):
     """新会话随两次独立主题更新，简短的认可不会挤掉已有主题，且所有自动命名都复用正常模型调用。"""
     client, _ = site

@@ -1,4 +1,5 @@
 # 打包测试从认证套件加载站点夹具，沿用重建专用 MySQL 测试库时的表检查和真实 HTTP 入口。
+import json
 import sys
 import shutil
 import pytest
@@ -24,6 +25,20 @@ def clean_task_archives(tmp_path):
 def bundle_issuer(monkeypatch, tmp_path):
     from veriq_server.bundles.issuer import Issuer
     from veriq_server.app import handler_for, make_app
+
+    from veriq_server.validation import api_document
+
+    # 历史 HTTP 夹具同时校验线上读响应和退役操作；共用路径上的 GET 与 POST 各保留原方法。
+    live = api_document()
+    fixture_path = (
+        Path(__file__).resolve().parents[4] / "packages/contracts/openapi/offline-fixtures.json"
+    )
+    fixture_paths = dict(live["paths"])
+    for path, operations in json.loads(fixture_path.read_text())["paths"].items():
+        fixture_paths[path] = {**fixture_paths.get(path, {}), **operations}
+    monkeypatch.setitem(
+        site.__wrapped__.__globals__, "api_document", lambda: {**live, "paths": fixture_paths}
+    )
 
     issuer_path = tmp_path / "issuer" / "keys.json"
     Issuer.initialize(issuer_path)

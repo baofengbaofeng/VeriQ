@@ -160,11 +160,31 @@ def test_resolve_settings_reads_every_declared_environment_field(tmp_path, monke
     以模型公开字段集合核对原始配置合并行为，覆盖结构化环境值、未知环境键和只读输入文件。
     """
     path = tmp_path / "all-fields.json"
-    original = b'{"port":8001,"public_url":"https://file.example.com"}\n'
+    original = json.dumps(
+        {
+            "port": 8001,
+            "public_url": "https://file.example.com",
+            "server_compiler_release_dirs": {"0.1.0": "/file/engine"},
+            "dataset_connections": {},
+        }
+    ).encode()
     path.write_bytes(original)
     expected = {key: f"from-env-{key}" for key in dict(Settings.model_fields)}
-    expected["previous_master_keys"] = {"older": "raw-key"}
+    expected["previous_master_keys"] = {"older": "a" * 64}
     expected["ai_allowed_base_urls"] = ["https://allowed.example.com"]
+    expected["server_compiler_release_dirs"] = {"0.1.0": "/opt/veriq/engines/0.1.0"}
+    expected["dataset_connections"] = {
+        "orders": {
+            "workspace_id": "workspace",
+            "environment_version_id": "environment",
+            "origin": "https://data.example.com",
+            "address": "10.0.1.2",
+            "allow_private": True,
+            "routes": {"/orders": ["GET"]},
+            "user_ids": ["reader"],
+            "identity_id": "reader",
+        }
+    }
     for key, value in expected.items():
         monkeypatch.setenv(
             "VERIQ_" + key.upper(), value if isinstance(value, str) else json.dumps(value)
@@ -172,7 +192,20 @@ def test_resolve_settings_reads_every_declared_environment_field(tmp_path, monke
     monkeypatch.setenv("VERIQ_UNKNOWN_SETTINGS_FIELD", "ignored")
     actual = veriq_server.settings.resolve_settings_values(path, {"port": 8003, "public_url": None})
     assert actual == {**expected, "port": 8003}
+    overrides = {"server_compiler_release_dirs": {}, "dataset_connections": {}}
+    assert veriq_server.settings.resolve_settings_values(path, overrides) == {
+        **expected,
+        **overrides,
+    }
     assert path.read_bytes() == original
+
+
+@pytest.mark.parametrize("field", ["dataset_connections", "server_compiler_release_dirs"])
+def test_structured_environment_rejects_invalid_json(tmp_path, monkeypatch, field):
+    """环境变量携带结构化配置时必须给出完整的 JSON，语法错误应在合并阶段直接失败并保留原文件。"""
+    monkeypatch.setenv("VERIQ_" + field.upper(), "{")
+    with pytest.raises(json.JSONDecodeError):
+        veriq_server.settings.resolve_settings_values(tmp_path / "missing.json")
 
 
 @pytest.mark.parametrize("resumed", [False, True])

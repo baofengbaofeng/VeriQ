@@ -4,9 +4,11 @@ from typing import Any
 
 from jsonschema import ValidationError
 from sqlalchemy import or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..auth.authorization import WorkspaceScope
 from ..contracts import _schema, canonical_bytes
-from ..db import Resource, ResourceDraft, ResourceVersion
+from ..db import User, Resource, ResourceDraft, ResourceVersion
 from ..repositories.resource import ResourceRepository
 from ..service import Problem
 from ..validation import validate_api
@@ -30,12 +32,14 @@ def _invalid() -> Problem:
 
 def _source_allowed(content: dict[str, Any]) -> bool:
     """连接数据集含凭据及端点，其他文档中敏感字段也可能承载原始业务数据，所以由资源编辑器单独处理。"""
-    return (
+    return bool(
         content["document"].get("source", {}).get("kind") != "HTTP" and sanitize(content) == content
     )
 
 
-async def _require_references(s, scope, content):
+async def _require_references(
+    s: AsyncSession, scope: WorkspaceScope, content: dict[str, Any]
+) -> None:
     """一次查询校验文档中的直接依赖均为当前空间的活动发布版本，既有发布流程仍负责递归冻结及编译。"""
     references = asset_references(content)
     if not references:
@@ -57,7 +61,7 @@ async def _require_references(s, scope, content):
         )
 
 
-def _candidate_ids(context):
+def _candidate_ids(context: dict[str, Any]) -> tuple[set[str], set[str]]:
     """仅用已投影的资源元数据和员工主动点名的标识确认选择，其他轮次留存全文不能扩大供应商的候选范围。"""
     explicit = {match.lower() for match in UUID_IN_TEXT.findall(context.get("request", ""))}
     catalog = context.get("configurationCatalog", {})
@@ -69,7 +73,7 @@ def _candidate_ids(context):
     )
 
 
-def _draft_projection(content: dict[str, Any]) -> dict:
+def _draft_projection(content: dict[str, Any]) -> dict[str, Any]:
     """精确查找只投影配置结构，套件成员可完整分享；数据表行值、用例参数和其他草稿字段仍留在领域服务。"""
     kind, doc = content["kind"], content["document"]
     if kind == "SUITE" and len(canonical_bytes(content)) <= MAX_DRAFT_PROJECTION_BYTES:
@@ -79,7 +83,7 @@ def _draft_projection(content: dict[str, Any]) -> dict:
         rows = doc.get("source", {}).get("rows", doc.get("rows", []))
         return {
             "shape": doc.get("shape", "TABLE"),
-            "fields": dict(list(fields.items())[:16]),
+            "fields": dict[str, Any](list(fields.items())[:16]),
             "rowCount": len(rows),
         }
     if kind in {"CASE", "FLOW"}:
@@ -89,7 +93,9 @@ def _draft_projection(content: dict[str, Any]) -> dict:
     return {}
 
 
-async def _exact_draft_projection(s, scope, rid, context, protected):
+async def _exact_draft_projection(
+    s: AsyncSession, scope: WorkspaceScope, rid: str, context: dict[str, Any], protected: set[str]
+) -> dict[str, Any]:
     """单个草稿即使匹配查找目标，也只在范围、数据类型和保护值检查通过时向当前模型投递有界的结构。"""
     content = (await ResourceRepository(s, scope).draft(rid)).document_json
     if not _source_allowed(content) or sanitize(content, protected) != content:
@@ -105,7 +111,13 @@ async def _exact_draft_projection(s, scope, rid, context, protected):
     return projection
 
 
-async def find_configuration(s, scope, arguments, context, protected):
+async def find_configuration(
+    s: AsyncSession,
+    scope: WorkspaceScope,
+    arguments: dict[str, Any],
+    context: dict[str, Any],
+    protected: set[str],
+) -> dict[str, Any]:
     """按空间与类型查找有界配置元数据；只记住实际提供给模型的资源及版本，避免用截掉候选准备后续草稿。"""
     query = (
         select(
@@ -146,7 +158,7 @@ async def find_configuration(s, scope, arguments, context, protected):
     filtered = sanitize({"items": items}, protected)
     if not isinstance(filtered, dict):
         return {"items": []}
-    result = {
+    result: dict[str, Any] = {
         "items": [
             item
             for item in filtered["items"]
@@ -163,7 +175,13 @@ async def find_configuration(s, scope, arguments, context, protected):
     return result
 
 
-async def prepare_resource_draft(s, scope, user, value, context=None):
+async def prepare_resource_draft(
+    s: AsyncSession,
+    scope: WorkspaceScope,
+    user: User,
+    value: object,
+    context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """审阅时验证完整替换内容及当前修订，确认时同一事务再次检查修订、资源状态和依赖后才允许写入。"""
     if not isinstance(value, dict) or value.get("type") != RESOURCE_ACTION:
         raise _invalid()
@@ -204,7 +222,9 @@ async def prepare_resource_draft(s, scope, user, value, context=None):
     return value
 
 
-async def save_resource_draft(s, scope, user, action):
+async def save_resource_draft(
+    s: AsyncSession, scope: WorkspaceScope, user: User, action: dict[str, Any]
+) -> dict[str, Any]:
     """已确认配置复用编辑器写入校验及审计，返回持久资源标识与新修订，回执由同一轮次事务保存以阻止重复写入。"""
     proposal = await prepare_resource_draft(s, scope, user, action)
     resource = proposal["resource"]

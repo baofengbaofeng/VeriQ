@@ -60,6 +60,7 @@ class Installation(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     initialized: Mapped[bool] = mapped_column(Boolean, default=False)
     setup_secret_hash: Mapped[str | None] = mapped_column(hash_type)
+    file_volume_id: Mapped[str | None] = mapped_column(String(36))
 
 
 class User(Base):
@@ -1227,7 +1228,9 @@ class AgentSession(Base):
 
     __tablename__ = "veriq_agent_sessions"
     __table_args__ = (
-        Index("ix_agent_session_history", "workspace_id", "user_id", "archived", "created_at", "id"),
+        Index(
+            "ix_agent_session_history", "workspace_id", "user_id", "archived", "created_at", "id"
+        ),
     )
     id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
     workspace_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_workspaces.id"))
@@ -1249,7 +1252,9 @@ class AgentTurn(Base):
     __table_args__ = (
         UniqueConstraint("session_id", "request_id", name="uq_agent_turn_request"),
         Index("ix_agent_turn_history", "session_id", "created_at", "id"),
-        CheckConstraint("status IN ('RUNNING', 'COMPLETED', 'FAILED')", name="ck_agent_turn_status"),
+        CheckConstraint(
+            "status IN ('RUNNING', 'COMPLETED', 'FAILED')", name="ck_agent_turn_status"
+        ),
         CheckConstraint(
             "(provider_id IS NULL) = (provider_revision IS NULL)", name="ck_agent_turn_provider"
         ),

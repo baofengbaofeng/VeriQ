@@ -291,9 +291,9 @@ async def test_actual_offline_browser_result_uploads_to_enrolled_mysql_import(
             json={
                 **selection,
                 "environmentVersionId": environment,
-                "validationStatus": "UNVALIDATED_DEBUG"
-                if scenario == "draft_suite"
-                else "VALIDATED",
+                "validationStatus": (
+                    "UNVALIDATED_DEBUG" if scenario == "draft_suite" else "VALIDATED"
+                ),
             },
             headers={"Idempotency-Key": str(uuid4())},
             timeout=60,
@@ -402,9 +402,8 @@ async def test_actual_offline_browser_result_uploads_to_enrolled_mysql_import(
         assert report_response.status_code == 200, report_response.text
         report = report_response.json()["data"]
         assert report["run"]["source"] == "OFFLINE_IMPORT"
-        assert report["run"]["outcome"] == ("PASSED" if scenario == "single" else "INCOMPLETE"), (
-            report
-        )
+        expected_outcome = "PASSED" if scenario == "single" else "INCOMPLETE"
+        assert report["run"]["outcome"] == expected_outcome, report
         if scenario == "matrix":
             assert report["statistics"]["caseCount"] == 2
             assert sum(not case["attempts"] for case in report["cases"]) == 1

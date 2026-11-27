@@ -280,3 +280,137 @@ test("CLI status prints fixed English disk and scratch guidance through the nonc
         await close();
     }
 });
+
+test("an interrupted claim publication leaves no partial request to replay", async (t) => {
+    const fs = await import("node:fs/promises");
+    const { syncBuiltinESMExports } = await import("node:module");
+    const { claimLoop } = await import("../src/agent/claim-loop.ts");
+    const directory = await mkdtemp(join(tmpdir(), "vq-claim-publish-"));
+    t.after(() => rm(directory, { recursive: true, force: true }));
+    const options = {
+        root: directory,
+        runnerId: "11111111-1111-4111-8111-111111111111",
+        capabilities: { engineVersion: "1.0.0", os: "linux", arch: "x64", browsers: ["chromium"] },
+        client: { request: async () => assert.fail("request sent before publication") },
+        supervisor: { recover: async () => [], checkStorageAdmission: async () => undefined },
+        signal: new AbortController().signal,
+        once: true,
+    } as unknown as Parameters<typeof claimLoop>[0];
+    const original = fs.default.writeFile;
+    t.mock.method(fs.default, "writeFile", async (path: string, _value: unknown, flags: object) => {
+        await original(path, "{", flags);
+        throw new Error("INTERRUPTED");
+    });
+    syncBuiltinESMExports();
+    try {
+        await assert.rejects(claimLoop(options), /INTERRUPTED/);
+        await assert.rejects(fs.readFile(join(directory, "claim-request.json")), { code: "ENOENT" });
+    } finally {
+        t.mock.restoreAll();
+        syncBuiltinESMExports();
+    }
+});
+
+test("a new device preserves the previous device's pending request and claims with its own ID", async (t) => {
+    const { writeFile, readdir, readFile } = await import("node:fs/promises");
+    const { claimLoop } = await import("../src/agent/claim-loop.ts");
+    const root = await mkdtemp(join(tmpdir(), "vq-principal-pending-"));
+    t.after(() => rm(root, { recursive: true, force: true }));
+    const capabilities = { engineVersion: "1.0.0", os: "linux", arch: "x64", browsers: ["chromium"] } as const;
+    const previous = {
+        runnerId: "11111111-1111-4111-8111-111111111111",
+        clientRequestId: "22222222-2222-4222-8222-222222222222",
+        capabilities,
+        availableSlots: 1,
+    };
+    await writeFile(join(root, "claim-request.json"), JSON.stringify(previous), { mode: 0o600 });
+    const runnerId = "33333333-3333-4333-8333-333333333333";
+    const client = {
+        request: async (_path: string, _method: string, body: typeof previous) => {
+            assert.equal(body.runnerId, runnerId);
+            assert.notEqual(body.clientRequestId, previous.clientRequestId);
+        },
+    };
+    await claimLoop({
+        root,
+        runnerId,
+        client,
+        capabilities,
+        once: true,
+        signal: new AbortController().signal,
+        supervisor: new ExecutionSupervisor({ root, client, minimumFreeBytes: 1 } as never),
+    } as never);
+    const [saved] = await readdir(join(root, "unresolved-claims"));
+    assert.deepEqual(JSON.parse(await readFile(join(root, "unresolved-claims", saved!), "utf8")), previous);
+});
+
+test("restart replays a newly published request after a lost claim reply", async (t) => {
+    const { readFile } = await import("node:fs/promises");
+    const { claimLoop } = await import("../src/agent/claim-loop.ts");
+    const root = await mkdtemp(join(tmpdir(), "vq-claim-reply-"));
+    t.after(() => rm(root, { recursive: true, force: true }));
+    const requests: unknown[] = [];
+    const options = {
+        root,
+        runnerId: "11111111-1111-4111-8111-111111111111",
+        capabilities: { engineVersion: "1.0.0", os: "linux", arch: "x64", browsers: ["chromium"] },
+        client: {
+            request: async (_path: string, _method: string, body: unknown) => {
+                requests.push(body);
+                if (requests.length === 1) throw new Error("LOST_REPLY");
+            },
+        },
+        supervisor: { recover: async () => [], checkStorageAdmission: async () => undefined },
+        signal: new AbortController().signal,
+        once: true,
+    } as unknown as Parameters<typeof claimLoop>[0];
+    await assert.rejects(claimLoop(options), /LOST_REPLY/);
+    const pending = JSON.parse(await readFile(join(root, "claim-request.json"), "utf8"));
+    assert.equal(pending.runnerId, options.runnerId);
+    assert(pending.clientRequestId);
+    await claimLoop(options);
+    assert.deepEqual(requests, [pending, pending]);
+});
+
+test("a visible pending name cannot reach the server before its directory sync succeeds", async (t) => {
+    const fs = await import("node:fs/promises");
+    const { claimLoop } = await import("../src/agent/claim-loop.ts");
+    const root = await mkdtemp(join(tmpdir(), "vq-pending-sync-"));
+    t.after(() => rm(root, { recursive: true, force: true }));
+    const pending = {
+        runnerId: "11111111-1111-4111-8111-111111111111",
+        clientRequestId: "22222222-2222-4222-8222-222222222222",
+        availableSlots: 1,
+        capabilities: { engineVersion: "1.0.0", os: "linux", arch: "x64", browsers: ["chromium"] },
+    };
+    const bytes = JSON.stringify(pending);
+    const path = join(root, "claim-request.json");
+    await fs.writeFile(path, bytes, { mode: 0o600 });
+    const handle = await fs.open(root, "r");
+    const prototype = Object.getPrototypeOf(handle);
+    await handle.close();
+    const sync = prototype.sync;
+    t.mock.method(prototype, "sync", async function (this: typeof handle) {
+        if ((await this.stat()).isDirectory()) throw new Error("DIRECTORY_SYNC_FAILED");
+        return sync.call(this);
+    });
+    let claimed = false;
+    await assert.rejects(
+        claimLoop({
+            root,
+            runnerId: pending.runnerId,
+            capabilities: pending.capabilities,
+            once: true,
+            client: {
+                request: async () => {
+                    claimed = true;
+                },
+            },
+            supervisor: { recover: async () => [], checkStorageAdmission: async () => undefined },
+            signal: new AbortController().signal,
+        } as never),
+        /DIRECTORY_SYNC_FAILED/,
+    );
+    assert.equal(claimed, false);
+    assert.equal(await fs.readFile(path, "utf8"), bytes);
+});

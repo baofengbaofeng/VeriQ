@@ -39,7 +39,9 @@ class AdminAPI(API):
                 system_admin = boolean_filter(self, "systemAdmin")
                 workspace_id = self.get_query_argument("workspaceId", "")
                 membership = self.get_query_argument("membership", "")
-                roles = [role for role in (self.get_query_argument("role", "") or "").split(",") if role]
+                roles = [
+                    role for role in (self.get_query_argument("role", "") or "").split(",") if role
+                ]
                 page = Page.read(
                     self,
                     {
@@ -86,7 +88,9 @@ class AdminAPI(API):
                     statement = statement.where(
                         or_(User.email > email, and_(User.email == email, User.id > identifier))
                     )
-                rows = (await s.execute(statement.order_by(User.email, User.id).limit(page.limit + 1))).all()
+                rows = (
+                    await s.execute(statement.order_by(User.email, User.id).limit(page.limit + 1))
+                ).all()
                 page_rows = rows[: page.limit]
                 cursor = (
                     page.next((page_rows[-1][0].email, page_rows[-1][0].id), len(rows) > page.limit)

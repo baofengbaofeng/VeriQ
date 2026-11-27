@@ -4,6 +4,7 @@ import re
 from sqlalchemy import and_, or_, select
 from ..auth.authorization import Permission, WorkspaceScope
 from ..datasets.bindings import authorize_dataset
+from ..datasets.policy import DatasetBinding
 from ..datasets.request import fetch_rows, masked_preview, verify_signature
 from ..db import Resource, ResourceVersion, ResourceDependency, ValidationReceipt, Attempt
 from ..contracts import validate_schema
@@ -120,7 +121,12 @@ class ResourceAPI(API):
                 repo = await self.service(s, user).dataset_copy_source(scope, source)
                 page = Page.read(
                     self,
-                    {"list": self.action, "actor": user.id, "workspaceId": workspace_id, "source": source},
+                    {
+                        "list": self.action,
+                        "actor": user.id,
+                        "workspaceId": workspace_id,
+                        "source": source,
+                    },
                     self.config.signing_key.get_secret_value(),
                 )
                 self.respond(await repo.dataset_versions(page))
@@ -267,11 +273,14 @@ class ResourceAPI(API):
                 self.respond(
                     {
                         "items": [version_dto(v) for v in shown_v],
-                        "nextCursor": page.next(
-                            (str(shown_v[-1].version_no), shown_v[-1].id), len(rows_v) > page.limit
-                        )
-                        if shown_v
-                        else None,
+                        "nextCursor": (
+                            page.next(
+                                (str(shown_v[-1].version_no), shown_v[-1].id),
+                                len(rows_v) > page.limit,
+                            )
+                            if shown_v
+                            else None
+                        ),
                     }
                 )
                 return
@@ -328,7 +337,15 @@ class ResourceAPI(API):
                 }
             )
 
-    async def _preview_binding(self, scope, resource_id, doc, *, resolve=False, delivered=False):
+    async def _preview_binding(
+        self,
+        scope: WorkspaceScope,
+        resource_id: str,
+        doc: dict[str, Any],
+        *,
+        resolve: bool = False,
+        delivered: bool = False,
+    ) -> DatasetBinding:
         async with self.db.sessions.begin() as session:
             user, _ = await self.identity(session)
             resource = await self.service(session, user).editable(scope, resource_id)
@@ -381,10 +398,13 @@ class ResourceAPI(API):
                     config, data["arguments"], secret, data["verifySignature"]
                 )
             else:
-                async def recheck():
+
+                async def recheck() -> None:
                     await self._preview_binding(scope, resource_id, doc)
 
-                output = masked_preview(await fetch_rows(config, data["arguments"], secret, recheck=recheck))
+                output = masked_preview(
+                    await fetch_rows(config, data["arguments"], secret, recheck=recheck)
+                )
             await self._preview_binding(scope, resource_id, doc, delivered=True)
             self.set_header("Cache-Control", "no-store")
             self.respond(output)
@@ -439,13 +459,10 @@ class ResourceAPI(API):
             await self.service(s, user).authorize(scope, resource.kind)
             resource.name = data["name"]
             if "archived" in data:
-                resource.status = (
-                    "ARCHIVED"
-                    if data["archived"]
-                    else "PUBLISHED"
-                    if resource.latest_version_id
-                    else "DRAFT"
-                )
+                if data["archived"]:
+                    resource.status = "ARCHIVED"
+                else:
+                    resource.status = "PUBLISHED" if resource.latest_version_id else "DRAFT"
             audit(s, "resource.updated", user.id, resource.id, workspace_id=workspace_id)
             result = resource_dto(resource)
         self.respond(result)

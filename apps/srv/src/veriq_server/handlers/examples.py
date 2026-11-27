@@ -31,5 +31,7 @@ class SampleWorkspaceExampleAPI(API):
         try:
             package = sample_package()
         except (OSError, ValueError, TypeError, AttributeError):
-            raise Problem(503, "SAMPLE_RESOURCES_UNAVAILABLE", "Bundled sample resources are unavailable") from None
+            raise Problem(
+                503, "SAMPLE_RESOURCES_UNAVAILABLE", "Bundled sample resources are unavailable"
+            ) from None
         self.respond(package)

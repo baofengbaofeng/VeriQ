@@ -37,7 +37,7 @@ class ReplyStreamRedactor:
 
     def _emit(self, text: str, end: int) -> str:
         """在安全边界前遇到的完整秘密整段消耗，即使它穿过候选尾部，也不会把它后半段作为普通增量重新释放。"""
-        pieces = []
+        pieces: list[str] = []
         last = 0
         if self._match is not None:
             for match in self._match.finditer(text):

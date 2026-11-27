@@ -1,6 +1,7 @@
 """服务端编译结果必须对应冻结快照、实际文件和批准库存，测试覆盖内容寻址校验的可观察拒绝结果。"""
 
 import asyncio
+import json
 from copy import deepcopy
 from datetime import timedelta
 from hashlib import sha256
@@ -44,6 +45,22 @@ def descriptor(path, content):
     return {"path": path, "sizeBytes": len(content), "sha256": sha256(content).hexdigest()}
 
 
+def _bundle(source, engine, files):
+    """按冻结源码和实际文件字节生成测试用描述符，使用正式输出校验器检查文件清单后再断言围栏和回执。"""
+    return {
+        **{key: value for key, value in engine.items() if key != "files"},
+        "schemaVersion": "1.0",
+        "sourceHash": source["sourceHash"],
+        "entrypoints": [],
+        "validationOnly": True,
+        "files": [
+            descriptor(path, content)
+            for path, content in files.items()
+            if path != "engine/compiler.tgz"
+        ],
+    }
+
+
 def test_compilation_output_binds_approved_files_and_frozen_source():
     """相同输入生成的元数据、源码和批准发行字节应完整接纳，任何可见文件内容变化都使核验失败。"""
     source = {"sourceHash": "a" * 64, "entryCaseVersionIds": [], "engineVersion": "0.1.0"}
@@ -59,18 +76,7 @@ def test_compilation_output_binds_approved_files_and_frozen_source():
         **_ENGINE_IDENTITY,
         "files": approved,
     }
-    bundle = {
-        **{key: value for key, value in engine.items() if key != "files"},
-        "schemaVersion": "1.0",
-        "sourceHash": source["sourceHash"],
-        "entrypoints": [],
-        "validationOnly": True,
-        "files": [
-            descriptor(path, content)
-            for path, content in files.items()
-            if path != "engine/compiler.tgz"
-        ],
-    }
+    bundle = _bundle(source, engine, files)
     verify_compiled_output(source, engine, canonical_bytes(bundle), files, connected=False)
     tampered = {**files, "validation.ts": b"export const validationOnly = true; "}
     with pytest.raises(Problem, match="file bytes"):
@@ -81,9 +87,9 @@ def test_compilation_output_binds_approved_files_and_frozen_source():
         verify_compiled_output(source, engine, canonical_bytes(foreign), files, connected=False)
 
 
-@pytest.mark.asyncio
-async def test_expired_server_compiler_cannot_finish_or_create_receipt(site, tmp_path):
-    """经正式资源服务排队后推进数据库围栏，验证失效领取不能回写且当前领取仍须复查原请求者的编辑权限。"""
+@pytest.fixture
+async def queued_validation(site, tmp_path):
+    """在独立工作区授予编辑权限并通过正式资源服务创建草稿，首个校验作业与预览返回的源码摘要绑定。"""
     _, db = site
     actor = await initialize(
         db,
@@ -124,6 +130,13 @@ async def test_expired_server_compiler_cannot_finish_or_create_receipt(site, tmp
             scope, resource["id"], preview["revision"], preview["sourceHash"]
         )
 
+    return db, actor, settings, scope, resource, job
+
+
+@pytest.mark.asyncio
+async def test_expired_server_compiler_cannot_finish_or_create_receipt(queued_validation):
+    """分两次领取同一作业以验证过期围栏不能提交结果，随后撤销请求者权限并检查当前围栏也不能签发回执。"""
+    db, actor, settings, scope, _, job = queued_validation
     first = await _claim(db, settings)
     assert first is not None and first.job_id == job["id"]
     assert await _claim(db, settings) is None
@@ -158,11 +171,93 @@ async def test_expired_server_compiler_cannot_finish_or_create_receipt(site, tmp
         assert await session.scalar(select(func.count()).select_from(ValidationReceipt)) == 0
 
 
-def _settings(tmp_path):
+@pytest.mark.parametrize("new_first", [True, False])
+async def test_disjoint_workers_issue_one_receipt_per_engine(
+    queued_validation, tmp_path, monkeypatch, new_first
+):
+    """两个节点各自只具备一份批准发行，交换领取顺序后核对目录失效和重复提交都不会破坏回执的唯一性。"""
+    db, actor, settings, scope, resource, job = queued_validation
+    # 另一节点只具备新发行，轮询时不能消耗旧作业的围栏，加入新作业后它应当能够跨过不兼容的队首。
+    next_version = "0.2.0"
+    newer = tmp_path / "newer"
+    newer.mkdir()
+    newer_settings = _settings(newer, next_version)
+    inventory_path = tmp_path / "inventory.json"
+    inventory = json.loads(inventory_path.read_bytes())
+    inventory["engines"] += json.loads((newer / "inventory.json").read_bytes())["engines"]
+    inventory_path.write_bytes(canonical_bytes(inventory))
+    newer_settings.approved_engine_inventory_path = str(inventory_path)
+    assert await _claim(db, newer_settings) is None
+    async with db.sessions.begin() as session:
+        await lock_installation(session)
+        row = await session.get(Job, job["id"])
+        assert (row.state, row.server_compilation_id) == ("QUEUED", None)
+        resources = ResourceService(
+            session, actor, settings=newer_settings, engine_version=next_version
+        )
+        preview = await resources.preview(scope, resource["id"])
+        new_job = await resources.validate(
+            scope, resource["id"], preview["revision"], preview["sourceHash"]
+        )
+    # 保留登记的版本号与目录名并替换实际发行字节，恢复批准字节后同一任务应当重新具备领取条件。
+    member = newer / "engine/compiler.tgz"
+    approved_bytes = member.read_bytes()
+    member.write_bytes(b"wrong release")
+    assert await _claim(db, newer_settings) is None
+    member.write_bytes(approved_bytes)
+
+    async def release_lost(*args, **kwargs):
+        raise server_compilation.ServerCompileError("ENGINE_RELEASE_UNAVAILABLE")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(server_compilation, "compile_snapshot", release_lost)
+        assert not await server_compilation.compile_next(db, newer_settings)
+    async with db.sessions() as session:
+        row = await session.get(Job, new_job["id"])
+        assert (row.state, row.server_compile_expires_at, row.outcome) == ("QUEUED", None, None)
+
+    workers = [(settings, tmp_path, job), (newer_settings, newer, new_job)]
+    if new_first:
+        workers.reverse()
+    for worker, root, expected in workers:
+        claim = await _claim(db, worker)
+        assert claim is not None and claim.job_id == expected["id"]
+        files = {
+            entry["path"]: (root / entry["path"]).read_bytes() for entry in claim.engine["files"]
+        }
+        files.update(
+            {
+                "source/asset-snapshot.json": canonical_bytes(claim.snapshot),
+                "metadata/expected-plans.json": canonical_bytes(
+                    {"schemaVersion": "1.0", "cases": []}
+                ),
+                "validation.ts": b"export const validationOnly = true;",
+            }
+        )
+        output = canonical_bytes(_bundle(claim.snapshot, claim.engine, files)), files
+        verify_compiled_output(claim.snapshot, claim.engine, *output, connected=False)
+        await _finalize(db, worker, claim, output, None)
+        await _finalize(db, worker, claim, output, None)
+        assert await _claim(db, worker) is None
+    async with db.sessions() as session:
+        receipts = list(await session.scalars(select(ValidationReceipt)))
+        assert sorted((r.job_id, r.engine_version) for r in receipts) == sorted(
+            [(job["id"], "0.1.0"), (new_job["id"], next_version)]
+        )
+
+
+def _settings(tmp_path, version="0.1.0"):
     """构造经过批准库存读取器校验的临时发行描述，工具夹具仅用于路径就绪检查且永远不会被启动。"""
     inventory = tmp_path / "inventory.json"
     fixed = ("package.json", "package-lock.json", "dependencies.json", "engine/compiler.tgz")
-    engine = {**_ENGINE_IDENTITY, "files": [descriptor(path, path.encode()) for path in fixed]}
+    files = []
+    for name in fixed:
+        path = tmp_path / name
+        path.parent.mkdir(exist_ok=True, parents=True)
+        data = (version + "/" + name).encode()
+        path.write_bytes(data)
+        files.append(descriptor(name, data))
+    engine = {**_ENGINE_IDENTITY, "engineVersion": version, "files": files}
     inventory.write_bytes(canonical_bytes({"schemaVersion": "1.0", "engines": [engine]}))
     return Settings(
         database_url="mysql+asyncmy://unused@localhost/veriq_test",
@@ -170,7 +265,7 @@ def _settings(tmp_path):
         master_key="a" * 64,
         signing_key="b" * 64,
         approved_engine_inventory_path=str(inventory),
-        server_compiler_release_dirs={"0.1.0": str(tmp_path)},
+        server_compiler_release_dirs={version: str(tmp_path)},
         server_compiler_node_path=str(inventory),
         server_compiler_npm_cli_path=str(inventory),
         server_compiler_tsx_path=str(inventory),

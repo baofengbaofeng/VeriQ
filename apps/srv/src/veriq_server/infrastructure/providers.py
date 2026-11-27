@@ -4,9 +4,23 @@ import json
 
 import httpx
 from openai import AsyncOpenAI
-from openai.types.chat import ChatCompletionContentPartParam, ChatCompletionMessageParam
+from openai.types.chat import (
+    ChatCompletionAssistantMessageParam,
+    ChatCompletionContentPartParam,
+    ChatCompletionFunctionToolParam,
+    ChatCompletionMessageParam,
+)
 from anthropic import AsyncAnthropic
-from anthropic.types import ImageBlockParam, MessageParam, TextBlockParam
+from anthropic.types import (
+    ContentBlockParam,
+    ImageBlockParam,
+    MessageParam,
+    TextBlockParam,
+    ToolParam,
+    ToolResultBlockParam,
+    ThinkingBlockParam,
+    RedactedThinkingBlockParam,
+)
 
 from ..contracts import canonical_bytes
 
@@ -389,7 +403,7 @@ class ProviderGateway:
                     max_retries=0,
                     http_client=http,
                 )
-                anthropic_tools = [
+                anthropic_tools: list[ToolParam] = [
                     {
                         "name": t["name"],
                         "description": t["description"],
@@ -398,9 +412,7 @@ class ProviderGateway:
                     for t in tools
                 ]
                 system = context.system
-                messages: list[dict[str, Any]] = [
-                    dict(message) for message in context.anthropic_messages()
-                ]
+                messages = context.anthropic_messages()
                 summary_enabled = (
                     on_thinking is not None and self.config["model"] in _CLAUDE_ADAPTIVE_MODELS
                 )
@@ -437,14 +449,19 @@ class ProviderGateway:
                         final = await stream.get_final_message()
                     if final.stop_reason != "tool_use":
                         break
-                    assistant: list[dict[str, Any]] = []
-                    results: list[dict[str, Any]] = []
+                    assistant: list[ContentBlockParam] = []
+                    results: list[ToolResultBlockParam] = []
                     for block in final.content:
                         if block.type == "text":
                             assistant.append({"type": "text", "text": block.text})
                         elif block.type in {"thinking", "redacted_thinking"}:
                             # Claude 工具续接必须原样保留加密签名和摘要块，供同一供应商验证，服务端不会将该块持久化。
-                            assistant.append(block.model_dump(mode="json", exclude_none=True))
+                            assistant.append(
+                                cast(
+                                    ThinkingBlockParam | RedactedThinkingBlockParam,
+                                    block.model_dump(mode="json", exclude_none=True),
+                                )
+                            )
                         elif block.type == "tool_use":
                             assistant.append(
                                 {
@@ -467,13 +484,13 @@ class ProviderGateway:
                     messages.append({"role": "assistant", "content": assistant})
                     messages.append({"role": "user", "content": results})
             else:
-                sdk = AsyncOpenAI(
+                openai = AsyncOpenAI(
                     api_key=self.key,
                     base_url=self.config["baseURL"],
                     max_retries=0,
                     http_client=http,
                 )
-                openai_tools = [
+                openai_tools: list[ChatCompletionFunctionToolParam] = [
                     {
                         "type": "function",
                         "function": {
@@ -484,11 +501,11 @@ class ProviderGateway:
                     }
                     for t in tools
                 ]
-                messages = [dict(message) for message in context.openai_messages()]
+                openai_messages = context.openai_messages()
                 for _ in range(max_rounds):
-                    stream = await sdk.chat.completions.create(
+                    openai_stream = await openai.chat.completions.create(
                         model=self.config["model"],
-                        messages=messages,
+                        messages=openai_messages,
                         tools=openai_tools,
                         tool_choice="auto",
                         max_tokens=context.max_output_tokens,
@@ -498,7 +515,7 @@ class ProviderGateway:
                     finish_reason: str | None = None
                     text_parts: list[str] = []
                     tool_calls: dict[int, dict[str, Any]] = {}
-                    async for chunk in stream:
+                    async for chunk in openai_stream:
                         if chunk.usage:
                             usage_in += chunk.usage.prompt_tokens or 0
                             usage_out += chunk.usage.completion_tokens or 0
@@ -525,13 +542,13 @@ class ProviderGateway:
                                         entry["name"] = tc.function.name
                                     if tc.function.arguments:
                                         entry["args"].append(tc.function.arguments)
-                    assistant: dict[str, Any] = {
+                    assistant_message: ChatCompletionAssistantMessageParam = {
                         "role": "assistant",
                         "content": "".join(text_parts) or None,
                     }
                     ordered = [tool_calls[i] for i in sorted(tool_calls)]
                     if ordered:
-                        assistant["tool_calls"] = [
+                        assistant_message["tool_calls"] = [
                             {
                                 "id": tc["id"],
                                 "type": "function",
@@ -539,21 +556,21 @@ class ProviderGateway:
                             }
                             for tc in ordered
                         ]
-                    messages.append(assistant)
+                    openai_messages.append(assistant_message)
                     if text_parts:
                         final_text.extend(text_parts)
                     if finish_reason != "tool_calls":
                         break
-                    for tc in ordered:
+                    for call in ordered:
                         try:
-                            arguments = json.loads("".join(tc["args"]))
+                            arguments = json.loads("".join(call["args"]))
                         except (ValueError, RecursionError):
                             arguments = {}
-                        result = await self._safe_execute(execute, tc["name"], arguments)
-                        messages.append(
+                        result = await self._safe_execute(execute, call["name"], arguments)
+                        openai_messages.append(
                             {
                                 "role": "tool",
-                                "tool_call_id": tc["id"],
+                                "tool_call_id": call["id"],
                                 "content": json.dumps(result, ensure_ascii=False),
                             }
                         )

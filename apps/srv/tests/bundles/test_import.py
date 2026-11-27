@@ -113,6 +113,9 @@ async def imported_fixture(approved_metadata, site):
 async def test_idempotent_import_preserves_claimed_facts_but_never_promotes_gate(
     approved_metadata, site
 ):
+    import httpx
+    import json
+
     c, db, ws, payload, bundle = await imported_fixture(approved_metadata, site)
     c.headers["Idempotency-Key"] = str(uuid4())
     route = f"/api/v1/workspaces/{ws}/result-imports"
@@ -134,6 +137,19 @@ async def test_idempotent_import_preserves_claimed_facts_but_never_promotes_gate
     assert report.status_code == 200, report.text
     assert report.json()["data"]["run"]["outcome"] == "INCOMPLETE"
     assert report.json()["data"]["gateNow"]["passed"] is False
+    async with httpx.AsyncClient(
+        base_url=str(c.base_url), cookies=c.cookies, headers=c.headers
+    ) as raw:
+        path = f"/api/v1/workspaces/{ws}/runs/{first.json()['data']['runId']}/events/stream"
+        async with raw.stream("POST", path, json={}) as response:
+            assert response.status_code == 200
+            lines = response.aiter_lines()
+            assert (await anext(lines)).startswith("id: ")
+            assert await anext(lines) == "event: report"
+            data = json.loads((await anext(lines)).removeprefix("data: "))
+            assert data == {"events": [], "report": report.json()["data"]}
+            assert await anext(lines) == ""
+            assert await anext(lines) == ": keepalive"
 
 
 async def test_import_raw_bytes_use_private_authorized_transfer_and_scoped_report(
@@ -865,9 +881,8 @@ async def test_archived_workspace_blocks_import_replay_and_new_upload(approved_m
             },
         },
     )
-    assert response.status_code == 409 and response.json()["code"] == "WORKSPACE_ARCHIVED", (
-        response.text
-    )
+    assert response.status_code == 409, response.text
+    assert response.json()["code"] == "WORKSPACE_ARCHIVED", response.text
 
 
 # 离线历史只保存原始回执实际提供的字段，不依据当前导入设备猜测旧平台；报告中的同一事实还必须保持原有非官方门禁，

@@ -115,22 +115,24 @@ def sanitize(value: Any, protected: set[str] | None = None) -> Any:
         return [sanitize(v, protected) for v in value]
     if isinstance(value, dict):
         return {
-            k: "[WITHHELD]"
-            if k.lower()
-            in {
-                "secretref",
-                "secretrefs",
-                "secretversions",
-                "credentialreferences",
-                "apikey",
-                "api_key",
-                "headers",
-                "cookies",
-                "securityschemes",
-                "authorization",
-                "x-api-key",
-            }
-            else sanitize(v, protected)
+            k: (
+                "[WITHHELD]"
+                if k.lower()
+                in {
+                    "secretref",
+                    "secretrefs",
+                    "secretversions",
+                    "credentialreferences",
+                    "apikey",
+                    "api_key",
+                    "headers",
+                    "cookies",
+                    "securityschemes",
+                    "authorization",
+                    "x-api-key",
+                }
+                else sanitize(v, protected)
+            )
             for k, v in value.items()
         }
     return value
@@ -540,12 +542,7 @@ class AiService:
             return {**result, "errorCode": "AI_GENERATION_EXPIRED"}
         p = await s.get(AiProvider, g.provider_id)
         public = {"inputTokens", "outputTokens", "errorCode", "pricing"}
-        if (
-            p
-            and not p.deleted
-            and p.enabled
-            and p.revision == g.data["providerRevision"]
-        ):
+        if p and not p.deleted and p.enabled and p.revision == g.data["providerRevision"]:
             public |= {
                 "output",
                 "context",
@@ -582,15 +579,17 @@ class AiService:
             rows = list((await s.scalars(q.order_by(AiGeneration.id).limit(page.limit + 1))).all())
             return {
                 "items": [await self.dto(s, scope, g) for g in rows[: page.limit]],
-                "nextCursor": page.next(
-                    (
-                        rows[min(len(rows), page.limit) - 1].id,
-                        rows[min(len(rows), page.limit) - 1].id,
-                    ),
-                    len(rows) > page.limit,
-                )
-                if rows
-                else None,
+                "nextCursor": (
+                    page.next(
+                        (
+                            rows[min(len(rows), page.limit) - 1].id,
+                            rows[min(len(rows), page.limit) - 1].id,
+                        ),
+                        len(rows) > page.limit,
+                    )
+                    if rows
+                    else None
+                ),
             }
 
     async def reserve_usage(
@@ -629,7 +628,9 @@ class AiService:
         return g
 
     @staticmethod
-    def settle_usage(g: AiGeneration, reply: ModelReply | None, d: dict, config: dict) -> None:
+    def settle_usage(
+        g: AiGeneration, reply: ModelReply | None, d: dict[str, Any], config: dict[str, Any]
+    ) -> None:
         """仅接受预留范围内的非负整数用量来结算费用，供应商缺失用量或返回超限数字时继续保留整笔预留。工具调用循环
         跨轮次累加输出，调用方可传入 outputTokenBound 放宽单轮上限。"""
         output_bound = d.get("outputTokenBound", config["maxOutputTokens"])

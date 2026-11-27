@@ -136,21 +136,37 @@ if (mode === "packages") {
     });
 } else if (mode === "source") {
     const root = resolve("../..");
-    const names = (
-        await run("/usr/bin/git", [
-            "-C",
-            root,
-            "ls-files",
-            "apps/runtime",
-            "packages",
-            "pnpm-lock.yaml",
-            ".github/workflows/runtime-vault-linux.yml",
-        ])
+    const commit = process.env.GITHUB_SHA;
+    const workflow = ".github/workflows/runtime-vault-linux.yml";
+    if (
+        !/^[a-f0-9]{40}$/.test(commit ?? "") ||
+        (await run("/usr/bin/git", ["-C", root, "rev-parse", "HEAD"])).trim() !== commit
     )
-        .trim()
-        .split("\n");
+        throw new Error("VAULT_SOURCE_COMMIT_MISMATCH");
+    const tree = await run("/usr/bin/git", [
+        "-C",
+        root,
+        "ls-tree",
+        "-r",
+        "-z",
+        commit,
+        "--",
+        "apps/runtime",
+        "packages",
+        "pnpm-lock.yaml",
+        workflow,
+    ]);
     const files = {};
-    for (const name of names) files[name] = hash(await readFile(join(root, name)));
+    for (const entry of tree.split("\0").filter(Boolean)) {
+        const match = /^(100644|100755) blob ([a-f0-9]{40})\t(.+)$/u.exec(entry);
+        if (!match) throw new Error("VAULT_SOURCE_UNSUPPORTED_ENTRY");
+        const [, , expected, path] = match;
+        const bytes = await readFile(join(root, path));
+        const objectId = createHash("sha1").update(`blob ${bytes.length}\0`).update(bytes).digest("hex");
+        if (objectId !== expected) throw new Error("VAULT_SOURCE_BYTES_MISMATCH");
+        files[path] = hash(bytes);
+    }
+    if (!Object.hasOwn(files, workflow)) throw new Error("VAULT_SOURCE_WORKFLOW_MISSING");
     const disk = await statfs(root, { bigint: true });
     const finalFreeBytes = disk.bavail * disk.bsize;
     await save("source-binding.json", {

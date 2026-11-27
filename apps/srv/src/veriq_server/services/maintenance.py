@@ -21,16 +21,17 @@ from ..db import (
     AttemptUpload,
     ServiceToken,
     CapacityPool,
+    CaseExecution,
     ResourceLease,
     Run,
-    CaseExecution,
 )
-from ..service import Problem, now, digest as token_digest
+from ..service import Problem, audit, now, digest as token_digest
 from ..auth.authorization import WorkspaceScope
 from ..repositories.resource import ResourceRepository
 from ..settings import Settings
 from .capacity import CapacityService
 from .jobs import database_time
+from .runs import cancel_queued_job
 from .runtime import RuntimeService
 from .process_stop import validate_process_stop_claim
 from .service_account import ServiceAccountService
@@ -129,10 +130,7 @@ class MaintenanceService:
                     expired_job.state = "CANCEL_REQUESTED"
                     active.lease_expires_at = min(active.lease_expires_at, current)
                 else:
-                    expired_job.state, expired_job.outcome = "FINISHED", "CANCELLED"
-                    execution = await self.session.get(CaseExecution, expired_job.case_execution_id)
-                    assert execution
-                    execution.state, execution.outcome = "FINISHED", "CANCELLED"
+                    await cancel_queued_job(self.session, expired_job)
                     await completion.aggregate_run(run.id)
                 count += 1
             await self.session.flush()
@@ -253,6 +251,8 @@ class MaintenanceService:
                     )
                 ).scalar_one_or_none()
                 if existing:
+                    if await self._reauthorize_cleanup(existing, token, current):
+                        count += 1
                     continue
                 snapshot = json.loads((await repo.artifact(snapshot_hash)).content)
                 # 每次重试使用独立的夹具命名空间，补偿清理必须从原 Attempt 的不可变快照恢复实际使用的命名空间。
@@ -525,7 +525,17 @@ class MaintenanceService:
                     .scalars()
                     .all()
                 )
-                if not pool or pool.used != len(held):
+                inconsistent_attempt = await self.session.scalar(
+                    select(ResourceLease.attempt_id)
+                    .join(Attempt, Attempt.id == ResourceLease.attempt_id)
+                    .where(
+                        ResourceLease.workspace_id == workspace_id,
+                        ResourceLease.pool_key == pool_key,
+                        ResourceLease.state != Attempt.capacity_state,
+                    )
+                    .limit(1)
+                )
+                if not pool or pool.used != len(held) or inconsistent_attempt:
                     raise Problem(
                         409,
                         "CAPACITY_INCONSISTENT",
@@ -541,6 +551,39 @@ class MaintenanceService:
         }
         maintenance_record.receipt = result
         return result
+
+    async def _reauthorize_cleanup(self, job: Job, token: ServiceToken, current: datetime) -> bool:
+        """仅在安装锁内为尚未领取的清理作业轮换过期授权，审计记录保留同一账号每次交接双方的令牌标识。"""
+        if (
+            job.state != "QUEUED"
+            or job.fence != 0
+            or job.active_attempt_id
+            or not job.requester_service_token_id
+            or job.requester_service_token_id == token.id
+        ):
+            return False
+        previous = await self.session.get(ServiceToken, job.requester_service_token_id)
+        if (
+            previous is None
+            or previous.service_account_id != token.service_account_id
+            or previous.purpose != "MAINTENANCE"
+            or "fixture-cleanups/reconcile" not in (previous.operation_scopes or [])
+            or (previous.revoked_at is None and previous.expires_at > current)
+            or await self.session.scalar(
+                select(Attempt.id).where(Attempt.job_id == job.id).limit(1)
+            )
+        ):
+            return False
+        audit(
+            self.session,
+            "cleanup.authorization_replaced",
+            previous.id,
+            job.id,
+            workspace_id=job.workspace_id,
+        )
+        audit(self.session, "cleanup.reauthorized", token.id, job.id, workspace_id=job.workspace_id)
+        job.requester_service_token_id = token.id
+        return True
 
     async def stopped(
         self, authorization: str, attempt_id: str, facts: dict[str, Any]
@@ -566,6 +609,18 @@ class MaintenanceService:
         validate_process_stop_claim(
             runtime.capabilities, facts["processStopped"], facts.get("processStopScope")
         )
+        record = AuditLog(
+            id=str(uuid4()),
+            action="attempt.stop_confirmed" if facts["processStopped"] else "attempt.stop_unknown",
+            actor_id=runtime.owner_user_id,
+            target_id=attempt.id,
+            workspace_id=attempt.workspace_id,
+            created_at=now(),
+        )
+        self.session.add(record)
+        if attempt.capacity_state == "RELEASED" and not facts["processStopped"]:
+            record.action = "attempt.stop_unknown_after_release"
+            return {"attemptId": attempt.id, "capacityReleased": True, "auditId": record.id}
         if facts["processStopped"]:
             await CapacityService(self.session, self.settings).release(attempt)
             if attempt.phase != "FINISHED":
@@ -604,15 +659,6 @@ class MaintenanceService:
         if "processStopScope" in facts:
             retained["processStopScope"] = facts["processStopScope"]
         attempt.facts = retained
-        record = AuditLog(
-            id=str(uuid4()),
-            action="attempt.stop_confirmed" if facts["processStopped"] else "attempt.stop_unknown",
-            actor_id=runtime.owner_user_id,
-            target_id=attempt.id,
-            workspace_id=attempt.workspace_id,
-            created_at=now(),
-        )
-        self.session.add(record)
         return {
             "attemptId": attempt.id,
             "capacityReleased": attempt.capacity_state == "RELEASED",

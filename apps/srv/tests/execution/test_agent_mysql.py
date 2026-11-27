@@ -39,9 +39,12 @@ async def business():
             if path == "identity":
                 self.finish(
                     {
-                        "id": "fixture-service"
-                        if self.request.headers.get("Authorization") == "Bearer synthetic-fixture"
-                        else "reader"
+                        "id": (
+                            "fixture-service"
+                            if self.request.headers.get("Authorization")
+                            == "Bearer synthetic-fixture"
+                            else "reader"
+                        )
                     }
                 )
             elif path == "verified" and self.get_query_argument("echo", None):

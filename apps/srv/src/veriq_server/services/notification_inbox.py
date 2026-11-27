@@ -123,19 +123,14 @@ def _dto(row: InboxRow, current: datetime) -> dict[str, Any]:
     }
     if event.kind == "WORKSPACE_INVITED" and invitation is not None:
         # 终态按服务端时钟与权威记录派生，接受一份邀请后其余邀请仍保留历史，当前成员入口由真实成员关系决定。
-        status = (
-            "REVOKED"
-            if invitation.revoked
-            else (
-                "ACCEPTED"
-                if invitation.consumed
-                else (
-                    "EXPIRED"
-                    if invitation.expires_at <= current
-                    else "UNAVAILABLE" if workspace.archived or already_member else "PENDING"
-                )
-            )
-        )
+        if invitation.revoked:
+            status = "REVOKED"
+        elif invitation.consumed:
+            status = "ACCEPTED"
+        elif invitation.expires_at <= current:
+            status = "EXPIRED"
+        else:
+            status = "UNAVAILABLE" if workspace.archived or already_member else "PENDING"
         result.update(
             invitationId=invitation.id,
             actorName=event.payload["actorName"],

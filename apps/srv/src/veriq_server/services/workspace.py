@@ -214,15 +214,12 @@ def invitation_dto(invite: WorkspaceInvite) -> dict[str, Any]:
 
     嵌套资源引用不得跨空间隐式放行。
     """
-    status = (
-        "REVOKED"
-        if invite.revoked
-        else "ACCEPTED"
-        if invite.consumed
-        else "EXPIRED"
-        if invite.expires_at <= now()
-        else "PENDING"
-    )
+    if invite.revoked:
+        status = "REVOKED"
+    elif invite.consumed:
+        status = "ACCEPTED"
+    else:
+        status = "EXPIRED" if invite.expires_at <= now() else "PENDING"
     return {
         "id": invite.id,
         "email": invite.email,

@@ -4,9 +4,10 @@ from typing import Any
 
 from jsonschema import ValidationError
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..auth.authorization import Permission
-from ..db import ResourceVersion
+from ..auth.authorization import Permission, WorkspaceScope
+from ..db import AgentTurn, ExecutionPlan, ResourceVersion, User
 from ..repositories.resource import ResourceRepository
 from ..service import Problem
 from ..validation import validate_api
@@ -26,8 +27,14 @@ def _invalid() -> Problem:
     )
 
 
-def _check_selection(selection, assets, runtimes):
+def _check_selection(
+    selection: dict[str, Any] | None,
+    assets: dict[str, dict[str, Any]],
+    runtimes: dict[str, dict[str, Any]],
+) -> None:
     """逐项匹配环境角色、发布类型、设备位置和浏览器能力，标识合法但未在本次授权候选中出现时同样拒绝。"""
+    if not isinstance(selection, dict):
+        raise _invalid()
     env = assets.get(selection["environmentVersionId"], {})
     if env.get("kind") != "ENVIRONMENT" or not set(selection["roleKeys"]) <= set(env["roleKeys"]):
         raise _invalid()
@@ -47,7 +54,9 @@ def _check_selection(selection, assets, runtimes):
         raise _invalid()
 
 
-async def proposal_preview(s, scope, user, value: Any, context: dict) -> dict:
+async def proposal_preview(
+    s: AsyncSession, scope: WorkspaceScope, user: User, value: Any, context: dict[str, Any]
+) -> dict[str, Any]:
     """以调用前送出的真实基准补全差量字段，只允许模型指出所需变更，回显原配置与完整提议均由控制面构造。"""
     if not isinstance(value, dict) or "previousPlan" in value:
         raise _invalid()
@@ -76,14 +85,18 @@ async def proposal_preview(s, scope, user, value: Any, context: dict) -> dict:
             patch = proposal.get("selection")
             if not isinstance(patch, dict):
                 raise _invalid()
-            selection = {
+            base_selection = {
                 k: v
                 for k, v in base.items()
                 if k not in {"name", "revision", "overlapPolicy", "maxCaseRetries"}
             }
             if "caseVersionIds" in patch:
-                selection.pop("suiteVersionId")
-            proposal["selection"] = {**selection, "maxRetries": base["maxCaseRetries"], **patch}
+                base_selection.pop("suiteVersionId")
+            proposal["selection"] = {
+                **base_selection,
+                "maxRetries": base["maxCaseRetries"],
+                **patch,
+            }
     try:
         validate_api("AgentProposal", proposal)
         if kind == "RUN_ONCE":
@@ -99,7 +112,12 @@ async def proposal_preview(s, scope, user, value: Any, context: dict) -> dict:
     return proposal
 
 
-async def _require_workload(s, scope, selection, variants):
+async def _require_workload(
+    s: AsyncSession,
+    scope: WorkspaceScope,
+    selection: dict[str, Any],
+    variants: list[dict[str, Any]],
+) -> None:
     """按不可变用例版本取角色键并逐条交叉匹配，不把不同套件条目的角色与浏览器拼成一个并不存在的可运行组合。"""
     ids = {v["versionId"] for v in variants}
     query = select(
@@ -109,7 +127,7 @@ async def _require_workload(s, scope, selection, variants):
         ResourceVersion.kind == "CASE",
         ResourceVersion.id.in_(ids),
     )
-    roles = dict((await s.execute(query)).all())
+    roles = dict((await s.execute(query)).tuples().all())
     for variant in variants:
         role = roles.get(variant["versionId"])
         if role and all(selected_axes(variant, role, selection)):
@@ -121,7 +139,9 @@ async def _require_workload(s, scope, selection, variants):
     )
 
 
-async def current_selection(s, scope, user, proposal):
+async def current_selection(
+    s: AsyncSession, scope: WorkspaceScope, user: User, proposal: dict[str, Any]
+) -> ExecutionPlan | None:
     """重新解析确认所用的确切版本并读取服务端变量，套件和环境归档、计划修订变化或撤销设备授权都阻止执行。"""
     plan = None
     if "planId" in proposal:
@@ -137,7 +157,11 @@ async def current_selection(s, scope, user, proposal):
                 "PLAN_REVISION_CONFLICT",
                 "Review the latest active plan revision before confirming",
             )
-    selection = proposal.get("plan") or proposal.get("selection") or safe_plan(plan)
+    selection = proposal.get("plan") or proposal.get("selection")
+    if not selection:
+        if plan is None:
+            raise _invalid()
+        selection = safe_plan(plan)
     repo = ResourceRepository(s, scope)
     assets = {}
     ids = [selection["environmentVersionId"], *selection.get("caseVersionIds", [])]
@@ -168,7 +192,9 @@ async def current_selection(s, scope, user, proposal):
     return plan
 
 
-async def apply_proposal(s, scope, user, turn):
+async def apply_proposal(
+    s: AsyncSession, scope: WorkspaceScope, user: User, turn: AgentTurn
+) -> dict[str, Any]:
     """以具体提议轮次的稳定身份应用操作，先验证当前权限再复用回执；首次确认与领域变更在调用方同一事务提交。"""
     action = turn.proposal or turn.receipt
     if turn.status != "COMPLETED" or not action:
@@ -188,7 +214,9 @@ async def apply_proposal(s, scope, user, turn):
     return receipt
 
 
-async def _apply_execution(s, scope, user, turn_id, action):
+async def _apply_execution(
+    s: AsyncSession, scope: WorkspaceScope, user: User, turn_id: str, action: dict[str, Any]
+) -> dict[str, Any]:
     """计划和运行继续经各自领域服务保存或排队，稳定轮次标识用于执行端幂等，模型不传入计划内部变量。"""
     kind = action["type"]
     plan = await current_selection(s, scope, user, action)
@@ -200,6 +228,8 @@ async def _apply_execution(s, scope, user, turn_id, action):
         )
         receipt = {"type": kind, "planId": saved.id, "planRevision": saved.revision}
     elif kind == "TRIGGER_PLAN":
+        if plan is None:
+            raise _invalid()
         triggered = await TriggerService(s, user).trigger(
             scope, plan.id, action.get("triggerInput", {}), key
         )

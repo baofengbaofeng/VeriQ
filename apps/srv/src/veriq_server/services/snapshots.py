@@ -33,7 +33,9 @@ def dataset_matrix_rows(document: dict[str, Any]) -> list[dict[str, Any]]:
     """
     if document.get("source", {}).get("kind") == "HTTP":
         raise Problem(422, "DATASET_HTTP_MATRIX", "HTTP datasets cannot drive a run matrix")
-    rows = document["rows"] if document["schemaVersion"] == "1.0" else document["source"]["rows"]
+    rows: list[dict[str, Any]] = (
+        document["rows"] if document["schemaVersion"] == "1.0" else document["source"]["rows"]
+    )
     if not rows:
         raise Problem(422, "DATASET_EMPTY_MATRIX", "A matrix dataset requires at least one row")
     return rows

@@ -70,6 +70,10 @@ def _settings_with_inventory(
 def _inventory_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """在站点创建配置前接入独立库存文件，使领取和完成从同一临时路径读取，而共享集成库存始终留在原处。"""
     path = tmp_path / "approved-engine-inventory.json"
+    for name, content in _RELEASE_FILES:
+        member = tmp_path / name
+        member.parent.mkdir(parents=True, exist_ok=True)
+        member.write_bytes(content)
     monkeypatch.setattr(
         Settings, "__init__", partialmethod(_settings_with_inventory, path, Settings.__init__)
     )
@@ -223,7 +227,7 @@ async def test_server_claim_requires_approved_components(
     requirement: tuple[_DataKind, str],
     wrong_version: bool,
 ) -> None:
-    """逐项拒绝缺失或不匹配的批准声明，核对服务端失败及零设备尝试，再用完整库存领取同一修订的新校验。"""
+    """逐项拒绝缺失或不匹配的批准声明，核对原任务保留在队列且没有设备尝试，再用完整库存领取同一任务。"""
     mode, field = requirement
     client, database = site
     validation = await _queue_validation(site, dataset_deployment, mode)
@@ -245,12 +249,13 @@ async def test_server_claim_requires_approved_components(
         signing_key="b" * 64,
         environment="development",
         dataset_connections=dataset_deployment,
+        server_compiler_release_dir=str(inventory_path.parent),
     )
     assert await _claim(database, settings) is None
     async with database.sessions() as session:
         job = await session.get(Job, validation.job_id)
-        assert job is not None and (job.state, job.outcome) == ("FINISHED", "ERROR")
-        assert job.server_compile_result == {"errorCode": "ENGINE_NOT_APPROVED"}
+        assert job is not None and (job.state, job.outcome) == ("QUEUED", None)
+        assert job.server_compilation_id is None and job.server_compile_result is None
         assert job.active_attempt_id is None
         assert not (await session.scalars(select(Attempt).where(Attempt.job_id == job.id))).all()
         assert not (await session.scalars(select(ResourceLease))).all()
@@ -258,7 +263,7 @@ async def test_server_claim_requires_approved_components(
     _write_inventory(inventory_path, full)
     path = f"/api/v1/workspaces/{validation.workspace_id}/resources/{job.subject_id}"
     _, retry = await queue(client, path)
-    assert retry["id"] != validation.job_id
+    assert retry["id"] == validation.job_id
     response = await client.post(
         _CLAIM_PATH, json=_claim_request(validation), headers=auth(validation.credential)
     )

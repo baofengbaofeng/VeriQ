@@ -65,14 +65,21 @@ def stage_examples(root: Path, output: Path) -> dict[str, Any]:
             legacy_name = name.removeprefix("data/")
             if raw != _read(root / "fixtures/sample-workspace", legacy_name):
                 raise ValueError("Repository sample copy differs from canonical package")
-        records.append({"path": "veriq_server/examples/" + name,
-                        "sha256": sha256(raw).hexdigest(), "sizeBytes": len(raw)})
+        records.append(
+            {
+                "path": "veriq_server/examples/" + name,
+                "sha256": sha256(raw).hexdigest(),
+                "sizeBytes": len(raw),
+            }
+        )
     manifest = json.loads(_read(package, "data/manifest.json"))
     if manifest.get("schemaVersion") != "1.0" or manifest.get("order") != list(ASSETS):
         raise ValueError("Canonical sample manifest order differs")
     result = {"schemaVersion": "1.0", "files": records}
     output.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=output.parent, delete=False) as target:
+    with tempfile.NamedTemporaryFile(
+        mode="w", encoding="utf-8", dir=output.parent, delete=False
+    ) as target:
         temporary = Path(target.name)
         try:
             json.dump(result, target, ensure_ascii=False, indent=4, sort_keys=True)

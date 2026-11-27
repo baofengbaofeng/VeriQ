@@ -1,5 +1,6 @@
 """将可编辑的 HTTP 数据集与部署方登记的固定路由配对，凭证和传输只接收完成授权后的配置。"""
 
+from collections.abc import Callable
 from dataclasses import dataclass
 import re
 from typing import Any
@@ -23,14 +24,18 @@ class BoundDataset:
     connection: DatasetConnection
 
 
+SecretResolver = Callable[[str, str], object]
+DatasetBinding = tuple[BoundDataset, SecretResolver]
+
+
 def scoped_connection(
     registry: dict[str, DatasetConnection],
     workspace_id: str,
     user_id: str,
-    environment_version_id: str,
+    environment_version_id: str | None,
     ref: str,
     *,
-    service_account=False,
+    service_account: bool = False,
 ) -> DatasetConnection:
     """先按不可变连接版本定位，再核对工作区、用户与环境；普通草稿和读取路径都不会披露其它部署信息。"""
     target = registry.get(ref)
@@ -45,7 +50,13 @@ def scoped_connection(
 
 
 def bind_connection(
-    registry, workspace_id, user_id, environment_version_id, document, *, service_account=False
+    registry: dict[str, DatasetConnection],
+    workspace_id: str,
+    user_id: str,
+    environment_version_id: str | None,
+    document: dict[str, Any],
+    *,
+    service_account: bool = False,
 ) -> BoundDataset:
     """独立核对调用环境及用户授权，然后核实方法、路径、映射和认证；任何失败均发生在密钥解析前。"""
     if validate_schema("DatasetV2", document) or document["source"]["kind"] != "HTTP":

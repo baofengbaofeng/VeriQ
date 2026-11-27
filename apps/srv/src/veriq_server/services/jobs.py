@@ -378,6 +378,16 @@ class JobService:
             created_at=current,
         )
         self.session.add(receipt)
+        # 旧版 Mac 自检会把已通过原生探针的 Apple Silicon 设备登记为 x64，此处只校正同一设备下一次新领取申报的架构。
+        reported = req["capabilities"]
+        registered = runtime.capabilities
+        if (
+            registered.get("os") == reported.get("os") == "darwin"
+            and registered.get("arch") == "x64"
+            and reported.get("arch") == "arm64"
+            and registered["engineVersion"] == reported["engineVersion"]
+        ):
+            runtime.capabilities = {**registered, "arch": "arm64"}
         if req["availableSlots"] == 0:
             return None
         capacity = CapacityService(self.session, self.settings)
@@ -489,11 +499,11 @@ class JobService:
                 manifest_hash=job.manifest_hash,
                 lease_token_hash=digest(secret),
                 fencing_token=job.fence,
-                lease_expires_at=min(
-                    current + timedelta(seconds=60), run.created_at + timedelta(minutes=30)
-                )
-                if run
-                else current + timedelta(seconds=60),
+                lease_expires_at=(
+                    min(current + timedelta(seconds=60), run.created_at + timedelta(minutes=30))
+                    if run
+                    else current + timedelta(seconds=60)
+                ),
                 phase="LEASED",
                 capacity_state="HELD",
                 created_at=current,

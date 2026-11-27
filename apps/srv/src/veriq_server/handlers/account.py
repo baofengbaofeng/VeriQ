@@ -1,5 +1,6 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
+from sqlalchemy.engine import CursorResult
 from sqlalchemy import delete, select, and_, or_
 from ..db import UserSession, UserToken
 from ..service import (
@@ -129,7 +130,7 @@ class AccountAPI(API):
                     UserSession.expires_at > now(),
                 )
             )
-            if deleted.rowcount != 1:
+            if cast(CursorResult[Any], deleted).rowcount != 1:
                 raise Problem(404, "SESSION_NOT_FOUND", "Active session not found")
             audit(s, "session.revoked", user.id, session_id)
         self.respond({})

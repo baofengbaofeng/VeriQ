@@ -189,7 +189,7 @@ class ImportUploadService(ImportService):
             return replay
         content: bytes | None = None
         async with authority_guard(self.settings, False) as authority:
-            await lock_installation(self.session)
+            installation = await lock_installation(self.session)
             row = await self.current(scope, upload_id, authority)
             if row.state == "COMPLETE":
                 raise Problem(
@@ -210,11 +210,20 @@ class ImportUploadService(ImportService):
             if sha256(retained).hexdigest() != row.sha256:
                 raise Problem(409, "ARTIFACT_HASH_MISMATCH", "Complete bytes differ")
             artifact = await self.session.get(Artifact, (scope.workspace_id, row.sha256))
+            backend = (
+                artifact.storage_backend
+                if artifact and not artifact.expired_at
+                else self.settings.artifact_backend
+            )
+            store = (
+                await artifact_store(self.session, installation, self.settings, backend)
+                if backend != "INLINE"
+                else None
+            )
             if artifact and not artifact.expired_at:
                 if artifact.size_bytes != row.size_bytes:
                     raise Problem(409, "ARTIFACT_CONFLICT", "Artifact size differs")
                 incarnation = artifact.storage_incarnation
-                backend = artifact.storage_backend
                 if backend == "INLINE":
                     if artifact.content != retained:
                         raise Problem(409, "ARTIFACT_CONFLICT", "Artifact bytes differ")
@@ -228,7 +237,6 @@ class ImportUploadService(ImportService):
                     raise Problem(410, "ARTIFACT_EXPIRED", "Publication is retired")
             else:
                 incarnation = str(uuid4())
-                backend = self.settings.artifact_backend
                 publication = ArtifactPublication(
                     id=incarnation,
                     workspace_id=scope.workspace_id,
@@ -263,9 +271,8 @@ class ImportUploadService(ImportService):
         # 收齐字节并核对摘要后先提交外部发布意图。File 或 S3 写入在事务和配置锁之外进行，
         # 返回后重新核验当前权威、上传和产物实例，确认未退役才将上传置为 COMPLETE、发布置为 COMMITTED。
         try:
-            await artifact_store(self.settings, backend).put(
-                scope.workspace_id, digest, content, incarnation
-            )
+            assert store is not None
+            await store.put(scope.workspace_id, digest, content, incarnation)
         except (ValueError, OSError):
             raise Problem(
                 409,
@@ -306,7 +313,7 @@ class ImportUploadService(ImportService):
         处理导入或离线回传时需保持幂等键与来源标识，重复提交不得制造双份业务副作用。
         """
         async with authority_guard(self.settings, False) as authority:
-            await lock_installation(self.session)
+            installation = await lock_installation(self.session)
             row = await self.current(scope, upload_id, authority)
             if row.state != "COMPLETE":
                 await self.session.commit()
@@ -321,11 +328,14 @@ class ImportUploadService(ImportService):
                 artifact.storage_incarnation,
                 artifact.content,
             )
-            await self.session.commit()
-        if backend != "INLINE":
-            content = await artifact_store(self.settings, backend).read(
-                scope.workspace_id, digest, size, incarnation
+            store = (
+                await artifact_store(self.session, installation, self.settings, backend)
+                if backend != "INLINE"
+                else None
             )
+            await self.session.commit()
+        if store is not None:
+            content = await store.read(scope.workspace_id, digest, size, incarnation)
         if (
             content is None
             or offset + len(raw) > size

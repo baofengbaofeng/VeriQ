@@ -6,11 +6,10 @@ import { verifyBundle } from "../src/offline/verify.ts";
 import { TrustStore } from "../src/offline/trust.ts";
 import { LocalResourceAdapter } from "../../web/src/features/resources/adapters.ts";
 const [archive, profile, destination] = process.argv.slice(2);
-const verified = await verifyBundle(archive, {
-    trust: new TrustStore(profile),
-    destination,
-    debug: true,
-});
+const trust = new TrustStore(profile);
+await assert.rejects(verifyBundle(archive, { trust, destination }), /BUNDLE_DEBUG_REQUIRED/);
+const verified = await verifyBundle(archive, { trust, destination, debug: true });
+assert.equal(verified.revocationStatus, "UNKNOWN");
 const adapter = new LocalResourceAdapter(verified.resourceSnapshot());
 const root = verified.snapshot.validationTarget;
 if (root) {

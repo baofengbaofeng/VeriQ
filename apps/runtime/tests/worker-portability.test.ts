@@ -279,6 +279,7 @@ test("desktop stages and hashes the complete ordinary Node command closure twice
     const { execFileSync } = await import("node:child_process");
     const { createHash } = await import("node:crypto");
     const root = await mkdtemp(join(tmpdir(), "veriq-stage-closure-"));
+    const apps = join(root, "apps");
     const names = [
         "worker.mjs",
         "provider.mjs",
@@ -290,33 +291,46 @@ test("desktop stages and hashes the complete ordinary Node command closure twice
         "controlled-child-preload.mjs",
     ];
     try {
-        await mkdir(join(root, "runtime/src/execution"), { recursive: true });
-        await mkdir(join(root, "runtime/build"));
-        await mkdir(join(root, "desktop"));
+        await mkdir(join(apps, "runtime/src/execution"), { recursive: true });
+        await mkdir(join(apps, "runtime/build"));
+        for (const name of ["LICENSE", "THIRD_PARTY_NOTICES.md"]) {
+            await copyFile(new URL("../../../" + name, import.meta.url), join(root, name));
+        }
+        const out = join(apps, "desktop/out");
+        for (const part of ["main", "preload", "renderer"]) await mkdir(join(out, part), { recursive: true });
+        for (const name of [
+            "main/index.js",
+            "main/agent.js",
+            "main/cli.js",
+            "preload/index.cjs",
+            "renderer/index.html",
+        ])
+            await writeFile(join(out, name), "fixture");
+
         for (const name of names)
             await copyFile(
                 fileURLToPath(new URL("../src/execution/" + name, import.meta.url)),
-                join(root, "runtime/src/execution", name),
+                join(apps, "runtime/src/execution", name),
             );
-        await writeFile(join(root, "runtime/build/veriq_runner"), "stage fixture");
+        await writeFile(join(apps, "runtime/build/veriq_runner"), "stage fixture");
         execFileSync(
             process.execPath,
             [fileURLToPath(new URL("../../desktop/scripts/stage-runtime.mjs", import.meta.url))],
-            { cwd: join(root, "desktop"), timeout: 10000 },
+            { cwd: join(apps, "desktop"), timeout: 10000 },
         );
-        const inventory = JSON.parse(await readFile(join(root, "desktop/out/runtime-files.json"), "utf8")) as {
+        const inventory = JSON.parse(await readFile(join(apps, "desktop/out/runtime-files.json"), "utf8")) as {
             path: string;
             sha256: string;
         }[];
         for (const target of ["out/main", "out/execution"]) {
             for (const name of names) {
-                const bytes = await readFile(join(root, "desktop", target, name));
+                const bytes = await readFile(join(apps, "desktop", target, name));
                 assert.equal(
                     inventory.find((entry) => entry.path === target + "/" + name)?.sha256,
                     createHash("sha256").update(bytes).digest("hex"),
                 );
             }
-            const entry = join(root, "desktop", target, "controlled-command.mjs");
+            const entry = join(apps, "desktop", target, "controlled-command.mjs");
             const output = execFileSync(
                 process.execPath,
                 [
@@ -341,7 +355,7 @@ test("desktop stages and hashes the complete ordinary Node command closure twice
                 { cwd: root, encoding: "utf8", timeout: 10000 },
             );
             assert.equal(output.trim(), "3");
-            const preload = join(root, "desktop", target, "controlled-child-preload.mjs");
+            const preload = join(apps, "desktop", target, "controlled-child-preload.mjs");
             assert.equal(
                 execFileSync(process.execPath, ["--import", preload, "-e", "console.log('passive')"], {
                     cwd: root,

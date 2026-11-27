@@ -51,9 +51,11 @@ class CredentialAPI(API):
             self.respond(
                 {
                     "items": [version_dto(row) for row in shown],
-                    "nextCursor": page.next((shown[-1].id, shown[-1].id), len(rows) > page.limit)
-                    if shown
-                    else None,
+                    "nextCursor": (
+                        page.next((shown[-1].id, shown[-1].id), len(rows) > page.limit)
+                        if shown
+                        else None
+                    ),
                 }
             )
 
@@ -254,8 +256,10 @@ class AuthAdapterAPI(API):
             self.respond(
                 {
                     "items": [{**adapter_dto(row), "revoked": row.revoked} for row in shown],
-                    "nextCursor": page.next((shown[-1].id, shown[-1].id), len(rows) > page.limit)
-                    if shown
-                    else None,
+                    "nextCursor": (
+                        page.next((shown[-1].id, shown[-1].id), len(rows) > page.limit)
+                        if shown
+                        else None
+                    ),
                 }
             )

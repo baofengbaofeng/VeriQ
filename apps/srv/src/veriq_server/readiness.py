@@ -18,6 +18,8 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import SQLAlchemyError
 
 from .db import Database, Installation
+from .file_volume import check_volume
+from .service import Problem
 from .handlers.static import PublishedSite, load_published_site
 from .settings import Settings
 
@@ -94,6 +96,7 @@ class ReadinessMonitor:
         self._result: dict[str, bool] | None = None
         self._completed = 0.0
         self._closed = False
+        self._file_volume_id: str | None = None
 
     async def check(self) -> dict[str, bool]:
         """请求共享屏蔽取消的单次检查，只有完成时间一秒以内的结果可回用；单个客户端断开不会取消其他客户端使用的检查，
@@ -126,9 +129,10 @@ class ReadinessMonitor:
                     )
                     installed = (
                         await connection.execute(
-                            select(Installation.id).where(Installation.id == 1)
+                            select(Installation.file_volume_id).where(Installation.id == 1)
                         )
                     ).first()
+                    self._file_volume_id = installed[0] if installed else None
                     result["schema"] = (
                         len(heads) == 1 and set(heads) == set(current) and installed is not None
                     )
@@ -234,6 +238,17 @@ class ReadinessMonitor:
         database = database_task.result() if database_task in done else defaults
         static = static_task.result() if static_task in done else False
         storage = storage_task.result() if storage_task in done else False
+        volume_id = self._file_volume_id
+        if storage and self.settings.artifact_backend == "FILE" and volume_id is not None:
+
+            def verify_mount() -> bool:
+                try:
+                    check_volume(Path(self.settings.artifact_directory), volume_id)
+                except Problem:
+                    return False
+                return True
+
+            storage = await self._blocking("file-volume", verify_mount)
         for task in pending:
             if task is not database_task:
                 task.cancel()

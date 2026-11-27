@@ -1,6 +1,8 @@
 """服务端从批准连接构造唯一请求目标与签名字节，跨页共享总时限、网络预算和并发槽，失败不返回部分行。"""
 
 import asyncio
+from collections.abc import Awaitable, Callable
+from typing import Any
 from contextvars import ContextVar
 import logging
 import ssl
@@ -18,7 +20,7 @@ import httpx
 from ..contracts import canonical_bytes, validate_schema
 from ..service import Problem
 from .mapping import MappingBudget, complete_rows, invalid, map_response, pointer
-from .policy import BoundDataset, unavailable
+from .policy import BoundDataset, SecretResolver, unavailable
 from .signing import auth_header, query_bytes
 
 MAX_BYTES = 2 * 1024 * 1024
@@ -26,7 +28,7 @@ SLOTS = asyncio.Semaphore(4)
 _WIRE_ACTIVE = ContextVar("dataset_wire_active", default=False)
 
 
-def _hide_wire_record(_record):
+def _hide_wire_record(_record: logging.LogRecord) -> bool:
     return not _WIRE_ACTIVE.get()
 
 
@@ -35,19 +37,19 @@ for _name in ("httpcore.http11", "httpcore.connection"):
     logging.getLogger(_name).addFilter(_hide_wire_record)
 
 
-def _limit():
+def _limit() -> Problem:
     return Problem(422, "DATASET_RESPONSE_LIMIT", "Dataset response exceeds the budget")
 
 
-def _incomplete():
+def _incomplete() -> Problem:
     return Problem(422, "DATASET_PAGINATION_INCOMPLETE", "Dataset pagination did not complete")
 
 
 def build_request(
     config: BoundDataset,
-    args,
-    now_utc,
-    key_resolver,
+    args: dict[str, Any],
+    now_utc: datetime,
+    key_resolver: SecretResolver,
     *,
     page_number: int = 1,
     cursor: str | None = None,
@@ -64,12 +66,14 @@ def build_request(
     if any(not Draft202012Validator.TYPE_CHECKER.is_type(v, types[k]) for k, v in args.items()):
         raise unavailable()
     # 查询与表达式使用同一份类型化实参投影：字符串保留原文，其它 JSON 类型先规范化，再执行所选的传输编码。
-    strings = {k: v if type(v) is str else canonical_bytes(v).decode() for k, v in args.items()}
+    strings: dict[str, str] = {
+        k: v if type(v) is str else canonical_bytes(v).decode() for k, v in args.items()
+    }
 
-    def value(node):
+    def value(node: str | dict[str, str]) -> str:
         return strings[node["parameter"]] if isinstance(node, dict) else node
 
-    def ordered(entries):
+    def ordered(entries: list[dict[str, Any]]) -> list[tuple[str, str]]:
         return [(pair["name"], value(pair["value"])) for pair in entries]
 
     # 分页参数也是本次请求的一部分，必须在签名之前加入有序序列，使每页摘要覆盖真正发送的分页位置。
@@ -126,10 +130,10 @@ def build_request(
             "METHOD": source["method"].encode(),
             "TIMESTAMP": timestamp.encode(),
         }
-        key, value = auth_header(
+        key, header_value = auth_header(
             auth, key_resolver(auth["secretRef"], auth["secretVersionId"]), wire, strings, pairs
         )
-        headers[key] = value
+        headers[key] = header_value
     if sum(len(name) + len(value) + 4 for name, value in headers.items()) > 16384:
         raise unavailable()
     return httpx.Request(
@@ -144,7 +148,9 @@ def build_request(
     )
 
 
-async def _page(transport, wire, remaining):
+async def _page(
+    transport: httpx.AsyncBaseTransport, wire: httpx.Request, remaining: int
+) -> tuple[object, int]:
     # 调试过滤器使用任务局部状态保护整次读取，连接失败和异常取消也会恢复调用方的原始日志上下文。
     token = _WIRE_ACTIVE.set(True)
     try:
@@ -153,7 +159,9 @@ async def _page(transport, wire, remaining):
         _WIRE_ACTIVE.reset(token)
 
 
-async def _read_page(transport, wire, remaining):
+async def _read_page(
+    transport: httpx.AsyncBaseTransport, wire: httpx.Request, remaining: int
+) -> tuple[object, int]:
     response = await transport.handle_async_request(wire)
     try:
         if not 200 <= response.status_code < 300:
@@ -174,7 +182,9 @@ async def _read_page(transport, wire, remaining):
         await response.aclose()
 
 
-def verify_signature(config, args, secret, probe):
+def verify_signature(
+    config: BoundDataset, args: dict[str, Any], secret: SecretResolver, probe: dict[str, str]
+) -> dict[str, bool]:
     """在固定 UTC 时间构造相同的请求字节并恒时比较签名，只返回匹配状态且不会为验证操作发起请求。"""
     auth = config.document["source"]["auth"]
     if auth.get("algorithm") != "HMAC_SHA256":
@@ -192,7 +202,7 @@ def verify_signature(config, args, secret, probe):
     }
 
 
-def open_transport():
+def open_transport() -> httpx.AsyncHTTPTransport:
     """为一次有界读取建立独立且启用证书校验的连接池，不读取环境代理或跨读取复用旧授权连接。"""
     # 显式创建校验对端证书和主机名的 TLS 客户端上下文，不从环境变量开启会话密钥记录或代理。
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
@@ -200,11 +210,13 @@ def open_transport():
     return httpx.AsyncHTTPTransport(verify=context, trust_env=False, retries=0)
 
 
-def _retryable_connect(error):
+def _retryable_connect(error: BaseException | None) -> bool:
     if isinstance(error, httpx.ConnectTimeout):
         return True
     # 仅在异常链中找到明确的暂时性套接字错误时重试，证书失败与原因未知的连接错误不能通过重试掩盖。
     for _ in range(8):
+        if error is None:
+            break
         if isinstance(error, ssl.SSLError):
             return False
         if isinstance(error, OSError) and error.errno in {
@@ -217,12 +229,17 @@ def _retryable_connect(error):
         }:
             return True
         error = error.__cause__ or error.__context__
-        if error is None:
-            break
     return False
 
 
-async def fetch_rows(config: BoundDataset, args, key_resolver, *, transport=None, recheck=None):
+async def fetch_rows(
+    config: BoundDataset,
+    args: dict[str, Any],
+    key_resolver: SecretResolver,
+    *,
+    transport: httpx.AsyncBaseTransport | None = None,
+    recheck: Callable[[], Awaitable[None]] | None = None,
+) -> list[dict[str, Any]]:
     """一次逻辑读取只占用一个并发槽；仅部署允许的 GET 连接失败重试一次，并共享分页与重试的十秒期限。"""
     if SLOTS.locked():
         raise Problem(429, "DATASET_BUSY", "Dataset request capacity exhausted")
@@ -296,7 +313,7 @@ async def fetch_rows(config: BoundDataset, args, key_resolver, *, transport=None
             raise invalid() from None
 
 
-def masked_preview(rows):
+def masked_preview(rows: list[dict[str, Any]]) -> dict[str, Any]:
     """预览公开行数和前十行实际存在的声明字段名，连行键也可能携带业务信息，因此不把键或值放入管理响应。"""
     return {
         "rowCount": len(rows),

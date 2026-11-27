@@ -12,11 +12,14 @@ import pytest
 from test_auth import setup, login
 from test_workspace import workspace, new_member, client
 from test_lease_mysql import device
-from test_agent_mysql import business, server_compile_once
+import test_agent_mysql
+import test_http_datasets
 from test_engine_capabilities_mysql import _settings_with_inventory, _write_inventory
-from test_http_datasets import dataset_deployment
 from veriq_server.db import Artifact
 from veriq_server.settings import Settings
+
+business = test_agent_mysql.business
+dataset_deployment = test_http_datasets.dataset_deployment
 
 
 async def test_published_source_exact_bytes_integrity_scope_and_current_membership(site):
@@ -68,7 +71,7 @@ async def test_published_source_exact_bytes_integrity_scope_and_current_membersh
     previous = approved.read_bytes() if approved.exists() else None
     try:
         approved.write_bytes((release / "inventory.json").read_bytes())
-        await server_compile_once(db, release)
+        await test_agent_mysql.server_compile_once(db, release)
         status = (await c.get(f"/api/v1/workspaces/{ws}/jobs/{job_id}")).json()["data"]
         assert status["state"] == "FINISHED" and status["outcome"] == "PASSED"
         receipt = (await c.get(f"/api/v1/workspaces/{ws}/jobs/{job_id}/validation-receipt")).json()[
@@ -178,7 +181,7 @@ async def test_published_source_exact_bytes_integrity_scope_and_current_membersh
             json={"revision": candidate["revision"], "sourceHash": candidate["sourceHash"]},
         )
         assert failed.status_code == 202
-        await server_compile_once(db, release)
+        await test_agent_mysql.server_compile_once(db, release)
         failed_job = f"/api/v1/workspaces/{ws}/jobs/{failed.json()['data']['id']}"
         failure = (await c.get(failed_job)).json()["data"]
         assert failure["outcome"] == "ERROR" and failure["errorCode"] == "UNKNOWN_ELEMENT"
@@ -802,7 +805,7 @@ async def test_legacy_published_dataset_revalidation_uses_frozen_original(
             _, err = await child.communicate()
             assert child.returncode == 0, err.decode()
 
-        await server_compile_once(db, release)
+        await test_agent_mysql.server_compile_once(db, release)
         async with db.sessions() as session:
             migrated = await session.get(Job, migration_id)
             assert migrated.outcome == "PASSED", (migrated.state, migrated.outcome)
@@ -1095,7 +1098,9 @@ async def test_mvp_exposes_connected_runtime_only(site):
 def test_protected_occurrences_expand_only_frozen_case_and_resolve_parameter_provenance():
     from veriq_server.services.connected_datasets import protected_occurrences
 
-    wire = lambda p: "v_" + sha256(p.encode("utf8")).hexdigest()
+    def wire(path: str) -> str:
+        return "v_" + sha256(path.encode("utf8")).hexdigest()
+
     tree = {
         "assets": [
             {"versionId": "dataset", "kind": "DATASET", "document": {"fields": {"value": {}}}},

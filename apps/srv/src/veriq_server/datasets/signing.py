@@ -4,18 +4,25 @@ import base64
 import hashlib
 import hmac
 import os
+from collections.abc import Sequence
+from typing import Any
 from urllib.parse import quote_from_bytes, quote, urlencode
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from .policy import unavailable
 
 
-def query_bytes(pairs) -> bytes:
+def query_bytes(pairs: Sequence[tuple[str, str]]) -> bytes:
     """对有序二元组执行 RFC3986 百分号编码，重复键与空值仍占独立位置，空格固定编码为百分之二十。"""
     return urlencode(pairs, quote_via=quote, safe="").encode("ascii")
 
 
-def signature_input(node, wire, args, pairs) -> bytes:
+def signature_input(
+    node: dict[str, Any],
+    wire: dict[str, bytes],
+    args: dict[str, str],
+    pairs: Sequence[tuple[str, str]],
+) -> bytes:
     """逐层计算经过验证的小型字节表达式，每步均检查中间结果预算，避免重复百分号编码放大内容。"""
     op = node["op"]
     if op in wire:
@@ -49,7 +56,13 @@ def signature_input(node, wire, args, pairs) -> bytes:
     return result
 
 
-def auth_header(auth, secret, wire, args, pairs):
+def auth_header(
+    auth: dict[str, Any],
+    secret: object,
+    wire: dict[str, bytes],
+    args: dict[str, str],
+    pairs: Sequence[tuple[str, str]],
+) -> tuple[str, str]:
     """签名仅写入已批准的请求头，加密通过库生成认证密文并使用新随机 nonce，固定输入签名可独立复算。"""
     if auth["kind"] == "BASIC":
         if not isinstance(secret, dict) or any(

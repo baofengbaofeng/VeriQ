@@ -84,11 +84,11 @@ class BundleAPI(API):
                 self.respond(
                     {
                         "items": [bundle_dto(row) for row in shown],
-                        "nextCursor": page.next(
-                            (shown[-1].id, shown[-1].id), len(rows) > page.limit
-                        )
-                        if shown
-                        else None,
+                        "nextCursor": (
+                            page.next((shown[-1].id, shown[-1].id), len(rows) > page.limit)
+                            if shown
+                            else None
+                        ),
                     }
                 )
                 return

@@ -1,6 +1,7 @@
 """定义版本化模型操作名称、入参和服务端处理函数，既有 HTTP 路由的参数及实现不会决定模型工具的调用形状。"""
 
 from collections.abc import Awaitable, Callable
+from typing import Any
 from dataclasses import dataclass
 
 from jsonschema import Draft202012Validator, FormatChecker, ValidationError
@@ -31,7 +32,7 @@ class ToolExecution:
     session: AsyncSession
     scope: WorkspaceScope
     user: User
-    context: dict
+    context: dict[str, Any]
     settings: Settings
     protected: set[str]
 
@@ -42,16 +43,16 @@ class AgentTool:
 
     name: str
     description: str
-    parameters: dict
+    parameters: dict[str, Any]
     permission: Permission
-    handler: Callable[[ToolExecution, dict], Awaitable[dict]]
+    handler: Callable[[ToolExecution, dict[str, Any]], Awaitable[dict[str, Any]]]
     result_kind: str
 
-    def advertised(self) -> dict:
+    def advertised(self) -> dict[str, Any]:
         """供应商只看到版本化函数名称、说明和参数形状，控制面用的权限、实现和结果分类保留在进程内。"""
         return {"name": self.name, "description": self.description, "parameters": self.parameters}
 
-    def validate_arguments(self, arguments: dict) -> None:
+    def validate_arguments(self, arguments: dict[str, Any]) -> None:
         """先限制参数的真实序列化字节，再校验结构与 UUID 格式，错误消息省略模型提供的原始数据和值。"""
         try:
             if len(canonical_bytes(arguments)) > MAX_RESOURCE_PROPOSAL_BYTES + 256:
@@ -65,7 +66,7 @@ class AgentTool:
             ) from None
 
 
-def resource_model_schema() -> dict:
+def resource_model_schema() -> dict[str, Any]:
     """模型侧只描述跨资源共用的提议结构，精确 DSL 由领域契约校验，避免每次规划把全部编译 Schema 传给供应商。"""
     model = _schema()["$defs"]["AgentResourceDraftProposal"]
     resource = model["properties"]["resource"]
@@ -87,7 +88,9 @@ def resource_model_schema() -> dict:
     }
 
 
-def _arguments(fields, required, definitions):
+def _arguments(
+    fields: dict[str, Any], required: list[str], definitions: dict[str, Any]
+) -> dict[str, Any]:
     """各操作复用同一封闭输入形状，公用定义只嵌入这一操作所需的部分以保持发给供应商的工具参数有界。"""
     return {
         "type": "object",
@@ -98,18 +101,18 @@ def _arguments(fields, required, definitions):
     }
 
 
-async def _run_status(call: ToolExecution, args: dict):
+async def _run_status(call: ToolExecution, args: dict[str, Any]) -> dict[str, Any]:
     """运行查询仅返回报告服务授权过的当前状态与结论，同一工具不会打开下载入口或返回原始测试产物。"""
     report = ReportService(call.session, call.user, call.settings)
     return await run_summary(report, call.scope, args["runId"].lower())
 
 
-async def _find(call: ToolExecution, args: dict):
+async def _find(call: ToolExecution, args: dict[str, Any]) -> dict[str, Any]:
     """资源发现由当前空间目录查询处理，不复用公开 HTTP 路由、前端筛选字段或任何模型构造的排序表达式。"""
     return await find_configuration(call.session, call.scope, args, call.context, call.protected)
 
 
-async def _execution_preview(call: ToolExecution, args: dict):
+async def _execution_preview(call: ToolExecution, args: dict[str, Any]) -> dict[str, Any]:
     """执行计划提议沿用授权候选与修订合并，实际确认仍重新验证设备权限和同一组用例矩阵的适用性。"""
     result = await proposal_preview(
         call.session, call.scope, call.user, args["proposal"], call.context
@@ -118,7 +121,7 @@ async def _execution_preview(call: ToolExecution, args: dict):
     return result
 
 
-async def _resource_preview(call: ToolExecution, args: dict):
+async def _resource_preview(call: ToolExecution, args: dict[str, Any]) -> dict[str, Any]:
     """提议中出现当前供应商密钥或其编码值时整份拒绝，避免替换敏感字符串后还把残缺草稿误认为可以保存。"""
     sanitized = sanitize_proposal_output(args, call.protected)
     return await prepare_resource_draft(
@@ -126,7 +129,7 @@ async def _resource_preview(call: ToolExecution, args: dict):
     )
 
 
-def sanitize_proposal_output(output, protected):
+def sanitize_proposal_output(output: object, protected: set[str]) -> dict[str, Any]:
     """聊天文本与计划继续使用脱敏副本，完整草稿发生脱敏时须拒绝保存，避免确认经过静默替换的配置值。"""
     sanitized = sanitize(output, protected)
     proposal = output.get("proposal") if isinstance(output, dict) else None
@@ -138,10 +141,12 @@ def sanitize_proposal_output(output, protected):
         raise Problem(
             422, "AGENT_RESOURCE_INVALID", "Remove secrets from the proposed configuration"
         )
+    if not isinstance(sanitized, dict):
+        raise Problem(422, "AGENT_OUTPUT_INVALID", "Expected an object for agent output")
     return sanitized
 
 
-def configuration_tools(definitions: dict) -> dict[str, AgentTool]:
+def configuration_tools(definitions: dict[str, Any]) -> dict[str, AgentTool]:
     """列出固定版本的业务能力，原有名称仍能解析到等价版本，供应商不会从这里看到任意服务端路由。"""
     ids = {"Id": definitions["Id"]}
     plan_defs = {

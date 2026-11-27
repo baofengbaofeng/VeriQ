@@ -575,12 +575,14 @@ class RuntimeService:
             "name": runtime.name,
             "location": runtime.location,
             "trustStatus": runtime.trust_status,
-            "status": "REVOKED"
-            if runtime.trust_status == "REVOKED"
-            else (
-                "ONLINE"
-                if runtime.last_seen_at and runtime.last_seen_at > now() - timedelta(seconds=60)
-                else "OFFLINE"
+            "status": (
+                "REVOKED"
+                if runtime.trust_status == "REVOKED"
+                else (
+                    "ONLINE"
+                    if runtime.last_seen_at and runtime.last_seen_at > now() - timedelta(seconds=60)
+                    else "OFFLINE"
+                )
             ),
             **({"lastSeenAt": stamp(runtime.last_seen_at)} if runtime.last_seen_at else {}),
             "capabilities": runtime.capabilities,

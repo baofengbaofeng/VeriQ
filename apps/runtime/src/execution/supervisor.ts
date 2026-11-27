@@ -32,11 +32,13 @@ import {
     type StaticDatasetSelection,
     type EvidenceFileEntryV1,
     type CleanupStatus,
+    type PlatformComponents,
 } from "@veriq/contracts";
 import type { CaseResult } from "@veriq/runner-sdk";
 import { RuntimeError } from "../enrollment.ts";
 import { leaseDeadline } from "../lease.ts";
 import { AgentClient, type Claim } from "../agent/transport.ts";
+import { readPending } from "../agent/pending-claim.ts";
 import { Heartbeat } from "../agent/heartbeat.ts";
 import { isPreSpawnState } from "./pre-spawn.ts";
 import { ProcessRecords } from "./records.ts";
@@ -56,6 +58,7 @@ import { privateDirectory, readBoundedFile } from "../offline/config.ts";
  * 公开接口 ClaimedAttempt 绑定一次认领结果与收发单调时刻：供 leaseDeadline 换算与 runAttempt 使用。
  */
 export interface ClaimedAttempt {
+    runnerId?: string;
     claimRequestId?: string;
     claim: Claim;
     requestStarted: number;
@@ -102,15 +105,7 @@ export interface SupervisorOptions {
      */
     execution?: ExecutionPaths;
 }
-interface AttemptJournal {
-    allocation?: TaskAllocation;
-    dataCleanup?: DataCleanup;
-    claimRequestId?: string;
-    claim: Claim;
-    state: "ALLOCATED" | "ACTIVATING" | "ACTIVATED" | "SPAWNING" | "RUNNING" | "STOPPED";
-    work: string;
-    stop?: StopReceipt;
-}
+type AttemptJournal = import("./windows-journal.ts").WindowsAttemptRecord;
 type RecoveredAttempt = StopReceipt & { claimRequestId?: string };
 const json = async <T>(path: string): Promise<T> => JSON.parse(await readFile(path, "utf8")) as T;
 /**
@@ -120,6 +115,7 @@ export class ExecutionSupervisor {
     readonly processes: ProcessSupervisor;
     private readonly source: DarwinSourceState | undefined;
     private readonly minimumFreeBytes: bigint;
+    private completed: AttemptJournal | undefined;
     constructor(private options: SupervisorOptions) {
         const minimumFreeBytes = options.minimumFreeBytes === undefined ? 512 * 1024 ** 2 : options.minimumFreeBytes;
         if (!Number.isSafeInteger(minimumFreeBytes) || minimumFreeBytes < 1) {
@@ -295,8 +291,8 @@ export class ExecutionSupervisor {
     /**
      * 恢复尝试终止日志记录的残留进程，并向控制面对账后返回原有停机回执；暂存处置通过独立通知交付本机状态。
      */
-    async recover(onCleanup?: (value: DataCleanup) => void): Promise<RecoveredAttempt[]> {
-        if (process.platform === "win32") return this.recoverWindows(onCleanup);
+    async recover(onCleanup?: (value: DataCleanup) => void, runnerId?: string): Promise<RecoveredAttempt[]> {
+        if (process.platform === "win32") return this.recoverWindows(onCleanup, runnerId);
         const directory = join(this.options.root, "attempts");
         const receipts: RecoveredAttempt[] = [];
         /**
@@ -306,7 +302,7 @@ export class ExecutionSupervisor {
         const records = await ProcessRecords.open(directory);
         if (!records) return receipts;
         try {
-            const { names, interrupted } = await records.journalNames(4096);
+            const { names, interrupted } = await records.journalNames();
             const recovered = new Set<string>();
             for (const name of names) {
                 if (!name.endsWith(".json")) continue;
@@ -338,26 +334,17 @@ export class ExecutionSupervisor {
                     stop.reason === "UNKNOWN_PROCESS"
                 )
                     stop.reason = "JOURNAL_STAGING_UNCONFIRMED";
-                if (stop.processStopped && stop.processStopScope !== "NO_PROCESS_SPAWNED") record.state = "STOPPED";
-                record.dataCleanup = await retireScratch(this.options.root, this.temporaryDirectory(), record, stop);
-                record.stop = stop;
-                try {
-                    await this.journal(record);
-                } catch {
-                    if (stop.processStopScope === "NO_PROCESS_SPAWNED")
-                        stop = {
-                            attemptId: record.claim.attemptId,
-                            processStopped: false,
-                            reason: "JOURNAL_COMMIT_UNCONFIRMED",
-                            stoppedAt: new Date().toISOString(),
-                        };
-                }
-                onCleanup?.(record.dataCleanup);
-                await this.reconcile(record.claim, stop, "PENDING");
-                receipts.push({
-                    ...stop,
-                    ...(record.claimRequestId ? { claimRequestId: record.claimRequestId } : {}),
-                });
+                receipts.push(
+                    await this.recoverRecord(
+                        record,
+                        stop,
+                        runnerId,
+                        onCleanup,
+                        () => this.journal(record),
+                        () => records.archiveAttempt(record),
+                        !interrupted.has(record.claim.attemptId),
+                    ),
+                );
             }
             /**
              * 仅有临时成员时没有已提交 Claim 或 fence 可用于网络对账，仍返回明确未知以阻止 claimLoop 再认领；
@@ -383,33 +370,42 @@ export class ExecutionSupervisor {
      * 孤立进程成员不被忽略，持久前置状态仍必须没有任何原生启动意图，真正派生过
      * 的 Attempt 始终使用 Job 排空证明。
      */
-    private async recoverWindows(onCleanup?: (value: DataCleanup) => void): Promise<RecoveredAttempt[]> {
+    private async recoverWindows(
+        onCleanup?: (value: DataCleanup) => void,
+        runnerId?: string,
+    ): Promise<RecoveredAttempt[]> {
         const journal = await WindowsAttemptJournal.open(this.options.root);
         const receipts: RecoveredAttempt[] = [];
         let processes: ProcessRecords | undefined;
         try {
             await journal.requireNoLegacy();
-            const records = journal.records(),
-                ids = new Set(records.map((record) => record.claim.attemptId));
+            const ids = new Set<string>();
+            for (const record of journal.records()) ids.add(record.claim.attemptId);
             processes = await ProcessRecords.open(join(this.options.root, "processes"));
-            for (const name of (await processes?.names(8192)) ?? []) {
+            const processNames = (await processes?.names()) ?? [];
+            if (processNames.length) {
+                for await (const record of WindowsAttemptJournal.archived(this.options.root))
+                    ids.add(record.claim.attemptId);
+            }
+            for (const name of processNames) {
                 const match = /^([a-zA-Z0-9_-]{1,100})\.(?:process|drained)\.json$/.exec(name);
                 if (!match || !ids.has(match[1]!)) throw new Error("WINDOWS_ORPHAN_PROCESS_RECOVERY_REQUIRED");
             }
-            for (const record of records) {
+            for (const record of journal.records()) {
                 const stop =
                     (await this.unspawned(record, true)) ??
                     (await this.terminateAttempt(record.claim.attemptId, "AGENT_RECOVERY"));
-                if (stop.processStopped && stop.processStopScope !== "NO_PROCESS_SPAWNED") record.state = "STOPPED";
-                record.dataCleanup = await retireScratch(this.options.root, this.temporaryDirectory(), record, stop);
-                record.stop = stop;
-                journal.save(record);
-                onCleanup?.(record.dataCleanup);
-                await this.reconcile(record.claim, stop, "PENDING");
-                receipts.push({
-                    ...stop,
-                    ...(record.claimRequestId ? { claimRequestId: record.claimRequestId } : {}),
-                });
+                receipts.push(
+                    await this.recoverRecord(
+                        record,
+                        stop,
+                        runnerId,
+                        onCleanup,
+                        () => journal.save(record),
+                        () => journal.archive(record),
+                        true,
+                    ),
+                );
             }
             return receipts;
         } finally {
@@ -420,6 +416,97 @@ export class ExecutionSupervisor {
             }
         }
     }
+    private async recoverRecord(
+        record: AttemptJournal,
+        stop: StopReceipt,
+        runnerId: string | undefined,
+        onCleanup: ((value: DataCleanup) => void) | undefined,
+        save: () => Promise<void> | void,
+        archive: () => Promise<void> | void,
+        canArchive: boolean,
+    ): Promise<RecoveredAttempt> {
+        // 换绑后仍须在本机核验原进程已经停止才能继续认领；服务端的原容量和归档须由获得授权的旧主体结算。
+        if (record.runnerId !== undefined && validateSchema("Id", record.runnerId).length)
+            throw new Error("ATTEMPT_JOURNAL_PRINCIPAL_INVALID");
+        if (record.runnerId && runnerId && record.runnerId !== runnerId) return stop;
+        if (stop.processStopped && stop.processStopScope !== "NO_PROCESS_SPAWNED") record.state = "STOPPED";
+        record.dataCleanup = await retireScratch(this.options.root, this.temporaryDirectory(), record, stop);
+        record.stop = stop;
+        onCleanup?.(record.dataCleanup);
+        try {
+            await save();
+        } catch (error) {
+            if (process.platform === "win32") throw error;
+            canArchive = false;
+            if (stop.processStopScope === "NO_PROCESS_SPAWNED")
+                stop = {
+                    attemptId: record.claim.attemptId,
+                    processStopped: false,
+                    reason: "JOURNAL_COMMIT_UNCONFIRMED",
+                    stoppedAt: new Date().toISOString(),
+                };
+        }
+        let acknowledgement: PlatformComponents["schemas"]["ReconcileDTO"];
+        try {
+            acknowledgement = await this.reconcile(record.claim, stop, "PENDING");
+        } catch (error) {
+            // 旧日志缺少设备标识，只有服务端明确拒绝当前主体时才保留原件待原主体处理，其余错误继续等待重试。
+            if (
+                runnerId &&
+                !record.runnerId &&
+                error instanceof RuntimeError &&
+                error.status === 403 &&
+                error.code === "ATTEMPT_FORBIDDEN"
+            )
+                return stop;
+            throw error;
+        }
+        if (
+            canArchive &&
+            stop.processStopped &&
+            acknowledgement?.capacityReleased === true &&
+            acknowledgement.attemptId === record.claim.attemptId
+        ) {
+            if (runnerId && !record.runnerId) {
+                record.runnerId = runnerId;
+                await save();
+            }
+            // 待定文件清除前重启仍须匹配原请求，因此保留匹配或读取失败的活动日志，直到后续恢复确认可归档。
+            if (!record.claimRequestId || !(await this.mayHavePending(record.claimRequestId))) await archive();
+        }
+        return { ...stop, ...(record.claimRequestId ? { claimRequestId: record.claimRequestId } : {}) };
+    }
+
+    private async mayHavePending(id: string) {
+        try {
+            return (await readPending(this.options.root, true))?.clientRequestId === id;
+        } catch {
+            return true;
+        }
+    }
+
+    async archiveCompleted(claim: Claim): Promise<void> {
+        const record = this.completed;
+        this.completed = undefined;
+        if (!record || record.claim !== claim) return;
+        if (process.platform === "win32") {
+            const journal = await WindowsAttemptJournal.open(this.options.root);
+            try {
+                await journal.archive(record);
+            } finally {
+                journal.close();
+            }
+        } else {
+            const records = await ProcessRecords.open(join(this.options.root, "attempts"));
+            if (!records) throw new Error("ATTEMPT_JOURNAL_MISSING");
+            try {
+                await records.archiveAttempt(record);
+            } finally {
+                await records.close();
+            }
+        }
+    }
+
     /**
      * 历史停止证明除了内部过程与 proof 配对，还必须匹配当前已提交 Claim 的原始 fence 和任务类型；恢复不能用同一
      * Attempt 名称借取另一代或另一种浏览器计划，读取或关闭不确定都保留未知容量，不重建任
@@ -447,19 +534,24 @@ export class ExecutionSupervisor {
         return outcome;
     }
     private reconcile(claim: Claim, stop: StopReceipt, cleanupStatus: CleanupStatus) {
-        return this.options.client.request(`/internal/v1/attempts/${claim.attemptId}/reconcile`, "POST", {
-            fencingToken: claim.fencingToken,
-            processStopped: stop.processStopped,
-            ...(stop.processStopScope !== undefined ? { processStopScope: stop.processStopScope } : {}),
-            cleanupStatus,
-            stoppedAt: stop.stoppedAt,
-        });
+        return this.options.client.request<PlatformComponents["schemas"]["ReconcileDTO"]>(
+            `/internal/v1/attempts/${claim.attemptId}/reconcile`,
+            "POST",
+            {
+                fencingToken: claim.fencingToken,
+                processStopped: stop.processStopped,
+                ...(stop.processStopScope !== undefined ? { processStopScope: stop.processStopScope } : {}),
+                cleanupStatus,
+                stoppedAt: stop.stoppedAt,
+            },
+        );
     }
     /**
      * 公开方法 runAttempt 在租约预算内激活并执行一次 Claim：心跳、存储监控与 fencing 贯穿全程：完成后上传证据并提交
      * CompletionManifest。
      */
     async runAttempt(assignment: ClaimedAttempt, signal: AbortSignal): Promise<AttemptResult> {
+        this.completed = undefined;
         const { claim } = assignment;
         leaseDeadline(
             { ...claim, leaseExpiresAt: claim.expiresAt },
@@ -475,6 +567,7 @@ export class ExecutionSupervisor {
             claim,
             state: "ALLOCATED",
             work,
+            ...(assignment.runnerId ? { runnerId: assignment.runnerId } : {}),
             ...(assignment.claimRequestId ? { claimRequestId: assignment.claimRequestId } : {}),
         };
         let journalCommitted = false;
@@ -1157,15 +1250,25 @@ export class ExecutionSupervisor {
                 },
             });
             await events.flush();
-            await client.request(`/internal/v1/attempts/${claim.attemptId}/finish`, "POST", {
-                leaseToken: claim.leaseToken,
-                fencingToken: claim.fencingToken,
-                kind: manifest.kind,
-                outcome: manifest.kind === "TEST" ? caseResult!.outcome : workerResult.businessOutcome,
-                manifestSha256: sha256(completionBytes),
-                lastSequence: events.lastSequence,
-                cleanupStatus,
-            });
+            const receipt = await client.request<PlatformComponents["schemas"]["FinishDTO"]>(
+                `/internal/v1/attempts/${claim.attemptId}/finish`,
+                "POST",
+                {
+                    leaseToken: claim.leaseToken,
+                    fencingToken: claim.fencingToken,
+                    kind: manifest.kind,
+                    outcome: manifest.kind === "TEST" ? caseResult!.outcome : workerResult.businessOutcome,
+                    manifestSha256: sha256(completionBytes),
+                    lastSequence: events.lastSequence,
+                    cleanupStatus,
+                },
+            );
+            if (
+                receipt?.accepted === true &&
+                receipt.attemptId === claim.attemptId &&
+                receipt.manifestSha256 === sha256(completionBytes)
+            )
+                this.completed = record;
             result = { completion, stop, files };
         } catch (error) {
             const failure =
@@ -1222,6 +1325,7 @@ export class ExecutionSupervisor {
                     try {
                         await this.journal(record);
                     } catch {
+                        this.completed = undefined;
                         // 可选补记失败时，本机提示仍使用已计算的保留状态，业务完成或失败结果已由各自路径结算。
                     }
                 }

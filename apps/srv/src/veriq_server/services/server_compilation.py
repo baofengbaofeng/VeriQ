@@ -16,19 +16,20 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, or_, select, update
 from sqlalchemy.exc import DBAPIError
+from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.authorization import Permission, WorkspaceScope
 from ..contracts import asset_source_hash, canonical_bytes, validate_schema
 from ..db import Attempt, Database, Job, User, ValidationReceipt
 from ..repositories.resource import ResourceRepository
-from ..server_compiler import ServerCompileError, compile_snapshot, configured_release_path
+from ..server_compiler import ServerCompileError, compile_snapshot, local_release_available
 from ..service import Problem, audit, lock_installation
 from ..settings import Settings
 from .connected_datasets import project_source
-from .engines import ApprovedEngines
+from .engines import ApprovedEngines, supports_validation
 from .execution_principal import ServicePrincipal
 from .jobs import database_time
 from .resource import ResourceService
@@ -225,11 +226,40 @@ def _finish_job(
     )
 
 
+def _local_engines(settings: Settings) -> dict[str, dict[str, Any]]:
+    """单目录对应当前配置的引擎版本，历史发行可通过版本映射独立部署，每个目录都须核对批准的字节。"""
+    inventory = ApprovedEngines(settings)
+    engines = {}
+    for version in sorted(
+        {settings.validation_engine_version, *settings.server_compiler_release_dirs}
+    ):
+        try:
+            engine, _ = inventory.require(version)
+        except Problem:
+            continue
+        if local_release_available(settings, engine):
+            engines[version] = engine
+    return engines
+
+
+def _eligible(engine: dict[str, Any]) -> ColumnElement[bool]:
+    """在队列查询中按冻结引擎版本及批准的数据能力筛选，使节点可以越过队首继续处理本机能运行的作业。"""
+    caps = Job.required_capabilities
+    eligible: ColumnElement[bool] = caps["engineVersion"].as_string() == engine["engineVersion"]
+    for capability in ("connectedDatasets", "httpDatasets"):
+        if not supports_validation(engine, {capability: True}):
+            eligible = and_(eligible, caps[capability].as_string().is_(None))
+    return eligible
+
+
 async def _claim(db: Database, settings: Settings) -> _Claim | None:
     """领取待校验作业或替换过期的服务端围栏，已转交旧设备的在途执行仍按既有设备协议保持租约并结案。
 
     全局安装锁串行化设备旧租约和新 Worker 领取。只在事务内读取权威工作区、批准库存和冻结内容。
     """
+    engines = _local_engines(settings)
+    if not engines:
+        return None
     async with db.sessions.begin() as session:
         await lock_installation(session)
         clock = await database_time(session)
@@ -238,6 +268,7 @@ async def _claim(db: Database, settings: Settings) -> _Claim | None:
                 select(Job)
                 .where(
                     Job.kind == "VALIDATE",
+                    or_(*(_eligible(engine) for engine in engines.values())),
                     Job.active_attempt_id.is_(None),
                     ~select(Attempt.id)
                     .where(
@@ -263,6 +294,17 @@ async def _claim(db: Database, settings: Settings) -> _Claim | None:
         if job is None:
             return None
 
+        version = job.required_capabilities["engineVersion"]
+        engine = engines[version]
+        inventory_hash = sha256(canonical_bytes(engine)).hexdigest()
+        try:
+            ApprovedEngines(settings).require_validation(
+                version, job.required_capabilities, inventory_hash=inventory_hash
+            )
+        except Problem:
+            # 本机探测与事务内复核之间批准库存已经变化，下轮轮询将重新确认可用发行，本轮保持原作业状态。
+            return None
+
         # 在同一数据库事务中改换围栏，将已过期的领取与本次领取永久区分，阻止旧进程覆盖本次作业结论。
         job.server_compilation_id = str(uuid4())
         job.server_compile_expires_at = clock + _LEASE
@@ -272,10 +314,6 @@ async def _claim(db: Database, settings: Settings) -> _Claim | None:
         try:
             await _authorize(session, job, settings)
             snapshot, connected = await _source(repo, job)
-            engine = ApprovedEngines(settings).require_validation(
-                snapshot["engineVersion"], job.required_capabilities
-            )
-            inventory_hash = sha256(canonical_bytes(engine)).hexdigest()
         except Problem as error:
             _finish_job(session, job, "ERROR", _error_result(error.code))
             return None
@@ -370,6 +408,22 @@ async def _retain_compilation(
     return True
 
 
+async def _return_claim(db: Database, claim: _Claim) -> None:
+    """本机发行或工具在领取后失效时归还自己的围栏，已由其它 Worker 接管或完成的任务保持原状。"""
+    async with db.sessions.begin() as session:
+        await lock_installation(session)
+        await session.execute(
+            update(Job)
+            .where(
+                Job.id == claim.job_id,
+                Job.state == "RUNNING",
+                Job.server_compilation_id == claim.compilation_id,
+                Job.server_compile_expires_at > await database_time(session),
+            )
+            .values(state="QUEUED", server_compile_expires_at=None, server_compilation_id=None)
+        )
+
+
 async def compile_next(db: Database, settings: Settings) -> bool:
     """领取并编译一个待校验资源，失败写结构化作业终态，等待超时或产物核验失败从不生成可信回执。"""
     claim = await _claim(db, settings)
@@ -385,6 +439,18 @@ async def compile_next(db: Database, settings: Settings) -> bool:
             )
         verify_compiled_output(claim.snapshot, claim.engine, *output, connected=claim.connected)
     except ServerCompileError as problem:
+        if not problem.diagnostics and problem.code in {
+            "ENGINE_RELEASE_UNAVAILABLE",
+            "ENGINE_RELEASE_HASH_MISMATCH",
+            "SERVER_COMPILER_NOT_CONFIGURED",
+            "SERVER_COMPILER_NODE_REQUIRED",
+            "SERVER_COMPILER_TOOL_UNAVAILABLE",
+        }:
+            await _return_claim(db, claim)
+            if problem.code.startswith("SERVER_COMPILER_"):
+                raise Problem(503, problem.code, "Server compiler tools are unavailable") from None
+            logger.warning("Server compiler release changed after claim")
+            return False
         error = _error_result(problem.code, problem.diagnostics)
     except Problem as problem:
         error = _error_result(problem.code)
@@ -401,17 +467,12 @@ async def serve_compiler(
     db: Database, settings: Settings, stop: asyncio.Event, *, once: bool
 ) -> None:
     """按受管部署轮询待编译作业，停止信号到达后不领取下一项，已开始编译仍按有界围栏完成。"""
-    ApprovedEngines(settings).require(settings.validation_engine_version)
-    try:
-        release = configured_release_path(settings, settings.validation_engine_version)
-    except ServerCompileError as error:
-        raise Problem(503, error.code, "Server compiler release is unavailable") from None
     tool_paths = (
         settings.server_compiler_node_path,
         settings.server_compiler_npm_cli_path,
         settings.server_compiler_tsx_path,
     )
-    if not release.is_dir() or any(
+    if not _local_engines(settings) or any(
         not path or not Path(path).is_absolute() or not Path(path).is_file() for path in tool_paths
     ):
         raise Problem(

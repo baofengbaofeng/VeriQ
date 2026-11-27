@@ -232,7 +232,9 @@ async def test_plan_notifications_follow_runtime_claim_and_overlap_skip(site):
     assert first.status_code == 202, first.text
     assert (await client.get("/api/v1/notifications")).json()["data"]["items"] == []
 
-    claimed = await client.post("/internal/v1/jobs/claim", json=claim_body(runtime), headers=auth(runtime))
+    claimed = await client.post(
+        "/internal/v1/jobs/claim", json=claim_body(runtime), headers=auth(runtime)
+    )
     assert claimed.status_code == 200, claimed.text
     skipped_key = {"Idempotency-Key": str(uuid4())}
     skipped = await client.post(trigger, json={}, headers=skipped_key)
@@ -513,6 +515,17 @@ async def test_terminal_prior_run_with_quarantined_process_blocks_another_runtim
         json={"reason": "Test confirms stopped process", "processStopped": True},
     )
     assert released.status_code == 200, released.text
+    late = await c.post(
+        f"/internal/v1/attempts/{attempt_id}/reconcile",
+        json={
+            "fencingToken": lease["fencingToken"],
+            "processStopped": False,
+            "cleanupStatus": "PENDING",
+            "stoppedAt": "2026-11-11T12:00:00Z",
+        },
+        headers=auth(first),
+    )
+    assert late.status_code == 200 and late.json()["data"]["capacityReleased"], late.text
     next_claim = await c.post(
         "/internal/v1/jobs/claim", json=claim_body(second), headers=auth(second)
     )

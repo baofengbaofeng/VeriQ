@@ -1,28 +1,34 @@
 """从当前工作区和连接批准的版本读取认证材料，发布检查只验证可用性，只有授权的实际读取才解封密文。"""
 
+from typing import Any
+
 from cryptography.exceptions import InvalidTag
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..credentials.crypto import EncryptedValue
 from ..credentials.service import configured_keyring
 from ..db import SecretVersion
-from .policy import bind_connection, unavailable
+from ..settings import Settings
+from .policy import DatasetBinding, bind_connection, unavailable
 
 
 async def authorize_dataset(
-    session,
-    settings,
-    workspace_id,
-    user_id,
-    environment_id,
-    dataset,
+    session: AsyncSession,
+    settings: Settings | None,
+    workspace_id: str,
+    user_id: str,
+    environment_id: str | None,
+    dataset: dict[str, Any],
     *,
-    resolve=False,
-    service_account=False,
-):
+    resolve: bool = False,
+    service_account: bool = False,
+) -> DatasetBinding:
     """复核连接、人员、密钥和批准身份的一致性，凭证撤销后预览和执行都无法凭历史草稿继续读取。"""
+    if settings is None:
+        raise unavailable()
     bound = bind_connection(
-        settings.dataset_connections if settings else {},
+        settings.dataset_connections,
         workspace_id,
         user_id,
         environment_id,
@@ -30,7 +36,7 @@ async def authorize_dataset(
         service_account=service_account,
     )
     auth = dataset["source"]["auth"]
-    material = {}
+    material: dict[tuple[str, str], object] = {}
     if auth["kind"] != "NONE":
         key = (auth["secretRef"], auth["secretVersionId"])
         # 同一 SELECT 固定工作区、引用与版本，并读取当前撤销状态，杜绝从另一个工作区借用同名密钥或旧会话值。
@@ -62,7 +68,7 @@ async def authorize_dataset(
                 raise unavailable()
             material[key] = value if auth["kind"] == "BASIC" else value["value"]
 
-    def secret(ref, version_id):
+    def secret(ref: str, version_id: str) -> object:
         if (ref, version_id) not in material:
             raise unavailable()
         return material[ref, version_id]

@@ -1,6 +1,5 @@
 import asyncio
 import json
-from hashlib import sha256
 from typing import Any
 from tornado.iostream import StreamClosedError
 from tornado.web import create_signed_value, decode_signed_value
@@ -8,6 +7,7 @@ from ..auth.authorization import WorkspaceScope
 from ..contracts import canonical_bytes
 from ..service import Problem, audit, lock_installation
 from ..services.report import ReportService
+from ..services.report_stream import ReportStreamState, observe_report
 from ..services.artifact import ArtifactService, artifact_store, verify
 from .base import API
 
@@ -93,7 +93,7 @@ class ReportAPI(API):
         scope = WorkspaceScope(workspace_id)
         if self.action == "report-artifact":
             async with self.db.sessions.begin() as session:
-                await lock_installation(session)
+                installation = await lock_installation(session)
                 user, _ = await self.identity(session)
                 upload, artifact = await ArtifactService(session, user).authorized(
                     scope, subject_id, upload_id
@@ -105,10 +105,13 @@ class ReportAPI(API):
                     artifact.content,
                     artifact.storage_incarnation,
                 )
-            if backend != "INLINE":
-                content = await artifact_store(self.config, backend).read(
-                    workspace_id, digest, size, incarnation
+                store = (
+                    await artifact_store(session, installation, self.config, backend)
+                    if backend != "INLINE"
+                    else None
                 )
+            if store is not None:
+                content = await store.read(workspace_id, digest, size, incarnation)
             if content is None:
                 raise Problem(409, "INVALID_ARTIFACT", "Artifact bytes missing")
             verify(content, digest, size)
@@ -125,7 +128,10 @@ class ReportAPI(API):
             self.finish(content)
             return
         async with self.db.sessions.begin() as session:
-            await lock_installation(session)
+            if self.action == "report":
+                await session.connection(execution_options={"isolation_level": "REPEATABLE READ"})
+            else:
+                await lock_installation(session)
             user, _ = await self.identity(session)
             service = ReportService(session, user, self.config)
             if self.action == "report":
@@ -157,72 +163,68 @@ class ReportAPI(API):
         self.disconnected = True
 
     async def post(self, workspace_id: str, run_id: str) -> None:
-        """POST SSE：短事务拉增量事件后释放权威锁，再 flush；授权失效发 authorization 事件；每轮短事务取数后释放锁，
-        再进入 sleep/flush 背压阶段。post 必须坚持 Workspace
-
-        归属与成员授权，嵌套资源引用不得跨空间隐式放行。post 处理报告或证据访问：原始制品与结构化报告权限需分开校验，
-        避免越权下载 Trace。
-        """
+        """每轮在新的可重复读快照中鉴权并比较运行、门禁和证据变化，事务结束后再发送数据或心跳。"""
         self.disconnected = False
         data = self.body("ReportStreamRequest")
         scope = WorkspaceScope(workspace_id)
         cursor = data.get("cursor")
         positions: dict[str, int] = {}
-        signature = ""
+        previous: ReportStreamState | None = None
         first = True
         while not self.disconnected:
             try:
                 async with self.db.sessions.begin() as session:
-                    await lock_installation(session)
+                    await session.connection(
+                        execution_options={"isolation_level": "REPEATABLE READ"}
+                    )
                     user, _ = await self.identity(session)
                     service = ReportService(session, user, self.config)
-                    report = await service.get(scope, run_id)
+                    run = await service.run(scope, run_id)
+                    state = await observe_report(session, run)
                     binding = {"workspaceId": workspace_id, "runId": run_id, "userId": user.id}
-                    attempts = await service.attempts(scope, run_id)
-                    known = {a.id: a.last_sequence for a in attempts}
+                    known = state.known
                     if first and cursor:
                         positions = decode_cursor(
                             self.config.signing_key.get_secret_value(), binding, cursor, known
                         )
                     events: list[dict[str, Any]] = []
                     event_bytes = 0
-                    for attempt in attempts:
-                        if known[attempt.id] <= positions.get(attempt.id, 0):
+                    for attempt_id, sequence in known.items():
+                        if sequence <= positions.get(attempt_id, 0):
                             continue
                         page = await service.events(
                             scope,
-                            attempt.id,
-                            positions.get(attempt.id, 0),
+                            attempt_id,
+                            positions.get(attempt_id, 0),
                             100 - len(events),
                             1024 * 1024 - event_bytes,
                         )
                         events.extend(page["items"])
                         event_bytes += sum(len(canonical_bytes(e)) for e in page["items"])
-                        positions[attempt.id] = page["nextSequence"]
+                        positions[attempt_id] = page["nextSequence"]
                         if len(events) >= 100 or event_bytes >= 1024 * 1024:
                             break
-                    latest = sha256(canonical_bytes(report)).hexdigest()
-                    encoded = encode_cursor(
-                        self.config.signing_key.get_secret_value(), binding, positions
-                    )
+                    send_report = first or bool(events) or state != previous
+                    if send_report:
+                        report = await service.get(scope, run_id, authorities=state.authorities)
+                        encoded = encode_cursor(
+                            self.config.signing_key.get_secret_value(), binding, positions
+                        )
                 # 事件正文组装完成后先离开数据库事务，再向客户端写入并等待刷新，避免网络背压期间继续持有事务或权威锁。
                 if first:
                     self.set_header("Content-Type", "text/event-stream")
                     self.set_header("X-Accel-Buffering", "no")
-                if events or first or latest != signature:
-                    self.write(
-                        f"id: {encoded}\nevent: report\ndata: {
-                            json.dumps(
-                                {'events': events, 'report': report},
-                                separators=(',', ':'),
-                                ensure_ascii=False,
-                            )
-                        }\n\n"
+                if send_report:
+                    payload = json.dumps(
+                        {"events": events, "report": report},
+                        separators=(",", ":"),
+                        ensure_ascii=False,
                     )
+                    self.write(f"id: {encoded}\nevent: report\ndata: {payload}\n\n")
                 else:
                     self.write(": keepalive\n\n")
                 await self.flush()
-                signature, first = latest, False
+                previous, first = state, False
                 await asyncio.sleep(1)
             except Problem as error:
                 if first:

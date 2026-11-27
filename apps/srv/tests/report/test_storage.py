@@ -3,12 +3,17 @@ import importlib.util
 from hashlib import sha256
 from uuid import uuid4
 import pytest
+from test_auth import login, setup
+from test_workspace import workspace as create_workspace
+from veriq_server.db import Artifact, ArtifactDeletion
+from veriq_server.file_volume import check_volume
+from veriq_server.service import Problem, lock_installation, now
+from veriq_server.services.artifact import FileArtifactStore, bind_volume
 
 
 async def test_file_cas_exact_bytes_replay_scope_integrity_and_delete(tmp_path):
-    assert importlib.util.find_spec("veriq_server.services.artifact") is not None, (
-        "Missing ArtifactStore implementation"
-    )
+    spec = importlib.util.find_spec("veriq_server.services.artifact")
+    assert spec is not None, "Missing ArtifactStore implementation"
     store = importlib.import_module("veriq_server.services.artifact").FileArtifactStore(tmp_path)
     workspace = str(uuid4())
     data = b"raw\x00credential-restricted\xffevidence"
@@ -67,3 +72,86 @@ async def test_s3_real_loopback_http_exact_bytes_conditional_replay_and_delete(m
             await store.read(workspace, digest, len(data))
     finally:
         server.stop()
+
+
+async def test_registered_volume_is_shared_and_independent_root_cannot_retire(site, tmp_path):
+    """共享数据库中的第二个节点只有挂载原卷才能下载与退役同代证据，错挂空卷必须在物理写入前失败。"""
+    _, db = site
+    shared = tmp_path / "shared"
+    independent = tmp_path / "node-b"
+    independent.mkdir()
+
+    async def connect(root):
+        async with db.sessions.begin() as session:
+            installation = await lock_installation(session)
+            identity = await bind_volume(session, installation, root)
+            return FileArtifactStore(root, identity)
+
+    a = await connect(shared)
+    workspace, incarnation = str(uuid4()), str(uuid4())
+    content = b"cross-node evidence"
+    digest = sha256(content).hexdigest()
+    await a.put(workspace, digest, content, incarnation)
+    b = await connect(independent)
+    with pytest.raises(Problem, match="Mount the registered"):
+        check_volume(independent, b.volume_id)
+    with pytest.raises(Problem):
+        await b.retire(workspace, digest, incarnation)
+    assert not list(independent.iterdir())
+    b = await connect(shared)
+    assert await b.read(workspace, digest, len(content), incarnation) == content
+    await b.retire(workspace, digest, incarnation)
+    with pytest.raises(ValueError):
+        await a.read(workspace, digest, len(content), incarnation)
+
+
+async def test_upgrade_verifies_legacy_bytes_and_retired_generation_before_binding(site, tmp_path):
+    """用保留原始键的旧制品和已退役的代际验证升级，绑定只有在原字节和空屏障各自核验成功后才生效。"""
+    client, db = site
+    await setup(client)
+    await login(client)
+    tenant = await create_workspace(client)
+    live = b"evidence predating volume registration"
+    digest = sha256(live).hexdigest()
+    retired_id = str(uuid4())
+    store = FileArtifactStore(tmp_path)
+    async with db.sessions.begin() as session:
+        session.add(
+            Artifact(
+                workspace_id=tenant,
+                sha256=digest,
+                size_bytes=len(live),
+                media_type="application/octet-stream",
+                storage_backend="FILE",
+            )
+        )
+        session.add(
+            ArtifactDeletion(
+                id=str(uuid4()),
+                workspace_id=tenant,
+                sha256=digest,
+                storage_backend="FILE",
+                storage_incarnation=retired_id,
+                deleted_at=now(),
+            )
+        )
+
+    async def bind(adopt=False):
+        async with db.sessions.begin() as session:
+            installation = await lock_installation(session)
+            return await bind_volume(session, installation, tmp_path, adopt=adopt)
+
+    with pytest.raises(Problem) as blocked:
+        await bind()
+    assert blocked.value.code == "ARTIFACT_VOLUME_UNBOUND"
+    with pytest.raises(FileNotFoundError):
+        await bind(adopt=True)
+    await store.put(tenant, digest, live)
+    with pytest.raises(ValueError, match="retired artifact barrier"):
+        await bind(adopt=True)
+    assert not (tmp_path / ".veriq-volume").exists()
+
+    await store.retire(tenant, digest, retired_id)
+    bound = await bind(adopt=True)
+    assert await bind() == bound
+    assert (tmp_path / ".veriq-volume").read_text() == bound

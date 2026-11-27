@@ -4,7 +4,10 @@ import httpx
 from test_auth import setup, login
 from test_workspace import workspace
 from test_lease_mysql import queued_browser_jobs, device, claim_body, auth
+from sqlalchemy import event as sql_event
 from veriq_server.db import Job, WorkspaceMember
+from veriq_server.service import lock_installation
+from test_completion_mysql import upload
 
 
 async def event(lines):
@@ -94,6 +97,24 @@ async def test_sse_replays_once_and_closes_after_membership_revocation(site):
             lines = response.aiter_lines()
             replay = await event(lines)
             assert replay["data"]["events"] == []
+            # 空闲轮次仍校验成员和设备；窄列探测不能读取完整 Attempt（特别是围栏/租约）或锁安装行。
+            statements = []
+            async with db.sessions.begin() as writer:
+                await lock_installation(writer)
+
+                def capture(conn, cursor, sql, args, context, many):
+                    statements.append(sql.lower())
+
+                sql_event.listen(db.engine.sync_engine, "before_cursor_execute", capture)
+                try:
+                    assert await asyncio.wait_for(anext(lines), 5) == ": keepalive"
+                finally:
+                    sql_event.remove(db.engine.sync_engine, "before_cursor_execute", capture)
+            assert statements
+            assert not any("for update" in sql or "lease_token_hash" in sql for sql in statements)
+            await upload(c, credential, claim, b"report-only evidence", "trace.zip", "TRACE")
+            evidence = await event(lines)
+            assert evidence["event"] == "report" and evidence["data"]["events"] == []
             runtime = f"/api/v1/workspaces/{ws}/runtimes/{credential['runnerId']}"
             assert (
                 await c.put(

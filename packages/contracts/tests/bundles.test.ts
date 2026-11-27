@@ -48,10 +48,13 @@ test("issuer trust requires explicit versioned revocation facts and bounded keys
         expect(validateSchema("IssuerTrustV1", value).length).toBeGreaterThan(0);
 });
 
-test("synchronous bundle API has one session auth path and durable retry contract", async () => {
-    // OpenAPI 文档是 YAML，解析需走 SwaggerParser 以兼容 prettier 的 YAML 排版，不能用 JSON.parse。
-    const api = (await SwaggerParser.parse(fileURLToPath(new URL("../openapi/platform.yaml", import.meta.url)))) as any;
+test("historical bundle fixture retains session authentication and its retry contract", async () => {
+    const api = (await SwaggerParser.validate(
+        fileURLToPath(new URL("../openapi/offline-fixtures.json", import.meta.url)),
+    )) as any;
+    const production = await SwaggerParser.parse(fileURLToPath(new URL("../openapi/platform.yaml", import.meta.url)));
     for (const [path, methods] of Object.entries(api.paths) as [string, Record<string, any>][]) {
+        for (const method of Object.keys(methods)) expect(production.paths?.[path] ?? {}).not.toHaveProperty(method);
         if (!path.startsWith("/api/v1/workspaces/{workspaceId}/bundles")) continue;
         for (const operation of Object.values(methods))
             expect(operation.security).toEqual([{ WebSession: [], CsrfToken: [] }]);

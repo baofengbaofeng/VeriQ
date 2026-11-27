@@ -1,5 +1,9 @@
 from uuid import uuid4
 
+from veriq_server.validation import api_document
+
+import pytest
+
 from test_auth import setup, login
 from test_workspace import workspace
 
@@ -43,7 +47,13 @@ async def test_empty_claim_is_idempotent_and_requires_current_device(site):
         "capabilities": CAPABILITIES,
     }
     headers = {"Authorization": "Bearer " + credential["deviceToken"]}
-    path = "/internal/v1/jobs/claim"
+    path, method = next(
+        (path, method)
+        for path, methods in api_document()["paths"].items()
+        for method, operation in methods.items()
+        if operation["operationId"] == "claimJob"
+    )
+    assert method == "post"
     assert (await c.post(path, json=data)).status_code == 401
     first = await c.post(path, json=data, headers=headers)
     assert first.status_code == 204, first.text
@@ -300,6 +310,19 @@ async def test_scoped_maintenance_quarantines_unknown_process_until_stop_confirm
         assert attempt.capacity_state == "RELEASED" and attempt.outcome == "ERROR"
         assert (await session.get(CapacityPool, "00/global/browser")).used == 0
 
+    # 旧版可能留下已释放租约与隔离 Attempt 的矛盾。核对只报告事实，管理员仍可审核后解除隔离。
+    async with db.sessions.begin() as session:
+        attempt = await session.get(Attempt, claim["attemptId"])
+        attempt.capacity_state = "QUARANTINED"
+    inconsistent = await c.post(
+        "/internal/v1/maintenance/capacity/reconcile",
+        json={"workspaceId": ws, "limit": 10},
+        headers={**headers, "Idempotency-Key": str(uuid4())},
+    )
+    assert (
+        inconsistent.status_code == 409 and inconsistent.json()["code"] == "CAPACITY_INCONSISTENT"
+    )
+
 
 async def test_bounded_chunk_upload_retains_exact_large_bytes_and_rejects_wrong_offset(site):
     from hashlib import sha256
@@ -532,7 +555,11 @@ async def test_current_requester_revocation_blocks_content_while_device_owner_re
 
 async def test_unknown_process_revokes_live_authority_and_stop_aggregates_run(site):
     from sqlalchemy import select
-    from veriq_server.db import Attempt, Run
+    from tornado.httpserver import HTTPServer
+    from tornado.netutil import bind_sockets
+    from veriq_server.app import make_app
+    from veriq_server.db import Attempt, AuditLog, CapacityPool, Database, ResourceLease, Run
+    from veriq_server.settings import Settings
 
     c, db = site
     await setup(c)
@@ -565,12 +592,45 @@ async def test_unknown_process_revokes_live_authority_and_stop_aggregates_run(si
     assert (
         await c.post(base + "/reconcile", json={**facts, "processStopped": True}, headers=auth(d))
     ).status_code == 200
+    settings = Settings(
+        database_url=db.engine.url.render_as_string(hide_password=False),
+        public_url=str(c.base_url).rstrip("/"),
+        master_key="a" * 64,
+        signing_key="b" * 64,
+        environment="development",
+    )
+    peer_db = Database(settings)
+    peer_app = make_app(settings, peer_db)
+    sockets = bind_sockets(0, "127.0.0.1")
+    server = HTTPServer(peer_app)
+    server.add_sockets(sockets)
+    try:
+        peer_url = f"http://127.0.0.1:{sockets[0].getsockname()[1]}"
+        late = await c.post(peer_url + base + "/reconcile", json=facts, headers=auth(d))
+        assert late.status_code == 200 and late.json()["data"]["capacityReleased"], late.text
+    finally:
+        server.stop()
+        await server.close_all_connections()
+        await peer_app.settings["notification_watcher"].close()
+        await peer_db.close()
     async with db.sessions() as session:
         attempt = (await session.execute(select(Attempt))).scalar_one()
+        event = await session.get(AuditLog, late.json()["data"]["auditId"])
+        assert event.action == "attempt.stop_unknown_after_release"
+        assert attempt.facts["stopConfirmation"] == {**facts, "processStopped": True}
+        assert set(await session.scalars(select(ResourceLease.state))) == {"RELEASED"}
+        assert set(await session.scalars(select(CapacityPool.used))) == {0}
         assert attempt.capacity_state == "RELEASED" and attempt.outcome == "ERROR"
 
 
-async def test_external_reaper_finishes_expired_queued_run_without_attempt(site):
+@pytest.mark.parametrize(
+    ("cancellation", "retry"),
+    [("RUN_TIMEOUT", False), ("RUN_TIMEOUT", True), ("USER_CANCELLED", True)],
+)
+async def test_timeout_and_cancel_reduce_failed_retry_with_unclaimed_case(
+    site, cancellation, retry
+):
+    """将已有失败历史的重试和首次排队的用例放入同一运行，通过两种取消入口核对各自的结果及运行原因。"""
     from sqlalchemy import text, select
     from veriq_server.db import Run, CaseExecution, Job, Attempt
 
@@ -579,6 +639,18 @@ async def test_external_reaper_finishes_expired_queued_run_without_attempt(site)
     await login(c)
     ws = await workspace(c)
     await queued_browser_jobs(c, db, ws, 2)
+    failed_case = None
+    if retry:
+        d = await device(c, ws)
+        claim = (
+            await c.post("/internal/v1/jobs/claim", json=claim_body(d), headers=auth(d))
+        ).json()["data"]
+        async with db.sessions.begin() as session:
+            attempt = await session.get(Attempt, claim["attemptId"])
+            job = await session.get(Job, attempt.job_id)
+            attempt.phase, attempt.outcome = "FINISHED", "FAILED"
+            job.state, job.outcome = "QUEUED", None
+            failed_case = job.case_execution_id
     account = (
         await c.post(f"/api/v1/workspaces/{ws}/service-accounts", json={"name": "Reaper"})
     ).json()["data"]
@@ -589,28 +661,37 @@ async def test_external_reaper_finishes_expired_queued_run_without_attempt(site)
         )
     ).json()["data"]["token"]
     async with db.sessions.begin() as session:
+        run_id = (await session.scalars(select(Run.id))).one()
         await session.execute(
             text("UPDATE veriq_runs SET created_at=UTC_TIMESTAMP(6)-INTERVAL 31 MINUTE")
         )
-    response = await c.post(
-        "/internal/v1/maintenance/expired-leases/reap",
-        json={"workspaceId": ws, "limit": 10},
-        headers={"Authorization": "Bearer " + token, "Idempotency-Key": str(uuid4())},
-    )
+    if cancellation == "RUN_TIMEOUT":
+        response = await c.post(
+            "/internal/v1/maintenance/expired-leases/reap",
+            json={"workspaceId": ws, "limit": 10},
+            headers={"Authorization": "Bearer " + token, "Idempotency-Key": str(uuid4())},
+        )
+    else:
+        response = await c.post(
+            f"/api/v1/workspaces/{ws}/runs/{run_id}/cancel", json={"reason": "Cancel queued retry"}
+        )
     assert response.status_code == 200, response.text
     async with db.sessions() as session:
         run = (await session.execute(select(Run))).scalar_one()
-        assert run.state == "FINISHED" and run.outcome == "CANCELLED"
-        assert run.reason_code == "RUN_TIMEOUT"
-        assert all(
-            j.state == "FINISHED" and j.outcome == "CANCELLED"
-            for j in (await session.execute(select(Job))).scalars()
+        assert (run.state, run.outcome, run.reason_code) == (
+            "FINISHED",
+            "FAILED" if retry else "CANCELLED",
+            cancellation,
         )
-        assert all(
-            j.state == "FINISHED" and j.outcome == "CANCELLED"
-            for j in (await session.execute(select(CaseExecution))).scalars()
-        )
-        assert not (await session.execute(select(Attempt))).first()
+        for job in await session.scalars(select(Job)):
+            expected = "FAILED" if job.case_execution_id == failed_case else "CANCELLED"
+            execution = await session.get(CaseExecution, job.case_execution_id)
+            assert (
+                (job.state, job.outcome)
+                == (execution.state, execution.outcome)
+                == ("FINISHED", expected)
+            )
+        assert list(await session.scalars(select(Attempt.outcome))) == (["FAILED"] if retry else [])
 
 
 async def test_claim_scans_past_multiple_pages_of_ineligible_older_jobs(site):

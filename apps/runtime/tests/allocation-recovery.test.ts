@@ -14,6 +14,7 @@ import { ExecutionSupervisor } from "../src/execution/supervisor.ts";
 type Schemas = PlatformComponents["schemas"];
 type ControlResponse = Claim | Schemas["ReconcileDTO"];
 interface Journal {
+    runnerId?: string;
     claim: Claim;
     claimRequestId?: string;
     state: string;
@@ -73,7 +74,13 @@ async function readJournal(path: string): Promise<Journal> {
 }
 
 function originalJournal(f: Fixture): Journal {
-    return { claim, claimRequestId: pending.clientRequestId, state: "ALLOCATED", work: f.work };
+    return {
+        claim,
+        runnerId: pending.runnerId,
+        claimRequestId: pending.clientRequestId,
+        state: "ALLOCATED",
+        work: f.work,
+    };
 }
 
 /**
@@ -319,7 +326,7 @@ test("a legacy committed ALLOCATED record without allocation or work still recon
     const cleanups: DataCleanup[] = [];
     const receipts = await fresh.supervisor.recover((cleanup) => cleanups.push(cleanup));
 
-    const record = await readJournal(f.journal);
+    const record = await readJournal(join(f.root, "settled-attempts", claim.attemptId + ".json"));
     assert(record.stop);
     assertReconcile(fresh.requests[0]?.body, record.stop, "NO_PROCESS_SPAWNED");
     assert.deepEqual(receipts, [record.stop]);

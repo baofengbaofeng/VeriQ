@@ -3,8 +3,8 @@
  */
 import { randomUUID } from "node:crypto";
 import { addAbortListener } from "node:events";
-import { readFile, writeFile, unlink, mkdir } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir } from "node:fs/promises";
+import { clearPending, preserveForeignRequest, publishPending, readPending } from "./pending-claim.ts";
 import timers from "node:timers/promises";
 import type { PlatformComponents } from "@veriq/contracts";
 import type { AgentClient, Claim } from "./transport.ts";
@@ -61,7 +61,6 @@ export async function claimLoop(options: {
 }) {
     const { client, supervisor, signal } = options;
     await mkdir(options.root, { recursive: true, mode: 0o700 });
-    const pending = join(options.root, "claim-request.json");
     let state: ClaimLoopState = {};
     const publish = (
         pausedReason: StoragePauseReason | undefined,
@@ -80,7 +79,7 @@ export async function claimLoop(options: {
         });
     const recovered = await supervisor.recover((value) => {
         if (cleanupPending(value)) publish(undefined, true);
-    });
+    }, options.runnerId);
     // 恢复收据仍报告未停止进程时隔离本机容量，拒绝继续认领，以免未知执行与新任务同时占用设备。
     if (recovered.some((r) => !r.processStopped)) throw new Error("PROCESS_QUARANTINED");
     let checkRecoveredRequest = true;
@@ -94,24 +93,15 @@ export async function claimLoop(options: {
                 await waitForPoll();
                 continue;
             }
-            let request: S["ClaimRequest"] | undefined;
-            try {
-                request = JSON.parse(await readFile(pending, "utf8")) as S["ClaimRequest"];
-                if (request.runnerId !== options.runnerId) throw new Error("CLAIM_PRINCIPAL_CHANGED");
-                /**
-                 * 只有准入成功后才处理已经对账的旧请求，保留与恢复回执无关的待定标识；暂停不能触碰任一请求文件。
-                 */
-                const requestId = request.clientRequestId;
-                if (
-                    checkRecoveredRequest &&
-                    requestId &&
-                    recovered.some((receipt) => receipt.claimRequestId === requestId)
-                ) {
-                    request = undefined;
-                    await unlink(pending);
-                }
-            } catch (error) {
-                if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+            let request = await readPending(options.root);
+            if (request && request.runnerId !== options.runnerId) {
+                await preserveForeignRequest(options.root, request);
+                request = undefined;
+            }
+            const pendingId = request?.clientRequestId;
+            if (pendingId && checkRecoveredRequest && recovered.some((r) => r.claimRequestId === pendingId)) {
+                await clearPending(options.root);
+                request = undefined;
             }
             checkRecoveredRequest = false;
             if (!request) {
@@ -121,12 +111,7 @@ export async function claimLoop(options: {
                     capabilities: options.capabilities,
                     availableSlots: 1,
                 };
-                // 以 wx 原子写入持久化认领请求，崩溃后可按同一 clientRequestId 幂等续请。
-                await writeFile(pending, JSON.stringify(request), {
-                    mode: 0o600,
-                    flag: "wx",
-                    flush: true,
-                });
+                await publishPending(options.root, request);
             }
             const requestStarted = performance.now();
             const claim = await client.request<Claim | undefined>("/internal/v1/jobs/claim", "POST", request, signal);
@@ -135,6 +120,7 @@ export async function claimLoop(options: {
                 const result = await supervisor.runAttempt(
                     {
                         claim,
+                        runnerId: options.runnerId,
                         requestStarted,
                         responseReceived,
                         claimRequestId: request.clientRequestId,
@@ -145,7 +131,8 @@ export async function claimLoop(options: {
                 if (!result.stop.processStopped) throw new Error("PROCESS_QUARANTINED");
                 if (!result.completion) throw new Error(result.stop.reason);
             }
-            await unlink(pending);
+            await clearPending(options.root);
+            if (claim) await supervisor.archiveCompleted(claim);
             if (options.once) return;
             // 循环在空认领后先等十秒，纯空轮询每二十四小时最多产生八千六百四十条空回执，低于一万条上限。
             if (!claim) await waitForPoll();

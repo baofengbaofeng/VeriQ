@@ -97,15 +97,20 @@ class ApprovedEngines:
         engine, approved_hash = self.require(version)
         if inventory_hash is not None and inventory_hash != approved_hash:
             raise Problem(409, "ENGINE_INVENTORY_MISMATCH", "Compiler release inventory differs")
-        components: tuple[tuple[str, str], ...]
-        if required_capabilities.get("httpDatasets"):
-            components = _CONNECTED_COMPONENTS + _HTTP_COMPONENTS
-        elif required_capabilities.get("connectedDatasets"):
-            components = _CONNECTED_COMPONENTS
-        else:
-            return engine
-        if any(engine.get(field) != protocol for field, protocol in components):
+        if not supports_validation(engine, required_capabilities):
             raise Problem(
                 409, "ENGINE_NOT_APPROVED", "Approved engine lacks required dataset capabilities"
             )
         return engine
+
+
+def supports_validation(
+    engine: Mapping[str, object], required_capabilities: Mapping[str, object]
+) -> bool:
+    """按任务冻结的数据协议检查批准库存中的编译器和 SDK 声明，两个组件都具备所需能力才能接单。"""
+    components: tuple[tuple[str, str], ...] = ()
+    if required_capabilities.get("httpDatasets"):
+        components = _CONNECTED_COMPONENTS + _HTTP_COMPONENTS
+    elif required_capabilities.get("connectedDatasets"):
+        components = _CONNECTED_COMPONENTS
+    return all(engine.get(field) == protocol for field, protocol in components)

@@ -134,3 +134,128 @@ test("reports discover URL workspace on a later genuine page and retain manual c
     await page.goto(`/reports?workspaceId=${randomUUID()}`);
     await expect(localizedSelector).toHaveAttribute("data-workspace-id", fallback.id);
 });
+
+for (const initialResponse of ["stale report", "authentication error"]) {
+    test(`a delayed ${initialResponse} cannot replace the live terminal report or its evidence`, async ({ page }) => {
+        const headers = await reportSession(page);
+        const created = await page.request.post("/api/v1/workspaces", {
+            headers,
+            data: { key: `reports-${randomUUID()}`, name: "Report subscription ordering" },
+        });
+        expect(created.status(), await created.text()).toBe(201);
+        const ws = (await created.json()).data.id;
+        const runId = randomUUID();
+        const attemptId = randomUUID();
+        const gate = { passed: true, reasons: [] };
+        const createdAt = "2026-01-01T00:00:00Z";
+        const run = { id: runId, workspaceId: ws, source: "CONNECTED_LOCAL", snapshotHash: "0".repeat(64), createdAt };
+        const attempt = {
+            id: attemptId,
+            attemptNo: 1,
+            runtimeId: null,
+            phase: "FINISHED",
+            outcome: "PASSED",
+            createdAt,
+            activatedAt: null,
+            finishedAt: createdAt,
+            lastSequence: 0,
+            facts: {},
+            provenance: {},
+            gateAtExecution: gate,
+            gateNow: gate,
+            compensations: [],
+        };
+        const report = {
+            run: { ...run, state: "FINISHED", outcome: "PASSED" },
+            cases: [
+                {
+                    id: randomUUID(),
+                    caseVersionId: randomUUID(),
+                    state: "FINISHED",
+                    outcome: "PASSED",
+                    provenance: {},
+                    attempts: [attempt],
+                },
+            ],
+            gateAtExecution: gate,
+            gateNow: gate,
+            statistics: { caseCount: 1, firstPassCount: 1, retryPassCount: 0, infrastructureErrorCount: 0 },
+        };
+        const root = `**/api/v1/workspaces/${ws}`;
+        const path = `${root}/runs/${runId}`;
+        const envelope = (data: unknown) => ({ json: { data, requestId: randomUUID() } });
+        const delayed = Promise.withResolvers<void>();
+        await page.route(`${path}/report`, async (route) => {
+            await delayed.promise;
+            if (initialResponse === "stale report") {
+                await route.fulfill(envelope({ ...report, run: { ...run, state: "RUNNING" }, cases: [] }));
+            } else {
+                await route.fulfill({
+                    status: 401,
+                    json: { code: "AUTHENTICATION_REQUIRED", message: "Please sign in", requestId: randomUUID() },
+                });
+            }
+        });
+        let first = true;
+        let revoked = false;
+        await page.route(`${path}/events/stream`, (route) => {
+            if (revoked)
+                return route.fulfill({
+                    contentType: "text/event-stream",
+                    body: 'event: authorization\ndata: {"code":"WORKSPACE_FORBIDDEN"}\n\n',
+                });
+            const body = first
+                ? `event: report\ndata: ${JSON.stringify({ report, events: [] })}\n\n`
+                : ": keepalive\n\n";
+            first = false;
+            return route.fulfill({ contentType: "text/event-stream", body });
+        });
+        await page.route(`${path}/attempts/${attemptId}/display`, (route) =>
+            route.fulfill(envelope({ display: null, metadataStatus: "ABSENT", environment: {} })),
+        );
+        await page.route(`${root}/attempts/${attemptId}/history*`, (route) =>
+            route.fulfill(envelope({ items: [], nextSequence: 0, hasMore: false })),
+        );
+        await page.route(`${root}/attempts/${attemptId}/artifacts`, (route) =>
+            route.fulfill(
+                envelope({
+                    items: [
+                        {
+                            id: randomUUID(),
+                            attemptId,
+                            sha256: "1".repeat(64),
+                            sizeBytes: 42,
+                            kind: "TRACE",
+                            sensitivity: "CREDENTIAL_RESTRICTED",
+                            state: "AVAILABLE",
+                        },
+                    ],
+                }),
+            ),
+        );
+        const completed = Promise.withResolvers<void>();
+        for (const event of ["requestfinished", "requestfailed"] as const) {
+            page.on(event, (request) => {
+                if (request.url().endsWith(`/runs/${runId}/report`)) completed.resolve();
+            });
+        }
+        await page.goto(`/reports?workspaceId=${ws}&runId=${runId}`);
+        await chooseLanguage(page, "en");
+        const terminal = page.getByRole("button", { name: "Attempt 1 · Passed", exact: true });
+        await terminal.click();
+        const evidence = page.getByRole("button", { name: "Download Trace", exact: true });
+        await expect(evidence).toBeVisible();
+        // 等待 GET 的 JSON 正文交给 React，并让提交后的渲染完成，再检查唯一的终态帧仍然生效。
+        delayed.resolve();
+        await completed.promise;
+        await page.evaluate(
+            () => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))),
+        );
+        await expect(page.getByRole("heading", { name: "Passed · Connected local", exact: true })).toBeVisible();
+        await expect(terminal).toBeVisible();
+        await expect(evidence).toBeVisible();
+        revoked = true;
+        await expect(terminal).toBeHidden();
+        await expect(evidence).toBeHidden();
+    });
+}

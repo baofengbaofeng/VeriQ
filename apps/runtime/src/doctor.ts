@@ -23,6 +23,16 @@ export interface DoctorResult {
     checks: { name: string; ok: boolean; detail: string }[];
     capabilities?: Capabilities;
 }
+
+/**
+ * 自检与能力声明共用同一份平台、架构判断。Mac 只有通过发行库存和原生探针后才可申报实际架构。
+ */
+export function doctorPlatform(os: NodeJS.Platform, architecture: string, installedMac: boolean) {
+    if ((os === "linux" || os === "win32") && architecture === "x64") return { os, arch: architecture } as const;
+    if (os === "darwin" && installedMac && (architecture === "x64" || architecture === "arm64"))
+        return { os, arch: architecture } as const;
+    return undefined;
+}
 /**
  * 公开函数 doctor 实测 Node 版本、引擎/SDK 包与 Chromium 启动渲染：可选探测控制 Origin 连通性（doctor）。返回
  * capabilities 仅供诊断展示。
@@ -60,8 +70,10 @@ export async function doctor(
     } = {},
 ): Promise<DoctorResult> {
     const checks: DoctorResult["checks"] = [];
+    const os = platform();
+    const architecture = arch();
     let installedMac = false;
-    if (platform() === "darwin" && options.runtime && options.darwinSource) {
+    if (os === "darwin" && options.runtime && options.darwinSource) {
         verifiedNativeAddon(options.runtime);
         const state = requireDarwinSource(options.darwinSource);
         installedMac =
@@ -71,12 +83,8 @@ export async function doctor(
     }
     const check = (name: string, ok: boolean, detail: string) => checks.push({ name, ok, detail });
     check("Node", isIndependentNode24(process.versions), process.versions.node);
-    check(
-        "OS / architecture",
-        (["linux", "win32"].includes(platform()) && arch() === "x64") ||
-            (installedMac && ["x64", "arm64"].includes(arch())),
-        `${platform()} / ${arch()}`,
-    );
+    const host = doctorPlatform(os, architecture, installedMac);
+    check("OS / architecture", host !== undefined, `${os} / ${architecture}`);
     const require = createRequire(import.meta.url);
     let engineVersion = "";
     for (const name of ["@veriq/compiler", "@veriq/runner-sdk"])
@@ -153,7 +161,7 @@ export async function doctor(
     return {
         ok,
         checks,
-        ...(ok
+        ...(ok && host
             ? {
                   capabilities: {
                       engineVersion,
@@ -167,8 +175,7 @@ export async function doctor(
                       options.distribution.runnerSdkConnectedDatasets === "2.0"
                           ? { connectedDatasets: "2.0" as const }
                           : {}),
-                      os: platform() as "linux" | "win32",
-                      arch: "x64" as const,
+                      ...host,
                       browsers: ["chromium" as const],
                       jobKinds: ["TEST" as const, "VALIDATE" as const, "CLEANUP" as const],
                   },
