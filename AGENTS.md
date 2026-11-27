@@ -6,9 +6,9 @@
 
 | 变更 | 首读知识库文档 | 本仓入口 |
 | --- | --- | --- |
-| HTTP、鉴权、外部调度 | `integration/公共契约.md` 的生产 HTTP 操作索引、`integration/外部调度接入.md` | `packages/contracts/`、`apps/srv/src/veriq_server/app.py` 和对应处理器、`scripts/veriq_ci.py` |
-| 资源校验、设备领取、Runtime | `architecture/系统总览.md`、`decisions/README.md` 中的 ADR-005、ADR-010、ADR-021 | `apps/srv/src/veriq_server/services/` 下的 `jobs.py` 和 `server_compilation.py`、`apps/runtime/src/agent/claim-loop.ts` |
-| 安装、迁移、恢复 | `operations/服务端发行与安装.md`、`operations/数据库迁移与恢复.md` | `apps/srv/src/veriq_server/cli.py`、`deploy/`、`apps/srv/tests/operations/` |
+| HTTP、鉴权、外部调度 | `integration/public-contracts.md` 的生产 HTTP 操作索引、`integration/external-scheduling.md` | `packages/contracts/`、`apps/srv/src/veriq_server/app.py` 和对应处理器、`scripts/veriq_ci.py` |
+| 资源校验、设备领取、Runtime | `architecture/system-overview.md`、`decisions/README.md` 中的 ADR-005、ADR-010、ADR-021 | `apps/srv/src/veriq_server/services/` 下的 `jobs.py` 和 `server_compilation.py`、`apps/runtime/src/agent/claim-loop.ts` |
+| 安装、迁移、恢复 | `operations/server-release-and-installation.md`、`operations/database-migration-and-recovery.md` | `apps/srv/src/veriq_server/cli.py`、`deploy/`、`apps/srv/tests/operations/` |
 
 事实以适用版本的源码、契约和实际验收为依据。接口、配置、权限或发布行为变化时，在 PR 中记录受影响的知识库页面及同步状态。跨仓检查从知识库根目录启动，按其 `.agents/skills/kb-consistency-check/SKILL.md` 和仓库脚本执行。
 
