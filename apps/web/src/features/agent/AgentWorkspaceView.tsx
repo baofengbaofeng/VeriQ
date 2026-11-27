@@ -9,6 +9,7 @@ import { tx, useAppLocale } from "../../locale";
 import icons from "../../admin-icons.svg?no-inline";
 import type { Workspace } from "../../api";
 import type { AiAdapter } from "../ai/adapters";
+import type { FormLauncher } from "./workspace-forms";
 import type { ReportAdapter } from "../reports/adapters";
 import { agentErrorCode, agentWorkspaceReadDenied, observeAgentRead, type AgentSchemas } from "./adapters";
 import type { CloudAgentAdapter } from "./adapters";
@@ -50,6 +51,7 @@ interface WorkspaceProps {
     reports: Pick<ReportAdapter, "report" | "subscribe">;
     parentSignal?: AbortSignal;
     navigate: ReportNavigation;
+    formLauncher?: FormLauncher;
     initialPlanId?: string;
     wide?: boolean;
     ownerName?: string;
@@ -178,6 +180,7 @@ function WorkspaceConversation({
     reports,
     signal,
     navigate,
+    formLauncher,
     initialPlanId,
     onWorkspaceReadDenied,
     wide = false,
@@ -412,6 +415,7 @@ function WorkspaceConversation({
             reports={reports}
             parentSignal={selected.signal}
             navigate={navigate}
+            formLauncher={formLauncher}
             onReadDenied={(failure) => onConversationReadDenied(selected, failure)}
             onWorkspaceReadDenied={onWorkspaceReadDenied}
             onArchived={() => {

@@ -305,6 +305,63 @@ async def test_bound_file_volume_refuses_relative_downgrade(site):
         ).scalar_one() == "0025_file_volume"
 
 
+async def test_form_receipt_prevents_downgrade_and_preserves_large_revision(site):
+    """已保存的私有回执必须阻止回退，数据库读回原有标识及超过 32 位范围的修订号。"""
+    client, database = site
+    await test_auth.setup(client)
+    await test_auth.login(client)
+    workspace_id = await test_workspace.workspace(client)
+    user_id = (await client.get("/api/v1/account")).json()["data"]["id"]
+    session_id, turn_id, receipt_id = (str(uuid.uuid4()) for _ in range(3))
+    created = datetime.datetime(2026, 11, 27)
+    revision = 2**40
+    async with database.sessions.begin() as session:
+        session.add(
+            models.AgentSession(
+                id=session_id,
+                user_id=user_id,
+                workspace_id=workspace_id,
+                title="Existing session",
+                created_at=created,
+                archived=False,
+            )
+        )
+        await session.flush()
+        session.add(
+            models.AgentTurn(
+                id=turn_id,
+                session_id=session_id,
+                request_id=turn_id,
+                text="Open the fixture editor",
+                status="COMPLETED",
+                created_at=created,
+                workspace_capability="FIXTURE",
+            )
+        )
+        await session.flush()
+        session.add(
+            models.AgentFormReceipt(
+                id=receipt_id,
+                turn_id=turn_id,
+                action="resource.draft_updated",
+                target_id=str(uuid.uuid4()),
+                revision=revision,
+                created_at=created,
+            )
+        )
+    async with _migration_connection(database) as (connection, change):
+        with pytest.raises(
+            RuntimeError, match="Persisted Test Agent form receipts must be retained"
+        ):
+            await change("0026_agent_tasks", downgrade=True)
+        assert (
+            await connection.execute(sa.text("SELECT version_num FROM veriq_alembic_version"))
+        ).scalar_one() == "0027_agent_form_receipts"
+    async with database.sessions() as session:
+        saved = await session.get(models.AgentFormReceipt, receipt_id)
+        assert saved is not None and saved.turn_id == turn_id and saved.revision == revision
+
+
 async def _has_agent_tables(connection):
     """反射所有 Agent 表，确保降级拒绝后版本号和真实结构仍一致，不能依赖回滚撤销 MySQL 隐式提交。"""
     tables = await connection.run_sync(lambda sync: sa.inspect(sync).get_table_names())

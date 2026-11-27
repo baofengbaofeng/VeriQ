@@ -5,7 +5,7 @@
 from datetime import timedelta
 from typing import Any
 import json
-from sqlalchemy import select, delete, or_
+from sqlalchemy import select, delete, or_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..db import (
     Attempt,
@@ -22,6 +22,7 @@ from ..db import (
     Artifact,
     Base,
     AiGeneration,
+    AgentTask,
     CaseExecution,
 )
 from ..service import Problem, stamp
@@ -38,6 +39,16 @@ PHASES = (
     "provenance",
     "cache",
 )
+
+
+async def _expire_run_analysis(session: AsyncSession, run_id: str | None) -> None:
+    """清除从过期报告派生的后台分析正文，保留任务身份、已完成状态、正式运行结果和用量记账记录。"""
+    if run_id:
+        await session.execute(
+            update(AgentTask)
+            .where(AgentTask.run_id == run_id, AgentTask.analysis.is_not(None))
+            .values(analysis=None)
+        )
 
 
 async def archive_pinned(session: AsyncSession, workspace: str, bundle: Bundle) -> bool:
@@ -258,6 +269,14 @@ async def expire_lifecycle(
                     },
                     "metadataExpiredAt": stamp(current),
                 }
+                await _expire_run_analysis(
+                    session,
+                    await session.scalar(
+                        select(Job.run_id).where(
+                            Job.id == row.job_id, Job.workspace_id == workspace
+                        )
+                    ),
+                )
             # 当前 Attempt 的事件可能超过整页预算，因此继续游标必须仍指向上一行；过期标记先提交，
             # 读路径立即拒绝部分删除后的不完整报告，围栏与完成回执原样保留。
             payload_budget -= len(removed)
@@ -287,6 +306,15 @@ async def expire_lifecycle(
             if not row.facts.get("metadataExpiredAt"):
                 row.document = {**row.document, "events": []}
                 row.facts = {**row.facts, "metadataExpiredAt": stamp(current)}
+                await _expire_run_analysis(
+                    session,
+                    await session.scalar(
+                        select(OfflineImport.run_id).where(
+                            OfflineImport.id == row.import_id,
+                            OfflineImport.workspace_id == workspace,
+                        )
+                    ),
+                )
         elif phase == "exports":
             manifest = await session.get(Artifact, (workspace, row.manifest_hash))
             archive = await session.get(Artifact, (workspace, row.archive_hash))
@@ -413,6 +441,7 @@ async def expire_lifecycle(
                 },
                 "metadataExpiredAt": stamp(current),
             }
+            await _expire_run_analysis(session, row.run_id)
             for attempt in attempts:
                 if attempt.execution_provenance is not None:
                     attempt.execution_provenance = {
@@ -443,6 +472,11 @@ async def expire_lifecycle(
                 },
                 "metadataExpiredAt": stamp(current),
             }
+            await session.execute(
+                update(AgentTask)
+                .where(AgentTask.analysis_attempt_id == row.id, AgentTask.analysis.is_not(None))
+                .values(analysis=None)
+            )
         payload_budget -= 1
         processed += 1
         last = row.id

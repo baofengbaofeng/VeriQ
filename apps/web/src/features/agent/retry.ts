@@ -12,13 +12,14 @@ interface PageRetry {
 }
 
 const fallback = new Map<string, PageRetry>();
+const retryDigest = /^[0-9a-f]{64}(?::(?:SUBAGENT|MAIN))?$/;
 const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 
 // 三段记录分别保存正文摘要、请求和原始目标，旧版两段记录不具备足够信息来推断唯一确认目标。
 function retryRecord(raw?: string) {
     const parts = raw?.split("/");
     const [digest, requestId, target] = parts ?? [];
-    if (parts?.length !== 3 || !digest || !/^[0-9a-f]{64}$/.test(digest) || !requestId || !uuid.test(requestId))
+    if (parts?.length !== 3 || !digest || !retryDigest.test(digest) || !requestId || !uuid.test(requestId))
         return undefined;
     if (target && !uuid.test(target)) return undefined;
     return { digest, requestId, target: target || undefined };
@@ -60,7 +61,11 @@ function write(key: string, value?: string) {
  * 即使线程已出现不同动作，保存的原始确认仍可尝试重放；发送逻辑会再次核对精确正文摘要和作用域。
  */
 export function hasPendingAgentConfirmation(key: string): boolean {
-    return !!retryRecord(read(key))?.target;
+    return !!pendingAgentConfirmationTarget(key);
+}
+
+export function pendingAgentConfirmationTarget(key: string): string | undefined {
+    return retryRecord(read(key))?.target;
 }
 
 /**
@@ -69,7 +74,12 @@ export function hasPendingAgentConfirmation(key: string): boolean {
 export async function agentSubmission(
     key: string,
     text: string,
-    intent: { confirmation: boolean; expectedProposalId?: string; attachments?: Submission["attachments"] },
+    intent: {
+        confirmation: boolean;
+        expectedProposalId?: string;
+        attachments?: Submission["attachments"];
+        delegationMode?: Exclude<AgentSchemas["AgentDelegationMode"], "AUTO">;
+    },
     signal: AbortSignal,
 ): Promise<Submission> {
     // 旧版无附件请求的摘要保持可重放；附件按提交顺序参与散列，浏览器存储继续只记录不可逆摘要及绑定的编号。
@@ -77,7 +87,8 @@ export async function agentSubmission(
     const materials = attachments?.map(({ name, mediaType, dataBase64 }) => [name, mediaType, dataBase64]);
     const encoded = new TextEncoder().encode(materials ? JSON.stringify([text, materials]) : text);
     const bytes = new Uint8Array(await crypto.subtle.digest("SHA-256", encoded));
-    const digest = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+    const hash = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+    const digest = intent.delegationMode ? `${hash}:${intent.delegationMode}` : hash;
     signal.throwIfAborted();
     const raw = read(key);
     const stored = retryRecord(raw);
@@ -90,6 +101,7 @@ export async function agentSubmission(
     return {
         requestId,
         text,
+        ...(intent.delegationMode ? { delegationMode: intent.delegationMode } : {}),
         ...(target ? { expectedProposalId: target } : {}),
         ...(attachments ? { attachments } : {}),
     };

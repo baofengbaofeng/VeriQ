@@ -11,6 +11,7 @@ import { Button } from "../../components";
 import { tx } from "../../locale";
 import { Notice } from "../../ui";
 import { datasetDetailRoute, datasetListPath } from "../resources/dataset-routes";
+import { isScopedFormPath } from "../agent/workspace-forms";
 import { useWorkspace } from "./WorkspaceContext";
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -56,8 +57,14 @@ export function WorkspaceDirectory({ children }: { children: ReactNode }) {
     const raw = params.get("workspaceId") ?? "";
     const credentialTab = params.get("tab") === "auth-credentials" && !!matchPath("/workspaces", location.pathname);
     const datasetDetails = !!matchPath(datasetDetailRoute, location.pathname);
-    const invalidTarget = (datasetDetails || (credentialTab && params.has("workspaceId"))) && !uuid.test(raw);
-    const linked = datasetDetails || credentialTab || linkedRoutes.some((path) => matchPath(path, location.pathname));
+    const formTarget = params.get("fromAgentForm") === "1" && isScopedFormPath(location.pathname);
+    const invalidTarget =
+        (formTarget || datasetDetails || (credentialTab && params.has("workspaceId"))) && !uuid.test(raw);
+    const linked =
+        formTarget ||
+        datasetDetails ||
+        credentialTab ||
+        linkedRoutes.some((path) => matchPath(path, location.pathname));
     const candidate = linked && superseded.current !== location.key && uuid.test(raw) ? raw.toLowerCase() : "";
     const directory = useInfiniteQuery({
         queryKey: ["workspaces", user?.id],
@@ -73,6 +80,7 @@ export function WorkspaceDirectory({ children }: { children: ReactNode }) {
     }, [location.pathname, refetch, user]);
     const items = directory.data?.pages.flatMap((page) => page.items) ?? [];
     const requested =
+        !formTarget &&
         matchPath("/reports", location.pathname) &&
         !uuid.test(params.get("runId") ?? "") &&
         !items.some((item) => item.id === candidate)
@@ -111,7 +119,9 @@ export function WorkspaceDirectory({ children }: { children: ReactNode }) {
 
     // 先标记此历史条目的选中意图已失效，再更新作用域并清理目标参数；慢响应不能在地址替换提交前抢回选择。
     function choose(id: string) {
-        const targetKeys = credentialTab ? ["workspaceId"] : ["workspaceId", "runId", "planId"];
+        const targetKeys = credentialTab
+            ? ["workspaceId", "fromAgentForm"]
+            : ["workspaceId", "runId", "planId", "fromAgentForm"];
         if (datasetDetails) {
             if (id === requested) return;
             superseded.current = location.key;
@@ -183,4 +193,46 @@ export function WorkspaceStatus() {
     if (loading) return <p role="status">{tx("Loading Workspaces…")}</p>;
     if (!workspace) return <p>{tx("No Workspaces yet.")}</p>;
     return null;
+}
+
+/**
+ * 卡片已经按私有轮次核验访问权；打开领域页前再读取当前成员详情。内嵌目录不会把工作区选择同步到会话或导航外壳。
+ */
+export function PinnedFormDirectory({
+    id,
+    signal,
+    children,
+}: {
+    id: string;
+    signal: AbortSignal;
+    children: ReactNode;
+}) {
+    const member = useQuery({
+        queryKey: ["agent-form-workspace", id],
+        queryFn: ({ signal: querySignal }) => api.workspace(id, AbortSignal.any([signal, querySignal])),
+        retry: false,
+    });
+    const workspace = member.isSuccess && member.data.id === id && !signal.aborted ? member.data : undefined;
+    return (
+        <DirectoryContext.Provider
+            value={{
+                workspace,
+                items: workspace ? [workspace] : [],
+                requested: id,
+                loading: member.isPending,
+                error: member.error,
+                loadingMore: false,
+                pagingError: false,
+                more: () => {},
+                choose: () => {},
+                created: () => {},
+                selectAuthorized: () => {},
+                retry: () => {
+                    void member.refetch();
+                },
+            }}
+        >
+            {workspace ? children : <WorkspaceStatus />}
+        </DirectoryContext.Provider>
+    );
 }

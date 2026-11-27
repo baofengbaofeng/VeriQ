@@ -9,16 +9,21 @@ import * as Dialog from "@radix-ui/react-dialog";
 import icons from "../../admin-icons.svg?no-inline";
 import { Avatar } from "../../components";
 import { ApiError, type Workspace } from "../../api";
+import type { FormLauncher } from "./workspace-forms";
 import type { ReportAdapter } from "../reports/adapters";
 import { agentErrorCode, observeAgentRead, type AgentSchemas, type CloudAgentAdapter } from "./adapters";
 import { useRequestLifetime } from "../../request-lifetime";
 import { canExportWorkspaceTable } from "../../table-view";
-import { agentSubmission, clearAgentSubmission, hasPendingAgentConfirmation } from "./retry";
+import { agentSubmission, clearAgentSubmission, pendingAgentConfirmationTarget } from "./retry";
 import { AgentError, agentOperationError, agentProblem } from "./feedback";
 import { useOperationFeedback } from "../../operation-feedback";
 import { Proposal, ActionReceipt } from "./Proposal";
+import { CapabilityCard } from "./CapabilityCard";
+import { FormReceipts } from "./FormReceipts";
 import { RunCard, type ReportNavigation, type RunReference } from "./RunCard";
+import { BackgroundTasks, useAgentTasks } from "./BackgroundTasks";
 import { Markdown } from "./Markdown";
+import { agentConfirmation, canConfirmAgentAction } from "./confirmations";
 import { useAgentReplyVisibility } from "./reply-visibility";
 import type { AgentNotificationTarget } from "../notifications/model";
 import {
@@ -40,15 +45,8 @@ type Step = {
     errorCode?: string;
 };
 
-// 对照服务端的确定性短语限定适用动作与当前角色；正文通过该门槛时，服务端仍重查目标及当前操作权限。
-const confirmAny = new Set(["confirm", "confirm action", "确认", "确认操作"]);
-const confirmSave = new Set(["confirm save", "确认保存"]);
-const confirmPlan = new Set(["confirm plan"]);
-const confirmDraft = new Set(["confirm draft", "确认保存草稿"]);
-const confirmRun = new Set(["confirm run", "确认执行", "确认运行"]);
 const stepStatus = { RUNNING: "Running", SUCCEEDED: "Succeeded", FAILED: "Failed" };
 const paperclipPath = "m21 11-8.5 8.5a5 5 0 0 1-7-7L14 4a3 3 0 0 1 4 4l-8.5 8.5a1 1 0 0 1-1.5-1.5L16 7";
-const isSave = (kind?: AgentSchemas["AgentProposal"]["type"]) => kind === "SAVE_PLAN" || kind === "SAVE_RESOURCE_DRAFT";
 
 // 同页重开会话时查询缓存可能仍显示旧提议，待审阅的拒绝随重试作用域保留到新提议真正显示。
 const supersededTargets = new Map<string, string>();
@@ -73,7 +71,9 @@ function runReferences(turns: Turn[]): RunReference[] {
         const receipt = turn.receipt && "runId" in turn.receipt ? turn.receipt : undefined;
         if (turn.relatedRunId && !result.has(turn.relatedRunId))
             result.set(turn.relatedRunId, { id: turn.relatedRunId });
-        if (receipt) result.set(receipt.runId, { id: receipt.runId, receipt });
+        if (receipt?.type === "TRIGGER_PLAN")
+            result.set(receipt.runId, { id: receipt.runId, decision: receipt.decision });
+        else if (receipt && !result.has(receipt.runId)) result.set(receipt.runId, { id: receipt.runId });
     }
     return [...result.values()];
 }
@@ -100,6 +100,7 @@ interface ConversationProps {
     reports: Pick<ReportAdapter, "report" | "subscribe">;
     parentSignal: AbortSignal;
     navigate: ReportNavigation;
+    formLauncher?: FormLauncher;
     onReadDenied: (error: unknown) => void;
     onWorkspaceReadDenied: (error: unknown) => void;
     onArchived: () => void;
@@ -119,6 +120,7 @@ function Thread({
     reports,
     signal,
     navigate,
+    formLauncher,
     onReadDenied,
     onWorkspaceReadDenied,
     onArchived,
@@ -126,6 +128,7 @@ function Thread({
     ownerName = "",
 }: Omit<ConversationProps, "parentSignal"> & { signal: AbortSignal }) {
     const [text, setText] = useState(initialMessage);
+    const [delegationMode, setDelegationMode] = useState<AgentSchemas["AgentDelegationMode"]>("AUTO");
     const { showFailure } = useOperationFeedback();
     const [attachments, setAttachments] = useState<StagedAgentAttachment[]>([]);
     const [reattach, setReattach] = useState(false);
@@ -146,6 +149,7 @@ function Thread({
     const [streamSteps, setStreamSteps] = useState(() => new Map<string, Step[]>());
     const [openThinking, setOpenThinking] = useState(() => new Map<string, boolean>());
     const [completedRuns, setCompletedRuns] = useState(() => new Set<string>());
+    const reconcileFormUntil = useRef(0);
     const retryKey = "veriq.agent.retry/" + JSON.stringify([owner, workspace.id, id]);
     const supersededTarget = supersededTargets.get(retryKey);
     const key = ["workspace", workspace.id, "agent", owner, "session", id];
@@ -155,6 +159,7 @@ function Thread({
         const scope = ["workspace", workspace.id, "agent", owner];
         void cache.invalidateQueries({ queryKey: [...scope, "session", id], exact: true });
         void cache.invalidateQueries({ queryKey: [...scope, "sessions", false], exact: true });
+        void cache.invalidateQueries({ queryKey: [...scope, "session", id, "tasks"], exact: true });
     }, [cache, id, owner, signal, workspace.id]);
     const current = useQuery({
         queryKey: key,
@@ -173,14 +178,27 @@ function Thread({
         getNextPageParam: (page, _pages, _parameter, parameters) =>
             page.nextCursor && !parameters.includes(page.nextCursor) ? page.nextCursor : undefined,
         refetchInterval: (query) => {
+            // 关闭面板可能中止浏览器等待，但服务端已开始的事务仍可能在首次历史读取之后提交。
+            const remaining = reconcileFormUntil.current - Date.now();
+            if (remaining > 0) return Math.max(250, Math.min(1500, remaining));
             const loaded = query.state.data?.pages.flatMap((page) => page.items) ?? [];
             return mergeTurns(loaded, updates).some((turn) => turn.status === "RUNNING") ? 2_000 : false;
         },
     });
     const session = current.data;
     const sessionId = session?.id;
+    const tasks = useAgentTasks({
+        owner,
+        workspaceId: workspace.id,
+        sessionId: id,
+        adapter,
+        signal,
+        onReadDenied,
+        enabled: sessionId === id && current.isSuccess,
+    });
     const editable = !workspace.archived && !!session && !session.archived;
-    const plan = editable && ["OWNER", "ADMIN", "EDITOR"].includes(workspace.role);
+    const editor = ["OWNER", "ADMIN", "EDITOR"].includes(workspace.role);
+    const plan = editable && editor;
     const execute = editable && workspace.role !== "VIEWER";
     const turns = mergeTurns(history.data?.pages.flatMap((page) => page.items) ?? [], updates);
     const lastTurn = turns.at(-1);
@@ -241,16 +259,8 @@ function Thread({
     }, [focusTurnId, lastTurnKey, sessionId]);
     const references = runReferences(turns);
     const focused = references.filter((run) => !completedRuns.has(run.id)).at(-1)?.id;
-    const confirmationText = text
-        .trim()
-        .toLowerCase()
-        .replace(/[.!。！]+$/, "");
-    const isConfirmation =
-        confirmAny.has(confirmationText) ||
-        confirmSave.has(confirmationText) ||
-        confirmPlan.has(confirmationText) ||
-        confirmDraft.has(confirmationText) ||
-        confirmRun.has(confirmationText);
+    const phrase = agentConfirmation(text);
+    const isConfirmation = !!phrase;
     // 明确拒绝后的确认入口等权威读取显示可审阅的新提议，重挂时缓存在本次读取完成前不能解除门禁。
     const reviewable =
         !!latest &&
@@ -269,18 +279,14 @@ function Thread({
         }
     }, [operation, retryKey, reviewable, signal, supersededTarget]);
     const proposalType = latest?.proposal?.type;
-    const mayConfirmText =
-        reviewable &&
-        (isSave(proposalType)
-            ? plan &&
-              (confirmAny.has(confirmationText) ||
-                  confirmSave.has(confirmationText) ||
-                  (proposalType === "SAVE_PLAN" && confirmPlan.has(confirmationText)) ||
-                  (proposalType === "SAVE_RESOURCE_DRAFT" && confirmDraft.has(confirmationText)))
-            : execute && (confirmAny.has(confirmationText) || confirmRun.has(confirmationText)));
-    const canRetryConfirmation = execute && hasPendingAgentConfirmation(retryKey);
+    const allowed = (kind?: AgentSchemas["AgentProposal"]["type"]) =>
+        editable && canConfirmAgentAction(workspace.role, kind);
+    const mayConfirmText = reviewable && !!proposalType && allowed(proposalType) && !!phrase?.(proposalType);
+    const pendingTarget = pendingAgentConfirmationTarget(retryKey);
+    const pendingType = pendingTarget ? turns.find((turn) => turn.id === pendingTarget)?.proposal?.type : undefined;
+    const canRetryConfirmation = allowed(pendingType);
     const canSend = isConfirmation
-        ? !attachments.length && (mayConfirmText || canRetryConfirmation)
+        ? !attachments.length && (mayConfirmText || (pendingType && canRetryConfirmation && phrase(pendingType)))
         : plan && (!!text.trim() || !!attachments.length);
     const busy = !!operation || running;
 
@@ -336,9 +342,21 @@ function Thread({
         if ((!messageText.trim() && !files.length) || busy) return;
         void act("send", async () => {
             const attachments = await encodeAgentAttachments(files, signal);
-            const data = await agentSubmission(retryKey, messageText, { ...opts, attachments }, signal);
+            const data = await agentSubmission(
+                retryKey,
+                messageText,
+                {
+                    ...opts,
+                    attachments,
+                    delegationMode: opts.confirmation || delegationMode === "AUTO" ? undefined : delegationMode,
+                },
+                signal,
+            );
             // 确认提案使用普通提交以便处理提案已被替换的响应，普通消息使用 SSE 逐段展示本轮回复。
             if (opts.confirmation) {
+                const reviewed = turns.find((turn) => turn.id === data.expectedProposalId)?.proposal?.type;
+                if (!reviewed || !allowed(reviewed) || !agentConfirmation(messageText)?.(reviewed))
+                    throw new Error("AGENT_CONFIRM_TARGET_REQUIRED");
                 const turn = await adapter.submit(id, data, signal).catch(async (failure: unknown) => {
                     if (
                         signal.aborted ||
@@ -356,6 +374,7 @@ function Thread({
                 if (!turn) return;
                 signal.throwIfAborted();
                 clearAgentSubmission(retryKey, data.requestId);
+                setDelegationMode("AUTO");
                 setText("");
                 receive(turn);
                 return;
@@ -416,6 +435,7 @@ function Thread({
                     signal.throwIfAborted();
                     if (turn.status === "RUNNING") recovering.current = { id: turn.id, requestId: data.requestId };
                     else clearAgentSubmission(retryKey, data.requestId);
+                    setDelegationMode("AUTO");
                     setText("");
                     setAttachments([]);
                     setReattach(false);
@@ -528,10 +548,7 @@ function Thread({
                     const thinkingId = `vq-agent-summary-${turn.id}`;
                     const steps: Step[] = (inProgress ? streamSteps.get(turn.id) : undefined) ?? turn.steps ?? [];
                     const confirm =
-                        reviewable &&
-                        turn.id === latest?.id &&
-                        !turn.receipt &&
-                        (isSave(turn.proposal?.type) ? plan : execute);
+                        reviewable && turn.id === latest?.id && !turn.receipt && allowed(turn.proposal?.type);
                     return (
                         <li key={turn.id}>
                             <div className="vq-agent-user">
@@ -828,9 +845,27 @@ function Thread({
                                     )}
                                 </>
                             )}
+                            {turn.workspaceForm && formLauncher && (
+                                <CapabilityCard
+                                    key={turn.workspaceForm.capability}
+                                    card={turn.workspaceForm}
+                                    sessionId={id}
+                                    turnId={turn.id}
+                                    workspaceId={workspace.id}
+                                    signal={signal}
+                                    launcher={formLauncher}
+                                    authorize={(current) => adapter.getAgentWorkspaceForm(id, turn.id, current)}
+                                    onClose={() => {
+                                        reconcileFormUntil.current = Date.now() + 4500;
+                                        void history.refetch();
+                                    }}
+                                />
+                            )}
+                            {turn.workspaceFormReceipts && <FormReceipts items={turn.workspaceFormReceipts} />}
                             {turn.proposal && (
                                 <Proposal
                                     proposal={turn.proposal}
+                                    delegationMode={turn.delegationMode}
                                     disabled={busy}
                                     confirm={
                                         confirm
@@ -869,8 +904,12 @@ function Thread({
                     focused={run.id === focused}
                     navigate={navigate}
                     reportTerminal={reportTerminal}
+                    follow={editable && tasks.canFollow(run.id) ? () => tasks.follow(run.id) : undefined}
+                    analyze={plan && tasks.canFollow(run.id) ? () => tasks.follow(run.id, true) : undefined}
+                    followingBusy={tasks.busy}
                 />
             ))}
+            <BackgroundTasks tasks={tasks} editable={editable} canReadAnalysis={editor} />
         </>
     );
     return (
@@ -878,7 +917,7 @@ function Thread({
             <div className="vq-agent-message-scroll" ref={messagesRef}>
                 {messages}
             </div>
-            {execute && (plan || canRetryConfirmation || (proposalType && !isSave(proposalType))) && (
+            {execute && (plan || canRetryConfirmation || allowed(proposalType)) && (
                 <form className="vq-agent-composer" onSubmit={send}>
                     <textarea
                         ref={inputRef}
@@ -950,6 +989,21 @@ function Thread({
                             </div>
                         )}
                         <div className="vq-agent-composer-actions">
+                            <select
+                                aria-label={tx("Run follow-up")}
+                                title={tx("Run follow-up")}
+                                value={isConfirmation ? (latest?.delegationMode ?? "AUTO") : delegationMode}
+                                disabled={busy || isConfirmation}
+                                onChange={(event) => {
+                                    const mode = event.target.value;
+                                    if (mode === "AUTO" || mode === "MAIN" || mode === "SUBAGENT")
+                                        setDelegationMode(mode);
+                                }}
+                            >
+                                <option value="AUTO">{tx("Auto follow-up")}</option>
+                                <option value="SUBAGENT">{tx("Delegate follow-up")}</option>
+                                <option value="MAIN">{tx("Main conversation only")}</option>
+                            </select>
                             {editable && (
                                 <button
                                     type="button"

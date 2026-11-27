@@ -30,7 +30,7 @@ import { agentEnvironment } from "./agent-environment";
 import { stageDesktopUpdate } from "./update";
 import { isNode24Version } from "../../../runtime/src/node-version.ts";
 import { DesktopAgentClient } from "../agent/client";
-import { HostSession, controlOrigin } from "./session";
+import { HostHttpError, HostSession, controlOrigin } from "./session";
 import { requireCookieProtection } from "./cookie-protection";
 import { prepareCookieStorage } from "./cookie-migration";
 import { object, parseSchema, resolveOperation } from "./policy";
@@ -574,7 +574,7 @@ function installBridge() {
                     )
                         throw error;
                 }
-                host.invalidate();
+                await host.retire();
                 origin = next;
                 proxy = value.proxy;
                 await session.fromPartition("persist:veriq-host").clearStorageData({ storages: ["cookies"] });
@@ -607,9 +607,16 @@ function installBridge() {
                 } catch {}
                 return selected;
             }
-            case "cloud":
+            case "cloud": {
                 resolveOperation(input, host.workspace?.id);
-                return host.cloud(input as CloudOperation);
+                try {
+                    return await host.cloud(input as CloudOperation);
+                } catch (error) {
+                    // Electron 跨 IPC 只保留 Error.message；只发送经过清理的 HTTP 状态和机器错误码。
+                    if (error instanceof HostHttpError) throw new Error(`HOST_HTTP_${error.status} ${error.code}`);
+                    throw error;
+                }
+            }
             case "local":
                 return local(input);
             case "streamOpen":

@@ -67,6 +67,32 @@ export class CloudAgentAdapter {
             signal,
         );
 
+    // 后台跟进状态来自当前员工的私有会话，切换会话时旧列表的取消信号会随同读取一起结束。
+    tasks = (id: string, signal: AbortSignal) =>
+        request<AgentSchemas["AgentTaskCollection"]>(`${this.sessionPath(id)}/tasks`, "GET", undefined, signal);
+
+    // 手动委托只接收已有运行标识和幂等编号，请求成功即返回服务器记录的任务，无需等待运行结束。
+    follow = (id: string, data: AgentSchemas["AgentTaskCreate"], signal: AbortSignal) =>
+        request<AgentSchemas["AgentTask"]>(`${this.sessionPath(id)}/tasks`, "POST", data, signal);
+
+    // 停止操作使用任务标识定位会话内的跟进记录，底层运行继续由原有的测试运行服务管理。
+    stopFollowing = (id: string, taskId: string, signal: AbortSignal) =>
+        request<AgentSchemas["AgentTask"]>(
+            `${this.sessionPath(id)}/tasks/${encodeURIComponent(taskId)}/stop`,
+            "POST",
+            undefined,
+            signal,
+        );
+
+    // 点击入口时只发送已保存的会话和轮次标识，目标能力由服务器按当前成员权限从持久化的卡片重新取得。
+    getAgentWorkspaceForm = (sessionId: string, turnId: string, signal: AbortSignal) =>
+        request<AgentSchemas["AgentWorkspaceForm"]>(
+            `${this.sessionPath(sessionId)}/turns/${encodeURIComponent(turnId)}/workspace-form`,
+            "GET",
+            undefined,
+            signal,
+        );
+
     // 请求 UUID 属于单次文本提交，重试在服务器端复用原始轮次，后续新消息使用不同 UUID。
     submit = (id: string, data: AgentSchemas["AgentTurnSubmit"], signal?: AbortSignal) =>
         request<AgentSchemas["AgentTurnDTO"]>(`${this.sessionPath(id)}/turns`, "POST", data, signal);

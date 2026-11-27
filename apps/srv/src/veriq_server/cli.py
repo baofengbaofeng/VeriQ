@@ -228,18 +228,36 @@ async def run(args: argparse.Namespace) -> None:
             for sig in (signal.SIGINT, signal.SIGTERM):
                 loop.add_signal_handler(sig, stop.set)
             await serve_compiler(db, settings, stop, once=args.once)
+        elif args.command == "agent-worker":
+            from .services.agent_tasks import advance_tasks, serve_agent_tasks
+
+            if args.once:
+                await advance_tasks(db, settings)
+            else:
+                await serve_agent_tasks(db, settings)
         else:
+            from .services.agent_tasks import serve_agent_tasks
+
             application = make_app(settings, db)
             server = HTTPServer(application, max_body_size=MAX_HTTP_BODY_BYTES)
+            agent_worker = asyncio.create_task(serve_agent_tasks(db, settings))
+            stop = asyncio.Event()
+            shutdown = asyncio.create_task(stop.wait())
             try:
                 server.listen(settings.port, address=settings.host)
-                stop = asyncio.Event()
                 loop = asyncio.get_running_loop()
                 for sig in (signal.SIGINT, signal.SIGTERM):
                     loop.add_signal_handler(sig, stop.set)
                 log("_undef", "server.listening", port=settings.port)
-                await stop.wait()
+                completed, _ = await asyncio.wait(
+                    (shutdown, agent_worker), return_when=asyncio.FIRST_COMPLETED
+                )
+                if agent_worker in completed:
+                    agent_worker.result()
             finally:
+                agent_worker.cancel()
+                shutdown.cancel()
+                await asyncio.gather(agent_worker, shutdown, return_exceptions=True)
                 server.stop()
                 await server.close_all_connections()
                 try:
@@ -288,6 +306,10 @@ def main() -> None:
     )
     worker = sub.add_parser("compile-worker", help="Process trusted server-side validation jobs")
     worker.add_argument("--once", action="store_true", help="Process at most one validation job")
+    agent_worker = sub.add_parser(
+        "agent-worker", help="Process durable Test Agent background tasks"
+    )
+    agent_worker.add_argument("--once", action="store_true", help="Process one batch of due tasks")
     backup_parser = sub.add_parser(
         "backup",
         help="Consistent offline database/artifact/key snapshot; requires MySQL global read lock privilege",

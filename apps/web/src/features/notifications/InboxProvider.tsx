@@ -9,8 +9,9 @@ import { Auth } from "../../auth-context";
 import { tx } from "../../locale";
 import { useOperationFeedback } from "../../operation-feedback";
 import { useRequestLifetime } from "../../request-lifetime";
+import { useWorkspace } from "../workspaces/WorkspaceContext";
 import { useWorkspaceDirectory } from "../workspaces/WorkspaceDirectory";
-import { invitationRefreshInterval } from "./model";
+import { inboxRefreshInterval, type InboxLiveUpdates } from "./model";
 import type { AgentNotificationTarget, InboxNotification, InboxPage, InvitationNotification } from "./model";
 import { notificationApi, observeInbox } from "./transport";
 
@@ -19,6 +20,8 @@ import { notificationApi, observeInbox } from "./transport";
  */
 type InboxContext = {
     owner?: string;
+    liveUpdates: InboxLiveUpdates;
+    accessGeneration?: number;
     signal?: AbortSignal;
     snapshot?: InboxPage;
     snapshotTime: number;
@@ -32,8 +35,10 @@ type InboxContext = {
     clearAgentTarget: () => void;
     markAll: (trigger: HTMLElement, current: InboxPage) => Promise<void>;
     accept: (row: InvitationNotification, trigger: HTMLElement) => Promise<void>;
+    opensDetail: (row: InboxNotification) => boolean;
     openItem: (row: InboxNotification, beforeOpen?: (movesFocus: boolean) => void) => Promise<void>;
 };
+const inactive = AbortSignal.abort();
 const Inbox = createContext<InboxContext | null>(null);
 
 /**
@@ -66,10 +71,19 @@ function operationError(error: unknown) {
 /**
  * 每次请求都使用已提交的会话有效期，迟到响应不得继续跳转、推送结果或重建旧账户下的通知查询。
  */
-export function InboxProvider({ children }: { children: ReactNode }) {
+export function InboxProvider({
+    children,
+    parentSignal,
+    liveUpdates = "stream",
+}: {
+    children: ReactNode;
+    parentSignal?: AbortSignal;
+    liveUpdates?: InboxLiveUpdates;
+}) {
     const { user } = useContext(Auth);
     const owner = user?.id;
-    const signal = useRequestLifetime()?.signal;
+    const { selected } = useWorkspace();
+    const lifetime = useRequestLifetime(parentSignal)?.signal;
     const cache = useQueryClient();
     const navigate = useNavigate();
     const { search } = useLocation();
@@ -78,27 +92,39 @@ export function InboxProvider({ children }: { children: ReactNode }) {
     const directory = useWorkspaceDirectory();
     const { showPending, showFailure } = useOperationFeedback();
     const [agentTarget, setAgentTarget] = useState<AgentNotificationTarget>();
-    const [busy, setBusy] = useState(false);
+    const [busySignal, setBusySignal] = useState<AbortSignal>();
     const [bellOpen, setBellOpen] = useState(false);
-    const mutation = useRef(false);
+    const mutation = useRef<AbortSignal>();
     const overview = useQuery({
         queryKey: [...inboxKey(owner), "overview"],
-        queryFn: ({ signal: request }) => notificationApi.list(10, false, request),
-        enabled: !!owner && !!signal,
+        queryFn: ({ signal: request }) =>
+            notificationApi.list(10, false, lifetime ? AbortSignal.any([request, lifetime]) : request),
+        enabled: !!owner && !!lifetime,
+        refetchOnMount: "always",
         refetchInterval: ({ state }) =>
-            bellOpen && state.status === "success" ? invitationRefreshInterval(state.data?.items) : false,
+            inboxRefreshInterval(
+                liveUpdates,
+                lifetime,
+                bellOpen && state.status === "success" ? state.data?.items : undefined,
+                state.error instanceof ApiError ? state.error.status : undefined,
+            ),
     });
-    const ready = typeof overview.data?.readThrough === "string";
-    const snapshot = ready && !overview.isError ? overview.data : undefined;
+    const denied = overview.error instanceof ApiError && [401, 403, 404, 410].includes(overview.error.status);
+    // 概览查明权限已失效时终止已发起的读取和写入；重试成功后使用新的请求所有权，旧回执不能恢复已离开的详情。
+    const access = useRequestLifetime(denied || !lifetime ? inactive : lifetime);
+    const signal = access?.signal;
+    const busy = !!signal && busySignal === signal;
+    const ready = overview.isFetchedAfterMount && typeof overview.data?.readThrough === "string";
+    const snapshot = signal && !signal.aborted && ready && !overview.isError ? overview.data : undefined;
     const invalidate = useCallback(() => {
         void cache.invalidateQueries({ queryKey: inboxKey(owner) });
     }, [cache, owner]);
     useEffect(() => {
-        if (!owner || !signal || !ready) return;
+        if (liveUpdates !== "stream" || !owner || !signal || !ready) return;
         const controller = new AbortController();
         void observeInbox(invalidate, AbortSignal.any([signal, controller.signal]));
         return () => controller.abort();
-    }, [owner, signal, ready, invalidate]);
+    }, [owner, signal, ready, invalidate, liveUpdates]);
 
     // 操作完成以后重新读取真实状态；等待弹窗提前关闭仅隐藏观察结果，服务端最终是否写入仍由已完成的请求决定。
     async function mutate(
@@ -107,9 +133,9 @@ export function InboxProvider({ children }: { children: ReactNode }) {
         result: string,
         submit: (active: AbortSignal) => Promise<void>,
     ) {
-        if (!owner || !signal || signal.aborted || mutation.current) return;
-        mutation.current = true;
-        setBusy(true);
+        if (!owner || !signal || signal.aborted || mutation.current === signal) return;
+        mutation.current = signal;
+        setBusySignal(signal);
         const feedback = showPending(tx(waiting), { trigger, onClose: () => undefined });
         try {
             await submit(signal);
@@ -118,13 +144,18 @@ export function InboxProvider({ children }: { children: ReactNode }) {
         } catch (error) {
             if (!signal.aborted) feedback.complete("failure", operationError(error));
         } finally {
-            mutation.current = false;
-            if (signal.aborted) feedback.dismiss();
-            else {
-                setBusy(false);
-                invalidate();
+            if (mutation.current === signal) {
+                mutation.current = undefined;
+                setBusySignal(undefined);
             }
+            if (signal.aborted) feedback.dismiss();
+            else invalidate();
         }
+    }
+
+    // 个人收件箱可同时显示多个工作区的通知，只有表单所属空间的单条操作才能继承会话轮次作为回执来源。
+    function itemSignal(row: InboxNotification, active: AbortSignal) {
+        return parentSignal && row.workspaceId !== selected ? AbortSignal.any([active]) : active;
     }
 
     // 当前快照水位在点击时捕获，标记请求完成前到达的通知由下次快照加入，不会被这次写入意外覆盖。
@@ -132,7 +163,7 @@ export function InboxProvider({ children }: { children: ReactNode }) {
         const through = current.readThrough;
         if (!through || !current.unreadCount) return;
         await mutate(trigger, "Marking notifications as read…", "Notifications marked as read.", async (active) => {
-            await notificationApi.readAll(through, active);
+            await notificationApi.readAll(through, parentSignal ? AbortSignal.any([active]) : active);
         });
     }
 
@@ -140,27 +171,33 @@ export function InboxProvider({ children }: { children: ReactNode }) {
     async function accept(row: InvitationNotification, trigger: HTMLElement) {
         if (row.invitationStatus !== "PENDING") return;
         await mutate(trigger, "Accepting invitation…", "Invitation accepted.", async (active) => {
-            await notificationApi.accept(row.id, active);
+            await notificationApi.accept(row.id, itemSignal(row, active));
             active.throwIfAborted();
             void cache.invalidateQueries({ queryKey: ["workspaces", owner] });
         });
     }
 
+    function opensDetail(row: InboxNotification) {
+        return (
+            row.kind === "WORKSPACE_INVITED" ||
+            (!!parentSignal && (row.kind === "AGENT_REPLY" || row.workspaceId !== selected))
+        );
+    }
+
     // 视图只根据读回执选择内部目标，Agent 先复核工作区成员目录，再切换选择并让抽屉读取精确轮次。
     async function openItem(row: InboxNotification, beforeOpen?: (movesFocus: boolean) => void) {
-        if (!owner || !signal || signal.aborted || mutation.current) return;
-        mutation.current = true;
-        setBusy(true);
+        if (!owner || !signal || signal.aborted || mutation.current === signal) return;
+        mutation.current = signal;
+        setBusySignal(signal);
         try {
-            const current = await notificationApi.read(row.id, signal);
+            const current = await notificationApi.read(row.id, itemSignal(row, signal));
             signal.throwIfAborted();
+            if (opensDetail(current)) {
+                beforeOpen?.(!onNotificationsPage || new URLSearchParams(search).get("notificationId") !== current.id);
+                void navigate(`/notifications?${new URLSearchParams({ notificationId: current.id })}`);
+                return;
+            }
             switch (current.kind) {
-                case "WORKSPACE_INVITED":
-                    beforeOpen?.(
-                        !onNotificationsPage || new URLSearchParams(search).get("notificationId") !== current.id,
-                    );
-                    void navigate(`/notifications?${new URLSearchParams({ notificationId: current.id })}`);
-                    break;
                 case "AGENT_REPLY": {
                     const { workspaceId, sessionId, turnId } = current;
                     const workspace = await api.workspace(workspaceId, signal);
@@ -171,7 +208,8 @@ export function InboxProvider({ children }: { children: ReactNode }) {
                     setAgentTarget({ workspaceId, sessionId, turnId });
                     break;
                 }
-                default:
+                case "RUN_STARTED":
+                case "RUN_FINISHED":
                     // 报告页内只改变查询参数时没有路由标题聚焦，关闭后保留铃铛作为下一次键盘操作入口，并继续展示报告。
                     beforeOpen?.(!onReportsPage);
                     void navigate(
@@ -181,11 +219,11 @@ export function InboxProvider({ children }: { children: ReactNode }) {
         } catch (error) {
             if (!signal.aborted) showFailure(operationError(error));
         } finally {
-            mutation.current = false;
-            if (!signal.aborted) {
-                setBusy(false);
-                invalidate();
+            if (mutation.current === signal) {
+                mutation.current = undefined;
+                setBusySignal(undefined);
             }
+            if (!signal.aborted) invalidate();
         }
     }
 
@@ -193,12 +231,15 @@ export function InboxProvider({ children }: { children: ReactNode }) {
         <Inbox.Provider
             value={{
                 owner,
+                liveUpdates,
+                accessGeneration: access?.generation,
                 signal,
                 agentTarget,
                 busy,
                 bellOpen,
                 setBellOpen,
                 openItem,
+                opensDetail,
                 accept,
                 markAll,
                 snapshot,

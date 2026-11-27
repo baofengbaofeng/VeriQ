@@ -13,6 +13,7 @@ import { CloudReportAdapter } from "../reports/adapters";
 import { useWorkspaceDirectory, WorkspaceStatus } from "../workspaces/WorkspaceDirectory";
 import { useWorkspace } from "../workspaces/WorkspaceContext";
 import { CloudAgentAdapter } from "./adapters";
+import { WebAgentFormHost } from "./WebAgentFormHost";
 import { AgentWorkspaceView } from "./AgentWorkspaceView";
 import { AgentModelControls } from "./ModelSettings";
 import type { AgentNotificationTarget } from "../notifications/model";
@@ -81,24 +82,32 @@ export function AgentSheet({ target, clearTarget }: { target?: AgentNotification
                     <>
                         <WorkspaceStatus />
                         {activeWorkspace && (
-                            <AgentWorkspaceView
+                            <WebAgentFormHost
                                 key={`${user.id}/${activeWorkspace.id}`}
-                                workspace={activeWorkspace}
-                                owner={user.id}
-                                ownerName={user.displayName}
-                                adapter={adapters.agent}
-                                providers={adapters.providers}
-                                reports={adapters.reports}
-                                parentSignal={signal}
-                                target={target}
-                                onReplyVisible={acknowledgeAgentReply}
-                                wide={wide}
-                                navigate={(runId) => (
-                                    <Link to={`/reports?workspaceId=${activeWorkspace.id}&runId=${runId}`}>
-                                        {tx("Open full report")}
-                                    </Link>
+                                workspaceId={activeWorkspace.id}
+                                signal={signal}
+                            >
+                                {(launcher) => (
+                                    <AgentWorkspaceView
+                                        workspace={activeWorkspace}
+                                        owner={user.id}
+                                        ownerName={user.displayName}
+                                        adapter={adapters.agent}
+                                        providers={adapters.providers}
+                                        reports={adapters.reports}
+                                        parentSignal={signal}
+                                        target={target}
+                                        onReplyVisible={acknowledgeAgentReply}
+                                        wide={wide}
+                                        formLauncher={launcher}
+                                        navigate={(runId) => (
+                                            <Link to={`/reports?workspaceId=${activeWorkspace.id}&runId=${runId}`}>
+                                                {tx("Open full report")}
+                                            </Link>
+                                        )}
+                                    />
                                 )}
-                            />
+                            </WebAgentFormHost>
                         )}
                     </>
                 )}

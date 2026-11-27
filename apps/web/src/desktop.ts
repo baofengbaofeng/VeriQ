@@ -3,7 +3,7 @@
  * 不继承旧 Web 的类型兼容选项。
  */
 export { installBrowserDiagnostics } from "./browser-logging";
-export { installHostTransport, type HostTransport, type Workspace } from "./api";
+export { ApiError, installHostTransport, scopeAgentFormSignal, type HostTransport, type Workspace } from "./api";
 export { ResourceWorkspaceView } from "./features/resources/ResourcePage";
 export {
     CloudResourceAdapter,
@@ -20,7 +20,14 @@ export {
 } from "./features/reports/adapters";
 export { BundleWorkspaceView } from "./features/bundles/BundlePage";
 export { CloudBundleAdapter, type BundleAdapter } from "./features/bundles/adapters";
+export { DesktopManagementForm } from "./features/agent/DesktopManagementForm";
 export { AgentWorkspaceView } from "./features/agent/AgentWorkspaceView";
+export {
+    formLabel,
+    type WorkspaceCapability,
+    type WorkspaceFormDestination,
+    type WorkspaceFormReference,
+} from "./features/agent/workspace-forms";
 export { CloudAgentAdapter } from "./features/agent/adapters";
 export { AiWorkspaceView } from "./features/ai/AiPage";
 export { CloudAiAdapter } from "./features/ai/adapters";

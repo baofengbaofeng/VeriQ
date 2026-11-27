@@ -14,6 +14,7 @@ export interface ResolvedOperation {
     kind: "json" | "stream" | "binary" | "source";
     data?: unknown;
     idempotencyKey?: string;
+    agentFormTurnId?: string;
 }
 
 type Rule = {
@@ -23,6 +24,7 @@ type Rule = {
     queries: Record<string, Record<string, unknown>>;
     request: string | null;
     idempotency: boolean;
+    agentForm?: boolean;
     kind: string;
 };
 const rules: Record<string, Rule> = catalog;
@@ -86,7 +88,7 @@ function queryValue(value: unknown, schema: Record<string, unknown>): string {
  * 个空间发送资源请求。
  */
 export function resolveOperation(value: unknown, workspace: string | undefined): ResolvedOperation {
-    const input = object(value, ["operation", "params", "query", "data", "idempotencyKey"]);
+    const input = object(value, ["operation", "params", "query", "data", "idempotencyKey", "agentFormTurnId"]);
     if (typeof input.operation !== "string" || !Object.hasOwn(rules, input.operation))
         throw new Error("IPC_OPERATION_DENIED");
     const rule = rules[input.operation]!;
@@ -123,6 +125,11 @@ export function resolveOperation(value: unknown, workspace: string | undefined):
     // 幂等键独立于请求头，以专门字段暴露给有限的导出操作。
     if (rule.request ? validateSchema(rule.request, input.data).length : input.data !== undefined)
         throw new Error("IPC_PAYLOAD_INVALID");
+    if (
+        (input.operation === "approveEnrollment" || input.operation === "updateRuntimeGrants") &&
+        object(input.data).workspaceId !== workspace
+    )
+        throw new Error("WORKSPACE_SCOPE_MISMATCH");
     const body = input.data as PlatformComponents["schemas"]["ResourceCreate" | "DraftWrite"];
     const datasetWrite =
         (input.operation === "updateDraft" ||
@@ -137,6 +144,14 @@ export function resolveOperation(value: unknown, workspace: string | undefined):
         )
             throw new Error("IPC_PAYLOAD_LIMIT");
     } else if (!agentTurn && JSON.stringify(input).length > 1024 * 1024) throw new Error("IPC_PAYLOAD_LIMIT");
+    const turn = input.agentFormTurnId;
+    if (turn !== undefined && (!rule.agentForm || typeof turn !== "string" || turn.length !== 36 || !uuid.test(turn)))
+        throw new Error("IPC_PAYLOAD_INVALID");
+    if (
+        ((input.operation === "issueServiceToken" || input.operation === "revokeServiceToken") && turn === undefined) ||
+        (input.operation === "issueServiceToken" && object(input.data).purpose !== "EXECUTION")
+    )
+        throw new Error("IPC_PAYLOAD_INVALID");
     if (rule.idempotency) {
         if (
             typeof input.idempotencyKey !== "string" ||
@@ -156,6 +171,7 @@ export function resolveOperation(value: unknown, workspace: string | undefined):
         method: rule.method,
         kind: rule.kind as ResolvedOperation["kind"],
         ...(input.data === undefined ? {} : { data: input.data }),
+        ...(typeof turn === "string" ? { agentFormTurnId: turn } : {}),
         ...(rule.idempotency ? { idempotencyKey: String(input.idempotencyKey) } : {}),
     };
 }

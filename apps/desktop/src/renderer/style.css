@@ -313,3 +313,33 @@ main {
 .desktop-content select {
     max-width: 100%;
 }
+.agent-native-form {
+    min-width: 0;
+    margin-block-start: 1rem;
+    padding: 1rem;
+    border: 1px solid #dce4df;
+    border-radius: 8px;
+}
+.agent-native-form-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+.agent-native-form-header h3 {
+    margin: 0;
+}
+@media (min-width: 1380px) {
+    .agent-native-layout.agent-native-open {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(380px, 0.8fr);
+        align-items: start;
+        gap: 1rem;
+    }
+    .agent-native-open > * {
+        min-width: 0;
+    }
+    .agent-native-form {
+        margin-block-start: 0;
+    }
+}

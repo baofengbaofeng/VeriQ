@@ -24,6 +24,7 @@ import { WorkspaceProvider } from "./features/workspaces/WorkspaceContext";
 import { WorkspacePage, AcceptInvitation } from "./features/workspaces/WorkspacePage";
 import { RuntimePage } from "./features/runtimes/RuntimePage";
 import { DatasetDetailPage, ResourcePage } from "./features/resources/ResourcePage";
+import { isScopedFormPath } from "./features/agent/workspace-forms";
 import { datasetDetailRoute, datasetListPath } from "./features/resources/dataset-routes";
 import { EnvironmentPage } from "./features/environments/EnvironmentPage";
 import { AccessibilityNavigation, AppLocaleProvider, LanguageDropdown } from "./locale-ui";
@@ -38,7 +39,7 @@ import "./admin.css";
 import "./web-theme.css";
 import "./auth.css";
 function App() {
-    const { pathname, key: locationKey } = useLocation();
+    const { pathname, search, key: locationKey } = useLocation();
     useAppLocale();
     const { showFailure } = useOperationFeedback();
     const [user, setUser] = useState<User | null>(null),
@@ -208,6 +209,21 @@ function App() {
                 />
             </Route>
         );
+        // 浏览器使用自己的登录分区；在固定表单地址原地登录，只恢复当前内部页面而不接受任何嵌套跳转地址。
+        if (
+            !user &&
+            initialized &&
+            new URLSearchParams(search).get("fromAgentForm") === "1" &&
+            (isScopedFormPath(pathname) || pathname === "/notifications")
+        ) {
+            return (
+                <Routes>
+                    <Route element={<AuthLayout />}>
+                        <Route path="*" element={<SignIn />} />
+                    </Route>
+                </Routes>
+            );
+        }
         return (
             <Routes>
                 {authRoutes}

@@ -16,7 +16,7 @@ type Receipt = AgentSchemas["AgentReceipt"];
  */
 export interface RunReference {
     id: string;
-    receipt?: Extract<Receipt, { type: "RUN_ONCE" | "TRIGGER_PLAN" }>;
+    decision?: Extract<Receipt, { type: "TRIGGER_PLAN" }>["decision"];
 }
 
 /**
@@ -53,6 +53,9 @@ export function RunCard({
     focused,
     navigate,
     reportTerminal,
+    follow,
+    analyze,
+    followingBusy,
 }: {
     workspaceId: string;
     owner: string;
@@ -62,6 +65,9 @@ export function RunCard({
     onWorkspaceReadDenied: (error: unknown) => void;
     focused: boolean;
     navigate: ReportNavigation;
+    follow?: () => void;
+    analyze?: () => void;
+    followingBusy: boolean;
     reportTerminal: (id: string, terminal: boolean) => void;
 }) {
     const id = run.id;
@@ -151,7 +157,7 @@ export function RunCard({
             <h4>{tx("Run status")}</h4>
             <p>
                 <code>{id}</code>
-                {run.receipt?.type === "TRIGGER_PLAN" && <> · {run.receipt.decision}</>}
+                {run.decision && <> · {run.decision}</>}
             </p>
             {report.isPending && <p role="status">{tx("Reading Run status…")}</p>}
             <AgentError error={problem} />
@@ -177,6 +183,16 @@ export function RunCard({
                         {tx("Current gate")} {value.gateNow.passed ? "PASS" : "BLOCKED"}
                     </p>
                     {navigate(id)}
+                    {!terminal && follow && (
+                        <button type="button" onClick={follow} disabled={followingBusy}>
+                            {tx("Follow in background")}
+                        </button>
+                    )}
+                    {analyze && (
+                        <button type="button" onClick={analyze} disabled={followingBusy}>
+                            {tx("Analyze in background")}
+                        </button>
+                    )}
                 </>
             )}
             {(!terminal || report.error || !!streamError) && (

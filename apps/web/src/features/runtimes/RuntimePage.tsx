@@ -3,6 +3,7 @@
  * 数据经 runtimeApi 与 api.workspaces；切换空间清空本地表单状态。
  */
 
+import type { WorkspaceCapability } from "../agent/workspace-forms";
 import { tx, useAppLocale } from "../../locale";
 import { useContext, useEffect, useId, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -16,24 +17,31 @@ import { useWorkspaceDirectory, WorkspaceStatus } from "../workspaces/WorkspaceD
 import { useWorkspace } from "../workspaces/WorkspaceContext";
 import "./runtimes.css";
 
+type DeviceCapability = Extract<WorkspaceCapability, "DEVICE_ACCESS" | "DEVICE_CREDENTIAL_DELIVERY">;
+
 /**
  * 将顶栏目录确认的空间交给设备与服务账号面板，权限判断与设备信任操作继续使用当前工作区的身份。
  */
-export function RuntimePage() {
+export function RuntimePage({ capability }: { capability?: WorkspaceCapability } = {}) {
     useAppLocale();
     const { user } = useContext(Auth);
     const { workspace } = useWorkspaceDirectory();
     if (!user) return <Navigate to="/login" />;
+    if (capability && capability !== "DEVICE_ACCESS" && capability !== "DEVICE_CREDENTIAL_DELIVERY") return null;
     return (
         <Panel title={tx("Runtimes")}>
             <WorkspaceStatus />
-            <p>{tx("Register a device and choose who may use it. Registration alone does not start a worker.")}</p>
-            {workspace && <RuntimeWorkspace key={user.id + workspace.id} workspace={workspace} />}
+            {capability !== "DEVICE_CREDENTIAL_DELIVERY" && (
+                <p>{tx("Register a device and choose who may use it. Registration alone does not start a worker.")}</p>
+            )}
+            {workspace && (
+                <RuntimeWorkspace key={user.id + workspace.id} workspace={workspace} capability={capability} />
+            )}
         </Panel>
     );
 }
 
-function RuntimeWorkspace({ workspace }: { workspace: Workspace }) {
+function RuntimeWorkspace({ workspace, capability }: { workspace: Workspace; capability?: DeviceCapability }) {
     useAppLocale();
     const { signal } = useWorkspace(),
         client = useQueryClient(),
@@ -54,7 +62,7 @@ function RuntimeWorkspace({ workspace }: { workspace: Workspace }) {
     const writable = !workspace.archived && workspace.role !== "VIEWER";
     return (
         <div className="vq-runtime-workspace">
-            {writable && (
+            {capability !== "DEVICE_CREDENTIAL_DELIVERY" && writable && (
                 <section aria-label={tx("Approve device")}>
                     <h2>{tx("Approve a device")}</h2>
                     <p>
@@ -188,9 +196,14 @@ function RuntimeWorkspace({ workspace }: { workspace: Workspace }) {
                         key={runtime.id}
                         runtime={runtime}
                         refresh={refresh}
+                        accessControls={capability !== "DEVICE_CREDENTIAL_DELIVERY"}
                         writable={writable}
                         archived={workspace.archived}
-                        canDeliver={!workspace.archived && ["OWNER", "ADMIN"].includes(workspace.role)}
+                        canDeliver={
+                            capability !== "DEVICE_ACCESS" &&
+                            !workspace.archived &&
+                            ["OWNER", "ADMIN"].includes(workspace.role)
+                        }
                     />
                 ))}
             {runtimes.hasNextPage && (
@@ -203,7 +216,7 @@ function RuntimeWorkspace({ workspace }: { workspace: Workspace }) {
                     {tx("Load more devices")}
                 </Button>
             )}
-            {["OWNER", "ADMIN"].includes(workspace.role) && <ServiceAccounts workspace={workspace} />}
+            {!capability && ["OWNER", "ADMIN"].includes(workspace.role) && <ServiceAccounts workspace={workspace} />}
         </div>
     );
 }
@@ -263,12 +276,14 @@ function RuntimeCard({
     writable,
     archived,
     canDeliver,
+    accessControls,
 }: {
     runtime: Runtime;
     refresh: () => Promise<unknown>;
     writable: boolean;
     archived: boolean;
     canDeliver: boolean;
+    accessControls: boolean;
 }) {
     useAppLocale();
     const { user } = useContext(Auth),
@@ -322,7 +337,7 @@ function RuntimeCard({
                         "ults.",
                 )}
             </p>
-            {runtime.canManage && writable && runtime.status !== "REVOKED" && (
+            {accessControls && runtime.canManage && writable && runtime.status !== "REVOKED" && (
                 <>
                     <form
                         onSubmit={(e) => {
@@ -374,7 +389,8 @@ function RuntimeCard({
                     </Button>
                 </>
             )}
-            {user?.systemAdmin &&
+            {accessControls &&
+                user?.systemAdmin &&
                 !archived &&
                 runtime.status !== "REVOKED" &&
                 (runtime.sharedWithWorkspace || runtime.sharedWithUserIds.length > 0) && (

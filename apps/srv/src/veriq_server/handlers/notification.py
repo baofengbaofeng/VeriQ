@@ -16,6 +16,7 @@ from ..logging_context import new_trace, use_trace
 from ..db import Database, User, UserSession
 from ..pagination import boolean_filter
 from ..service import Problem, lock_installation
+from ..services.agent_form_receipts import FORM_ORIGIN_HEADER
 from ..services.notification_inbox import (
     NotificationInbox,
     deliver_due_notifications,
@@ -240,11 +241,17 @@ class NotificationAPI(API):  # pylint: disable=abstract-method
             user, _ = await self.identity(session)
             inbox = NotificationInbox(session, user, self.config)
             if self.action == "notification-read":
-                result = await inbox.read(notification_id.lower())
+                result = await inbox.read(
+                    notification_id.lower(),
+                    form_origin=self.request.headers.get(FORM_ORIGIN_HEADER),
+                )
             elif self.action == "notification-read-all":
                 result = await inbox.read_all(body["through"])
             elif self.action == "notification-accept":
-                result = await inbox.accept(notification_id.lower())
+                result = await inbox.accept(
+                    notification_id.lower(),
+                    form_origin=self.request.headers.get(FORM_ORIGIN_HEADER),
+                )
             else:
                 result = await inbox.agent_seen(
                     body["workspaceId"].lower(), body["sessionId"].lower(), body["turnId"].lower()

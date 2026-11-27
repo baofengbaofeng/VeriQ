@@ -1,5 +1,6 @@
 import {
     installHostTransport,
+    ApiError,
     CloudResourceAdapter,
     LocalResourceAdapter,
     CloudReportAdapter,
@@ -45,13 +46,16 @@ function operation(path: string, method: string, data?: unknown, headers?: Recor
                 ];
             }),
         );
-        if (headers && Object.keys(headers).some((key) => key !== "Idempotency-Key"))
+        const turn = headers?.["X-VeriQ-Agent-Form"];
+        if (turn !== undefined && !("agentForm" in rule && rule.agentForm)) throw new Error("HOST_HEADER_DENIED");
+        if (headers && Object.keys(headers).some((key) => key !== "Idempotency-Key" && key !== "X-VeriQ-Agent-Form"))
             throw new Error("HOST_HEADER_DENIED");
         return {
             operation: name,
             ...(names.length ? { params } : {}),
             ...(url.search ? { query } : {}),
             ...(data === undefined ? {} : { data }),
+            ...(turn === undefined ? {} : { agentFormTurnId: turn }),
             ...(headers?.["Idempotency-Key"] ? { idempotencyKey: headers["Idempotency-Key"] } : {}),
         } as CloudOperation;
     }
@@ -66,7 +70,12 @@ export function installDesktopTransport(): void {
     installHostTransport({
         json: async (path, method, data, signal, headers) => {
             signal?.throwIfAborted();
-            const value = await bridge.cloud(operation(path, method, data, headers));
+            const value = await bridge.cloud(operation(path, method, data, headers)).catch((error: unknown) => {
+                signal?.throwIfAborted();
+                const failure = error instanceof Error && /\bHOST_HTTP_([45]\d\d) ([A-Z_]{1,80})$/.exec(error.message);
+                if (failure) throw new ApiError(failure[2]!, failure[2]!, Number(failure[1]), "");
+                throw error;
+            });
             signal?.throwIfAborted();
             return value;
         },

@@ -9,7 +9,9 @@ from ..auth.authorization import Permission, WorkspaceScope
 from ..pagination import Page, boolean_filter
 from ..service import Problem
 from ..services.agent_attachments import AGENT_TURN_BODY_LIMIT
+from ..services.agent_capabilities import workspace_form_card
 from ..services.agent_sessions import session_dto
+from ..services.agent_tasks import follow_run, list_tasks, stop_task
 from ..services.conversational_agent import ConversationalAgent
 from .base import API
 
@@ -25,6 +27,9 @@ class AgentAPI(API):
         "agent-turns": {"GET", "POST"},
         "agent-turn-stream": {"POST"},
         "agent-confirm": {"POST"},
+        "agent-tasks": {"GET", "POST"},
+        "agent-task-stop": {"POST"},
+        "agent-workspace-form": {"GET"},
     }
 
     def prepare(self) -> None:
@@ -95,7 +100,9 @@ class AgentAPI(API):
             except StreamClosedError:
                 return
 
-    async def get(self, workspace_id: str, session_id: str | None = None) -> None:
+    async def get(
+        self, workspace_id: str, session_id: str | None = None, turn_id: str | None = None
+    ) -> None:
         """设置仅返回选择和解析状态，列表仅返回本人会话，读取单个会话或其轮次都必须先校验当前成员与归属。
 
         列表游标在此时才解析，避免通过一个游标的错误区分无权读取的会话。默认归档筛选与显式传入 false 共用游标；
@@ -111,13 +118,26 @@ class AgentAPI(API):
                 page = self._page(scope, user.id, archived=archived)
                 data = await service.list_sessions(session, scope, user, page, archived=archived)
             else:
-                owned = await service.require_owned_session(session, scope, user, session_id)
+                owned = await service.require_owned_session(
+                    session, scope, user, session_id, active=self.action == "agent-workspace-form"
+                )
                 if self.action == "agent-session":
                     data = session_dto(owned)
+                elif self.action == "agent-tasks":
+                    data = {"items": await list_tasks(session, owned, user, self.config)}
+                elif self.action == "agent-workspace-form":
+                    if turn_id is None:
+                        raise Problem(404, "AGENT_TURN_NOT_FOUND", "Conversation turn not found")
+                    turn = await service.require_owned_turn(session, owned, turn_id)
+                    if turn.status != "COMPLETED" or not turn.workspace_capability:
+                        raise Problem(404, "AGENT_FORM_NOT_FOUND", "Workspace form not found")
+                    data = await workspace_form_card(
+                        session, scope, user, turn.workspace_capability
+                    )
                 else:
                     await service.expire(session, owned)
                     page = self._page(scope, user.id, sessionId=owned.id)
-                    data = await service.list_turns(session, owned, page)
+                    data = await service.list_turns(session, owned, user, page)
         self.respond(data)
 
     async def put(self, workspace_id: str) -> None:
@@ -130,6 +150,32 @@ class AgentAPI(API):
             user,
         ):
             result = await service.write_settings(session, scope, user, data)
+        self.respond(result)
+
+    async def _post_task(self, scope: WorkspaceScope, session_id: str, task_id: str | None) -> None:
+        """员工可为自己会话中的运行创建或停止后台跟踪；请求使用已授权的运行编号，停止不影响 Run。"""
+        service = self._sessions()
+        async with service.transaction(scope, write=True) as (session, user):
+            owned = await service.require_owned_session(
+                session, scope, user, session_id, active=True
+            )
+            if self.action == "agent-tasks":
+                data = self.body("AgentTaskCreate")
+                result = await follow_run(
+                    session,
+                    owned,
+                    user,
+                    data["requestId"],
+                    data["runId"],
+                    "MANUAL",
+                    analyze=data.get("analyze", False),
+                )
+            else:
+                if task_id is None or self.request.body:
+                    raise Problem(
+                        400, "INVALID_REQUEST", "The stop operation does not take a request body"
+                    )
+                result = await stop_task(session, owned, task_id)
         self.respond(result)
 
     async def patch(self, workspace_id: str, session_id: str) -> None:
@@ -149,6 +195,9 @@ class AgentAPI(API):
         """创建会话只写入个人元数据；提交和确认基于同一员工身份，委托编排服务验证归属及当前业务操作权限。"""
         scope = WorkspaceScope(workspace_id)
         service = self._sessions()
+        if self.action in {"agent-tasks", "agent-task-stop"} and session_id is not None:
+            await self._post_task(scope, session_id, turn_id)
+            return
         if self.action == "agent-turn-stream":
             if session_id is None:
                 raise Problem(404, "NOT_FOUND", "Conversation session not found")
