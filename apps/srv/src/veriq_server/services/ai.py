@@ -25,6 +25,7 @@ from ..pagination import Page
 from ..repositories.resource import ResourceRepository
 from ..service import Problem, lock_installation, now, stamp, audit
 from ..settings import Settings
+from .ai_endpoints import endpoint_allowed, public_provider_config, require_endpoint
 from .workspace import WorkspaceRepository
 from .resource import ResourceService, asset_references
 from .report import ReportService, redact
@@ -184,6 +185,8 @@ class AiService:
             raise Problem(404, "AI_PROVIDER_NOT_FOUND", "Provider not found")
         if enabled and not row.enabled:
             raise Problem(409, "AI_PROVIDER_DISABLED", "Provider is disabled")
+        if enabled:
+            require_endpoint(self.settings, row.config.get("baseURL"))
         return row
 
     async def budget(self, s: AsyncSession, row: AiProvider) -> dict[str, Any]:
@@ -229,7 +232,7 @@ class AiService:
         勿假设通用成功默认值。
         """
         return {
-            **row.config,
+            **public_provider_config(row.config),
             "id": row.id,
             "revision": row.revision,
             "enabled": row.enabled,
@@ -272,7 +275,7 @@ class AiService:
     async def write_provider(
         self, scope: WorkspaceScope, data: dict[str, Any], pid: str | None = None
     ) -> dict[str, Any]:
-        """创建或更新提供方，只校验必填字段，AiService.write_provider 遵守本文件边界。
+        """配置变更须使用当前获准的端点；撤销授权后管理员仍可停用原配置，或改用获准的地址修复配置。
         write_provider 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
         勿假设通用成功默认值。
         """
@@ -283,6 +286,15 @@ class AiService:
                 # 旧管理客户端省略该字段，继续保留已经配置的视觉能力，避免普通编辑意外禁用图片会话。
                 if "supportsImages" not in config and "supportsImages" in row.config:
                     config["supportsImages"] = row.config["supportsImages"]
+                if (
+                    not data["enabled"]
+                    and not data.get("apiKey")
+                    and (config == row.config or config == public_provider_config(row.config))
+                ):
+                    # 管理端回传已遮蔽的旧地址时只允许原样停用，绝不将占位符作为新目标或借此更新密钥。
+                    config = row.config
+                else:
+                    require_endpoint(self.settings, config.get("baseURL"))
                 held = await self.budget(s, row)
                 if micros(data["monthlyBudgetUsd"]) < micros(held["heldUsd"]) + micros(
                     held["estimatedUsedUsd"]
@@ -305,6 +317,7 @@ class AiService:
                 row.enabled = data["enabled"]
                 row.revision += 1
             else:
+                require_endpoint(self.settings, config.get("baseURL"))
                 if not data.get("apiKey"):
                     raise Problem(
                         422, "AI_KEY_REQUIRED", "Enter a provider key in the protected form"
@@ -541,8 +554,17 @@ class AiService:
         if g.data.get("metadataExpiredAt"):
             return {**result, "errorCode": "AI_GENERATION_EXPIRED"}
         p = await s.get(AiProvider, g.provider_id)
-        public = {"inputTokens", "outputTokens", "errorCode", "pricing"}
-        if p and not p.deleted and p.enabled and p.revision == g.data["providerRevision"]:
+        public = {"inputTokens", "outputTokens", "errorCode"}
+        if isinstance(pricing := g.data.get("pricing"), dict):
+            result["pricing"] = public_provider_config(pricing)
+        base_url = p.config.get("baseURL") if p and p.workspace_id == scope.workspace_id else None
+        if (
+            p
+            and not p.deleted
+            and p.enabled
+            and p.revision == g.data["providerRevision"]
+            and endpoint_allowed(self.settings, base_url)
+        ):
             public |= {
                 "output",
                 "context",
@@ -708,21 +730,29 @@ class AiService:
             audit(s, "ai.request_reserved", user.id, gid, workspace_id=scope.workspace_id)
         reply: ModelReply | None = None
         error = None
+        refusal = None
         try:
-            reply = await asyncio.wait_for(
-                ProviderGateway(config, key).generate(context), timeout=35
-            )
-        except asyncio.CancelledError:
-            # 调用前已提交 RUNNING 记录，协程取消时保留预留额和未知费用状态，因为尚无可核实的用量。
-            raise
-        except Exception:
-            error = "AI_PROVIDER_ERROR"
+            require_endpoint(self.settings, config.get("baseURL"))
+        except Problem as problem:
+            refusal = problem
+        else:
+            try:
+                reply = await asyncio.wait_for(
+                    ProviderGateway(config, key).generate(context), timeout=35
+                )
+            except Exception:
+                error = "AI_PROVIDER_ERROR"
         # 模型请求在预留事务提交后执行，结果写入前另开事务重新验证会话、Workspace 权限及 Provider 修订。
         async with self.transaction(
             scope, Permission.MANAGE_WORKSPACE if connection else Permission.EDIT, True
         ) as (s, user):
             g = await self.generation(s, scope, gid)
-            p = await self.provider(s, scope, req["providerId"], enabled=True)
+            if refusal is not None:
+                # 预留事务结束后、发包之前就已拒绝的调用没有上游用量，因此只释放本次预留并保留失败回执。
+                g.cost_micros = 0
+            p = await self.provider(s, scope, req["providerId"])
+            if not p.enabled:
+                raise Problem(409, "AI_PROVIDER_DISABLED", "Provider is disabled")
             if p.revision != g.data["providerRevision"]:
                 raise Problem(
                     409, "AI_PROVIDER_CHANGED", "Provider changed while the call was running"
@@ -749,6 +779,12 @@ class AiService:
                             error = "AI_CONTEXT_CHANGED"
                 except Problem:
                     error = "AI_CONTEXT_CHANGED"
+            try:
+                require_endpoint(self.settings, p.config.get("baseURL"))
+            except Problem as problem:
+                refusal = problem
+            if refusal is not None:
+                error = refusal.code
             if reply and not error:
                 diagnostics = []
                 output = None
@@ -810,7 +846,10 @@ class AiService:
             g.status = "FAILED" if error else "SUCCEEDED"
             g.data = d
             audit(s, "ai.request_finished", user.id, gid, workspace_id=scope.workspace_id)
-            return await self.dto(s, scope, g)
+            result = await self.dto(s, scope, g)
+        if refusal is not None:
+            raise refusal
+        return result
 
     async def cancel(self, scope: WorkspaceScope, gid: str) -> dict[str, Any]:
         """取消进行中的生成任务并更新状态机，AiService.cancel 遵守本文件边界，失败返回稳定 Problem，
