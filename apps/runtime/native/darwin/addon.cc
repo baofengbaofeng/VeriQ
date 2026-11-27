@@ -253,8 +253,10 @@ public:
      */
     Napi::Value entries(const Napi::CallbackInfo& info) {
         return boundary(info.Env(), [&]() -> Napi::Value {
-            require(info.Length() == 1, "directory.entries.arguments");
-            const auto result = value_->entries(limit(info[0], maximumEntries, 0));
+            require(info.Length() == 1 || info.Length() == 2, "directory.entries.arguments");
+            const auto after = info.Length() == 2 ? text(info[1]) : "";
+            const auto result = value_->entries(limit(info[0], maximumEntries, 0),
+                info.Length() == 2 ? &after : nullptr);
             auto entries = Napi::Array::New(info.Env(), result.names.size());
             for (size_t i = 0; i < result.names.size(); i++) entries.Set(i, result.names[i]);
             auto object = Napi::Object::New(info.Env());
@@ -303,6 +305,13 @@ public:
      * 返回 undefined 要求底层全部必要操作成功。
      * 退休不等同于物理介质秘密擦除。
      */
+    Napi::Value archiveAttempt(const Napi::CallbackInfo& info) {
+        return boundary(info.Env(), [&]() -> Napi::Value {
+            require(info.Length() == 2, "directory.archive.arguments");
+            value_->archiveAttempt(text(info[0]), text(info[1]));
+            return info.Env().Undefined();
+        });
+    }
     Napi::Value remove(const Napi::CallbackInfo& info) {
         return boundary(info.Env(), [&]() -> Napi::Value {
             require(info.Length() == 2, "directory.remove.arguments");
@@ -335,6 +344,7 @@ public:
         return DefineClass(env, "PrivateDirectory", {
             InstanceMethod("read", &DirectoryWrap::read), InstanceMethod("entries", &DirectoryWrap::entries),
             InstanceMethod("createExclusive", &DirectoryWrap::createExclusive),
+            InstanceMethod("archiveAttempt", &DirectoryWrap::archiveAttempt),
             InstanceMethod("replace", &DirectoryWrap::replace), InstanceMethod("remove", &DirectoryWrap::remove),
             InstanceMethod("close", &DirectoryWrap::close),
         });

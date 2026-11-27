@@ -23,7 +23,7 @@ async def test_dataset_list_projects_current_saved_draft_and_publication_state(s
     path = await create(owner, ws, "dataset", content)
 
     async def current():
-        """每一步都从公开集合重新读取同一资源，避免把草稿写入回执误当成面向列表的结果。"""
+        """每个写入或发布步骤结束后再请求数据集列表，以列表返回的草稿规模和发布状态核对该步骤的结果。"""
         response = await owner.get(url, params={"kind": "DATASET"})
         assert response.status_code == 200, response.text
         return response.json()["data"]["items"][0]

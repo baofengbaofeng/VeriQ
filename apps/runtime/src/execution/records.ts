@@ -3,9 +3,27 @@
  * 节；Windows 沿用实际原生私有句柄规则，缺失、畸形和超限都不能冒充可信停止证明。
  */
 import { constants } from "node:fs";
-import { open, opendir, type FileHandle } from "node:fs/promises";
-import { join, parse, resolve } from "node:path";
+import { open, opendir, mkdir, rename, unlink, type FileHandle } from "node:fs/promises";
+import { join, parse, resolve, dirname } from "node:path";
+import { canonicalBytes } from "@veriq/contracts";
+import { randomUUID } from "node:crypto";
+import type { WindowsAttemptRecord } from "./windows-journal.ts";
 import type { DarwinPrivateDirectory } from "../native/darwin.ts";
+
+// 重试时停止时间可以更新，只有两份记录中的原始认领、设备主体及本机核验的停止范围相符才可合并。
+export function sameSettledAttempt(active: WindowsAttemptRecord, archived: WindowsAttemptRecord): boolean {
+    return (
+        !!active.stop?.processStopped &&
+        !!archived.stop?.processStopped &&
+        active.stop.attemptId === archived.stop.attemptId &&
+        active.stop.processStopScope === archived.stop.processStopScope &&
+        active.state === archived.state &&
+        active.work === archived.work &&
+        active.claimRequestId === archived.claimRequestId &&
+        (archived.runnerId === undefined || active.runnerId === archived.runnerId) &&
+        Buffer.from(canonicalBytes(active.claim)).equals(canonicalBytes(archived.claim))
+    );
+}
 
 /**
  * 在线日志临时成员只允许原 writer 产生的 Attempt 名称与小写 UUIDv4 后缀，不能把任意点号文件或原生记录临时名称纳入恢
@@ -79,19 +97,27 @@ export class ProcessRecords {
      * 历史枚举至多返回约定数量的普通文件，额外成员、链接或子目录立即阻止观察；不排序后丢弃、不只挑选看似可识别的记录，
      * 避免孤立进程日志或未知残留被过滤成可安全迁移的空目录。
      */
-    async names(limit: number): Promise<string[]> {
+    async names(limit?: number): Promise<string[]> {
         return this.listNames(limit, false);
     }
-    private async listNames(limit: number, journalStaging: boolean): Promise<string[]> {
+    private async listNames(limit: number | undefined, journalStaging: boolean): Promise<string[]> {
         /**
          * Darwin 枚举使用独立目录游标并观察限额外的首个成员，非普通或不私有项由原生拒绝；此层仍逐项执行正式或 staging
          * 名称语法，不把未知历史或超额扫描过滤成可迁移集合。
          */
         if (this.darwin) {
-            const { names, overflow } = this.darwin.entries(limit);
-            if (overflow) throw new Error("PROCESS_RECORD_LIMIT_OR_TYPE");
-            for (const name of names) this.path(name, journalStaging);
-            return names;
+            const names: string[] = [];
+            let after = "";
+            for (;;) {
+                const page = limit === undefined ? this.darwin.entries(4096, after) : this.darwin.entries(limit);
+                for (const name of page.names) {
+                    this.path(name, journalStaging);
+                    names.push(name);
+                }
+                if (!page.overflow) return names;
+                if (limit !== undefined || !page.names.length) throw new Error("PROCESS_RECORD_LIMIT_OR_TYPE");
+                after = page.names.at(-1)!;
+            }
         }
         const directory = await opendir(this.handle ? `/proc/self/fd/${this.handle.fd}` : this.directory);
         const names: string[] = [];
@@ -99,7 +125,8 @@ export class ProcessRecords {
             for (;;) {
                 const entry = await directory.read();
                 if (!entry) return names;
-                if (!entry.isFile() || names.length >= limit) throw new Error("PROCESS_RECORD_LIMIT_OR_TYPE");
+                if (!entry.isFile() || (limit !== undefined && names.length >= limit))
+                    throw new Error("PROCESS_RECORD_LIMIT_OR_TYPE");
                 this.path(entry.name, journalStaging);
                 names.push(entry.name);
             }
@@ -111,7 +138,7 @@ export class ProcessRecords {
      * 在线恢复只在此专用入口识别有界私有 staging，原生证明与历史迁移仍使用严格 names/read；
      * 临时内容可能因中断只写了一半，因此只核验同 fd 类型、owner、模式和字节上限并标记未知，不解析或授权其状态。
      */
-    async journalNames(limit: number): Promise<{ names: string[]; interrupted: Set<string> }> {
+    async journalNames(limit?: number): Promise<{ names: string[]; interrupted: Set<string> }> {
         const names: string[] = [],
             interrupted = new Set<string>();
         for (const name of await this.listNames(limit, true)) {
@@ -171,6 +198,64 @@ export class ProcessRecords {
         }
         return bytes;
     }
+    // 持有档案排他锁时归档已经确认的认领，原生进程证明留在原位，维护时仍逐项与归档认领进行核对。
+    async archiveAttempt(record: WindowsAttemptRecord): Promise<void> {
+        const name = record.claim.attemptId + ".json";
+        const source = this.path(name);
+        const root = dirname(this.directory);
+        const archiveDirectory = join(root, "settled-attempts");
+        if (this.darwin) {
+            const previous = await ProcessRecords.open(archiveDirectory);
+            try {
+                if (previous && (await previous.containsDuplicate(name, record))) {
+                    const bytes = previous.darwin!.read(name, 65536);
+                    previous.darwin!.replace(name, `.${randomUUID()}.tmp`, bytes, 65536);
+                    this.darwin.remove(name, 65536);
+                    return;
+                }
+            } finally {
+                await previous?.close();
+            }
+            return this.darwin.archiveAttempt(root, name);
+        }
+        if (!this.handle) throw new Error("ONLINE_JOURNAL_DURABILITY_UNSUPPORTED");
+        const parent = await ProcessRecords.open(root);
+        if (!parent?.handle) throw new Error("ATTEMPT_JOURNAL_MISSING");
+        try {
+            await mkdir(`/proc/self/fd/${parent.handle.fd}/settled-attempts`, { mode: 0o700 }).catch((error) => {
+                if (error.code !== "EEXIST") throw error;
+            });
+            await parent.handle.sync();
+            const archive = await ProcessRecords.open(archiveDirectory);
+            if (!archive?.handle) throw new Error("ATTEMPT_JOURNAL_MISSING");
+            try {
+                if (await archive.containsDuplicate(name, record)) {
+                    await archive.handle.sync();
+                    await unlink(source);
+                } else {
+                    await rename(source, archive.path(name));
+                    await archive.handle.sync();
+                }
+                await this.handle.sync();
+            } finally {
+                await archive.close();
+            }
+        } finally {
+            await parent.close();
+        }
+    }
+
+    private async containsDuplicate(name: string, record: WindowsAttemptRecord): Promise<boolean> {
+        try {
+            const archived = (await this.read(name, 65536)) as WindowsAttemptRecord;
+            if (!sameSettledAttempt(record, archived)) throw new Error("ATTEMPT_ARCHIVE_CONFLICT");
+            return true;
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+            throw error;
+        }
+    }
+
     /**
      * 结束会话只释放本次打开的目录描述符，不尝试清理历史或修复访问模式；观察失败后的再次执行必须重新读取实际文件，
      * 不能复用已经失效的目录身份或先前解析所得的停止结论。

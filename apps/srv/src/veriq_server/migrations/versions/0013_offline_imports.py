@@ -99,10 +99,15 @@ def upgrade() -> None:
     )
 
 
-def downgrade() -> None:
+def require_downgrade_safe(connection: sa.Connection) -> None:
+    """检查离线导入历史与上传授权是否仍被使用，在删除旧架构无法表达的导入信息前拒绝整次降级。"""
     for table in ["veriq_offline_imports", "veriq_offline_import_uploads"]:
-        if op.get_bind().execute(sa.text(f"SELECT COUNT(*) FROM {table}")).scalar_one():
+        if connection.execute(sa.text(f"SELECT COUNT(*) FROM {table}")).scalar_one():
             raise RuntimeError("Offline history and publication authority must be retained")
+
+
+def downgrade() -> None:
+    require_downgrade_safe(op.get_bind())
     op.drop_constraint("ck_publication_owner", "veriq_artifact_publications", type_="check")
     op.drop_constraint(
         "fk_publication_offline_upload", "veriq_artifact_publications", type_="foreignkey"

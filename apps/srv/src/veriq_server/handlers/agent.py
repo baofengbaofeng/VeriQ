@@ -138,7 +138,9 @@ class AgentAPI(API):
         service = self._sessions()
         data = self.body("AgentSessionRename")
         async with service.transaction(scope, write=True) as (session, user):
-            row = await service.rename_session(session, scope, user, session_id, data["title"].strip())
+            row = await service.rename_session(
+                session, scope, user, session_id, data["title"].strip()
+            )
         self.respond(session_dto(row))
 
     async def post(
@@ -148,6 +150,8 @@ class AgentAPI(API):
         scope = WorkspaceScope(workspace_id)
         service = self._sessions()
         if self.action == "agent-turn-stream":
+            if session_id is None:
+                raise Problem(404, "NOT_FOUND", "Conversation session not found")
             await self._stream_turn(scope, session_id)
             return
         if session_id is None:
@@ -166,6 +170,8 @@ class AgentAPI(API):
                 raise Problem(
                     400, "INVALID_REQUEST", "Turn confirmation does not take a request body"
                 )
+            if turn_id is None:
+                raise Problem(404, "NOT_FOUND", "Conversation turn not found")
             result = await service.confirm(scope, session_id, turn_id)
         self.respond(result)
 

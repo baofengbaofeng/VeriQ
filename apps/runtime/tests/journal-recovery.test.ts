@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import { ExecutionSupervisor } from "../src/execution/supervisor.ts";
 import { ProcessSupervisor } from "../src/execution/processes.ts";
+import { requireStoppedHistory } from "../src/execution/stopped-history.ts";
 import { ProcessRecords } from "../src/execution/records.ts";
 import type { AgentClient } from "../src/agent/transport.ts";
 import { allocateScratch, retireScratch } from "../src/execution/storage.ts";
@@ -551,4 +552,72 @@ test("retirement keeps undecodable and valid sibling names with distinct bytes",
             await rm(root, { recursive: true, force: true });
         }
     }
+});
+
+test("recovery archives 4097 settled attempts and isolates an unknown process", async (t) => {
+    const root = await mkdtemp(join(tmpdir(), "vq-journal-limit-"));
+    t.after(() => rm(root, { recursive: true, force: true }));
+    const f = await fixture(root);
+    const unresolved = randomUUID();
+    await f.committed(unresolved, "RUNNING");
+    const base = {
+        jobId: randomUUID(),
+        jobKind: "VALIDATE",
+        leaseToken: "original-test-lease-token",
+        fencingToken: 1,
+        snapshotUrl: "https://control.invalid/snapshot",
+        snapshotSha256: "a".repeat(64),
+        serverTime: "2026-11-19T12:00:00Z",
+        expiresAt: "2026-11-19T12:01:00Z",
+        leaseDurationMs: 60000,
+        activationRequired: true,
+    };
+    for (let start = 0; start < 4097; start += 64) {
+        await Promise.all(
+            Array.from({ length: Math.min(64, 4097 - start) }, () => {
+                const id = randomUUID();
+                return writeFile(
+                    join(f.directory, id + ".json"),
+                    JSON.stringify({
+                        state: "ALLOCATED",
+                        claim: { ...base, attemptId: id },
+                        work: join(root, "work", id),
+                    }),
+                    { mode: 0o600 },
+                );
+            }),
+        );
+    }
+    let reconciles = 0;
+    const client = {
+        request: async (path: string, _method: string, body: { processStopped: boolean }) => {
+            if (++reconciles === 52) throw new Error("CONNECTION_INTERRUPTED");
+            return { attemptId: path.split("/").at(-2), capacityReleased: body.processStopped, auditId: randomUUID() };
+        },
+    };
+    const supervisor = new ExecutionSupervisor({ ...f.options, client: client as never });
+    await assert.rejects(supervisor.recover(), /CONNECTION_INTERRUPTED/);
+    const firstBatch = await readdir(join(root, "settled-attempts"));
+    assert(firstBatch.length >= 50 && firstBatch.length <= 51);
+    const receipts = await supervisor.recover();
+    assert.equal(receipts.find((item) => item.attemptId === unresolved)?.processStopped, false);
+    assert.equal(reconciles, 52 + 4098 - firstBatch.length);
+    assert.deepEqual(await readdir(f.directory), [unresolved + ".json"]);
+    await supervisor.recover();
+    assert.equal(reconciles, 53 + 4098 - firstBatch.length);
+    await assert.rejects(requireStoppedHistory(root), /RECOVERY_REQUIRED/);
+    await fs.unlink(join(f.directory, unresolved + ".json"));
+    await requireStoppedHistory(root);
+});
+
+test("recovery never uses a new principal to reconcile a known foreign attempt", async (t) => {
+    const root = await mkdtemp(join(tmpdir(), "vq-journal-principal-"));
+    t.after(() => rm(root, { recursive: true, force: true }));
+    const f = await fixture(root);
+    const runnerId = randomUUID();
+    const id = randomUUID();
+    await writeFile(join(f.directory, id + ".json"), JSON.stringify({ ...f.record(id), runnerId }), { mode: 0o600 });
+    await f.supervisor.recover(undefined, randomUUID());
+    assert.deepEqual(f.bodies, []);
+    assert.equal(JSON.parse(await readFile(join(f.directory, id + ".json"), "utf8")).runnerId, runnerId);
 });

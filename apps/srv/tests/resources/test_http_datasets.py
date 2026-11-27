@@ -196,7 +196,7 @@ async def test_dataset_request_uses_only_approved_connection():
         httpx.Response(200, json={"items": []}),
     ]:
         with pytest.raises(Problem) as failed:
-            await read(lambda _: response)
+            await read(lambda _, current=response: current)
         assert "private" not in str(failed.value)
     doc["source"]["pagination"] = {
         "kind": "PAGE",
@@ -208,8 +208,8 @@ async def test_dataset_request_uses_only_approved_connection():
         await read(lambda _: httpx.Response(200, json={"items": [], "more": True}))
 
 
-@pytest.fixture
-def dataset_deployment():
+@pytest.fixture(name="dataset_deployment")
+def shared_dataset_deployment():
     """每次真实服务端测试独享一份部署注册表，待工作区、当前用户及凭证版本创建后登记精确标识。"""
     return {}
 
@@ -522,7 +522,7 @@ async def test_http_failure_codes_never_return_partial_values(case, code):
         "next": "/more",
     }
 
-    def upstream(req):
+    def upstream(_request):
         if case == "timeout":
             raise httpx.ReadTimeout("private")
         if case == "connect":

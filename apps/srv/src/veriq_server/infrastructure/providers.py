@@ -4,9 +4,23 @@ import json
 
 import httpx
 from openai import AsyncOpenAI
-from openai.types.chat import ChatCompletionContentPartParam, ChatCompletionMessageParam
+from openai.types.chat import (
+    ChatCompletionAssistantMessageParam,
+    ChatCompletionContentPartParam,
+    ChatCompletionFunctionToolParam,
+    ChatCompletionMessageParam,
+)
 from anthropic import AsyncAnthropic
-from anthropic.types import ImageBlockParam, MessageParam, TextBlockParam
+from anthropic.types import (
+    ContentBlockParam,
+    ImageBlockParam,
+    MessageParam,
+    TextBlockParam,
+    ToolParam,
+    ToolResultBlockParam,
+    ThinkingBlockParam,
+    RedactedThinkingBlockParam,
+)
 
 from ..contracts import canonical_bytes
 
@@ -371,10 +385,33 @@ class ProviderGateway:
         on_thinking: Callable[[str], Awaitable[None]] | None,
         execute: Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]],
         max_rounds: int = 4,
+        *,
+        authorize_round: Callable[[], Awaitable[str | None]] | None = None,
     ) -> ModelReply:
         """流式回调正文及已请求的供应商摘要，工具由服务端执行并回填，结束后合并同一次调用各轮的用量及最终正文。"""
         usage_in = 0
         usage_out = 0
+        usage_known = True
+
+        def record_usage(input_tokens: object, output_tokens: object) -> None:
+            """仅累计本轮上游实际报告的非负整数；任意已发出轮次缺少用量时，整笔预留仍用于覆盖未知费用。"""
+            nonlocal usage_in, usage_out, usage_known
+            if (
+                type(input_tokens) is int
+                and type(output_tokens) is int
+                and min(input_tokens, output_tokens) >= 0
+            ):
+                usage_in += input_tokens
+                usage_out += output_tokens
+            else:
+                usage_known = False
+
+        def model_reply(output: str | None, error: str | None = None) -> ModelReply:
+            """仅在每个已发送轮次都提供有效用量时结算累计值；首轮发送前的拒绝可确定为零次上游调用。"""
+            return ModelReply(
+                output, usage_in if usage_known else None, usage_out if usage_known else None, error
+            )
+
         final_text: list[str] = []
         async with httpx.AsyncClient(
             headers={"Accept-Encoding": "identity"},
@@ -389,7 +426,7 @@ class ProviderGateway:
                     max_retries=0,
                     http_client=http,
                 )
-                anthropic_tools = [
+                anthropic_tools: list[ToolParam] = [
                     {
                         "name": t["name"],
                         "description": t["description"],
@@ -398,14 +435,15 @@ class ProviderGateway:
                     for t in tools
                 ]
                 system = context.system
-                messages: list[dict[str, Any]] = [
-                    dict(message) for message in context.anthropic_messages()
-                ]
+                messages = context.anthropic_messages()
                 summary_enabled = (
                     on_thinking is not None and self.config["model"] in _CLAUDE_ADAPTIVE_MODELS
                 )
                 summary_params = {"type": "adaptive", "display": "summarized"}
                 for _ in range(max_rounds):
+                    if authorize_round and (error := await authorize_round()):
+                        return model_reply(None, error)
+                    final_output_tokens = None
                     async with sdk.messages.stream(
                         model=self.config["model"],
                         max_tokens=context.max_output_tokens,
@@ -415,8 +453,8 @@ class ProviderGateway:
                         extra_body={"thinking": summary_params} if summary_enabled else None,
                     ) as stream:
                         async for event in stream:
-                            if event.type == "message_start":
-                                usage_in += event.message.usage.input_tokens
+                            if event.type == "message_delta":
+                                final_output_tokens = event.usage.output_tokens
                             elif event.type == "content_block_delta":
                                 if event.delta.type == "text_delta":
                                     final_text.append(event.delta.text)
@@ -432,19 +470,23 @@ class ProviderGateway:
                                     and event.content_block.thinking
                                 ):
                                     await on_thinking(event.content_block.thinking)
-                            elif event.type == "message_delta":
-                                usage_out += event.usage.output_tokens
                         final = await stream.get_final_message()
+                    record_usage(getattr(final.usage, "input_tokens", None), final_output_tokens)
                     if final.stop_reason != "tool_use":
                         break
-                    assistant: list[dict[str, Any]] = []
-                    results: list[dict[str, Any]] = []
+                    assistant: list[ContentBlockParam] = []
+                    results: list[ToolResultBlockParam] = []
                     for block in final.content:
                         if block.type == "text":
                             assistant.append({"type": "text", "text": block.text})
                         elif block.type in {"thinking", "redacted_thinking"}:
                             # Claude 工具续接必须原样保留加密签名和摘要块，供同一供应商验证，服务端不会将该块持久化。
-                            assistant.append(block.model_dump(mode="json", exclude_none=True))
+                            assistant.append(
+                                cast(
+                                    ThinkingBlockParam | RedactedThinkingBlockParam,
+                                    block.model_dump(mode="json", exclude_none=True),
+                                )
+                            )
                         elif block.type == "tool_use":
                             assistant.append(
                                 {
@@ -467,13 +509,13 @@ class ProviderGateway:
                     messages.append({"role": "assistant", "content": assistant})
                     messages.append({"role": "user", "content": results})
             else:
-                sdk = AsyncOpenAI(
+                openai = AsyncOpenAI(
                     api_key=self.key,
                     base_url=self.config["baseURL"],
                     max_retries=0,
                     http_client=http,
                 )
-                openai_tools = [
+                openai_tools: list[ChatCompletionFunctionToolParam] = [
                     {
                         "type": "function",
                         "function": {
@@ -484,11 +526,13 @@ class ProviderGateway:
                     }
                     for t in tools
                 ]
-                messages = [dict(message) for message in context.openai_messages()]
+                openai_messages = context.openai_messages()
                 for _ in range(max_rounds):
-                    stream = await sdk.chat.completions.create(
+                    if authorize_round and (error := await authorize_round()):
+                        return model_reply(None, error)
+                    openai_stream = await openai.chat.completions.create(
                         model=self.config["model"],
-                        messages=messages,
+                        messages=openai_messages,
                         tools=openai_tools,
                         tool_choice="auto",
                         max_tokens=context.max_output_tokens,
@@ -498,10 +542,10 @@ class ProviderGateway:
                     finish_reason: str | None = None
                     text_parts: list[str] = []
                     tool_calls: dict[int, dict[str, Any]] = {}
-                    async for chunk in stream:
+                    round_usage = None
+                    async for chunk in openai_stream:
                         if chunk.usage:
-                            usage_in += chunk.usage.prompt_tokens or 0
-                            usage_out += chunk.usage.completion_tokens or 0
+                            round_usage = chunk.usage
                         if not chunk.choices:
                             continue
                         choice = chunk.choices[0]
@@ -525,13 +569,17 @@ class ProviderGateway:
                                         entry["name"] = tc.function.name
                                     if tc.function.arguments:
                                         entry["args"].append(tc.function.arguments)
-                    assistant: dict[str, Any] = {
+                    record_usage(
+                        getattr(round_usage, "prompt_tokens", None),
+                        getattr(round_usage, "completion_tokens", None),
+                    )
+                    assistant_message: ChatCompletionAssistantMessageParam = {
                         "role": "assistant",
                         "content": "".join(text_parts) or None,
                     }
                     ordered = [tool_calls[i] for i in sorted(tool_calls)]
                     if ordered:
-                        assistant["tool_calls"] = [
+                        assistant_message["tool_calls"] = [
                             {
                                 "id": tc["id"],
                                 "type": "function",
@@ -539,28 +587,28 @@ class ProviderGateway:
                             }
                             for tc in ordered
                         ]
-                    messages.append(assistant)
+                    openai_messages.append(assistant_message)
                     if text_parts:
                         final_text.extend(text_parts)
                     if finish_reason != "tool_calls":
                         break
-                    for tc in ordered:
+                    for call in ordered:
                         try:
-                            arguments = json.loads("".join(tc["args"]))
+                            arguments = json.loads("".join(call["args"]))
                         except (ValueError, RecursionError):
                             arguments = {}
-                        result = await self._safe_execute(execute, tc["name"], arguments)
-                        messages.append(
+                        result = await self._safe_execute(execute, call["name"], arguments)
+                        openai_messages.append(
                             {
                                 "role": "tool",
-                                "tool_call_id": tc["id"],
+                                "tool_call_id": call["id"],
                                 "content": json.dumps(result, ensure_ascii=False),
                             }
                         )
         text = "".join(final_text).strip()
         if not text:
-            return ModelReply(None, usage_in or None, usage_out or None, "AI_INCOMPLETE_OUTPUT")
-        return ModelReply(text, usage_in or None, usage_out or None)
+            return model_reply(None, "AI_INCOMPLETE_OUTPUT")
+        return model_reply(text)
 
     @staticmethod
     async def _safe_execute(
@@ -571,5 +619,5 @@ class ProviderGateway:
         """工具执行兜底：任何异常都转为结构化错误回填给模型，避免单次工具失败打断整个对话循环。"""
         try:
             return await execute(name, arguments)
-        except Exception as error:  # noqa: BLE001 - 工具结果始终不可信，异常统一转错误正文
+        except Exception as error:  # noqa: BLE001 - AGENT_TOOL_ERROR 仅回传 type(error).__name__
             return {"error": "AGENT_TOOL_ERROR", "message": type(error).__name__}

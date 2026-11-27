@@ -5,14 +5,17 @@ import json
 from datetime import timedelta
 from uuid import uuid4
 
-from sqlalchemy import select
 from emulator import emulator
+from jsonschema import Draft202012Validator
+from sqlalchemy import select
 from test_agent_sessions import _agent, _create, _scope
 from test_generation import provider_config
+from test_lease_mysql import device
+from test_runs_mysql import published
 from test_trigger import plan_fixture
-from test_workspace import workspace
+from test_workspace import client, new_member, workspace
 
-from veriq_server.db import AgentTurn, AiGeneration, Artifact
+from veriq_server.db import AgentTurn, AiGeneration, Artifact, CaseExecution, ResourceVersion
 from veriq_server.service import now
 
 
@@ -169,7 +172,7 @@ async def test_agent_one_off_keeps_saved_plan(site):
 
 async def test_agent_rejects_unoffered_and_foreign_references(site):
     """另一工作区的发布资源与凭空构造的 UUID 都不在本次提供的候选集内，即使符合提议结构也不得写入预览。"""
-    c, _, ws, _, plan = await plan_fixture(site)
+    c, _, _, _, plan = await plan_fixture(site)
     other = await workspace(c, "other")
     async with emulator() as model:
         path, _, _ = await conversation(c, other, model)
@@ -259,7 +262,6 @@ async def test_agent_running_replay_expiry_and_late_result_fencing(site):
 
 async def test_model_patch_schema_matches_accepted_output(site):
     """直接验证实际线缆上的输出契约能够接受已有计划增量并排除服务端原值，保证模型指令与可接受响应一致。"""
-    from jsonschema import Draft202012Validator
 
     c, _, ws, _, plan = await plan_fixture(site)
     async with emulator() as model:
@@ -297,7 +299,6 @@ async def test_model_patch_schema_matches_accepted_output(site):
 
 async def test_confirmation_phrase_matches_action_and_current_permissions(site):
     """操作特定的确认文本不能误触另一类提议，已降为执行者的员工仍可确认运行，但不得付费向供应商提交新要求。"""
-    from test_workspace import new_member, client
 
     c, _, ws, runtime, plan = await plan_fixture(site)
     base = f"/api/v1/workspaces/{ws}"
@@ -396,7 +397,6 @@ async def test_agent_model_output_withheld_after_provider_revocation(site):
 
 async def test_explicit_report_without_model_reference_uses_authoritative_state(site):
     """显式请求运行状态无需供应商正确回传标识，详细元数据已经到期时仍可读取范围内运行的真实摘要。"""
-    from veriq_server.db import CaseExecution
 
     c, db, ws, _, plan = await plan_fixture(site)
     base = f"/api/v1/workspaces/{ws}"
@@ -481,8 +481,6 @@ async def test_redacted_plan_name_remains_intact_on_unrelated_update(site):
 
 async def test_role_and_browser_must_match_a_concrete_variant(site):
     """角色虽然属于所选环境，仍须匹配同一用例的角色和浏览器；套件覆盖角色生效且不能忽略套件的浏览器过滤。"""
-    from test_runs_mysql import published
-    from veriq_server.db import ResourceVersion
 
     c, db, ws, _, plan = await plan_fixture(site)
     async with db.sessions.begin() as s:
@@ -552,9 +550,6 @@ async def test_role_and_browser_must_match_a_concrete_variant(site):
 
 async def test_history_withholds_revoked_previous_plan_and_archived_selection(site):
     """已保存计划改用第二台设备后撤销旧设备，再归档另一个待确认提议所选的套件，两处历史引用都不能返回模型。"""
-    from test_lease_mysql import device
-    from test_runs_mysql import published
-    from veriq_server.db import ResourceVersion
 
     c, db, ws, original, plan = await plan_fixture(site)
     replacement = await device(c, ws)

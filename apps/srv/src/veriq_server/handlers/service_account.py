@@ -78,11 +78,13 @@ class ServiceAccountAPI(API):
                             }
                             for token in shown_tokens
                         ],
-                        "nextCursor": page.next(
-                            (shown_tokens[-1].id, shown_tokens[-1].id), len(tokens) > page.limit
-                        )
-                        if shown_tokens
-                        else None,
+                        "nextCursor": (
+                            page.next(
+                                (shown_tokens[-1].id, shown_tokens[-1].id), len(tokens) > page.limit
+                            )
+                            if shown_tokens
+                            else None
+                        ),
                     }
                 )
                 return
@@ -103,9 +105,11 @@ class ServiceAccountAPI(API):
             self.respond(
                 {
                     "items": [account_dto(row) for row in shown],
-                    "nextCursor": page.next((shown[-1].id, shown[-1].id), len(rows) > page.limit)
-                    if shown
-                    else None,
+                    "nextCursor": (
+                        page.next((shown[-1].id, shown[-1].id), len(rows) > page.limit)
+                        if shown
+                        else None
+                    ),
                 }
             )
 

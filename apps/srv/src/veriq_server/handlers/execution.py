@@ -55,7 +55,7 @@ class ExecutionAPI(DeviceAPI):
         from ..services.artifact import artifact_store, RAW_KINDS, verify
 
         async with self.db.sessions.begin() as session:
-            await lock_installation(session)
+            installation = await lock_installation(session)
             attempt, job, _, _ = await LeaseService(session, self.config).proof(
                 attempt_id, self.header_proof()
             )
@@ -84,6 +84,7 @@ class ExecutionAPI(DeviceAPI):
                     or len(self.request.body) != upload.size_bytes
                     or upload.metadata_json["kind"] != "MANIFEST"
                     or upload.metadata_json["filename"] != "completion.json"
+                    or not isinstance(manifest, dict)
                     or validate_schema("CompletionManifestV1", manifest)
                     or self.request.body != canonical_bytes(manifest)
                     or manifest["kind"] != "TEST"
@@ -105,6 +106,11 @@ class ExecutionAPI(DeviceAPI):
                 artifact.storage_backend
                 if artifact and not artifact.expired_at and (raw or complete)
                 else (self.config.artifact_backend if raw else "INLINE")
+            )
+            store = (
+                await artifact_store(session, installation, self.config, backend)
+                if backend != "INLINE"
+                else None
             )
             incarnation = (
                 artifact.storage_incarnation if artifact and not artifact.expired_at else None
@@ -156,21 +162,17 @@ class ExecutionAPI(DeviceAPI):
                         )
                 await session.flush()
         external = None
-        if complete and backend != "INLINE":
-            external = await artifact_store(self.config, backend).read(
-                workspace, digest, size, incarnation
-            )
+        if complete and store is not None:
+            external = await store.read(workspace, digest, size, incarnation)
         elif (
             not complete
-            and backend != "INLINE"
+            and store is not None
             and int(offset) == len(prefix)
             and len(prefix) + len(self.request.body) == size
         ):
             verify(prefix + self.request.body, digest, size)
             try:
-                await artifact_store(self.config, backend).put(
-                    workspace, digest, prefix + self.request.body, incarnation
-                )
+                await store.put(workspace, digest, prefix + self.request.body, incarnation)
             except ValueError:
                 raise Problem(
                     409, "UPLOAD_CONFLICT", "Artifact publication is unavailable"
@@ -235,7 +237,7 @@ class ExecutionAPI(DeviceAPI):
                 from ..service import now
 
                 async with self.db.sessions.begin() as session:
-                    await lock_installation(session)
+                    installation = await lock_installation(session)
                     await ServiceAccountService(session).require_maintenance(
                         authorization, data["workspaceId"], self.action
                     )
@@ -251,6 +253,10 @@ class ExecutionAPI(DeviceAPI):
                             )
                         ).scalars()
                     )
+                    stores = {
+                        backend: await artifact_store(session, installation, self.config, backend)
+                        for backend in {row.storage_backend for row in rows}
+                    }
                     deletes = [
                         (
                             row.id,
@@ -262,9 +268,7 @@ class ExecutionAPI(DeviceAPI):
                         for row in rows
                     ]
                 for deletion_id, workspace, digest, backend, incarnation in deletes:
-                    await artifact_store(self.config, backend).retire(
-                        workspace, digest, incarnation
-                    )
+                    await stores[backend].retire(workspace, digest, incarnation)
                     async with self.db.sessions.begin() as session:
                         await lock_installation(session)
                         await ServiceAccountService(session).require_maintenance(

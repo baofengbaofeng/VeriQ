@@ -9,6 +9,7 @@ import signal
 import stat
 import tarfile
 from contextlib import ExitStack, suppress
+from functools import lru_cache
 from importlib import resources
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -67,7 +68,7 @@ def _regular_bytes(root: Path, relative: str, limit: int) -> bytes:
     return data
 
 
-def _stage_release(root: Path, work: Path, engine: dict[str, Any]) -> bytes:
+def _stage_release(root: Path, work: Path | None, engine: dict[str, Any]) -> bytes:
     """逐项向私有目录写入经过 SHA-256 核对的发行成员，仅在全量清单吻合时把真实编译器归档交给解包步骤。"""
     seen: set[str] = set()
     remaining = _RELEASE_LIMIT
@@ -85,9 +86,10 @@ def _stage_release(root: Path, work: Path, engine: dict[str, Any]) -> bytes:
             ):
                 raise ServerCompileError("ENGINE_RELEASE_HASH_MISMATCH")
             remaining -= len(content)
-            destination = work / name
-            destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-            destination.write_bytes(content)
+            if work is not None:
+                destination = work / name
+                destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+                destination.write_bytes(content)
             if name == "engine/compiler.tgz":
                 archive = content
     except OSError as error:
@@ -95,6 +97,35 @@ def _stage_release(root: Path, work: Path, engine: dict[str, Any]) -> bytes:
     if not _REQUIRED <= seen or not archive:
         raise ServerCompileError("INCOMPLETE_ENGINE_RELEASE")
     return archive
+
+
+@lru_cache(maxsize=64)
+def _verified_release(
+    root: Path, inventory: bytes, _file_identities: tuple[tuple[int, ...], ...]
+) -> bool:
+    """文件身份或批准库存变化时重新校验全部发行字节，文件未变化时可以在连续轮询之间复用校验结论。"""
+    _stage_release(root, None, json.loads(inventory))
+    return True
+
+
+def local_release_available(settings: Settings, engine: dict[str, Any]) -> bool:
+    """使用编译阶段的有界读取和摘要校验确认本机具备完整发行，编译时还会重新验证实际复制的字节。"""
+    try:
+        root = configured_release_path(settings, engine["engineVersion"]).resolve(strict=True)
+        identities = []
+        for member in engine["files"]:
+            stat_result = root.joinpath(*_relative_parts(member["path"])).stat()
+            identities.append(
+                (
+                    stat_result.st_dev,
+                    stat_result.st_ino,
+                    stat_result.st_size,
+                    stat_result.st_ctime_ns,
+                )
+            )
+        return _verified_release(root, canonical_bytes(engine), tuple(identities))
+    except (OSError, ServerCompileError):
+        return False
 
 
 def _extract_compiler(work: Path) -> None:
@@ -189,12 +220,9 @@ def _absolute_path(value: str | None) -> Path:
 
 
 def configured_release_path(settings: Settings, engine_version: str) -> Path:
-    """按批准清单中作业的冻结版本选择明确配置的目录，单版本目录仅在未配置版本映射或请求当前版本时作为回退。"""
+    """按批准清单中作业的冻结版本选择明确配置的目录，单版本目录仅作为当前引擎版本的回退。"""
     chosen = settings.server_compiler_release_dirs.get(engine_version)
-    if chosen is None and (
-        not settings.server_compiler_release_dirs
-        or engine_version == settings.validation_engine_version
-    ):
+    if chosen is None and engine_version == settings.validation_engine_version:
         chosen = settings.server_compiler_release_dir
     return _absolute_path(chosen)
 
@@ -293,11 +321,14 @@ async def compile_snapshot(
     """运行已批准引擎上的静态分析和确定性编译，产物只来自本次私有工作目录，控制服务不承担 Node 环境依赖。"""
     if snapshot.get("engineVersion") != engine.get("engineVersion"):
         raise ServerCompileError("ENGINE_NOT_APPROVED")
-    root = configured_release_path(settings, engine["engineVersion"])
+    try:
+        root = configured_release_path(settings, engine["engineVersion"]).resolve(strict=True)
+    except OSError as error:
+        raise ServerCompileError("ENGINE_RELEASE_UNAVAILABLE") from error
     try:
         with TemporaryDirectory(prefix="veriq-server-compiler-") as directory:
             work = Path(directory)
-            archive = _stage_release(root.resolve(strict=True), work, engine)
+            archive = _stage_release(root, work, engine)
             _verify_lock(work, engine)
             _extract_compiler(work)
             frozen = canonical_bytes(snapshot)

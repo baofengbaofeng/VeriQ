@@ -3,6 +3,7 @@ import json
 import os
 import shutil
 import signal
+import subprocess
 from pathlib import Path
 import pytest
 from sqlalchemy import select
@@ -18,8 +19,8 @@ from tornado.httpserver import HTTPServer
 from tornado.netutil import bind_sockets
 
 
-@pytest.fixture
-async def business():
+@pytest.fixture(name="business")
+async def business_service():
     facts = {
         "writes": 0,
         "reads": 0,
@@ -39,9 +40,12 @@ async def business():
             if path == "identity":
                 self.finish(
                     {
-                        "id": "fixture-service"
-                        if self.request.headers.get("Authorization") == "Bearer synthetic-fixture"
-                        else "reader"
+                        "id": (
+                            "fixture-service"
+                            if self.request.headers.get("Authorization")
+                            == "Bearer synthetic-fixture"
+                            else "reader"
+                        )
                     }
                 )
             elif path == "verified" and self.get_query_argument("echo", None):
@@ -171,7 +175,25 @@ async def server_compile_once(db, release: Path) -> None:
     assert await compile_next(db, settings)
 
 
-async def agent_once(profile, release, *, expected_code=0, browser="/usr/bin/chromium"):
+async def runtime_browser_executable() -> str:
+    """让 Python 启动的物理用例和前端驱动通过同一测试入口解析浏览器路径，再由真实 Runtime 做版本检查。"""
+    resolver = await asyncio.create_subprocess_exec(
+        "node",
+        "--import",
+        "tsx",
+        "--input-type=module",
+        "--eval",
+        "import { chromiumForTest } from './tests/support/chromium.ts';"
+        "process.stdout.write(chromiumForTest())",
+        cwd="apps/runtime",
+        stdout=asyncio.subprocess.PIPE,
+    )
+    stdout, _ = await resolver.communicate()
+    assert resolver.returncode == 0, "Unable to locate the Runtime test browser"
+    return os.fsdecode(stdout)
+
+
+async def agent_once(profile, release, *, expected_code=0, browser=None, expected_error=None):
     process = await asyncio.create_subprocess_exec(
         "node",
         "--import",
@@ -184,7 +206,7 @@ async def agent_once(profile, release, *, expected_code=0, browser="/usr/bin/chr
         "--release-dir",
         str(release),
         "--browser-executable",
-        browser,
+        browser if browser is not None else await runtime_browser_executable(),
         "--once",
         cwd="apps/runtime",
         stdout=asyncio.subprocess.PIPE,
@@ -200,6 +222,8 @@ async def agent_once(profile, release, *, expected_code=0, browser="/usr/bin/chr
     assert process.returncode == expected_code, stderr.decode() + json.dumps(
         guardian_diagnostics(profile)
     )
+    if expected_error is not None:
+        assert expected_error in stderr.decode()
     return stdout.decode()
 
 
@@ -559,13 +583,47 @@ async def test_server_compiler_completion_and_sanitized_failure_then_agent_execu
             assert subject["secretVersions"] == [
                 {"secretRef": "fixture", "versionId": secrets["fixture"]}
             ]
-        # 使用不存在的浏览器路径运行 CLEANUP，核对补偿作业仍然通过，且清理幂等键与第二次准备请求一致。
+        missing_browser = "/nonexistent/veriq-cleanup-must-not-launch-browser"
         await agent_once(
-            profile, release, browser="/nonexistent/veriq-cleanup-must-not-launch-browser"
+            profile,
+            release,
+            browser=missing_browser,
+            expected_code=1,
+            expected_error="DOCTOR_FAILED",
+        )
+        async with db.sessions() as session:
+            unclaimed = await session.get(Job, cleanup_job.id)
+            assert unclaimed.state == "QUEUED" and unclaimed.active_attempt_id is None
+            assert not (
+                await session.scalars(select(Attempt).where(Attempt.job_id == cleanup_job.id))
+            ).all()
+        # 先用锁定浏览器完成能力检查，随后只向实际执行监督器提供不存在的路径，验证清理作业不会启动浏览器。
+        await asyncio.to_thread(
+            subprocess.run,
+            [
+                "node",
+                "--import",
+                "tsx",
+                "tests/support/run-connected-attempt.ts",
+                str(profile),
+                str(release),
+                await runtime_browser_executable(),
+                "cleanup",
+                missing_browser,
+            ],
+            cwd="apps/runtime",
+            check=True,
+            timeout=100,
         )
         async with db.sessions() as session:
             cleaned = await session.get(Job, cleanup_job.id)
-            assert cleaned.outcome == "PASSED"
+            assert cleaned.state == "FINISHED" and cleaned.outcome == "PASSED"
+            cleanup_attempt = (
+                await session.scalars(select(Attempt).where(Attempt.job_id == cleaned.id))
+            ).one()
+            assert (
+                cleanup_attempt.runtime_id == d["runnerId"] and cleanup_attempt.outcome == "PASSED"
+            )
         assert facts["cleanup"][-1] == facts["prepare"][-1]
         assert facts["prepare"][-1].endswith(":2")
         # 让夹具延迟状态响应，等准备事件后从控制面取消 Run，再核对终局为 CANCELLED 且清理键匹配准备请求。

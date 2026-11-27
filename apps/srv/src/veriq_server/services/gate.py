@@ -5,7 +5,7 @@
 """
 
 import json
-from typing import Any
+from typing import Any, NamedTuple
 from ..auth.authorization import WorkspaceScope
 from ..repositories.resource import ResourceRepository
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -82,34 +82,66 @@ async def activation_provenance(
     }
 
 
-async def current_gate(session: AsyncSession, attempt: Attempt) -> dict[str, Any]:
-    """结合冻结溯源与当前权威重算门禁，投递许可吊销时追加原因，current_gate 路径必须遵守 Workspace 作用域。
-    current_gate 实现于 apps/srv/src/veriq_server/services/gate.py：请按该符号的输入校验、错误码与调用方契约阅读，
-    勿假设通用成功默认值。
-    """
-    runtime = await session.get(Runtime, attempt.runtime_id)
-    binding = await session.get(RuntimeBinding, (attempt.runtime_id, attempt.workspace_id))
-    job = await session.get(Job, attempt.job_id)
-    current = bool(
-        runtime and runtime.trust_status == "MANAGED" and binding and binding.active and job
-    )
-    if current and job:
-        try:
-            await require_requester(session, job, attempt.runtime_id)
-        except Problem:
-            current = False
-    result = gate(attempt.outcome, attempt.execution_provenance, current=current)
+class RuntimeAuthority(NamedTuple):
+    """分别记录本次派发资格与凭据投递许可，使每次尝试可以按自己冻结的凭据要求解释同一份设备绑定。"""
+
+    current: bool
+    allow_delivery: bool
+
+
+type ReportAuthorities = dict[tuple[str, str], RuntimeAuthority]
+
+
+async def report_authorities(
+    session: AsyncSession,
+    workspace_id: str,
+    requesters: dict[tuple[str, str], tuple[str, str | None]],
+) -> ReportAuthorities:
+    """批量读取本轮涉及的设备绑定，同一报告内共用请求主体与设备的 TEST 作业只重验一次派发权。"""
+    runtime_ids = {runtime_id for _, runtime_id in requesters}
+    if not runtime_ids:
+        return {}
+    bindings = {
+        runtime_id: (trust == "MANAGED" and active, delivery)
+        for runtime_id, trust, active, delivery in await session.execute(
+            select(
+                Runtime.id,
+                Runtime.trust_status,
+                RuntimeBinding.active,
+                RuntimeBinding.allow_credential_delivery,
+            )
+            .join(RuntimeBinding, RuntimeBinding.runtime_id == Runtime.id)
+            .where(RuntimeBinding.workspace_id == workspace_id, Runtime.id.in_(runtime_ids))
+        )
+    }
+    authorities: dict[tuple[str, str | None, str], RuntimeAuthority] = {}
+    result = {}
+    for (job_id, runtime_id), (requester, token) in requesters.items():
+        key = (requester, token, runtime_id)
+        if key not in authorities:
+            current, delivery = bindings.get(runtime_id, (False, False))
+            if current:
+                job = await session.get(Job, job_id)
+                assert job is not None
+                try:
+                    await require_requester(session, job, runtime_id)
+                except Problem:
+                    current = False
+            authorities[key] = RuntimeAuthority(current, delivery)
+        result[(job_id, runtime_id)] = authorities[key]
+    return result
+
+
+def current_gate(attempt: Attempt, authority: RuntimeAuthority) -> dict[str, Any]:
+    """使用本次读取的权威资格和绑定投递许可，按每个 Attempt 自己的冻结溯源计算当前门禁。"""
+    result = gate(attempt.outcome, attempt.execution_provenance, current=authority.current)
     provenance = attempt.execution_provenance or {}
     # required 表示快照钉死了密钥引用，并不臆造运行时一定使用过这些密钥。缺少该字段区分的旧快照，保守沿用当时捕获的
     # credentialDeliveryAllowed 作为 required。
     required = provenance.get(
         "credentialDeliveryRequired", provenance.get("credentialDeliveryAllowed", False)
     )
-    if (
-        required
-        and provenance.get("credentialDeliveryAllowed")
-        and (not binding or not binding.allow_credential_delivery)
-    ):
+    if required and provenance.get("credentialDeliveryAllowed") and not authority.allow_delivery:
         result["passed"] = False
         result["reasons"].append("CREDENTIAL_DELIVERY_APPROVAL_REVOKED")
     return result

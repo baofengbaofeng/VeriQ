@@ -21,7 +21,9 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
     urllib 默认可能把原请求改为 GET，破坏写操作语义。返回 None 使调用路径转为受控 HTTP 错误而非追随跳转。
     """
 
-    def redirect_request(self, req: Any, fp: Any, code: Any, msg: Any, headers: Any, newurl: Any) -> None:
+    def redirect_request(
+        self, req: Any, fp: Any, code: Any, msg: Any, headers: Any, newurl: Any
+    ) -> None:
         """所有重定向都留在当前失败路径，不构造第二个携带员工上下文的网络请求，错误信息由统一入口转换为固定诊断而不显示
         响应中的敏感正文。
         """
@@ -93,7 +95,9 @@ class Platform:
                 exc.close()
             raise RuntimeError(f"Platform request failed: HTTP {exc.code} {code}") from None
         except (urllib.error.URLError, TimeoutError):
-            raise RuntimeError("Platform connection failed; write acceptance may be unknown") from None
+            raise RuntimeError(
+                "Platform connection failed; write acceptance may be unknown"
+            ) from None
         if not isinstance(envelope, dict) or "data" not in envelope:
             raise RuntimeError("Invalid platform response envelope")
         result = envelope["data"]

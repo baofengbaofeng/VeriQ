@@ -37,7 +37,7 @@ class ReplyStreamRedactor:
 
     def _emit(self, text: str, end: int) -> str:
         """在安全边界前遇到的完整秘密整段消耗，即使它穿过候选尾部，也不会把它后半段作为普通增量重新释放。"""
-        pieces = []
+        pieces: list[str] = []
         last = 0
         if self._match is not None:
             for match in self._match.finditer(text):
@@ -73,7 +73,7 @@ def sanitize_stream_reply(value: Any, protected: set[str]) -> Any:
 
 
 def guard_agent_stream(
-    authorize: Callable[[], Awaitable[None]],
+    authorize: Callable[[], Awaitable[str | None]],
     emit: Callable[[str, dict[str, Any]], Awaitable[None]],
 ) -> Callable[[str, dict[str, Any]], Awaitable[bool]]:
     """组合独立授权事务与网络发送，已知会话归档或员工权利撤销时关闭本轮实时写出，持续完成费用结算。"""
@@ -85,7 +85,9 @@ def guard_agent_stream(
         if revoked:
             return False
         try:
-            await authorize()
+            if await authorize():
+                revoked = True
+                return False
         except Problem as problem:
             if (
                 problem.status not in {401, 403, 404, 410}

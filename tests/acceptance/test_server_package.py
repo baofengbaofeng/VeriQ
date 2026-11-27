@@ -15,12 +15,11 @@ import zipfile
 
 import pytest
 
-
 ROOT = Path(__file__).resolve().parents[2]
 
 
-@pytest.fixture
-def checkout(tmp_path: Path) -> Path:
+@pytest.fixture(name="checkout")
+def checkout_fixture(tmp_path: Path) -> Path:
     """复制服务源码和合同输入到没有 Git 信息的临时目录，刻意排除现有静态产物与虚拟环境，使每个构建断言只依赖该测试明确准
     备的文件而非开发机器缓存。
 
@@ -69,6 +68,7 @@ def test_standard_wheel_refuses_missing_frontend(checkout: Path) -> None:
         cwd=checkout,
         capture_output=True,
         text=True,
+        check=False,
     )
     assert result.returncode != 0, "Standard wheel incorrectly accepted missing frontend"
     assert "frontend" in (result.stdout + result.stderr).lower()
@@ -100,6 +100,7 @@ def test_editable_install_does_not_require_frontend(checkout: Path) -> None:
         capture_output=True,
         text=True,
         env={**os.environ, "UV_CACHE_DIR": "/tmp/veriq-uv", "UV_LINK_MODE": "copy"},
+        check=False,
     )
     assert result.returncode == 0, result.stdout + result.stderr
 
@@ -161,12 +162,12 @@ def test_wheel_verifier_checks_real_resources_and_rejects_tampering(
         assert len(archive.namelist()) == len(set(archive.namelist()))
         records = {name: archive.read(name) for name in archive.namelist()}
     command = [sys.executable, str(ROOT / "scripts/verify_wheel.py"), str(wheel)]
-    result = subprocess.run(command, capture_output=True, text=True)
+    result = subprocess.run(command, capture_output=True, text=True, check=False)
     assert result.returncode == 0, result.stderr
     records["veriq_server/static/dist/worker.js"] = b"changed"
     with zipfile.ZipFile(wheel, "w") as archive:
         for name, content in records.items():
             archive.writestr(name, content)
-    result = subprocess.run(command, capture_output=True, text=True)
+    result = subprocess.run(command, capture_output=True, text=True, check=False)
     assert result.returncode != 0
     assert "mismatch" in result.stderr.lower()

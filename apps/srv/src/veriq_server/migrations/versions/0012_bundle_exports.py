@@ -25,7 +25,12 @@ def upgrade() -> None:
     )
 
 
-def downgrade() -> None:
-    if op.get_bind().execute(sa.text("SELECT COUNT(*) FROM veriq_bundle_exports")).scalar_one():
+def require_downgrade_safe(connection: sa.Connection) -> None:
+    """预检导出预留表是否为空，回退若丢失已记录的导出请求便无法维持原有重试语义与幂等约束。"""
+    if connection.execute(sa.text("SELECT COUNT(*) FROM veriq_bundle_exports")).scalar_one():
         raise RuntimeError("Export reservations must be retained for retry safety")
+
+
+def downgrade() -> None:
+    require_downgrade_safe(op.get_bind())
     op.drop_table("veriq_bundle_exports")

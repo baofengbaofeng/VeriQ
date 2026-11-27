@@ -166,7 +166,7 @@ async def completed(db, job_id, *, connected=False):
 
                 retained = project_source(retained)
             else:
-                # 默认模拟历史编译回执；显式联网夹具使用任务的投影清单与对应的精确源成员。
+                # 历史编译回执使用原始快照的摘要并移除联网能力要求，联网夹具则按任务的投影清单写入对应源成员。
                 manifest = json.loads((await repo.artifact(job.manifest_hash)).content)
                 manifest["snapshotSha256"] = job.snapshot_hash
                 job.manifest_hash = await repo.store(canonical_bytes(manifest))

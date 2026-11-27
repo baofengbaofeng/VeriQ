@@ -12,6 +12,7 @@ import {
     rename,
     unlink,
     open,
+    statfs,
     type FileHandle,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -527,8 +528,9 @@ test("actual statfs plan rejects unavailable declared writes without allocating 
             const tx = new ArchiveTransaction(f.root, output, "candidate");
             await tx.initialize();
             try {
+                const space = await statfs(output, { bigint: true });
                 await assert.rejects(
-                    tx.plan(16 * 1024 ** 3, 0),
+                    tx.plan(Number(space.bavail * space.bsize), 0),
                     (e: unknown) => e instanceof RuntimePayloadError && e.code === "PAYLOAD_DISK_INSUFFICIENT",
                 );
             } finally {

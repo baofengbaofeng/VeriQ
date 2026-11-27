@@ -11,9 +11,8 @@ FIXTURES = json.loads((ROOT / "packages/contracts/fixtures/compatibility.json").
 
 
 def contracts():
-    assert importlib.util.find_spec("veriq_server.contracts") is not None, (
-        "Missing shared schema validation implementation"
-    )
+    spec = importlib.util.find_spec("veriq_server.contracts")
+    assert spec is not None, "Missing shared schema validation implementation"
     return importlib.import_module("veriq_server.contracts")
 
 

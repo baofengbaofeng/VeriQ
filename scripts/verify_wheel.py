@@ -128,7 +128,7 @@ def clean_install(
                 str(wheel.resolve()),
             ],
         ]
-        with (evidence / "clean-install.log").open("w") as log:
+        with (evidence / "clean-install.log").open("w", encoding="utf-8") as log:
             for command in commands:
                 run_process(command, cwd=root, check=True, stdout=log, stderr=subprocess.STDOUT)
             probe = Path(__file__).with_name("probe_install.py").read_text()

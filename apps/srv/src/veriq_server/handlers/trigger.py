@@ -61,9 +61,11 @@ class ExecutionPlanAPI(API):
                 shown = rows[: page.limit]
                 result = {
                     "items": [plan_dto(p) for p in shown],
-                    "nextCursor": page.next((shown[-1].id, shown[-1].id), len(rows) > page.limit)
-                    if shown
-                    else None,
+                    "nextCursor": (
+                        page.next((shown[-1].id, shown[-1].id), len(rows) > page.limit)
+                        if shown
+                        else None
+                    ),
                 }
         self.respond(result)
 

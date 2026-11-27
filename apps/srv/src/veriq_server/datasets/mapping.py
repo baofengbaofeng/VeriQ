@@ -24,7 +24,7 @@ class MappingBudget:
     rows: int = 10000
     deadline: float = float("inf")
 
-    def charge(self, size):
+    def charge(self, size: int) -> None:
         """每次写入行或字段之前扣划实际规范字节，超限发生在构造完整超大结果之前，调用者须放弃本次读取。"""
         self.remaining -= size
         if self.remaining < 0 or self.rows < 0:
@@ -33,7 +33,7 @@ class MappingBudget:
             raise TimeoutError
 
 
-def pointer(document: Any, path: str):
+def pointer(document: Any, path: str) -> Any:
     """逐段解码 JSON 指针并按实际容器选择字典键或规范数组索引，显式空值仍是成功获取的值。"""
     value = document
     for token in path.split("/")[1:]:
@@ -54,7 +54,9 @@ def pointer(document: Any, path: str):
     return value
 
 
-def map_response(dataset, document, *, budget=None):
+def map_response(
+    dataset: dict[str, Any], document: object, *, budget: MappingBudget | None = None
+) -> list[dict[str, Any]]:
     """映射当前单页并校验必填、空值、字段类型与行契约，忽略未选取的响应字段而不留存原始文档。"""
     budget = budget or MappingBudget()
     mapping = dataset["source"]["mapping"]
@@ -90,16 +92,16 @@ def map_response(dataset, document, *, budget=None):
     return rows
 
 
-def complete_rows(rows):
+def complete_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """汇总后验证全局行键唯一及父节点关系，允许子节点在前页出现而父节点在下一页出现的树形数据。"""
     # 先拼接所有页再建立全局键索引，允许树父节点出现在下一页，同时能够拒绝跨页重复、孤儿或环。
     by_key = {row["key"]: row for row in rows}
     if len(by_key) != len(rows):
         raise invalid()
-    depths = {}
+    depths: dict[str, int] = {}
     for row in rows:
         key = row["key"]
-        chain = {}
+        chain: dict[str, None] = {}
         while key is not None and key not in depths:
             if key in chain or key not in by_key or len(chain) >= 100:
                 raise invalid()

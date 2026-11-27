@@ -365,9 +365,11 @@ def cleanup(evidence: Path, stem: str) -> None:
     save(
         evidence / "userns-cleanup.json",
         {
-            "status": "REMOVED"
-            if removed and unchanged and other_profiles_unchanged and not errors
-            else "FAILED",
+            "status": (
+                "REMOVED"
+                if removed and unchanged and other_profiles_unchanged and not errors
+                else "FAILED"
+            ),
             "after": after,
             "globalRestrictionsUnchanged": unchanged,
             "ownedProfilesAndFilesRemoved": removed,

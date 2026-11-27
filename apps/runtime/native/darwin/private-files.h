@@ -15,7 +15,9 @@
 #include <cstdint>
 #include <cstdio>
 #include <exception>
+#include <iterator>
 #include <memory>
+#include <set>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -668,7 +670,8 @@ public:
      * 未知成员不能因此制造空目录。非普通、错误 uid、公开模式或硬链接直接失败，避免允许名字下藏入其他对象。返回有界名字
      * 和 overflow，业务层继续执行自己的语法及四千或八千扫描额度。
      */
-    Entries entries(size_t limit) {
+    Entries entries(size_t limit, const std::string* after = nullptr) {
+        std::set<std::string> page;
         require(limit <= maximumEntries, "entries.limit");
         Descriptor cursor(openAt(fd_.get(), ".", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC,
             0, "entries.open"));
@@ -694,6 +697,7 @@ public:
             const std::string name(entry->d_name);
             if (name == "." || name == "..") continue;
             component(name);
+            if (after && name <= *after) continue;
             struct stat info{};
             if (::fstatat(fd_.get(), name.c_str(), &info, AT_SYMLINK_NOFOLLOW) != 0)
                 systemFailure("entries.stat");
@@ -707,11 +711,20 @@ public:
              * 零在这里立即标记非空，而空目录会自然到达末尾。保留内核枚举顺序，业务测试不能依赖排序丢弃未知项。overflow
              * 为失败事实，正式 Records 与 Vault 各自决定拒绝或返回 false。
              */
+            if (after) {
+                page.insert(name);
+                if (page.size() > limit) {
+                    page.erase(std::prev(page.end()));
+                    result.overflow = true;
+                }
+                continue;
+            }
             if (result.names.size() == limit) { result.overflow = true; break; }
             result.names.push_back(name);
         }
         stream.release();
         if (::closedir(raw) != 0) systemFailure("entries.close");
+        if (after) result.names.assign(page.begin(), page.end());
         return result;
     }
 
@@ -827,6 +840,23 @@ public:
      * 幂等缺失，删除后的刷新或必要关闭错误均保留不确定而不回滚。删除仅作用于单个已核名字，
      * 不递归、不修权限、不物理擦除正文。检查与操作都相对原目录描述符，旧父路径上的替代目录不参与授权。
      */
+    void archiveAttempt(const std::string& root, const std::string& name) {
+        component(name);
+        require(name.size() > 5 && name.substr(name.size()-5) == ".json", "archive.name");
+        auto source = checked(name, 65536);
+        auto parent = Directory::open(root, false);
+        auto archive = Directory::open(root + "/settled-attempts", true);
+        sync(parent->fd_.get(), "archive.parent-sync");
+        require(matches(name, metadata(source.get())), "archive.identity");
+        if (::renameatx_np(fd_.get(), name.c_str(), archive->fd_.get(), name.c_str(), RENAME_EXCL) != 0)
+            systemFailure("archive.rename");
+        sync(archive->fd_.get(), "archive.destination-sync");
+        sync(fd_.get(), "archive.source-sync");
+        source.close();
+        archive->close();
+        parent->close();
+    }
+
     void remove(const std::string& name, size_t limit) {
         auto file = checked(name, limit);
         const auto owned = metadata(file.get());

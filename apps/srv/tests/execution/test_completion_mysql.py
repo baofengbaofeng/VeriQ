@@ -1,16 +1,27 @@
 import asyncio
-import pytest
 import json
 from datetime import timedelta
 from hashlib import sha256
 from pathlib import Path
 from secrets import token_urlsafe
 from uuid import uuid4
+import pytest
+from sqlalchemy import select, text
+
 from test_auth import setup, login
 from test_workspace import workspace
 from test_lease_mysql import device, auth, claim_body
-from veriq_server.db import Attempt, Job
-from veriq_server.service import digest, lock_installation
+from veriq_server.contracts import canonical_bytes
+from veriq_server.db import (
+    Artifact,
+    Attempt,
+    AttemptUpload,
+    CaseExecution,
+    Job,
+    Run,
+    ValidationReceipt,
+)
+from veriq_server.service import digest as token_digest, lock_installation
 from veriq_server.services.capacity import CapacityService
 from veriq_server.services.jobs import JobService, database_time
 from veriq_server.settings import Settings
@@ -44,7 +55,7 @@ async def seed_historical_validation_attempt(db, job_id, runtime_id, public_url)
             attempt_no=1,
             snapshot_hash=job.snapshot_hash,
             manifest_hash=job.manifest_hash,
-            lease_token_hash=digest(secret),
+            lease_token_hash=token_digest(secret),
             fencing_token=job.fence,
             lease_expires_at=current + timedelta(seconds=60),
             phase="LEASED",
@@ -106,8 +117,6 @@ async def upload(c, credential, claim, content, filename, kind="SOURCE"):
     ],
 )
 async def test_managed_real_compilation_finishes_once_and_can_publish(site, tmp_path, kind):
-    from veriq_server.db import Job, Artifact
-    from veriq_server.contracts import canonical_bytes
 
     cancel_retry = kind == "CASE_CANCEL_RETRY"
     compiler_error = kind == "CASE_COMPILER_ERROR"
@@ -237,8 +246,6 @@ async def test_managed_real_compilation_finishes_once_and_can_publish(site, tmp_
     if kind == "ELEMENT_CATALOG":
         # 元素目录编译得到两份路径不同而内容哈希相同的元数据，按各自路径找到上传记录并分别提交证据事件。
         # 重放事件时改路径应产生冲突，完结清单改证据路径也应被拒绝。
-        from sqlalchemy import select
-        from veriq_server.db import AttemptUpload
 
         shared = [
             f
@@ -340,9 +347,11 @@ async def test_managed_real_compilation_finishes_once_and_can_publish(site, tmp_
     wrong_source_hash = await upload(c, d, claim, wrong_source, "wrong-source.json")
     wrong_bundle = json.loads((output / "bundle.json").read_bytes())
     wrong_bundle["files"] = [
-        {**file, "sha256": wrong_source_hash, "sizeBytes": len(wrong_source)}
-        if file["path"] == "source/asset-snapshot.json"
-        else file
+        (
+            {**file, "sha256": wrong_source_hash, "sizeBytes": len(wrong_source)}
+            if file["path"] == "source/asset-snapshot.json"
+            else file
+        )
         for file in wrong_bundle["files"]
     ]
     wrong_bundle_hash = await upload(
@@ -361,14 +370,11 @@ async def test_managed_real_compilation_finishes_once_and_can_publish(site, tmp_
         json={**finish, "manifestSha256": wrong_completion_hash},
         headers=auth(d),
     )
-    assert rejected.status_code == 409 and rejected.json()["code"] == "INVALID_COMPILED_SOURCE", (
-        rejected.text
-    )
+    assert rejected.status_code == 409, rejected.text
+    assert rejected.json()["code"] == "INVALID_COMPILED_SOURCE", rejected.text
     result = await c.post(endpoint + "/finish", json=finish, headers=auth(d))
     assert result.status_code == 200, result.text
     assert result.json()["data"]["outcome"] == "PASSED"
-    from sqlalchemy import text
-    from veriq_server.db import Attempt
 
     async with db.sessions() as session:
         finished = await session.get(Attempt, claim["attemptId"])
@@ -414,9 +420,6 @@ async def exercise_test_protocol(
     c, db, ws, d, case_version, output, missing_artifact_event=False, cancel_retry=False
 ):
     from test_runs_mysql import environment
-    from veriq_server.contracts import canonical_bytes
-    from veriq_server.db import AttemptUpload
-    from sqlalchemy import select
 
     env = await environment(c, db, ws)
     bundle = json.loads((output / "bundle.json").read_text())
@@ -568,7 +571,6 @@ async def exercise_test_protocol(
         assert result.json()["data"]["outcome"] == (
             "INCOMPLETE" if missing_artifact_event else status
         )
-        from veriq_server.db import Attempt
 
         async with db.sessions() as session:
             finished = await session.get(Attempt, claim["attemptId"])
@@ -580,8 +582,6 @@ async def exercise_test_protocol(
         assert reported["processStopped"] is True
         assert reported["processStopScope"] == "FULL_DESCENDANT_TREE"
         if cancel_retry and index == 0:
-            from veriq_server.db import Attempt, Job, CaseExecution, Run
-
             cancelled = await c.post(
                 f"/api/v1/workspaces/{ws}/runs/{run_id}/cancel",
                 json={"reason": "Cancel pending retry"},
@@ -621,9 +621,6 @@ async def exercise_test_protocol(
 
 
 async def exercise_compiler_failure(c, db, ws, d, claim, records, output, base, preview, job_id):
-    from veriq_server.contracts import canonical_bytes
-    from veriq_server.db import AttemptUpload, ValidationReceipt
-    from sqlalchemy import select
 
     from test_runs_mysql import environment
 
@@ -703,7 +700,6 @@ async def exercise_compiler_failure(c, db, ws, d, claim, records, output, base, 
     assert (await c.post(endpoint + "/finish", json=finish, headers=auth(d))).json()[
         "data"
     ] == result.json()["data"]
-    from veriq_server.db import Attempt
 
     async with db.sessions() as session:
         finished = await session.get(Attempt, claim["attemptId"])

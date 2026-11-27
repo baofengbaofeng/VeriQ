@@ -236,11 +236,11 @@ class RuntimeAPI(API):
             self.respond(
                 {
                     "items": [await service.dto(r, b, user) for r, b in shown],
-                    "nextCursor": page.next(
-                        (shown[-1][0].id, shown[-1][0].id), len(rows) > page.limit
-                    )
-                    if shown
-                    else None,
+                    "nextCursor": (
+                        page.next((shown[-1][0].id, shown[-1][0].id), len(rows) > page.limit)
+                        if shown
+                        else None
+                    ),
                 }
             )
 

@@ -13,6 +13,7 @@ from ..credentials.resolve import CredentialProofTransport, VerifiedAttempt
 from ..db import Attempt, Job, Runtime, RuntimeBinding, Run, CaseExecution, ServiceToken
 from ..contracts import asset_source_hash
 from ..datasets.bindings import authorize_dataset
+from ..datasets.policy import DatasetBinding
 from .connected_datasets import frozen_object, checksum
 from ..auth.authorization import WorkspaceScope
 from ..repositories.resource import ResourceRepository
@@ -79,8 +80,8 @@ class LeaseService:
         return attempt, job, runtime, binding
 
     async def http_dataset(
-        self, attempt_id: str, proof: CredentialProofTransport, vid: str, *, resolve=False
-    ):
+        self, attempt_id: str, proof: CredentialProofTransport, vid: str, *, resolve: bool = False
+    ) -> DatasetBinding:
         """本方法只在短事务内检查当前证明与冻结配置，交给调用者的密钥解析器只针对这一版本且只服务本次读取。"""
         denied = Problem(403, "DATASET_NOT_ASSIGNED", "Dataset is not assigned to this Attempt")
         attempt, job, _, _ = await self.proof(attempt_id, proof)

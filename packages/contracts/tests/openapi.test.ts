@@ -15,7 +15,7 @@ test("OpenAPI source remains strict JSON with the same YAML document values", as
 test("OpenAPI resolves and validates actual core requests and responses", async () => {
     const api = await SwaggerParser.validate(fileURLToPath(new URL("../openapi/platform.yaml", import.meta.url)));
     expect("openapi" in api && api.openapi).toBe("3.1.0");
-    const claim = api.paths!["/internal/v1/runtimes/claim"]!.post!;
+    const claim = api.paths!["/internal/v1/jobs/claim"]!.post!;
     expect(claim.responses).toHaveProperty("204");
     expect(claim.responses).toHaveProperty("200");
     expect(claim.security).toEqual([{ DeviceToken: [] }]);
@@ -47,7 +47,7 @@ test("validation receipts are retrievable through authorized job results", async
     const operation = api.paths!["/api/v1/workspaces/{workspaceId}/jobs/{jobId}/validation-receipt"]?.get;
     expect(operation).toBeDefined();
     // 当前回执读取只接受员工会话授权，自动化身份尚未实现，契约不得提前声明能够使用服务令牌读取。
-    expect(operation!.security).toEqual([{ WebSession: [], CsrfToken: [] }]);
+    expect(operation!.security).toEqual([{ WebSession: [] }]);
     expect(operation!.responses).toHaveProperty("200");
     expect(operation!.responses).toHaveProperty("409");
     expect(operation!.parameters).toEqual(

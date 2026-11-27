@@ -1,18 +1,21 @@
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
+import { appendFile, mkdir, mkdtemp, rm } from "node:fs/promises";
+import { join } from "node:path";
 import test from "node:test";
-import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
+import { chromium } from "@playwright/test";
 import { doctor } from "../src/doctor.ts";
 import { diagnoseRelease } from "../src/distribution.ts";
+
+const executablePath = chromium.executablePath();
 
 /**
  * 已经核验的发行上下文用于独立打包后台的版本定位，不能绕过版本兼容条件或把控制平台离线说成可达；本例仍启动真实匹配浏览
  * 器，三种调用方式分别检查原包探测、有效发行及不支持发行。
  */
 test("doctor keeps package probing and validates explicit distribution versions", async () => {
-    const executablePath = resolve(
-        "../../.superpowers/cache/playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome-headl" +
-            "ess-shell",
-    );
     const baseline = await doctor({ executablePath });
     assert.equal(baseline.ok, true);
     const incompatible = await doctor({
@@ -36,21 +39,29 @@ test("doctor keeps package probing and validates explicit distribution versions"
 });
 
 /**
- * CLI 与桌面共用发行适配后必须申报真实库存版本而非零点一组件包号，缺少所选库存时即使给出有效浏览器也不得形成能力；此例
- * 仅复用受保护只读候选和既有浏览器，不生成新引擎或运行 GUI。
+ * 用正式构建器从工作区已安装的依赖生成临时引擎。发行版本与组件包号不同，只有核验库存与匹配浏览器后才能申报该版本。
  */
-test("shared release doctor advertises the verified engine identity", async () => {
+test("shared release doctor advertises the verified engine identity", async (t) => {
+    const work = fileURLToPath(new URL("../../../work/", import.meta.url));
+    await mkdir(work, { recursive: true });
+    const directory = await mkdtemp(join(work, "doctor-engine-"));
+    t.after(() => rm(directory, { recursive: true, force: true }));
     const options = {
-        engineDirectory: resolve("../../work/t19-engine-current"),
-        engineVersion: "1.0.1-t19",
-        browserExecutable: resolve(
-            "../../.superpowers/cache/playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome-h" +
-                "eadless-shell",
-        ),
+        engineDirectory: join(directory, "release"),
+        engineVersion: "1.0.1-doctor-test",
+        browserExecutable: executablePath,
     };
+    const builder = fileURLToPath(new URL("../../../scripts/build_engine.mts", import.meta.url));
+    await promisify(execFile)(process.execPath, [
+        "--import",
+        import.meta.resolve("tsx"),
+        builder,
+        options.engineVersion,
+        options.engineDirectory,
+    ]);
     const result = await diagnoseRelease(options);
     assert.equal(result.ok, true);
-    assert.equal(result.capabilities?.engineVersion, "1.0.1-t19");
+    assert.equal(result.capabilities?.engineVersion, options.engineVersion);
     const wrongBrowser = await doctor({
         executablePath: options.browserExecutable,
         expectedBrowserVersion: "1.2.3.4",
@@ -59,10 +70,11 @@ test("shared release doctor advertises the verified engine identity", async () =
     assert.equal(wrongBrowser.capabilities, undefined);
     assert.equal(wrongBrowser.checks.find((item) => item.name === "browser version")?.ok, false);
     await assert.rejects(diagnoseRelease({ ...options, engineVersion: "9.9.9-absent" }), /ENGINE_NOT_APPROVED/);
+    await appendFile(join(options.engineDirectory, "dependencies.json"), "\n");
+    await assert.rejects(diagnoseRelease(options), /RELEASE_HASH_MISMATCH/);
 });
 
 test("connected capability requires both component declarations from the selected release", async () => {
-    const executablePath = process.env.VERIQ_TEST_CHROMIUM;
     const versions = { compilerVersion: "0.1.0", runnerSdkVersion: "0.1.0" };
     for (const features of [
         {},
@@ -89,7 +101,7 @@ test("live dataset capability requires both verified HTTP components", async () 
     } as const;
     for (const http of [false, true]) {
         const r = await doctor({
-            executablePath: process.env.VERIQ_TEST_CHROMIUM,
+            executablePath,
             distribution: {
                 ...distribution,
                 ...(http ? { runnerSdkHttpDatasets: "1.0" as const } : {}),

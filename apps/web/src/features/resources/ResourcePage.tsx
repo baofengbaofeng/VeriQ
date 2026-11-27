@@ -434,7 +434,7 @@ function ResourceWorkspaceContent({
                     if (!datasetSummary) return missing;
                     const { fieldCount, entryCount, format } = datasetSummary;
                     const fields = t("datasetList.fields", { count: fieldCount, number: number.format(fieldCount) });
-                    // 动态来源只报告声明字段数；静态树按扁平节点数组计数，零行或零节点仍是有效规模。
+                    // 动态来源显示声明字段数和动态标记，静态来源按表行或树节点显示数量，零条也使用相应计数。
                     const entries =
                         entryCount === undefined
                             ? t("datasetList.dynamic")
@@ -1043,7 +1043,7 @@ function ResourceWorkspaceContent({
                         opener?.focus({ preventScroll: true });
                         const resource = copiedResource.current;
                         copiedResource.current = null;
-                        // 权限变化也可能关闭复制窗。清除打开状态，避免重新获权时自动回到旧的复制表单。
+                        // 复制权限变化也会关闭对话框，因此关闭后统一清除复制状态，防止重新获权时自动打开先前的表单。
                         setCopying(false);
                         if (resource) announceDraft(resource, "DATASET", copyDatasetButton, t("copied"));
                     }}
@@ -1836,7 +1836,7 @@ function ScopedResourceEditor({
                 standalone
                 apply={(rows, fields) => {
                     if (!writable || busy) return;
-                    // 字段和数据行一次写入同一草稿，图形编辑器重建行控件以免继承被替换行的缓存状态。
+                    // 导入的字段和数据行同时写入草稿，再重建行控件，避免旧行的编辑状态套用到新导入的数据。
                     invalidateValidation();
                     form.setValue(
                         "content.document",

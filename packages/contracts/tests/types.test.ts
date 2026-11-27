@@ -27,7 +27,7 @@ test("generated public contracts retain names and job discrimination", () => {
     expectTypeOf<ExecutionEventV1>().toHaveProperty("sequence");
     expectTypeOf<BundleManifestV1>().toHaveProperty("files");
     expectTypeOf<OfflineResultV1>().toHaveProperty("localRunId");
-    expectTypeOf<PlatformPaths>().toHaveProperty("/internal/v1/runtimes/claim");
+    expectTypeOf<PlatformPaths>().toHaveProperty("/internal/v1/jobs/claim");
 });
 
 test("generated clients can retrieve publish receipts and authenticated content", () => {

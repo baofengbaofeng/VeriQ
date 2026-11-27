@@ -27,7 +27,12 @@ def upgrade() -> None:
     op.create_index("ix_veriq_bundles_workspace_id", "veriq_bundles", ["workspace_id"])
 
 
-def downgrade() -> None:
-    if op.get_bind().execute(sa.text("SELECT COUNT(*) FROM veriq_bundles")).scalar_one():
+def require_downgrade_safe(connection: sa.Connection) -> None:
+    """确认已签名的离线包来源记录为空，避免跨版本回退在发现需要保留的签名信息前提交其他结构变更。"""
+    if connection.execute(sa.text("SELECT COUNT(*) FROM veriq_bundles")).scalar_one():
         raise RuntimeError("Signed bundle provenance must be retained")
+
+
+def downgrade() -> None:
+    require_downgrade_safe(op.get_bind())
     op.drop_table("veriq_bundles")

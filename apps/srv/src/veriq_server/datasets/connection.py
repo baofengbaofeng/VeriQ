@@ -2,7 +2,7 @@
 
 from ipaddress import ip_address, ip_network
 import re
-from typing import Literal
+from typing import Literal, Self
 from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -82,12 +82,12 @@ class DatasetConnection(BaseModel):
     request_headers: list[str] = Field(default_factory=list)
     signature_header: str = "X-Signature"
     auth_kinds: list[Literal["NONE", "BASIC", "BEARER", "API_KEY", "HMAC_SHA256", "AES256_GCM"]] = (
-        Field(default_factory=lambda: ["NONE"])
+        Field(default=["NONE"])
     )
     retry_reads: bool = False
 
     @model_validator(mode="after")
-    def verify_target(self):
+    def verify_target(self) -> Self:
         """服务启动时核对静态地址和 TLS 主机名，企业私网须单独批准而回环与链路本地地址始终关闭。"""
         url = urlsplit(self.origin)
         if (

@@ -40,7 +40,8 @@ export interface DarwinPrivateEntries {
  */
 export interface DarwinPrivateDirectory {
     read(name: string, limit: number): Buffer;
-    entries(limit: number): DarwinPrivateEntries;
+    entries(limit: number, after?: string): DarwinPrivateEntries;
+    archiveAttempt(root: string, name: string): void;
     createExclusive(name: string): DarwinPrivateFile;
     replace(name: string, temporary: string, bytes: Buffer, existingLimit: number): void;
     remove(name: string, limit: number): void;

@@ -15,8 +15,7 @@ ROOT = Path(__file__).resolve().parents[4]
 
 
 def test_sample_documents_follow_current_resource_contract():
-    """安装包与镜像的所有资源都经过发布入口使用的同一契约校验，且两份原始字节必须与读取器提供的库存摘要一致。
-    """
+    """安装包与镜像的所有资源都经过发布入口使用的同一契约校验，且两份原始字节必须与读取器提供的库存摘要一致。"""
     sample = resources.sample_package()
     for key in sample["manifest"]["order"]:
         asset = sample["assets"][key]
@@ -27,12 +26,13 @@ def test_sample_documents_follow_current_resource_contract():
         assert canonical.read_bytes() == mirror.read_bytes(), name
         assert hashlib.sha256(canonical.read_bytes()).hexdigest() == digest, name
         if name != "manifest.json":
-            assert not contracts.validate_schema("ResourceDocumentV1", json.loads(mirror.read_bytes()))
+            assert not contracts.validate_schema(
+                "ResourceDocumentV1", json.loads(mirror.read_bytes())
+            )
 
 
 def test_sample_catalog_rejects_legacy_locator_discriminator():
-    """旧定位种类即使仍保留合法目录键也必须由实际服务端契约拒绝，避免迁移样例时意外引入破坏已选决策的兼容别名。
-    """
+    """旧定位种类即使仍保留合法目录键也必须由实际服务端契约拒绝，避免迁移样例时意外引入破坏已选决策的兼容别名。"""
     catalog = copy.deepcopy(resources.sample_package()["assets"]["catalog"])
     catalog["document"]["elements"][0]["locator"]["by"] = "testId"
     assert contracts.validate_schema("ResourceDocumentV1", catalog)

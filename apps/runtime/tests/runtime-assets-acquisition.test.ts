@@ -152,6 +152,7 @@ test("wrong source and altered actual host facts create zero requests", async ()
                 "missing",
                 "duplicate",
                 "host",
+                "workflow",
                 "commit",
                 "arch",
                 "version",
@@ -165,6 +166,14 @@ test("wrong source and altered actual host facts create zero requests", async ()
                 if (change === "missing") facts.files = facts.files.slice(1);
                 if (change === "duplicate") facts.files = [...facts.files.slice(1), facts.files[1]!];
                 if (change === "host") facts.files[0] = { ...facts.files[0]!, sha256: "0".repeat(64) };
+                if (change === "workflow") {
+                    const index = facts.files.findIndex(
+                        (file) => file.path === ".github/workflows/runtime-payload-macos.yml",
+                    );
+                    const workflow = facts.files[index];
+                    assert.ok(workflow);
+                    facts.files[index] = { ...workflow, sha256: "0".repeat(64) };
+                }
                 if (change === "commit") facts.commit = "b".repeat(40);
                 if (change === "arch") facts.arch = "arm64";
                 if (change === "version") facts.nodeVersion = "24.0.0";

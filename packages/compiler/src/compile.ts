@@ -260,7 +260,7 @@ export function compileFiles(
     if (analysis.issues.length) throw new Error("ASSET_VALIDATION_FAILED: " + JSON.stringify(analysis.issues));
     const files = distributionFiles(distribution, snapshot.engineVersion);
     const { validationTarget: _target, ...source } = snapshot;
-    // 联网投影保留工作区和冻结来源标识，使下载产物可恢复源上下文。
+    // 联网编译将投影后的快照写入源文件，保留冻结来源与工作区标识，供下载产物恢复对应的源上下文。
     const retained = snapshot.entryCaseVersionIds.length ? (source as AssetSnapshotV1) : snapshot;
     const persisted = options?.connected ? projectConnectedSource(retained) : retained;
     files[SOURCE_SNAPSHOT_PATH] = canonicalBytes(persisted);

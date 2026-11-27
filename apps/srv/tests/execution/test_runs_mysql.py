@@ -8,7 +8,10 @@ from sqlalchemy import select
 from test_auth import setup, login
 from test_workspace import workspace
 from test_publish import create, publish
+from test_completion_mysql import seed_historical_validation_attempt
 from test_lease_mysql import device
+from test_server_compilation import _settings as compiler_settings
+from veriq_server.services.server_compilation import _claim as claim_validation
 import veriq_server.db
 from veriq_server.db import Job, Artifact, CaseExecution
 
@@ -585,10 +588,24 @@ async def historical_test_manifest(repo, job, case, source, *, pinned=True):
     }
 
 
+def historical_compiler_settings(tmp_path, *, connected=False):
+    """按历史节点声明构造批准发行，使用相同版本与真实领取器验证发现新数据能力后的跨节点交接。"""
+    settings = compiler_settings(tmp_path)
+    if connected:
+        inventory_path = Path(settings.approved_engine_inventory_path)
+        inventory = json.loads(inventory_path.read_bytes())
+        inventory["engines"][0].update(
+            compilerConnectedDatasets="2.0", runnerSdkConnectedDatasets="2.0"
+        )
+        inventory_path.write_text(json.dumps(inventory), encoding="utf-8")
+    return settings
+
+
 @pytest.mark.parametrize("defect", ["empty", "overflow", "snapshot", "pending", "bundle"])
-async def test_historical_manifests_are_verified_before_projection(site, defect):
+async def test_historical_manifests_are_verified_before_projection(site, defect, tmp_path):
+    """检查历史清单的损坏只终结相应排队任务，兼容节点可领取完整投影，而已租给旧设备的清单和尝试保留原值。"""
     from test_lease_mysql import auth, claim_body, queued_browser_jobs
-    from veriq_server.db import ValidationReceipt
+    from veriq_server.db import Attempt, ValidationReceipt
     from test_publish import queue
     from veriq_server.auth.authorization import WorkspaceScope
     from veriq_server.contracts import canonical_bytes
@@ -609,10 +626,10 @@ async def test_historical_manifests_are_verified_before_projection(site, defect)
         },
     }
     validations = []
-    for name in ("wrong-revision", "valid-validation"):
+    for name in ("wrong-revision", "valid-validation", "old-device-validation"):
         _, assignment = await queue(c, await create(c, ws, name, content))
         validations.append(assignment["id"])
-    wrong_validation, valid_validation = validations
+    wrong_validation, valid_validation, device_validation = validations
     bad, pending, compiled, healthy = [
         (await queued_browser_jobs(c, db, ws, 1))[0] for _ in range(4)
     ]
@@ -620,17 +637,19 @@ async def test_historical_manifests_are_verified_before_projection(site, defect)
         repo = ResourceRepository(session, WorkspaceScope(ws))
         receipt = await session.get(ValidationReceipt, original_receipt)
         dependency = receipt.job_id
+        frozen_validations = {}
         for validation_id in validations:
             validation = await session.get(Job, validation_id)
             original = json.loads((await repo.artifact(validation.manifest_hash)).content)
             original["snapshotSha256"] = validation.snapshot_hash
-            if validation_id == wrong_validation:
+            if validation_id in (wrong_validation, device_validation):
                 original["revision"] += 1
             validation.manifest_hash = await repo.store(canonical_bytes(original))
             validation.required_capabilities = {
                 "compileAssets": True,
                 "engineVersion": source["engineVersion"],
             }
+            frozen_validations[validation_id] = (validation.snapshot_hash, validation.manifest_hash)
         original_manifests = {}
         for jid in [bad, pending, compiled]:
             job = await session.get(Job, jid)
@@ -663,12 +682,31 @@ async def test_historical_manifests_are_verified_before_projection(site, defect)
     )
     assert response.status_code == 200, response.text
     assert response.json()["data"]["jobId"] == healthy
+    legacy_worker = historical_compiler_settings(tmp_path)
+    legacy_device = await device(c, ws)
+    device_claim = await seed_historical_validation_attempt(
+        db, device_validation, legacy_device["runnerId"], str(c.base_url)
+    )
+    for _ in (wrong_validation, valid_validation):
+        assert await claim_validation(db, legacy_worker) is None
     async with db.sessions() as session:
         repo = ResourceRepository(session, WorkspaceScope(ws))
         job = await session.get(Job, bad)
         assert (job.state, job.outcome) == ("FINISHED", "ERROR")
         assert (job.manifest_hash, job.snapshot_hash) == original_manifests[bad]
         rejected = await session.get(Job, wrong_validation)
+        assert (rejected.snapshot_hash, rejected.manifest_hash) == frozen_validations[
+            wrong_validation
+        ]
+        leased = await session.get(Job, device_validation)
+        attempt = await session.get(Attempt, device_claim["attemptId"])
+        assert leased.active_attempt_id == attempt.id and leased.server_compilation_id is None
+        assert (leased.state, attempt.phase) == ("LEASED", "LEASED")
+        assert (attempt.snapshot_hash, attempt.manifest_hash) == frozen_validations[
+            device_validation
+        ]
+        assert (leased.snapshot_hash, leased.manifest_hash) == frozen_validations[device_validation]
+        assert "connectedDatasets" not in leased.required_capabilities
         assert (rejected.state, rejected.outcome) == ("FINISHED", "ERROR")
         for jid in [pending, compiled, valid_validation]:
             job = await session.get(Job, jid)
@@ -680,3 +718,6 @@ async def test_historical_manifests_are_verified_before_projection(site, defect)
                 assert manifest["pendingValidationJobId"] == dependency
                 assert manifest["executionSnapshotSha256"] == job.snapshot_hash
                 assert "dataRow" not in projected
+    capable_worker = historical_compiler_settings(tmp_path, connected=True)
+    claim = await claim_validation(db, capable_worker)
+    assert claim is not None and claim.job_id == valid_validation and claim.connected

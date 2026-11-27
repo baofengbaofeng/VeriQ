@@ -60,17 +60,18 @@ def upgrade() -> None:
     )
 
 
-def downgrade() -> None:
+def require_downgrade_safe(connection: sa.Connection) -> None:
     """在尚未使用新来源时恢复旧表形状，已有服务端编译的数据库拒绝丢弃无法映射到设备的可信记录。"""
-    job = (
-        op.get_bind()
-        .execute(
-            sa.text("SELECT 1 FROM veriq_jobs WHERE server_compilation_id IS NOT NULL LIMIT 1")
-        )
-        .scalar_one_or_none()
-    )
+    job = connection.execute(
+        sa.text("SELECT 1 FROM veriq_jobs WHERE server_compilation_id IS NOT NULL LIMIT 1")
+    ).scalar_one_or_none()
     if job is not None:
         raise RuntimeError("Downgrade would discard server compilation provenance")
+
+
+def downgrade() -> None:
+    """确认不存在服务端编译作业后再恢复旧版设备回执的非空约束，移除作业上新增的租约与结果字段。"""
+    require_downgrade_safe(op.get_bind())
     op.drop_constraint("ck_validation_provenance", _receipts, type_="check")
     op.drop_constraint("fk_validation_server_compile", _receipts, type_="foreignkey")
     op.drop_column(_receipts, "server_compilation_id")

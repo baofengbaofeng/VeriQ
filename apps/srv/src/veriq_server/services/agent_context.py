@@ -6,6 +6,8 @@ from typing import Any
 
 from sqlalchemy import case, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import InstrumentedAttribute
+from sqlalchemy.sql.elements import Case
 
 from ..auth.authorization import WorkspaceScope
 from ..contracts import canonical_bytes
@@ -47,19 +49,21 @@ def safe_plan(row: ExecutionPlan) -> dict[str, Any]:
     }
 
 
-def _rank(text, *columns):
+def _rank(text: str, *columns: InstrumentedAttribute[str]) -> Case[int]:
     """按本轮文字中出现的名称或标识排序，在有界候选页内优先保留直接点名的资源，值通过绑定参数传入。"""
     return case((or_(*(func.instr(text, col) > 0 for col in columns)), 0), else_=1)
 
 
-async def run_summary(report: ReportService, scope: WorkspaceScope, run_id: str) -> dict:
+async def run_summary(report: ReportService, scope: WorkspaceScope, run_id: str) -> dict[str, Any]:
     """仅从报告服务读取当前状态和实际结论，允许尚无结论的运行作为回答依据；统计及门禁在完整报告中计算。"""
     # 对话轮次只读有成员授权的运行头，不在持有安装锁时展开逐用例和逐尝试的完整报告或计算门禁。
     run = await report.run(scope, run_id)
     return {"runId": run.id, "state": run.state, "outcome": run.outcome}
 
 
-async def _assets(s, scope, text, plans):
+async def _assets(
+    s: AsyncSession, scope: WorkspaceScope, text: str, plans: list[ExecutionPlan]
+) -> list[dict[str, Any]]:
     """目录默认展示每个活动资源的最新发布版本，计划锁定的旧版本同样参与查询，但仍需满足资源和版本的空间归属。"""
     pinned = {p.selection[f] for p in plans for f in ("suiteVersionId", "environmentVersionId")}
     result = []
@@ -87,7 +91,7 @@ async def _assets(s, scope, text, plans):
         )
         for resource, version in await s.execute(query):
             doc = version.document_json["document"]
-            asset = {
+            asset: dict[str, Any] = {
                 "versionId": version.id,
                 "kind": kind,
                 "name": resource.name,
@@ -110,7 +114,9 @@ async def _assets(s, scope, text, plans):
     return result
 
 
-async def _runtimes(s, scope, user, text, plans):
+async def _runtimes(
+    s: AsyncSession, scope: WorkspaceScope, user: User, text: str, plans: list[ExecutionPlan]
+) -> list[dict[str, Any]]:
     """取当前绑定的设备并逐个复核可派发权限，保留可用浏览器和在线状态，私人设备详情仅进入获授权员工的上下文。"""
     pinned = {rid for p in plans for rid in p.selection["runtimeIds"]}
     query = (
@@ -157,7 +163,7 @@ async def _runtimes(s, scope, user, text, plans):
     return result
 
 
-def _visible_selection(selection: dict, devices: set[str], versions: set[str]) -> bool:
+def _visible_selection(selection: dict[str, Any], devices: set[str], versions: set[str]) -> bool:
     """历史轮次只能复用目前目录中有权选择的设备和发布版本，包括原计划预览中的套件以及直接运行的每个用例。"""
     referenced = {selection["environmentVersionId"], *selection.get("caseVersionIds", [])}
     if "suiteVersionId" in selection:
@@ -173,9 +179,9 @@ async def build_context(
     text: str,
     recent: list[AgentTurn],
     attachments: list[dict[str, str]] | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """从同一授权事务生成规划输入，先匹配用户点名和历史引用，再以最新发布补齐候选，对话窗口按真实时间顺序传递。"""
-    history = [
+    history: list[dict[str, Any]] = [
         {
             "text": t.text[:1200],
             "reply": (t.reply or "")[:1800],
@@ -187,9 +193,13 @@ async def build_context(
     plan_proposals = [
         t.proposal if t.proposal and "resource" not in t.proposal else None for t in recent
     ]
-    mentions = text + " " + " ".join(
-        str(proposal or receipt_dto(t.receipt) or "")
-        for proposal, t in zip(plan_proposals, recent, strict=True)
+    mentions = (
+        text
+        + " "
+        + " ".join(
+            str(proposal or receipt_dto(t.receipt) or "")
+            for proposal, t in zip(plan_proposals, recent, strict=True)
+        )
     )
     plans = list(
         await s.scalars(
@@ -253,7 +263,7 @@ async def build_context(
                 ),
                 item[field],
             )
-    context = {
+    context: dict[str, Any] = {
         "request": text,
         "history": history,
         "plans": [{"id": p.id, **safe_plan(p)} for p in plans],

@@ -15,7 +15,7 @@ from test_agent_mysql import agent_once, server_compile_once
 import test_agent_mysql
 from veriq_server.db import User
 
-business = test_agent_mysql.business
+business_service = test_agent_mysql.business_service
 
 
 async def test_real_service_plan_agent_ci_is_independent_of_creator_login(site, tmp_path, business):

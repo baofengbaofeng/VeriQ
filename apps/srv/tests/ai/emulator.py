@@ -1,3 +1,5 @@
+"""通过回环服务向两种供应商协议的客户端交付可控响应，记录出站请求和并发顺序供生成与会话测试核对。"""
+
 import asyncio
 import json
 import os
@@ -24,6 +26,7 @@ CASE = {
 
 @asynccontextmanager
 async def emulator(port=None):
+    """每次创建独立的请求记录和等待事件，允许用例挂起供应商响应，退出时先释放等待者再关闭监听。"""
     state = SimpleNamespace(
         calls=[],
         output=CASE,
@@ -41,7 +44,10 @@ async def emulator(port=None):
     state.release.set()
 
     class Provider(RequestHandler):
+        """在同一监听器内根据请求路径选择响应协议，使两种供应商客户端都能按真实协议结构读取用量。"""
+
         async def post(self):
+            """先记录实际抵达的凭据头和请求体，再按用例配置返回错误、逐条流事件或带有用量的完整响应。"""
             state.calls.append(
                 {
                     "path": self.request.path,

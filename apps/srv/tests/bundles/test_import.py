@@ -1,7 +1,10 @@
-from uuid import uuid4
+import json
 import sys
-import pytest
 from pathlib import Path
+from uuid import uuid4
+
+import httpx
+import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[1] / "execution"))
 
@@ -18,7 +21,6 @@ async def test_import_requires_authenticated_membership_before_payload(site):
 
 async def imported_fixture(approved_metadata, site):
     import io
-    import json
     import zipfile
     from test_auth import setup, login
     from test_workspace import workspace
@@ -113,7 +115,8 @@ async def imported_fixture(approved_metadata, site):
 async def test_idempotent_import_preserves_claimed_facts_but_never_promotes_gate(
     approved_metadata, site
 ):
-    c, db, ws, payload, bundle = await imported_fixture(approved_metadata, site)
+
+    c, _, ws, payload, _ = await imported_fixture(approved_metadata, site)
     c.headers["Idempotency-Key"] = str(uuid4())
     route = f"/api/v1/workspaces/{ws}/result-imports"
     first = await c.post(route, json=payload)
@@ -130,10 +133,28 @@ async def test_idempotent_import_preserves_claimed_facts_but_never_promotes_gate
     payload["dirty"] = False
     changed = await c.post(route, json=payload)
     assert changed.status_code == 409, changed.text
-    report = await c.get(f"/api/v1/workspaces/{ws}/runs/{first.json()['data']['runId']}/report")
+    run_path = f"/api/v1/workspaces/{ws}/runs/{first.json()['data']['runId']}"
+    report = await c.get(run_path + "/report")
     assert report.status_code == 200, report.text
     assert report.json()["data"]["run"]["outcome"] == "INCOMPLETE"
     assert report.json()["data"]["gateNow"]["passed"] is False
+    await assert_import_stream(c, run_path, report.json()["data"])
+
+
+async def assert_import_stream(c, run_path, report):
+    """重放导入报告流并核对报告与空在线事件列表，随后等待心跳以验证订阅在没有新事实时仍然保持连接。"""
+    async with httpx.AsyncClient(
+        base_url=str(c.base_url), cookies=c.cookies, headers=c.headers
+    ) as raw:
+        async with raw.stream("POST", run_path + "/events/stream", json={}) as response:
+            assert response.status_code == 200
+            lines = response.aiter_lines()
+            assert (await anext(lines)).startswith("id: ")
+            assert await anext(lines) == "event: report"
+            data = json.loads((await anext(lines)).removeprefix("data: "))
+            assert data == {"events": [], "report": report}
+            assert await anext(lines) == ""
+            assert await anext(lines) == ": keepalive"
 
 
 async def test_import_raw_bytes_use_private_authorized_transfer_and_scoped_report(
@@ -141,7 +162,7 @@ async def test_import_raw_bytes_use_private_authorized_transfer_and_scoped_repor
 ):
     from hashlib import sha256
 
-    c, db, ws, payload, bundle = await imported_fixture(approved_metadata, site)
+    c, _, ws, payload, bundle = await imported_fixture(approved_metadata, site)
     raw = b"<html>private offline evidence</html>"
     file = {
         "path": "report.html",
@@ -306,12 +327,11 @@ async def test_import_replay_reauthorizes_and_chunk_cannot_finish_after_permissi
 
 async def test_import_rejects_execution_role_outside_signed_selection(approved_metadata, site):
     import io
-    import json
     import zipfile
     from hashlib import sha256
     from veriq_server.contracts import canonical_bytes
 
-    c, db, ws, payload, bundle = await imported_fixture(approved_metadata, site)
+    c, _, ws, payload, bundle = await imported_fixture(approved_metadata, site)
     archive = zipfile.ZipFile(
         io.BytesIO(
             (await c.get(f"/api/v1/workspaces/{ws}/bundles/{bundle['id']}/download")).content
@@ -351,7 +371,7 @@ async def test_import_rejects_execution_role_outside_signed_selection(approved_m
 async def test_completed_offline_chunk_replay_rejects_changed_bytes(approved_metadata, site):
     from hashlib import sha256
 
-    c, db, ws, payload, bundle = await imported_fixture(approved_metadata, site)
+    c, _, ws, payload, bundle = await imported_fixture(approved_metadata, site)
     raw = b"completed-upload"
     file = {
         "path": "trace.zip",
@@ -390,7 +410,7 @@ async def test_online_offline_shared_digest_aliases_preserve_live_bytes_both_dir
     from veriq_server.db import Attempt, AttemptUpload, OfflineImportUpload, Artifact
     from veriq_server.service import now
 
-    c, db, ws, payload, bundle = await imported_fixture(approved_metadata, site)
+    c, db, ws, _, bundle = await imported_fixture(approved_metadata, site)
     await queued_browser_jobs(c, db, ws, 1)
     credential = await device(c, ws)
     claim = (
@@ -589,7 +609,7 @@ async def test_imported_result_cannot_gain_new_artifacts_after_immutable_commit(
 ):
     from hashlib import sha256
 
-    c, db, ws, payload, bundle = await imported_fixture(approved_metadata, site)
+    c, _, ws, payload, bundle = await imported_fixture(approved_metadata, site)
     c.headers["Idempotency-Key"] = str(uuid4())
     assert (
         await c.post(f"/api/v1/workspaces/{ws}/result-imports", json=payload)
@@ -620,7 +640,7 @@ async def test_unlisted_prestaged_and_inflight_evidence_cannot_attach_after_impo
     from hashlib import sha256
     from veriq_server.services.artifact import FileArtifactStore
 
-    c, db, ws, payload, bundle = await imported_fixture(approved_metadata, site)
+    c, _, ws, payload, bundle = await imported_fixture(approved_metadata, site)
 
     async def reserve(name):
         raw = name.encode()
@@ -698,7 +718,7 @@ async def test_native_import_concurrent_keys_reauthorize_device_replay(approved_
     import asyncio
     from test_lease_mysql import device, auth
 
-    c, db, ws, payload, bundle = await imported_fixture(approved_metadata, site)
+    c, _, ws, payload, _ = await imported_fixture(approved_metadata, site)
     credential = await device(c, ws)
     path = f"/internal/v1/workspaces/{ws}/result-imports"
     headers = {**auth(credential), "Idempotency-Key": str(uuid4())}
@@ -843,7 +863,7 @@ async def test_offline_expiry_pagination_preserves_limit_and_continuation(
 async def test_archived_workspace_blocks_import_replay_and_new_upload(approved_metadata, site):
     from hashlib import sha256
 
-    c, db, ws, payload, bundle = await imported_fixture(approved_metadata, site)
+    c, _, ws, payload, bundle = await imported_fixture(approved_metadata, site)
     c.headers["Idempotency-Key"] = str(uuid4())
     route = f"/api/v1/workspaces/{ws}/result-imports"
     assert (await c.post(route, json=payload)).status_code == 201
@@ -865,9 +885,8 @@ async def test_archived_workspace_blocks_import_replay_and_new_upload(approved_m
             },
         },
     )
-    assert response.status_code == 409 and response.json()["code"] == "WORKSPACE_ARCHIVED", (
-        response.text
-    )
+    assert response.status_code == 409, response.text
+    assert response.json()["code"] == "WORKSPACE_ARCHIVED", response.text
 
 
 # 离线历史只保存原始回执实际提供的字段，不依据当前导入设备猜测旧平台；报告中的同一事实还必须保持原有非官方门禁，

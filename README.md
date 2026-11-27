@@ -115,3 +115,7 @@ VeriQ 采用 **GNU Affero 通用公共许可证第 3 版（AGPL-3.0）**。如�
 ### 安装、发布与运维
 
 安装流程涵盖数据库迁移、首位管理员、配置校验、健康检查及示例资源。发行与日常运维涵盖同源部署、升级和回滚、备份恢复、证据保留期、日志和指标、第三方声明、操作手册及验收记录。[服务端发行指南](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/operations/server-release-and-installation.md) · [验证与验收索引](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/validation/README.md)
+
+多个控制服务共享 MySQL 时，FILE 节点须挂载同一个可读写制品卷，或统一配置同一个 S3 命名空间。新安装首次使用 FILE 时自动登记卷标识。已有 FILE 证据的安装升级时，先在旧部署结算待发布与待删除的制品，再停写并运行迁移，在原卷所在主机执行 `veriq_server --config /etc/veriq/veriq.json bind-file-volume`，核验已提交对象与已退役代的屏障。再逐台运行 `doctor` 后接入流量。恢复时，卷标识和全部历史对象须从同一份完整备份还原到目标卷。切换存储前保留并核验旧代，后端配置只决定新制品的写入位置。
+
+已绑定 FILE 卷的数据库会拒绝降级到不支持卷标识的版本。需要回滚旧版时，应停写并恢复升级前配套的数据库备份、制品卷和旧版程序。

@@ -17,6 +17,7 @@ from typing import IO, Literal, TypedDict, cast, overload
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request, build_opener, HTTPRedirectHandler
+from uuid import UUID
 from xml.etree.ElementTree import fromstring, ParseError
 
 
@@ -69,10 +70,7 @@ class Client:
         """
         parsed = urlsplit(server)
         if (
-            parsed.username
-            or parsed.password
-            or parsed.query
-            or parsed.fragment
+            any((parsed.username, parsed.password, parsed.query, parsed.fragment))
             or parsed.path not in ("", "/")
             or not parsed.hostname
         ):
@@ -192,13 +190,10 @@ def _reject_trigger_http_error(error: HTTPError) -> bool:
     return error.code < 500
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def _arguments(argv: Sequence[str] | None) -> argparse.Namespace:
     """
-    触发、轮询和下载构成完整门禁流程，只有权威终态 PASSED 且当前和执行时门禁均通过才退出零。
-    超时、取消、未知结果和认证丢失均非零，尽力取消不会覆盖原始失败或假称进程已停止。
+    外部调用者须明确指定服务、工作区、计划和幂等键，触发前先统一解析标识符并设置整次调用的时间预算。
     """
-    from uuid import UUID
-
     parser = argparse.ArgumentParser(description="Trigger a VeriQ plan and enforce its CI gate")
     parser.add_argument("--server", required=True)
     parser.add_argument("--workspace", type=lambda value: str(UUID(value)), required=True)
@@ -210,7 +205,49 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--timeout", type=float, default=1800)
     parser.add_argument("--poll-interval", type=float, default=2)
     parser.add_argument("--junit", type=Path, default=Path("veriq-junit.xml"))
-    args = parser.parse_args(argv)
+    return parser.parse_args(argv)
+
+
+def _wait_for_gate(client: Client, run_path: str, interval: float, junit_path: Path) -> bool:
+    """
+    使用同一截止时间等待运行终态，并核对随后读取的报告和最后一次下载的 JUnit，任何失败断言都阻止通过。
+    """
+    while True:
+        status = client.request(run_path)
+        if status["state"] == "FINISHED":
+            break
+        time.sleep(min(interval, client.remaining()))
+    report = client.request(run_path + "/ci-report")
+    xml = client.request(run_path + "/junit", binary=True)
+    junit_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = junit_path.with_suffix(junit_path.suffix + ".tmp")
+    temporary.write_bytes(xml)
+    temporary.replace(junit_path)
+    # 安全 JUnit 是最后一次授权读取，必须纳入门禁判断；摘要与下载之间若发生凭证投递撤销，不能忽略刚收到的失败事实而
+    # 使用更早的通过快照退出零。
+    junit = fromstring(xml)
+    passed = (
+        status.get("outcome") == "PASSED"
+        and report["gatePassed"]
+        and bool(report["cases"])
+        and junit.tag == "testsuite"
+        and junit.get("failures") == "0"
+        and junit.get("errors", "0") == "0"
+        and junit.get("tests") == str(len(report["cases"]))
+        and len(junit.findall("testcase")) == len(report["cases"])
+        and not junit.findall(".//failure")
+        and not junit.findall(".//error")
+    )
+    client.remaining()
+    return passed
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """
+    触发、轮询和下载构成完整门禁流程，只有权威终态 PASSED 且当前和执行时门禁均通过才退出零。
+    超时、取消、未知结果和认证丢失均非零，尽力取消不会覆盖原始失败或假称进程已停止。
+    """
+    args = _arguments(argv)
     token = os.environ.get("VERIQ_CI_TOKEN", "")
     if not token or not 1 <= args.timeout <= 86400 or not 0.1 <= args.poll_interval <= 60:
         print("A token and bounded timeout/poll interval are required", file=sys.stderr)
@@ -235,33 +272,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         run_id = str(UUID(receipt["runId"]))
         run_path = f"/api/v1/workspaces/{args.workspace}/runs/{run_id}"
         print("VeriQ Run " + run_id)
-        while True:
-            status = client.request(run_path)
-            if status["state"] == "FINISHED":
-                break
-            time.sleep(min(args.poll_interval, client.remaining()))
-        report = client.request(run_path + "/ci-report")
-        xml = client.request(run_path + "/junit", binary=True)
-        args.junit.parent.mkdir(parents=True, exist_ok=True)
-        temporary = args.junit.with_suffix(args.junit.suffix + ".tmp")
-        temporary.write_bytes(xml)
-        temporary.replace(args.junit)
-        # 安全 JUnit 是最后一次授权读取，必须纳入门禁判断；摘要与下载之间若发生凭证投递撤销，不能忽略刚收到的失败事实而
-        # 使用更早的通过快照退出零。
-        junit = fromstring(xml)
-        passed = (
-            status.get("outcome") == "PASSED"
-            and report["gatePassed"]
-            and bool(report["cases"])
-            and junit.tag == "testsuite"
-            and junit.get("failures") == "0"
-            and junit.get("errors", "0") == "0"
-            and junit.get("tests") == str(len(report["cases"]))
-            and len(junit.findall("testcase")) == len(report["cases"])
-            and not junit.findall(".//failure")
-            and not junit.findall(".//error")
-        )
-        client.remaining()
+        passed = _wait_for_gate(client, run_path, args.poll_interval, args.junit)
         print("VeriQ gate " + ("passed" if passed else "failed"))
         return 0 if passed else 1
     except (KeyboardInterrupt, TimeoutError):

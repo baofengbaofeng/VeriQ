@@ -5,10 +5,10 @@
 import { join } from "node:path";
 import { validateSchema } from "@veriq/contracts";
 import { isPreSpawnState } from "./pre-spawn.ts";
-import { ProcessRecords } from "./records.ts";
+import { ProcessRecords, sameSettledAttempt } from "./records.ts";
 import { ProcessSupervisor } from "./processes.ts";
 import { matchesControlledClaim } from "./darwin-proof.ts";
-import type { WindowsAttemptJournal } from "./windows-journal.ts";
+import type { WindowsAttemptJournal, WindowsAttemptRecord } from "./windows-journal.ts";
 
 /**
  * 可选回执只作为已保存的客户端事实接受严格结构校验，不能取代下方实际进程成员与内核证明；旧回执不补范围，
@@ -40,17 +40,16 @@ function validStop(value: unknown, id: string, state: string): boolean {
 }
 
 /**
- * 此守卫由持有桌面与在线 Agent 排他所有权的调用者执行，最多检查四千零九十六次 Attempt 及各自两份进程证明；
- * 超过边界明确要求恢复处理，绝不删除历史、推断 PID 消失等于排空或对未知进程发送信号。
+ * 调用者持有档案所有权时，一并核查活动和归档的 Attempt 及其进程证明。孤立成员和未经证实的停止仍阻止维护。
  */
 export async function requireStoppedHistory(root: string): Promise<void> {
-    let attempts: ProcessRecords | undefined, records: ProcessRecords | undefined;
+    let archived: ProcessRecords | undefined, attempts: ProcessRecords | undefined, records: ProcessRecords | undefined;
     let windowsJournal: WindowsAttemptJournal | undefined;
     try {
         attempts = await ProcessRecords.open(join(root, "attempts"));
         records = await ProcessRecords.open(join(root, "processes"));
-        const attemptNames = (await attempts?.names(4096)) ?? [];
-        const processNames = new Set((await records?.names(8192)) ?? []);
+        const attemptNames = (await attempts?.names()) ?? [];
+        const processNames = new Set((await records?.names()) ?? []);
         const processes = new ProcessSupervisor(join(root, "processes"));
         const requireAttempt = async (id: string, value: unknown): Promise<void> => {
             const record = value as Record<string, unknown>;
@@ -61,10 +60,18 @@ export async function requireStoppedHistory(root: string): Promise<void> {
                 typeof record.state !== "string" ||
                 Object.keys(record).some(
                     (key) =>
-                        !["claim", "claimRequestId", "state", "work", "stop", "allocation", "dataCleanup"].includes(
-                            key,
-                        ),
+                        ![
+                            "claim",
+                            "runnerId",
+                            "claimRequestId",
+                            "state",
+                            "work",
+                            "stop",
+                            "allocation",
+                            "dataCleanup",
+                        ].includes(key),
                 ) ||
+                (record.runnerId !== undefined && validateSchema("Id", record.runnerId).length) ||
                 !validStop(record.stop, id, record.state) ||
                 validateSchema("ClaimDTO", record.claim).length ||
                 (record.claim as { attemptId: string }).attemptId !== id ||
@@ -108,15 +115,35 @@ export async function requireStoppedHistory(root: string): Promise<void> {
             windowsJournal = await WindowsAttemptJournal.openExisting(root);
             if (windowsJournal) {
                 await windowsJournal.requireNoLegacy();
-                for (const record of windowsJournal.records()) await requireAttempt(record.claim.attemptId, record);
+                const active = new Map<string, WindowsAttemptRecord>();
+                for (const record of windowsJournal.records()) {
+                    await requireAttempt(record.claim.attemptId, record);
+                    active.set(record.claim.attemptId, record);
+                }
+                for await (const record of WindowsAttemptJournal.archived(root)) {
+                    const duplicate = active.get(record.claim.attemptId);
+                    if (!duplicate) await requireAttempt(record.claim.attemptId, record);
+                    else if (!sameSettledAttempt(duplicate, record)) throw new Error("ATTEMPT_ARCHIVE_CONFLICT");
+                }
             }
         } else {
             // Linux 与 Darwin 继续只读核原有 JSON 与同一 Attempt 的真实进程证明，不迁移到 Windows 数据库、
             // 不改旧来源或扩大停止范围；公共核验函数只复用原有 Claim、工作路径、状态和已
             // 确认排空条件。
-            for (const name of attemptNames) {
-                if (!/^[a-zA-Z0-9_-]{1,100}\.json$/.test(name)) throw new Error("INVALID_ATTEMPT_HISTORY");
-                await requireAttempt(name.slice(0, -5), await attempts!.read(name, 65536));
+            archived = await ProcessRecords.open(join(root, "settled-attempts"));
+            const active = new Set(attemptNames);
+            for (const [directory, names] of [
+                [attempts, attemptNames],
+                [archived, (await archived?.names()) ?? []],
+            ] as const) {
+                for (const name of names) {
+                    if (!/^[a-zA-Z0-9_-]{1,100}\.json$/.test(name)) throw new Error("INVALID_ATTEMPT_HISTORY");
+                    const value = (await directory!.read(name, 65536)) as WindowsAttemptRecord;
+                    if (directory === archived && active.has(name)) {
+                        const original = (await attempts!.read(name, 65536)) as WindowsAttemptRecord;
+                        if (!sameSettledAttempt(original, value)) throw new Error("ATTEMPT_ARCHIVE_CONFLICT");
+                    } else await requireAttempt(name.slice(0, -5), value);
+                }
             }
         }
         if (processNames.size) throw new Error("ORPHAN_PROCESS_HISTORY");
@@ -129,7 +156,11 @@ export async function requireStoppedHistory(root: string): Promise<void> {
             try {
                 await records?.close();
             } finally {
-                await attempts?.close();
+                try {
+                    await attempts?.close();
+                } finally {
+                    await archived?.close();
+                }
             }
         }
     }

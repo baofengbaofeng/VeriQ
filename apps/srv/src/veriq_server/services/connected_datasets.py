@@ -18,7 +18,9 @@ from .compilation_provenance import validation_origin_filter, validation_origin_
 from .snapshots import execution_data_row
 
 
-async def frozen_object(repo: ResourceRepository, digest: str, schema: str | None = None) -> dict:
+async def frozen_object(
+    repo: ResourceRepository, digest: str, schema: str | None = None
+) -> dict[str, Any]:
     """仅将已读取静态字节的解码或结构失败归为永久溯源错误，数据库连接与事务错误继续沿原始重试路径上报。"""
     artifact = await repo.artifact(digest)
     try:
@@ -31,7 +33,7 @@ async def frozen_object(repo: ResourceRepository, digest: str, schema: str | Non
     return value
 
 
-def _browser_sso_subject(subject: dict) -> bool:
+def _browser_sso_subject(subject: dict[str, Any]) -> bool:
     """从冻结的角色键和适配器版本对确定浏览器认证要求，其他角色的认证配置不得改变本次证据通道。"""
     role = next(
         (
@@ -58,7 +60,7 @@ async def protected_test(repo: ResourceRepository, job: Job, snapshot_hash: str)
 
 async def protected_event_context(
     repo: ResourceRepository, attempt: Attempt, job: Job
-) -> dict | None:
+) -> dict[str, Any] | None:
     """只从已分配的冻结对象加载事件来源，同一批事件共享元数据。所需成员缺失时关闭对应的步骤事实。"""
     if job.kind != "TEST":
         return None
@@ -67,7 +69,7 @@ async def protected_event_context(
     if not (subject.get("datasetVersionId") or subject.get("datasetBindings") or browser_sso):
         return None
     manifest = await frozen_object(repo, attempt.manifest_hash)
-    ctx = {
+    ctx: dict[str, Any] = {
         "subject": subject,
         "manifest": manifest,
         "steps": {},
@@ -110,25 +112,30 @@ async def protected_event_context(
 
 
 def protected_occurrences(
-    source: dict, case_id: str, subject: dict, *, http_assertions: dict | None = None
-) -> tuple[dict, dict]:
+    source: dict[str, Any],
+    case_id: str,
+    subject: dict[str, Any],
+    *,
+    http_assertions: dict[tuple[str, str], str] | None = None,
+) -> tuple[dict[str, set[str]], dict[tuple[str, str], tuple[str, str]]]:
     """以编译器相同的展开路径和预算遍历单个真实 CASE；逐层校验引用种类并继承模板的 WARN。"""
     versions = {asset["versionId"]: (index, asset) for index, asset in enumerate(source["assets"])}
     if len(versions) != len(source["assets"]):
         raise ValueError("DUPLICATE_VERSION")
-    steps, assertions = {}, {}
+    steps: dict[str, set[str]] = {}
+    assertions: dict[tuple[str, str], tuple[str, str]] = {}
     count = 0
 
-    def document(vid: str, kind: str) -> dict:
+    def document(vid: str, kind: str) -> dict[str, Any]:
         asset = versions[vid][1]
-        if asset["kind"] != kind:
+        if asset["kind"] != kind or not isinstance(asset["document"], dict):
             raise ValueError("REFERENCE_KIND_MISMATCH")
         return asset["document"]
 
     def wire(path: str) -> str:
         return "v_" + sha256(path.encode("utf-8")).hexdigest()
 
-    def uses_matrix(value, fields) -> bool:
+    def uses_matrix(value: object, fields: set[str]) -> bool:
         if isinstance(value, dict):
             return any(uses_matrix(v, fields) for v in value.values())
         if isinstance(value, list):
@@ -136,12 +143,19 @@ def protected_occurrences(
         pattern = r"\{\{data\.([A-Za-z_][A-Za-z0-9_]*)(?:\.[A-Za-z_][A-Za-z0-9_]*)*\}\}"
         return isinstance(value, str) and any(key in fields for key in re.findall(pattern, value))
 
-    def scoped(fields, parameters):
+    def scoped(fields: set[str], parameters: dict[str, Any]) -> set[str]:
         return (fields - parameters.keys()) | {
             key for key, value in parameters.items() if uses_matrix(value, fields)
         }
 
-    def collect_assertions(items, parent, step_id, fields, depth=0, warn=False):
+    def collect_assertions(
+        items: list[dict[str, Any]],
+        parent: str,
+        step_id: str,
+        fields: set[str],
+        depth: int = 0,
+        warn: bool = False,
+    ) -> None:
         nonlocal count
         for index, item in enumerate(items):
             count += 1
@@ -173,7 +187,9 @@ def protected_occurrences(
                 label = "DATASET:" + subject["datasetVersionId"]
             assertions[step_id, wire(path)] = (label, severity)
 
-    def collect_steps(items, parent, fields, depth=0):
+    def collect_steps(
+        items: list[dict[str, Any]], parent: str, fields: set[str], depth: int = 0
+    ) -> None:
         for index, step in enumerate(items):
             if depth > 5 or len(steps) >= 500:
                 raise ValueError("EXPANDED_STEP_LIMIT")
@@ -200,9 +216,10 @@ def protected_occurrences(
     return steps, assertions
 
 
-def protected_event(ctx: dict, event: dict) -> bool:
+def protected_event(ctx: dict[str, Any], event: dict[str, Any]) -> bool:
     """受保护事件只接收固定字段和已编译的出现位置，错误码同 SDK 写前归约保持封闭。"""
-    payload, kind = event["payload"], event["type"]
+    payload: dict[str, Any] = event["payload"]
+    kind = event["type"]
     step_id, assertion_id = event.get("stepId"), event.get("assertionId")
     if (
         ("stepId" in event)
@@ -259,7 +276,7 @@ def checksum(value: Any) -> str:
     return sha256(canonical_bytes(value)).hexdigest()
 
 
-def http_capabilities(source: dict) -> dict:
+def http_capabilities(source: dict[str, Any]) -> dict[str, Any]:
     """编译必须重建整个不可变闭包，因而包含 HTTP 定义的套件在验证及各执行变体均要求新版引擎的双组件能力。"""
     if not isinstance(source.get("assets"), list) or not all(
         isinstance(a, dict) and (a.get("kind") != "DATASET" or isinstance(a.get("document"), dict))
@@ -278,7 +295,7 @@ def http_capabilities(source: dict) -> dict:
     )
 
 
-def project_source(source: dict) -> dict:
+def project_source(source: dict[str, Any]) -> dict[str, Any]:
     """数据资产保留版本、声明与双重摘要，顺序沿用冻结快照以便还原；没有数据集的旧任务可以继续按原契约读取。"""
     if not any(a["kind"] == "DATASET" for a in source["assets"]):
         return source
@@ -299,7 +316,7 @@ def project_source(source: dict) -> dict:
     return {**source, "assets": assets, "schemaVersion": "2.0", "originalSha256": checksum(source)}
 
 
-def project_execution(execution: dict, source: dict) -> dict:
+def project_execution(execution: dict[str, Any], source: dict[str, Any]) -> dict[str, Any]:
     """矩阵只给执行目录保留行键与行摘要，别名独立锁定版本；源中包含其它套件变体的数据时也启用联网格式。"""
     if not any(a["kind"] == "DATASET" for a in source["assets"]):
         return execution
@@ -318,7 +335,7 @@ def project_execution(execution: dict, source: dict) -> dict:
 
 
 def revalidation_group(
-    original_id: str, requester: str, token: str | None, plan: str | None, features: dict
+    original_id: str, requester: str, token: str | None, plan: str | None, features: dict[str, Any]
 ) -> str:
     """验证任务的同组键同时绑定原发布验证、实际触发者和计划；功能升级会生成独立键，重试代次则属于原组。"""
     return checksum(
@@ -341,8 +358,8 @@ def revalidation_key(group: str, generation: int) -> str:
 async def revalidate_bundle(
     repo: ResourceRepository,
     validation: Job,
-    source: dict,
-    bundle: dict,
+    source: dict[str, Any],
+    bundle: dict[str, Any],
     receipt: ValidationReceipt,
     *,
     requester: str,
@@ -496,7 +513,7 @@ def _matrix_variant_matches(
 
 
 async def static_bytes(
-    repo: ResourceRepository, job: Job, snapshot_hash: str, selection: dict
+    repo: ResourceRepository, job: Job, snapshot_hash: str, selection: dict[str, Any]
 ) -> bytes:
     """验证候选源只在验证任务内可读，执行任务从其用例冻结的完整闭包重建编译输入，行选择还必须匹配该次矩阵。"""
     denied = Problem(403, "DATASET_NOT_ASSIGNED", "Dataset selection is not assigned to Attempt")
@@ -564,7 +581,7 @@ async def static_bytes(
     return canonical_bytes(selected)
 
 
-async def legacy_source(repo: ResourceRepository, job: Job) -> dict | None:
+async def legacy_source(repo: ResourceRepository, job: Job) -> dict[str, Any] | None:
     """旧任务未携带能力标记时检查服务器保留的原始源，避免升级前派发的租约继续从普通附件入口下载完整数据正文。"""
     if job.kind not in {"TEST", "VALIDATE"} or job.required_capabilities.get("connectedDatasets"):
         return None
@@ -595,7 +612,7 @@ def pending_validation(job: Job) -> str | None:
     if "validationJobId" not in job.required_capabilities:
         return None
     pending = job.required_capabilities["validationJobId"]
-    if validate_schema("Id", pending):
+    if not isinstance(pending, str) or validate_schema("Id", pending):
         raise Problem(409, "COMPILED_PROVENANCE_REQUIRED", "Invalid validation dependency")
     return pending
 
@@ -604,7 +621,7 @@ async def verify_redirect(
     repo: ResourceRepository,
     job: Job,
     original: Job,
-    source: dict,
+    source: dict[str, Any],
     *,
     pending: str | None = None,
     compiled: str | None = None,
@@ -697,7 +714,12 @@ async def verify_redirect(
 
 
 async def historical_test_validation(
-    repo: ResourceRepository, job: Job, source: dict, subject: dict, manifest: dict, expected: dict
+    repo: ResourceRepository,
+    job: Job,
+    source: dict[str, Any],
+    subject: dict[str, Any],
+    manifest: dict[str, Any],
+    expected: dict[str, Any],
 ) -> str:
     """历史测试清单只能是已编译或等待原验证的两种形状；逐项绑定用例、运行、原快照与回执，再允许写入新投影。"""
     invalid = Problem(409, "COMPILED_PROVENANCE_REQUIRED", "Invalid historical test assignment")
@@ -717,7 +739,7 @@ async def historical_test_validation(
     ):
         raise invalid
     validation_id = case.provenance.get("validationJobId")
-    if validate_schema("Id", validation_id):
+    if not isinstance(validation_id, str) or validate_schema("Id", validation_id):
         raise invalid
     expected = {
         **expected,

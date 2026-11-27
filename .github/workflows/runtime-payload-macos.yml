@@ -1,0 +1,109 @@
+name: Observe macOS runtime inputs
+on: workflow_dispatch
+permissions:
+  contents: read
+
+jobs:
+  assets:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: macos-15, arch: arm64 }
+          - { runner: macos-15-intel, arch: x64 }
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 70
+    defaults:
+      run:
+        shell: bash
+        working-directory: apps/runtime
+    env:
+      EXPECTED_ARCH: ${{ matrix.arch }}
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - id: bind
+        name: Bind observation to the checked-out workflow and driver
+        run: |
+          set -eu
+          umask 077
+          observation_root=$(mktemp -d "$(cd "$RUNNER_TEMP" && pwd -P)/veriq-assets.XXXXXXXX")
+          mkdir "$observation_root/metadata"
+          echo "ASSET_ROOT=$observation_root" >> "$GITHUB_ENV"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git diff --exit-code "$GITHUB_SHA" -- ../../.github
+          printf '%s  %s\n' 'e18ba3b4d15f768c5263d0372392c01ed1d81dee4169a4c38b6fbcbaf05687ed' '../../.github/scripts/runtime-assets-stages.mjs' | shasum -a 256 -c -
+          sw_vers > "$observation_root/metadata/os.log"
+      - id: node_setup
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24.22.1
+          architecture: ${{ matrix.arch }}
+      - id: dependencies
+        name: Install locked observation tools
+        run: |
+          set -eu
+          umask 077
+          test "$(node -p process.arch)" = "$EXPECTED_ARCH"
+          test "$(node -p process.versions.node)" = '24.22.1'
+          test "$(corepack pnpm --version)" = '11.25.0'
+          corepack pnpm --filter '@veriq/runtime...' install --frozen-lockfile > "$ASSET_ROOT/metadata/pnpm-install.log" 2>&1
+          git diff --exit-code "$GITHUB_SHA" -- ../..
+      - id: unit
+        name: Verify the bounded process runner
+        run: node --import tsx ../../.github/scripts/runtime-assets-stages.mjs unit
+      - id: observe
+        name: Acquire and observe pinned inputs
+        run: node --import tsx ../../.github/scripts/runtime-assets-stages.mjs observe
+      - id: bootstrap
+        name: Record native bootstrap outcome
+        if: always()
+        continue-on-error: true
+        env:
+          DEPS_OUTCOME: ${{ steps.dependencies.outcome }}
+          OBSERVE_OUTCOME: ${{ steps.observe.outcome }}
+        run: |
+          if [ "$DEPS_OUTCOME" = success ]; then
+            node --import tsx ../../.github/scripts/runtime-assets-stages.mjs bootstrap
+          fi
+      - id: collect
+        name: Collect bounded evidence and retain setup failures
+        if: always()
+        env:
+          ORCHESTRATION_OUTCOME: ${{ steps.observe.outcome }}
+          BIND_OUTCOME: ${{ steps.bind.outcome }}
+          NODE_SETUP_OUTCOME: ${{ steps.node_setup.outcome }}
+          DEPENDENCIES_OUTCOME: ${{ steps.dependencies.outcome }}
+          UNIT_OUTCOME: ${{ steps.unit.outcome }}
+          UNIT_CONCLUSION: ${{ steps.unit.conclusion }}
+          BOOTSTRAP_OUTCOME: ${{ steps.bootstrap.outcome }}
+          BOOTSTRAP_CONCLUSION: ${{ steps.bootstrap.conclusion }}
+        run: |
+          node --input-type=module <<'JS'
+          import { createHash } from 'node:crypto';
+          import { readFile } from 'node:fs/promises';
+          const bytes = await readFile('../../.github/scripts/runtime-assets-collector.mjs');
+          if (createHash('sha256').update(bytes).digest('hex') !== 'b62b50ad41b5debeeb71479da5980f0d8dcd51654d2b47af51e445fa1166f433')
+              throw new Error('Collector differs from the source bound by this workflow');
+          await import('data:text/javascript;base64,' + bytes.toString('base64'));
+          JS
+      - id: metadata_upload
+        if: always() && steps.collect.outputs.ready == 'true' && steps.collect.outputs.upload_root == format('{0}/upload', env.ASSET_ROOT)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: runtime-observation-${{ matrix.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.ASSET_ROOT }}/upload/
+          if-no-files-found: error
+      - name: Require confirmed native observation and bootstrap
+        if: always()
+        env:
+          OBSERVED: ${{ steps.observe.outcome }}
+          BOOTSTRAPPED: ${{ steps.bootstrap.outcome }}
+          COLLECTION: ${{ steps.collect.outputs.collection }}
+          UPLOADED: ${{ steps.metadata_upload.outcome }}
+        run: |
+          test "$OBSERVED" = success && test "$BOOTSTRAPPED" = success &&
+            test "$COLLECTION" = FULL && test "$UPLOADED" = success

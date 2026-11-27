@@ -1,17 +1,26 @@
-from uuid import uuid4
-from copy import deepcopy
+"""通过供应商模拟器向真实生成接口提交请求，核对上下文、预算预留及人工审核之后的资源和账单。"""
+
 import asyncio
 import json
-import pytest
-from emulator import emulator, CASE
-from test_workspace import new_member, client
-from test_publish import create
+from copy import deepcopy
+from uuid import uuid4
 
-from test_auth import setup, login
-from test_workspace import workspace
+import httpx
+import pytest
+from emulator import CASE, emulator
+from sqlalchemy import select
+from test_auth import login, setup
+from test_publish import create, publish
+from test_workspace import client, new_member, workspace
+from tornado.httpserver import HTTPServer
+
+from veriq_server.app import make_app
+from veriq_server.db import AiGeneration, AiProvider
+from veriq_server.settings import Settings
 
 
 async def test_provider_list_is_scoped_and_empty_without_keys(site):
+    """完成安装和管理员登录后查询新工作区的供应商列表，核对没有配置密钥时返回的空集合结构。"""
     c, _ = site
     assert (await setup(c)).status_code == 201
     assert (await login(c)).status_code == 200
@@ -22,6 +31,7 @@ async def test_provider_list_is_scoped_and_empty_without_keys(site):
 
 
 async def test_provider_key_is_write_only_and_generation_disabled(site):
+    """新建已保存密钥的停用供应商，核对响应只暴露配置状态，并确认生成请求返回供应商停用错误。"""
     c, _ = site
     await setup(c)
     await login(c)
@@ -45,7 +55,6 @@ async def test_provider_key_is_write_only_and_generation_disabled(site):
     provider = response.json()["data"]
     assert provider["keyConfigured"] is True
     assert "synthetic-provider-key" not in response.text
-    from uuid import uuid4
 
     response = await c.post(
         base + "/generations",
@@ -61,6 +70,7 @@ async def test_provider_key_is_write_only_and_generation_disabled(site):
 
 
 def provider_config(endpoint, **changes):
+    """生成指向测试模型端点的供应商配置，费率、预算和输出上限均可由用例单独覆盖以固定预期账单。"""
     return {
         "name": "Local protocol emulator",
         "adapter": "OPENAI_COMPATIBLE",
@@ -78,6 +88,7 @@ def provider_config(endpoint, **changes):
 
 
 async def ai_setup(c, endpoint, **changes):
+    """以真实管理员会话建立工作区并创建供应商，返回作用域标识、接口前缀和实际持久化后的公开配置。"""
     await setup(c)
     await login(c)
     ws = await workspace(c)
@@ -88,6 +99,7 @@ async def ai_setup(c, endpoint, **changes):
 
 
 def request(pid, **changes):
+    """为每次独立生成分配新的请求标识，相同请求的重放由调用方复用原始字典以保留幂等条件。"""
     return {
         "requestId": str(uuid4()),
         "providerId": pid,
@@ -99,10 +111,11 @@ def request(pid, **changes):
 
 @pytest.mark.parametrize("adapter", ["OPENAI_COMPATIBLE", "ANTHROPIC"])
 async def test_sdk_real_http_usage_context_and_idempotency(site, adapter):
+    """分别经两种供应商协议提交带敏感字段的生成请求，核对脱敏、按实际用量结算以及重复请求的调用次数。"""
     c, db = site
     async with emulator() as model:
         model.output = {"suggestions": ["Empty password is rejected"], "basis": "REQ-1"}
-        ws, base, p = await ai_setup(c, model.base_url, adapter=adapter)
+        _, base, p = await ai_setup(c, model.base_url, adapter=adapter)
         req = request(p["id"], data={"password": "do-not-send", "safe": 42})
         preview = await c.post(base + "/context", json=req)
         assert preview.status_code == 200, preview.text
@@ -132,8 +145,6 @@ async def test_sdk_real_http_usage_context_and_idempotency(site, adapter):
         assert (
             await c.post(base + "/generations/" + g["id"] + "/review", json={"decision": "REJECT"})
         ).json()["data"]["status"] == "REJECTED"
-        from sqlalchemy import select
-        from veriq_server.db import AiProvider
 
         async with db.sessions() as s:
             row = await s.scalar(select(AiProvider))
@@ -141,12 +152,12 @@ async def test_sdk_real_http_usage_context_and_idempotency(site, adapter):
 
 
 async def test_canonical_case_review_writes_only_draft(site):
+    """从已发布目录版本生成用例，核对人工接受之前资源列表为空，接受之后也尚未出现已发布的版本。"""
     c, db = site
     async with emulator() as model:
         ws, base, p = await ai_setup(c, model.base_url)
         catalog_path = await create(c, ws)
         # 用仅供测试的校验回执发布不可变目录，给生成请求提供固定版本，再确认审核接受只产生尚未发布的草稿。
-        from test_publish import publish
 
         version, _, _ = await publish(c, db, catalog_path)
         model.output = deepcopy(CASE)
@@ -172,10 +183,11 @@ async def test_canonical_case_review_writes_only_draft(site):
 
 
 async def test_concurrent_budget_cancel_unknown_cost_and_revocation(site):
+    """阻塞首个真实模型请求后再竞争同一预算，核对取消时成本未知的预留及停用供应商后的重放结果。"""
     c, _ = site
     async with emulator() as model:
         model.output = {"suggestions": [], "basis": "REQ-1"}
-        ws, base, p = await ai_setup(c, model.base_url, monthlyBudgetUsd=0.012)
+        _, base, p = await ai_setup(c, model.base_url, monthlyBudgetUsd=0.012)
         req = request(p["id"])
         preview = await c.post(base + "/context", json=req)
         reserve = preview.json()["data"]["reservedUsd"]
@@ -206,6 +218,7 @@ async def test_concurrent_budget_cancel_unknown_cost_and_revocation(site):
 
 
 async def test_roles_scopes_endpoint_and_output_redaction(site):
+    """分别以只读成员、其他工作区和未获准端点发起请求，并检查模型输出和错误消息都无法回显密钥。"""
     c, _ = site
     async with emulator() as model:
         ws, base, p = await ai_setup(c, model.base_url)
@@ -243,9 +256,10 @@ async def test_roles_scopes_endpoint_and_output_redaction(site):
 
 
 async def test_invalid_output_unknown_usage_and_context_revision_guards(site):
-    c, db = site
+    """分别返回无效字段和缺失用量的响应，再提交低预算和过期上下文，核对拒绝发生在额外模型调用之前。"""
+    c, _ = site
     async with emulator() as model:
-        ws, base, p = await ai_setup(c, model.base_url)
+        _, base, p = await ai_setup(c, model.base_url)
         model.output = {
             "synthetic-provider-key": "unsafe dynamic member",
             "suggestions": [],
@@ -270,9 +284,10 @@ async def test_invalid_output_unknown_usage_and_context_revision_guards(site):
 
 
 async def test_revocation_during_http_keeps_reservation_and_withholds_output(site):
+    """在模型已收到请求但尚未响应时停用供应商，核对运行结束后历史记录隐藏输出并标明成本未知。"""
     c, _ = site
     async with emulator() as model:
-        ws, base, p = await ai_setup(c, model.base_url)
+        _, base, p = await ai_setup(c, model.base_url)
         model.output = {"suggestions": ["private result"], "basis": "REQ"}
         model.wait = True
         model.release.clear()
@@ -292,6 +307,7 @@ async def test_revocation_during_http_keeps_reservation_and_withholds_output(sit
 
 
 async def test_zero_budget_even_with_zero_price_blocks_http(site):
+    """同时将两项模型费率和月度预算设为零，确认请求在进入供应商端点前即以预算超限结束。"""
     c, _ = site
     async with emulator() as model:
         _, base, p = await ai_setup(
@@ -303,6 +319,7 @@ async def test_zero_budget_even_with_zero_price_blocks_http(site):
 
 
 async def test_provider_delete_matches_contract_and_history_is_withheld(site):
+    """先生成可用建议再删除供应商，核对删除响应结构、列表变化以及已有生成记录对结果的遮蔽。"""
     c, _ = site
     async with emulator() as model:
         _, base, p = await ai_setup(c, model.base_url)
@@ -319,10 +336,10 @@ async def test_provider_delete_matches_contract_and_history_is_withheld(site):
 
 
 async def test_candidate_changed_during_model_http_rejects_stale_output(site):
+    """在模型等待期间通过接口修改目标草稿的修订，确认旧上下文的结果被记录为失败且无法读取输出。"""
     c, db = site
     async with emulator() as model:
         ws, base, p = await ai_setup(c, model.base_url)
-        from test_publish import publish
 
         catalog_path = await create(c, ws)
         version, _, _ = await publish(c, db, catalog_path)
@@ -351,6 +368,7 @@ async def test_candidate_changed_during_model_http_rejects_stale_output(site):
 
 
 async def test_invalid_model_json_retains_known_usage_and_cost(site):
+    """让模型正文包含无法解析的内容和测试密钥，核对失败记录仍按报告的用量计费并隐藏原始正文。"""
     c, _ = site
     async with emulator() as model:
         _, base, p = await ai_setup(c, model.base_url)
@@ -365,11 +383,7 @@ async def test_invalid_model_json_retains_known_usage_and_cost(site):
 
 
 async def test_operator_endpoint_revocation_withholds_output_and_allows_config_repair(site):
-    import httpx
-    from tornado.httpserver import HTTPServer
-    from veriq_server.app import make_app
-    from veriq_server.settings import Settings
-
+    """用移除了原端点的配置重启应用，核对历史建议被隐藏，同时仍允许将供应商配置改为获准地址。"""
     c, db = site
     async with emulator() as model:
         _, base, p = await ai_setup(c, model.base_url)
@@ -402,8 +416,7 @@ async def test_operator_endpoint_revocation_withholds_output_and_allows_config_r
 
 
 async def test_nonfinite_prices_are_rejected_as_invalid_json_without_provider_row(site):
-    import json
-
+    """提交包含非有限预算值的原始请求体，确认服务在创建额外供应商记录或调用模型之前拒绝请求。"""
     c, _ = site
     async with emulator() as model:
         _, base, _ = await ai_setup(c, model.base_url)
@@ -421,6 +434,7 @@ async def test_nonfinite_prices_are_rejected_as_invalid_json_without_provider_ro
 
 @pytest.mark.parametrize("unusable", ["nested_case", "surrogate_advice", "surrogate_key"])
 async def test_fix1_unusable_output_finalizes_known_usage_without_draft(site, unusable):
+    """返回过深或含非法码点的候选结果，核对失败状态和实际用量均已入库，同时没有产生可见用例草稿。"""
     c, db = site
     async with emulator() as model:
         ws, base, p = await ai_setup(c, model.base_url)
@@ -464,8 +478,6 @@ async def test_fix1_unusable_output_finalizes_known_usage_without_draft(site, un
         ] == []
         budget = (await c.get(base + "/providers/" + p["id"])).json()["data"]["budget"]
         assert budget["heldUsd"] == 0 and budget["estimatedUsedUsd"] == 0.00016
-        from sqlalchemy import select
-        from veriq_server.db import AiGeneration
 
         async with db.sessions() as session:
             persisted = (await session.scalars(select(AiGeneration))).one()
@@ -475,6 +487,7 @@ async def test_fix1_unusable_output_finalizes_known_usage_without_draft(site, un
 
 @pytest.mark.parametrize("adapter", ["OPENAI_COMPATIBLE", "ANTHROPIC"])
 async def test_fix1_truncated_sdk_reply_retains_verified_usage(site, adapter):
+    """由两种模型协议分别报告达到输出上限，核对截断的文本被丢弃且已知用量会释放预留并入账。"""
     c, _ = site
     async with emulator() as model:
         _, base, p = await ai_setup(c, model.base_url, adapter=adapter, maxOutputTokens=32)
@@ -497,6 +510,7 @@ async def test_fix1_truncated_sdk_reply_retains_verified_usage(site, adapter):
 
 @pytest.mark.parametrize("raw", ["\ud800", None], ids=["raw_unicode", "parser_nesting"])
 async def test_fix1_parser_failure_finalizes_known_usage(site, raw):
+    """用非法码点及超深数组分别触发解析失败，比较即时响应、历史记录和供应商账单中的最终用量。"""
     c, _ = site
     if raw is None:
         # 把数组嵌套到触发 Python 3.12 JSON 解码器递归异常的深度，同时保持报文小于 128 KiB。
@@ -523,6 +537,7 @@ async def test_fix1_parser_failure_finalizes_known_usage(site, raw):
 
 @pytest.mark.parametrize("usage", ["missing", "over_limit"])
 async def test_fix1_truncated_unverified_usage_keeps_reservation(site, usage):
+    """模拟供应商截断输出并漏报或多报用量，核对历史记录不提供估算金额且原预算预留继续占用。"""
     c, _ = site
     async with emulator() as model:
         _, base, p = await ai_setup(c, model.base_url, maxOutputTokens=32)

@@ -781,7 +781,7 @@ function IdentityForms({
                                                 versionId: saved.versionId,
                                             });
                                         } finally {
-                                            // 写入完成后清除仍属于当前表单的秘密；切换或卸载时由生命周期负责清理。
+                                            // 仅对活动表单调用 clearSecret；scope.aborted 时由生命周期清理秘密。
                                             if (!scope.aborted) clearSecret();
                                         }
                                     },

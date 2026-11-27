@@ -1,6 +1,6 @@
 """新增对话的独立设置、员工会话和私有轮次，现有工作区可保持空配置，升级无需复制生成历史或重写执行计划。"""
 
-from alembic import context, op
+from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.mysql import DATETIME
 
@@ -8,6 +8,8 @@ revision = "0017_conversational_agent"
 down_revision = "0016_dataset_copy_audit"
 branch_labels = None
 depends_on = None
+
+_AGENT_TABLES = ("veriq_agent_turns", "veriq_agent_sessions", "veriq_agent_settings")
 
 
 def upgrade() -> None:
@@ -60,25 +62,16 @@ def upgrade() -> None:
     )
 
 
-def downgrade() -> None:
+def require_downgrade_safe(connection: sa.Connection) -> None:
     """逐个检查设置、会话和轮次是否为空，拒绝删除一侧仍需读取的私有对话或已确认业务回执，空安装按引用顺序回退。"""
-    connection = op.get_bind()
-    tables = ("veriq_agent_turns", "veriq_agent_sessions", "veriq_agent_settings")
     # 先检查所有表再执行第一个 DDL，避免发现已存在的会话时已经移除一张仍为新版服务所需的表。
-    for name in tables:
+    for name in _AGENT_TABLES:
         if connection.execute(sa.select(1).select_from(sa.table(name)).limit(1)).first():
             raise RuntimeError("Conversational agent history or settings must be retained")
-    # 目标若还要跨过数据集迁移，先执行其保留预检；拒绝时必须连同当前版本的对话表一并保全。
-    migration = op.get_context()
-    assert migration.script is not None
-    steps = migration.script.iterate_revisions(
-        migration.opts["veriq_start_heads"],
-        context.get_revision_argument(),
-        select_for_downgrade=True,
-    )
-    for step in steps:
-        if step.revision == down_revision:
-            step.module.require_downgrade_safe()
-            break
-    for name in tables:
+
+
+def downgrade() -> None:
+    """删除会话表之前再次检查设置、会话和轮次，随后按子表先于父表的顺序移除对话历史专有结构。"""
+    require_downgrade_safe(op.get_bind())
+    for name in _AGENT_TABLES:
         op.drop_table(name)

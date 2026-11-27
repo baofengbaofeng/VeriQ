@@ -1,0 +1,1012 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "VeriQ historical offline fixture API",
+        "version": "1.0.0",
+        "description": "Retired offline operations registered only by compatibility fixtures."
+    },
+    "paths": {
+        "/api/v1/workspaces/{workspaceId}/bundles": {
+            "post": {
+                "operationId": "createBundle",
+                "tags": ["workspaces"],
+                "security": [
+                    {
+                        "WebSession": [],
+                        "CsrfToken": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "workspaceId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "$ref": "platform.yaml#/components/schemas/Id"
+                        }
+                    },
+                    {
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160,
+                            "pattern": "^[!-~]{1,160}$"
+                        },
+                        "description": "Scoped to authenticated Workspace and operation. Same key/different payload returns 409."
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Synchronous export completed. Same key, actor and request replays this immutable bundle after current authority checks.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/BundleDTOEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "410": {
+                        "description": "The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "platform.yaml#/components/schemas/BundleCreate"
+                            }
+                        }
+                    }
+                },
+                "description": "Requires a durable Workspace-scoped Idempotency-Key. Different actor or payload conflicts. In-progress, failed or ambiguous requests are never automatically taken over."
+            }
+        },
+        "/api/v1/workspaces/{workspaceId}/bundles/{bundleId}/manifest": {
+            "get": {
+                "operationId": "getBundleManifest",
+                "tags": ["workspaces"],
+                "security": [
+                    {
+                        "WebSession": [],
+                        "CsrfToken": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "workspaceId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "$ref": "platform.yaml#/components/schemas/Id"
+                        }
+                    },
+                    {
+                        "name": "bundleId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "$ref": "platform.yaml#/components/schemas/Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/BundleManifestV1Envelope"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "410": {
+                        "description": "The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/workspaces/{workspaceId}/bundles/{bundleId}/download": {
+            "get": {
+                "operationId": "downloadBundle",
+                "tags": ["workspaces"],
+                "security": [
+                    {
+                        "WebSession": [],
+                        "CsrfToken": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "workspaceId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "$ref": "platform.yaml#/components/schemas/Id"
+                        }
+                    },
+                    {
+                        "name": "bundleId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "$ref": "platform.yaml#/components/schemas/Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Authorized artifact stream.",
+                        "content": {
+                            "application/octet-stream": {
+                                "schema": {
+                                    "type": "string",
+                                    "format": "binary"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "410": {
+                        "description": "The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/workspaces/{workspaceId}/result-imports": {
+            "post": {
+                "operationId": "importOfflineResult",
+                "tags": ["workspaces"],
+                "security": [
+                    {
+                        "WebSession": [],
+                        "CsrfToken": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "workspaceId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "$ref": "platform.yaml#/components/schemas/Id"
+                        }
+                    },
+                    {
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160
+                        },
+                        "description": "Scoped to authenticated Workspace and operation. Same key/different payload returns 409."
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ImportDTOEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "410": {
+                        "description": "The referenced signed bundle import authority has expired.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "platform.yaml#/components/schemas/OfflineResultV1"
+                            }
+                        }
+                    }
+                },
+                "description": "Idempotent domain key is (workspaceId,bundleId,localRunId); validates signature, closure, provenance and current membership."
+            }
+        },
+        "/internal/v1/workspaces/{workspaceId}/bundles/{bundleId}/download": {
+            "get": {
+                "operationId": "downloadDeviceBundle",
+                "tags": ["workspaces"],
+                "security": [
+                    {
+                        "DeviceToken": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "workspaceId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "$ref": "platform.yaml#/components/schemas/Id"
+                        }
+                    },
+                    {
+                        "name": "bundleId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "$ref": "platform.yaml#/components/schemas/Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Authorized artifact stream.",
+                        "content": {
+                            "application/octet-stream": {
+                                "schema": {
+                                    "type": "string",
+                                    "format": "binary"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "410": {
+                        "description": "The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/internal/v1/workspaces/{workspaceId}/result-imports": {
+            "post": {
+                "operationId": "importNativeOfflineResult",
+                "tags": ["workspaces"],
+                "security": [
+                    {
+                        "DeviceToken": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "workspaceId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "$ref": "platform.yaml#/components/schemas/Id"
+                        }
+                    },
+                    {
+                        "name": "Idempotency-Key",
+                        "in": "header",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160
+                        },
+                        "description": "Scoped to authenticated Workspace and operation. Same key/different payload returns 409."
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Success.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ImportDTOEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "410": {
+                        "description": "The referenced signed bundle import authority has expired.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "platform.yaml#/components/schemas/OfflineResultV1"
+                            }
+                        }
+                    }
+                },
+                "description": "Idempotent domain key is (workspaceId,bundleId,localRunId); validates signature, closure, provenance and current membership."
+            }
+        },
+        "/api/v1/workspaces/{workspaceId}/result-import-uploads": {
+            "post": {
+                "operationId": "reserveOfflineUpload",
+                "tags": ["workspaces"],
+                "security": [
+                    {
+                        "WebSession": [],
+                        "CsrfToken": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "workspaceId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "$ref": "platform.yaml#/components/schemas/Id"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "platform.yaml#/components/schemas/OfflineUploadRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Private bounded upload reservation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/OfflineUploadDTOEnvelope"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/workspaces/{workspaceId}/result-import-uploads/{uploadId}": {
+            "put": {
+                "operationId": "uploadOfflineChunk",
+                "tags": ["workspaces"],
+                "security": [
+                    {
+                        "WebSession": [],
+                        "CsrfToken": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "workspaceId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "$ref": "platform.yaml#/components/schemas/Id"
+                        }
+                    },
+                    {
+                        "name": "uploadId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "$ref": "platform.yaml#/components/schemas/Id"
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 33554432
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/octet-stream": {
+                            "schema": {
+                                "type": "string",
+                                "format": "binary",
+                                "maxLength": 1048576
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Verified received offset",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/OfflineChunkDTOEnvelope"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/internal/v1/workspaces/{workspaceId}/result-import-uploads": {
+            "post": {
+                "operationId": "reserveNativeOfflineUpload",
+                "tags": ["workspaces"],
+                "security": [
+                    {
+                        "DeviceToken": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "workspaceId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "$ref": "platform.yaml#/components/schemas/Id"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "platform.yaml#/components/schemas/OfflineUploadRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Private bounded upload reservation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/OfflineUploadDTOEnvelope"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/internal/v1/workspaces/{workspaceId}/result-import-uploads/{uploadId}": {
+            "put": {
+                "operationId": "uploadNativeOfflineChunk",
+                "tags": ["workspaces"],
+                "security": [
+                    {
+                        "DeviceToken": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "workspaceId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "$ref": "platform.yaml#/components/schemas/Id"
+                        }
+                    },
+                    {
+                        "name": "uploadId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "$ref": "platform.yaml#/components/schemas/Id"
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 33554432
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/octet-stream": {
+                            "schema": {
+                                "type": "string",
+                                "format": "binary",
+                                "maxLength": 1048576
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Verified received offset",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "platform.yaml#/components/schemas/OfflineChunkDTOEnvelope"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "securitySchemes": {
+            "WebSession": {
+                "$ref": "platform.yaml#/components/securitySchemes/WebSession"
+            },
+            "CsrfToken": {
+                "$ref": "platform.yaml#/components/securitySchemes/CsrfToken"
+            },
+            "DeviceToken": {
+                "$ref": "platform.yaml#/components/securitySchemes/DeviceToken"
+            }
+        }
+    }
+}

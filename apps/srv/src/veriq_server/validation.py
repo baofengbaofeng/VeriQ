@@ -31,11 +31,9 @@ def api_document() -> dict[str, Any]:
     )
 
 
-def validate_api(name: str, value: Any) -> None:
-    """按 OpenAPI components/schemas 中的名称校验请求或响应体，并注册外部 Id/Timestamp 引用。
-    validate_api 实现于 apps/srv/src/veriq_server/validation.py：请按该符号的输入校验、错误码与调用方契约阅读，
-    勿假设通用成功默认值。
-    """
+@lru_cache(maxsize=1)
+def _schema_registry() -> Registry[Any]:
+    """按进程加载源码或安装包中的权威契约，让所有组件复用同一个只读注册表解析跨文档的结构引用。"""
     doc = api_document()
     # 外部 Id/Timestamp 引用复用平台合同中的规范定义，使 API 正文校验与既有校验器及配置加载使用同一标识和时间规则。
     schema_path = (
@@ -48,7 +46,7 @@ def validate_api(name: str, value: Any) -> None:
             files("veriq_server").joinpath("_schemas/platform-v1.schema.json").read_text()
         )
     uri = "https://veriq.local/openapi/platform.yaml"
-    registry: Registry[Any] = Registry().with_resources(
+    return Registry().with_resources(
         [
             (
                 uri,
@@ -62,8 +60,18 @@ def validate_api(name: str, value: Any) -> None:
             ),
         ]
     )
-    Draft202012Validator(
-        {"$ref": uri + "#/components/schemas/" + name},
-        registry=registry,
+
+
+@lru_cache(maxsize=None)
+def _component_validator(name: str) -> Draft202012Validator:
+    """组件名由服务端路由指定，同一进程复用相同组件的校验器，部署新契约后随进程重启重新构建。"""
+    return Draft202012Validator(
+        {"$ref": "https://veriq.local/openapi/platform.yaml#/components/schemas/" + name},
+        registry=_schema_registry(),
         format_checker=FormatChecker(),
-    ).validate(value)
+    )
+
+
+def validate_api(name: str, value: Any) -> None:
+    """逐次校验实际传入的请求或响应，失败仍抛出原有的校验异常，处理器据此生成对应的请求错误。"""
+    _component_validator(name).validate(value)

@@ -158,7 +158,7 @@ export async function guardSsoPage(
             markViolation();
         })().catch(async () => {
             markViolation();
-            // 文档已经关闭或响应结束时取消命令可能失败，违例仍留在当前尝试并阻断其余请求。
+            // 文档已关闭或响应已结束时取消命令可能失败，先标记本轮违例，确保其余请求仍受本轮边界约束。
             await session
                 .send("Fetch.failRequest", {
                     requestId: event.requestId,

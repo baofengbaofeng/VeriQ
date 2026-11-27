@@ -45,25 +45,23 @@ def upgrade() -> None:
     )
 
 
-def downgrade() -> None:
-    # 降级前检查缺少库内正文的制品、已过期上传及待删除记录，发现任一项便要求操作员先处理。
-    count = (
-        op.get_bind()
-        .execute(sa.text("SELECT COUNT(*) FROM veriq_artifacts WHERE content IS NULL"))
-        .scalar_one()
-    )
-    logical = (
-        op.get_bind()
-        .execute(sa.text("SELECT COUNT(*) FROM veriq_attempt_uploads WHERE expired_at IS NOT NULL"))
-        .scalar_one()
-    )
-    pending = (
-        op.get_bind()
-        .execute(sa.text("SELECT COUNT(*) FROM veriq_artifact_deletions WHERE deleted_at IS NULL"))
-        .scalar_one()
-    )
+def require_downgrade_safe(connection: sa.Connection) -> None:
+    """检查仅能在新版表示的外部制品、过期上传与待删除记录，使跨版本降级能够在任何结构变更之前拒绝。"""
+    count = connection.execute(
+        sa.text("SELECT COUNT(*) FROM veriq_artifacts WHERE content IS NULL")
+    ).scalar_one()
+    logical = connection.execute(
+        sa.text("SELECT COUNT(*) FROM veriq_attempt_uploads WHERE expired_at IS NOT NULL")
+    ).scalar_one()
+    pending = connection.execute(
+        sa.text("SELECT COUNT(*) FROM veriq_artifact_deletions WHERE deleted_at IS NULL")
+    ).scalar_one()
     if count or logical or pending:
         raise RuntimeError("Rehydrate external artifacts before downgrade")
+
+
+def downgrade() -> None:
+    require_downgrade_safe(op.get_bind())
     op.drop_table("veriq_artifact_deletions")
     op.drop_column("veriq_attempt_uploads", "expired_at")
     op.drop_column("veriq_attempts", "finished_at")

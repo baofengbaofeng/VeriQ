@@ -1,3 +1,5 @@
+"""统一管理控制面请求的会话身份、请求关联与错误响应，在具体业务处理前验证请求来源及大小。"""
+
 import json
 import logging
 import time
@@ -26,18 +28,33 @@ class API(RequestHandler):
     勿假设通用成功默认值。
     """
 
+    config: Settings
+    db: Database
+    action: str
+    request_id: str
+    started: float
+    _session_activity: tuple[str, datetime] | None
+
     body_limit = 65536
 
-    def initialize(self, config: Settings, db: Database, action: str = "") -> None:
+    def initialize(
+        self,
+        config: Settings,
+        db: Database,
+        action: str = "",
+        methods: tuple[str, ...] | None = None,
+    ) -> None:
         """注入 Settings、数据库句柄与路由 action，并生成贯穿日志的 request_id；started 单调时钟用于后续耗时度量，
         不写响应。
         initialize 实现于 apps/srv/src/veriq_server/handlers/base.py：请按该符号的输入校验、错误码与调用方契约阅读，
         勿假设通用成功默认值。
         """
         self.config, self.db, self.action = (config, db, action)
+        if methods is not None:
+            self.SUPPORTED_METHODS = methods
         self.request_id = str(uuid4())
         self.started = time.monotonic()
-        self._session_activity: tuple[str, datetime] | None = None
+        self._session_activity = None
 
     def on_finish(self) -> None:
         """成功完成请求后才投递已认证观察值，失败响应与单纯会话探测不形成活动，当前事务无需等待活动写入。"""

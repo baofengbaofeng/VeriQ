@@ -34,6 +34,7 @@ function delegateDirectory(
     return {
         read: directory.read.bind(directory),
         entries: directory.entries.bind(directory),
+        archiveAttempt: directory.archiveAttempt.bind(directory),
         createExclusive: directory.createExclusive.bind(directory),
         replace: directory.replace.bind(directory),
         remove: directory.remove.bind(directory),

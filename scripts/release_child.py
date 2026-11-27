@@ -5,6 +5,7 @@
 不能继承构建锁描述符。
 """
 
+from collections.abc import Callable
 import ctypes
 import json
 import os
@@ -40,7 +41,7 @@ def supervise(argv: list[str], state: Path) -> int:
     """
     requested: int | None = None
 
-    def cancel(number: int, frame: object) -> None:
+    def cancel(number: int, _frame: object) -> None:
         """监督者收到 TERM 或 INT 后只记录首次信号并继续履行后代回收职责，不能随首进程一起退出；重复信号也不打断等待，
         因此外层保留的锁始终覆盖仍可写共享状态的后代。
 
@@ -55,57 +56,76 @@ def supervise(argv: list[str], state: Path) -> int:
     libc = ctypes.CDLL(None, use_errno=True)
     if libc.prctl(36, 1, 0, 0, 0) != 0:
         raise OSError(ctypes.get_errno(), "Cannot establish release child subreaper")
-    leader = subprocess.Popen(argv, close_fds=True)
-    leader_code: int | None = None
+    return _wait_for_tree(subprocess.Popen(argv, close_fds=True), state, lambda: requested)
+
+
+def _reap_ready(
+    leader: subprocess.Popen[bytes], signalled: set[tuple[int, int]]
+) -> tuple[bool, int]:
+    """回收当前已退出的直接子进程并更新首进程的真实退出码，只有内核确认无子进程时才报告整棵树已停止。"""
+    reaped = 0
+    while True:
+        try:
+            pid, status = os.waitpid(-1, os.WNOHANG)
+        except ChildProcessError:
+            return True, reaped
+        if pid == 0:
+            return False, reaped
+        reaped += 1
+        signalled.discard((pid, signal.SIGTERM))
+        signalled.discard((pid, signal.SIGKILL))
+        if pid == leader.pid:
+            leader.returncode = os.waitstatus_to_exitcode(status)
+
+
+def _signal_children(signalled: set[tuple[int, int]], number: int) -> None:
+    """仅向本轮已核实归属的直接子进程发送一次当前信号，消失的进程留待下一轮由内核确认并回收。"""
+    for child in _children():
+        if (child, number) in signalled:
+            continue
+        try:
+            os.kill(child, number)
+        except ProcessLookupError:
+            pass
+        signalled.add((child, number))
+
+
+def _wait_for_tree(
+    leader: subprocess.Popen[bytes], state: Path, cancelled: Callable[[], int | None]
+) -> int:
+    """负责首进程及被收养后代的全部回收，首次取消或首进程退出都会启动统一宽限期，确认退出后才写入证明。"""
     deadline: float | None = None
     signalled: set[tuple[int, int]] = set()
     reaped = 0
     diagnostics = False
     while True:
-        empty = False
-        while True:
-            try:
-                pid, status = os.waitpid(-1, os.WNOHANG)
-            except ChildProcessError:
-                empty = True
-                break
-            if pid == 0:
-                break
-            reaped += 1
-            signalled = {item for item in signalled if item[0] != pid}
-            if pid == leader.pid:
-                leader_code = os.waitstatus_to_exitcode(status)
-                leader.returncode = leader_code
+        empty, count = _reap_ready(leader, signalled)
+        reaped += count
+        leader_code = leader.returncode
         if empty:
             state.write_text(
                 json.dumps(
                     {
                         "treeStopped": True,
                         "leaderExitCode": leader_code,
-                        "cancelSignal": requested,
+                        "cancelSignal": cancelled(),
                         "reapedChildren": reaped,
                         "finished": time.time(),
                     }
                 )
                 + "\n"
             )
-            if requested is not None:
+            if (requested := cancelled()) is not None:
                 return 128 + requested
             if leader_code is None:
                 return 125
             return leader_code if leader_code >= 0 else 128 - leader_code
-        if requested is not None or leader_code is not None:
+        if cancelled() is not None or leader_code is not None:
             if deadline is None:
                 deadline = time.monotonic() + 10
             number = signal.SIGKILL if time.monotonic() >= deadline else signal.SIGTERM
             try:
-                for child in _children():
-                    if (child, number) not in signalled:
-                        try:
-                            os.kill(child, number)
-                        except ProcessLookupError:
-                            pass
-                        signalled.add((child, number))
+                _signal_children(signalled, number)
             except OSError:
                 if not diagnostics:
                     print(
@@ -124,4 +144,4 @@ if __name__ == "__main__":
             "Release supervisor failed without a complete descendant proof",
             file=sys.stderr,
         )
-        raise SystemExit(125)
+        raise SystemExit(125) from None

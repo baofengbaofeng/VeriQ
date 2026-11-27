@@ -350,24 +350,26 @@ function ReportSubscription({
     setGeneration: Dispatch<SetStateAction<number>>;
 }) {
     useAppLocale();
-    // 初始快照与流共享同一个取消边界，流失败仍撤销同代快照请求；稳定的 React setter 不会因父组件正常渲染而更换，卸载清
-    // 理时机沿用原有订阅效果。
+    // 首个流快照接管本代报告后取消初始读取，使迟到的快照及其传输层认证错误都失效；流继续使用视图的生命周期信号。
     useEffect(() => {
         const lifetime = new AbortController();
         const active = signal ? AbortSignal.any([signal, lifetime.signal]) : lifetime.signal;
+        const snapshot = new AbortController();
+        const initial = AbortSignal.any([active, snapshot.signal]);
         void adapter
-            .report(runId, active)
+            .report(runId, initial)
             .then((r) => {
-                if (!active.aborted) setReport(r);
+                if (!initial.aborted) setReport(r);
             })
             .catch((e) => {
-                if (!active.aborted) setError(e instanceof Error ? e.message : String(e));
+                if (!initial.aborted) setError(e instanceof Error ? e.message : String(e));
             });
         void adapter
             .subscribe(
                 runId,
                 (r) => {
                     if (!active.aborted) {
+                        snapshot.abort();
                         setReport(r);
                         setGeneration((g) => g + 1);
                     }

@@ -73,9 +73,11 @@ class RunAPI(ScopedExecutionAPI):
                 shown = rows[: page.limit]
                 result = {
                     "items": [run_dto(r) for r in shown],
-                    "nextCursor": page.next((shown[-1].id, shown[-1].id), len(rows) > page.limit)
-                    if shown
-                    else None,
+                    "nextCursor": (
+                        page.next((shown[-1].id, shown[-1].id), len(rows) > page.limit)
+                        if shown
+                        else None
+                    ),
                 }
         self.respond(result)
 

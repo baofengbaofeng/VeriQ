@@ -253,8 +253,10 @@ export async function executeStep(plan: ResolvedStep, outer: StepContext): Promi
             });
         }
         beginPhase();
+        const responseStart = result.assertions.length;
         await assertions(plan.responseAssertions);
-        if (result.assertions.some((a) => a.status === "FAILED")) throw new Error("RESPONSE_ASSERTION_FAILED");
+        if (result.assertions.slice(responseStart).some((a) => a.status === "FAILED"))
+            throw new Error("RESPONSE_ASSERTION_FAILED");
         const extracted: JsonObject = {};
         for (const extraction of s.extract ?? []) {
             const x = await interruptible(ctx, () => exchange(extraction.source, ctx));

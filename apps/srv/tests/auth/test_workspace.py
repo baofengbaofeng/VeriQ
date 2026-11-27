@@ -1,16 +1,34 @@
+"""通过成员会话及真实数据库核对邀请的单次使用、所有者并发变更、跨工作区访问和归档后的限制。"""
+
 import asyncio
 from contextlib import asynccontextmanager
-from urllib.parse import urlsplit, parse_qs
+from datetime import UTC, datetime, timedelta
+from email import policy
+from email.parser import BytesParser
+from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
+from uuid import uuid4
 
 import httpx
-from sqlalchemy import select
+import pytest
+from alembic import command as migration_command
+from alembic.config import Config
+from sqlalchemy import select, text
+from test_auth import login, setup
+from tornado.httpserver import HTTPServer
 
-from veriq_server.db import User
-from test_auth import setup, login
+from veriq_server import migrate
+from veriq_server.app import make_app
+from veriq_server.auth.authorization import Actor, Authorization, Permission, WorkspaceScope
+from veriq_server.db import AuditLog, User, WorkspaceInvite, WorkspaceMember
+from veriq_server.service import Problem, digest, hash_password, now
+from veriq_server.services.workspace import WorkspaceRepository
+from veriq_server.settings import Settings
 
 
 @asynccontextmanager
 async def client(c, email, password="Long password 123!"):
+    """为指定成员打开独立的浏览器会话，从安装接口取得防伪令牌后再登录，供跨角色的权限检查使用。"""
     async with httpx.AsyncClient(
         base_url=str(c.base_url), headers={"Origin": str(c.base_url).rstrip("/")}
     ) as other:
@@ -22,22 +40,26 @@ async def client(c, email, password="Long password 123!"):
 
 
 async def workspace(c, key="alpha"):
+    """通过工作区接口创建具有指定业务键的测试空间，成功后返回服务分配的标识以构造成员和资源请求。"""
     r = await c.post("/api/v1/workspaces", json={"key": key, "name": key.title()})
     assert r.status_code == 201, r.text
     return r.json()["data"]["id"]
 
 
 async def invite(c, ws, email="member@example.com", role="VIEWER"):
+    """经工作区接口按指定角色发出邀请，从返回链接的片段里提取接受邀请所需的一次性凭据。"""
     r = await c.post(f"/api/v1/workspaces/{ws}/invitations", json={"email": email, "role": role})
     assert r.status_code == 201, r.text
     return parse_qs(urlsplit(r.json()["data"]["invitationUrl"]).fragment)["token"][0]
 
 
 async def accept(c, token, **data):
+    """将邀请令牌与可选的新用户资料提交到公开接受接口，保留完整响应供重放、过期及身份校验使用。"""
     return await c.post("/api/v1/auth/invitations/accept", json={"token": token, **data})
 
 
 async def new_member(c, ws, email="member@example.com", role="VIEWER"):
+    """通过发出和接受邀请建立可登录的工作区成员，返回成员账号标识以便后续变更角色或停用账号。"""
     token = await invite(c, ws, email, role)
     r = await accept(c, token, password="Long password 123!", displayName=email)
     assert r.status_code == 200, r.text
@@ -45,6 +67,7 @@ async def new_member(c, ws, email="member@example.com", role="VIEWER"):
 
 
 async def test_workspace_isolation_roles_archival_and_owner(site):
+    """切换工作区所有者和受邀成员的会话，核对可见列表、跨工作区访问、角色提升及归档后的写入限制。"""
     c, _ = site
     await setup(c)
     await login(c)
@@ -93,6 +116,7 @@ async def test_workspace_isolation_roles_archival_and_owner(site):
 
 
 async def test_existing_account_invitation_never_resets_identity(site):
+    """让邀请方和匿名客户端尝试替既有账号接受邀请，最终由目标账号本人接受并验证原凭据及平台权限。"""
     c, db = site
     await setup(c)
     await login(c)
@@ -149,10 +173,7 @@ async def test_existing_account_invitation_never_resets_identity(site):
 
 
 async def test_invite_expiry_replay_revocation_and_disabled_accounts(site):
-    from datetime import timedelta
-    from veriq_server.db import WorkspaceInvite
-    from veriq_server.service import digest, now
-
+    """在数据库中使邀请过期，另以停用账号尝试接受，并核对管理列表只提供可供撤销的公开标识。"""
     c, db = site
     await setup(c)
     await login(c)
@@ -182,6 +203,7 @@ async def test_invite_expiry_replay_revocation_and_disabled_accounts(site):
 
 
 async def test_concurrent_owner_removal_demotion_and_global_disable(site):
+    """同时提交移除成员、降低角色和全局停用请求，核对事务结束后仍有一名启用且活跃的工作区所有者。"""
     c, db = site
     await setup(c)
     await login(c)
@@ -214,7 +236,6 @@ async def test_concurrent_owner_removal_demotion_and_global_disable(site):
         assert 1 <= sum(r.status_code == 200 for r in results) <= 2
         assert any(r.status_code in {403, 409} for r in results)
         assert all(r.status_code in {200, 403, 409} for r in results)
-    from veriq_server.db import WorkspaceMember
 
     async with db.sessions() as s:
         owners = (
@@ -237,6 +258,7 @@ async def test_concurrent_owner_removal_demotion_and_global_disable(site):
 
 
 async def test_disabled_owner_not_counted_and_disable_rejected(site):
+    """以工作区以外的平台管理员请求停用唯一所有者，核对服务返回保留最后一名所有者的专用错误。"""
     c, _ = site
     await setup(c)
     await login(c)
@@ -258,6 +280,7 @@ async def test_disabled_owner_not_counted_and_disable_rejected(site):
 
 
 async def test_bounded_workspace_member_invite_lists_and_cursor_scope(site):
+    """对工作区列表进行连续分页，并将邀请游标用于其他工作区和资源，核对范围绑定及单页上限。"""
     c, _ = site
     await setup(c)
     await login(c)
@@ -289,10 +312,7 @@ async def test_bounded_workspace_member_invite_lists_and_cursor_scope(site):
 
 
 async def test_scoped_policy_denies_foreign_references_and_private_dispatch():
-    import pytest
-    from veriq_server.auth.authorization import Actor, Authorization, Permission, WorkspaceScope
-    from veriq_server.service import Problem
-
+    """以同一成员身份切换工作区范围，再逐项遍历公开角色，核对引用边界及内部调度权限均由策略检查。"""
     scope = WorkspaceScope("alpha")
     actor = Actor("user", "alpha", "VIEWER")
     Authorization.require(actor, scope, Permission.VIEW)
@@ -308,6 +328,7 @@ async def test_scoped_policy_denies_foreign_references_and_private_dispatch():
 
 
 async def test_workspace_key_contract_accepts_full_length(site):
+    """通过公开接口使用一百六十个字符的工作区键创建资源，核对持久化路径支持契约允许的最大长度。"""
     c, _ = site
     await setup(c)
     await login(c)
@@ -315,6 +336,7 @@ async def test_workspace_key_contract_accepts_full_length(site):
 
 
 async def test_workspace_key_conflict_retains_archived_keys(site):
+    """归档工作区后复用相同业务键发起创建，核对服务保留原键占用并返回专用的工作区键冲突错误。"""
     c, _ = site
     await setup(c)
     await login(c)
@@ -325,6 +347,7 @@ async def test_workspace_key_conflict_retains_archived_keys(site):
 
 
 async def test_two_enabled_owners_cannot_both_be_disabled(site):
+    """以第三个账号并发停用两位所有者，核对其中一次返回保留最后所有者的错误并查询最终数据库状态。"""
     c, db = site
     await setup(c)
     await login(c)
@@ -355,7 +378,6 @@ async def test_two_enabled_owners_cannot_both_be_disabled(site):
         )
         assert sorted(r.status_code for r in results) == [200, 409]
         assert next(r for r in results if r.status_code == 409).json()["code"] == "LAST_OWNER"
-    from veriq_server.db import WorkspaceMember
 
     async with db.sessions() as s:
         owners = (
@@ -378,11 +400,7 @@ async def test_two_enabled_owners_cannot_both_be_disabled(site):
 
 
 async def test_scoped_repository_and_bulk_policy_never_cross_space(site):
-    import pytest
-    from veriq_server.auth.authorization import WorkspaceScope
-    from veriq_server.services.workspace import WorkspaceRepository
-    from veriq_server.service import Problem
-
+    """尝试从另一工作区读取或更改已知标识的成员与邀请，同时核对仓储查询及公开接口的范围限制。"""
     c, db = site
     await setup(c)
     await login(c)
@@ -407,6 +425,7 @@ async def test_scoped_repository_and_bulk_policy_never_cross_space(site):
 
 
 async def test_workspace_methods_reject_unsupported_verbs(site):
+    """对工作区集合、成员和邀请等不同路径发送不受支持的请求方法，确认路由统一返回方法不允许状态。"""
     c, _ = site
     await setup(c)
     await login(c)
@@ -422,11 +441,7 @@ async def test_workspace_methods_reject_unsupported_verbs(site):
 
 
 async def test_members_and_invitations_traverse_real_bounded_pages(site):
-    from uuid import uuid4
-    from datetime import timedelta
-    from veriq_server.db import WorkspaceMember, WorkspaceInvite
-    from veriq_server.service import now, digest
-
+    """写入超过单页上限的成员和邀请后按小页遍历，核对总量、邮件排序和游标终止且没有重复条目。"""
     c, db = site
     await setup(c)
     await login(c)
@@ -482,9 +497,7 @@ async def test_members_and_invitations_traverse_real_bounded_pages(site):
 
 
 async def test_invitation_concurrent_single_use_and_password_hashes(site):
-    from veriq_server.db import WorkspaceInvite
-    from veriq_server.service import digest
-
+    """同时使用同一邀请令牌接受两次，核对数据库中的密码及令牌以摘要保存，并且只有一次接受成功。"""
     c, db = site
     await setup(c)
     await login(c)
@@ -508,6 +521,7 @@ async def test_invitation_concurrent_single_use_and_password_hashes(site):
 
 
 async def test_disabled_members_and_revoked_invites_cannot_authorize(site):
+    """停用工作区成员后继续使用原会话，同时撤销尚未消费的邀请，核对这两条访问途径均无法授权。"""
     c, _ = site
     await setup(c)
     await login(c)
@@ -531,6 +545,7 @@ async def test_disabled_members_and_revoked_invites_cannot_authorize(site):
 
 
 async def test_inactive_owner_does_not_count_as_successor(site):
+    """把另一位所有者的工作区成员状态改为停用，核对移除当前所有者时仍会触发保留最后所有者的检查。"""
     c, _ = site
     await setup(c)
     await login(c)
@@ -549,6 +564,7 @@ async def test_inactive_owner_does_not_count_as_successor(site):
 
 
 async def test_globally_disabled_owner_does_not_count_as_successor(site):
+    """在工作区保留另一位所有者的成员角色，单独停用其平台账号，核对当前所有者仍然无法被移除。"""
     c, _ = site
     await setup(c)
     await login(c)
@@ -565,39 +581,63 @@ async def test_globally_disabled_owner_does_not_count_as_successor(site):
 
 
 async def test_workspace_migration_upgrades_existing_account_data(site):
-    from pathlib import Path
-    from alembic import command
-    from alembic.config import Config
-    from veriq_server import migrate
-
-    c, db = site
-    await setup(c)
-    await login(c)
-    user = (await c.get("/api/v1/account")).json()["data"]
+    """在旧账号表中建立用户和有效会话，升级后核对历史字段、认证能力及新增创建时间的回填范围。"""
+    client_http, db = site
+    user_id, session_token = str(uuid4()), str(uuid4())
+    password = "Legacy password 123!"
     config = Config()
     config.set_main_option("script_location", str(Path(migrate.__file__).parent / "migrations"))
+
+    def run_migration(sync, operation, revision):
+        config.attributes["connection"] = sync
+        operation(config, revision)
+
     async with db.engine.connect() as connection:
-
-        def downgrade(sync):
-            config.attributes["connection"] = sync
-            command.downgrade(config, "0001_accounts")
-
-        await connection.run_sync(downgrade)
+        await connection.run_sync(run_migration, migration_command.downgrade, "0001_accounts")
+        await connection.execute(
+            text("UPDATE veriq_installation SET initialized=1, setup_secret_hash=NULL WHERE id=1")
+        )
+        await connection.execute(
+            text(
+                "INSERT INTO veriq_users (id, email, display_name, password_hash, disabled, system_admin) "
+                "VALUES (:id, 'legacy@example.com', 'Legacy Admin', :password_hash, 0, 1)"
+            ),
+            {"id": user_id, "password_hash": await hash_password(password)},
+        )
+        await connection.execute(
+            text(
+                "INSERT INTO veriq_user_sessions (id, user_id, token_hash, expires_at, created_at) "
+                "VALUES (:id, :user_id, :token_hash, UTC_TIMESTAMP(6) + INTERVAL 1 HOUR, UTC_TIMESTAMP(6))"
+            ),
+            {"id": str(uuid4()), "user_id": user_id, "token_hash": digest(session_token)},
+        )
         await connection.commit()
-
-        def upgrade(sync):
-            config.attributes["connection"] = sync
-            command.upgrade(config, "head")
-
-        await connection.run_sync(upgrade)
+        before_upgrade = await connection.scalar(text("SELECT UTC_TIMESTAMP(6)"))
+        await connection.run_sync(run_migration, migration_command.upgrade, "head")
         await connection.commit()
-    assert (await c.get("/api/v1/account")).json()["data"] == user
-    await workspace(c)
+        after_upgrade = await connection.scalar(text("SELECT UTC_TIMESTAMP(6)"))
+
+    client_http.cookies.set("veriq_session", session_token, domain="127.0.0.1", path="/")
+    account = await client_http.get("/api/v1/account")
+    assert account.status_code == 200, account.text
+    data = account.json()["data"]
+    created = datetime.fromisoformat(data.pop("createdAt"))
+    assert before_upgrade.replace(tzinfo=UTC) <= created <= after_upgrade.replace(tzinfo=UTC)
+    assert data == {
+        "id": user_id,
+        "email": "legacy@example.com",
+        "displayName": "Legacy Admin",
+        "disabled": False,
+        "systemAdmin": True,
+    }
+    assert (
+        await login(client_http, email="legacy@example.com", password=password)
+    ).status_code == 200
+    await workspace(client_http)
 
 
 async def test_workspace_audit_preserves_scope_without_invitation_secrets(site):
-    from veriq_server.db import AuditLog
-
+    """完成工作区创建、发出邀请与接受邀请后查询审计记录，核对事件总数及每项所属的工作区标识。"""
     c, db = site
     await setup(c)
     await login(c)
@@ -614,12 +654,7 @@ async def test_workspace_audit_preserves_scope_without_invitation_secrets(site):
 
 
 async def test_real_smtp_invitation_delivery_and_copyable_failure(site, caplog):
-    from email import policy
-    from email.parser import BytesParser
-    from tornado.httpserver import HTTPServer
-    from veriq_server.app import make_app
-    from veriq_server.settings import Settings
-
+    """通过回环邮件服务器接收真实邀请，再模拟临时投递失败，核对两种情况下可用的链接及日志中的凭据保护。"""
     c, db = site
     await setup(c)
     await login(c)

@@ -4,8 +4,9 @@
  */
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { ChildProcess, spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
+import { channel } from "node:diagnostics_channel";
 import { mkdir, mkdtemp, readFile, readdir, readlink, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
@@ -419,41 +420,36 @@ test("real private Secret Service lifecycle, prompt refusal and owned helper ter
         await t.test("paused own daemon makes deadlines/cancellation bounded with real helper exits", async () => {
             assert.deepEqual(await identity(daemon!.identity.pid), daemon!.identity);
             daemon!.child.kill("SIGSTOP");
+            const executable = join(fixture.root, "native/vault/veriq_agent");
+            const children = channel("child_process");
+            let helperPid: number | undefined;
+            const capture = (event: unknown) => {
+                if (!event || typeof event !== "object" || !("process" in event)) return;
+                const child = event.process;
+                if (child instanceof ChildProcess)
+                    child.once("spawn", () => {
+                        if (child.spawnfile === executable) helperPid ??= child.pid;
+                    });
+            };
+            let pending: ReturnType<LinuxVaultBackend["get"]> | undefined;
+            children.subscribe(capture);
             try {
                 const timed = new LinuxVaultBackend(fixture.distribution, {
                     timeoutMs: 800,
                     observe: (value) => observations.push(value),
                 });
-                const pending = timed.get(scope, signal());
-                const known = new Set(records.map((value) => value.child.pid));
-                let helperPid: number | undefined;
-                await until(async () => {
-                    const children = (await readFile(`/proc/${process.pid}/task/${process.pid}/children`, "utf8"))
-                        .trim()
-                        .split(/\s+/)
-                        .map(Number);
-                    for (const pid of children)
-                        if (pid && !known.has(pid)) {
-                            try {
-                                if (
-                                    (await readlink(`/proc/${pid}/exe`)) ===
-                                    join(fixture.root, "native/vault/veriq_agent")
-                                ) {
-                                    helperPid = pid;
-                                    return true;
-                                }
-                            } catch (error) {
-                                if (!["ENOENT", "ESRCH"].includes((error as NodeJS.ErrnoException).code ?? ""))
-                                    throw error;
-                            }
-                        }
-                    return false;
-                }, 500);
-                facts.loadedHelper = {
-                    identity: await identity(helperPid!),
-                    comm: (await readFile(`/proc/${helperPid}/comm`, "utf8")).trim(),
-                    maps: await readFile(`/proc/${helperPid}/maps`, "utf8"),
-                };
+                pending = timed.get(scope, signal());
+                await until(async () => helperPid !== undefined, 500);
+                assert.ok(helperPid);
+                const loadedIdentity = await identity(helperPid);
+                assert.equal(loadedIdentity.executable, executable);
+                assert.equal(loadedIdentity.uid, process.getuid!());
+                const comm = (await readFile(`/proc/${helperPid}/comm`, "utf8")).trim();
+                const maps = await readFile(`/proc/${helperPid}/maps`, "utf8");
+                assert.deepEqual(await identity(helperPid), loadedIdentity);
+                facts.loadedHelper = { identity: loadedIdentity, comm, maps };
+                assert.equal(comm, "veriq_agent");
+                assert.match(maps, /libsecret-1\.so\.0/);
                 assert.equal((await pending).status, "failed");
                 const mutationScope = { ...scope, keyVersion: randomUUID() };
                 assert.equal(
@@ -470,7 +466,9 @@ test("real private Secret Service lifecycle, prompt refusal and owned helper ter
                 assert.equal((await backend.get(mutationScope, signal())).status, "missing");
                 facts.uncertainReadback = "missing-after-resume; no automatic mutation retry";
             } finally {
+                children.unsubscribe(capture);
                 if (!daemon!.exited) daemon!.child.kill("SIGCONT");
+                await pending;
             }
         });
         await t.test("parent death terminates a real blocked native helper", async () => {
@@ -508,8 +506,6 @@ test("real private Secret Service lifecycle, prompt refusal and owned helper ter
                     helper: before,
                     helperGone: true,
                 };
-                assert.equal((facts.loadedHelper as { comm: string }).comm, "veriq_agent");
-                assert.match((facts.loadedHelper as { maps: string }).maps, /libsecret-1\.so\.0/);
             } finally {
                 if (parent) await stop(parent);
                 if (!daemon!.exited) daemon!.child.kill("SIGCONT");

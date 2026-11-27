@@ -24,5 +24,5 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """删除创建时间列；既有时间值不保留，仅用于回退到不含该列的旧版本。"""
+    """回退时从 veriq_users 删除 created_at，既有账号的创建时间随列删除，再次升级会按新的迁移时刻回填。"""
     op.drop_column("veriq_users", "created_at")

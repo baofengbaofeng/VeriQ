@@ -90,7 +90,7 @@ async def test_sso_environment_preview_enforces_origin_scope_and_separate_fixtur
 
 @pytest.mark.parametrize("sso_selected", [True, False])
 async def test_sso_execution_evidence_is_bound_to_the_selected_frozen_role(site, sso_selected):
-    """按真实租约提交事件和原始制品，核对当前角色才决定上传权限以及历史中的认证结果。"""
+    """按真实租约向冻结角色提交事件和原始制品，核对所选角色的单点登录配置如何决定上传权限和历史认证结果。"""
     c, db = await _authenticated_site(site)
     ws = await workspace(c)
     await queued_browser_jobs(c, db, ws, 1)

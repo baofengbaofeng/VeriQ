@@ -16,6 +16,6 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """删除思考与步骤列；既有值不保留，仅用于回退到不含这两列的旧版本。"""
+    """回退时从对话轮次表依次删除 steps 和 thinking，已保存的工具步骤和思考正文也随这两列删除。"""
     op.drop_column("veriq_agent_turns", "steps")
     op.drop_column("veriq_agent_turns", "thinking")

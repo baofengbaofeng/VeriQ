@@ -11,7 +11,6 @@ from typing import Any
 
 import pytest
 
-
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts/line_width.py"
 
@@ -45,8 +44,8 @@ def test_display_width_uses_editor_columns(text: str, columns: int) -> None:
     assert _checker().display_width(text) == columns
 
 
-@pytest.fixture
-def repository(tmp_path: Path) -> Path:
+@pytest.fixture(name="repository")
+def repository_fixture(tmp_path: Path) -> Path:
     """每次验收创建独立临时仓库并通过真实 Git 命令枚举文件，确保忽略规则和已跟踪文件不会被模拟调用提前过滤。"""
     subprocess.run(["git", "init", "-q", "--template=", str(tmp_path)], check=True)
     return tmp_path
@@ -65,20 +64,37 @@ def _run(root: Path) -> subprocess.CompletedProcess[str]:
         [sys.executable, str(SCRIPT), "--root", str(root)],
         capture_output=True,
         text=True,
+        check=False,
     )
 
 
 def test_scope_includes_generated_and_native_sources(repository: Path) -> None:
     """多语言及生成源码均须进入真实文件枚举范围，文档、锁文件与被忽略依赖则不因存在较长正文而污染源码检查结果。"""
     sources = [
-        "apps/source.py", "app.tsx", "generated/api.generated.ts", "native/source.cc",
-        "native/source.mm", "native/source.hxx", "setup.ps1", "install.nsi", "style.scss",
-        "Makefile", "CMakeLists.txt", "Dockerfile.OE", "deploy/desktop/macos/scripts/preinstall",
+        "apps/source.py",
+        "app.tsx",
+        "generated/api.generated.ts",
+        "native/source.cc",
+        "native/source.mm",
+        "native/source.hxx",
+        "setup.ps1",
+        "install.nsi",
+        "style.scss",
+        "Makefile",
+        "CMakeLists.txt",
+        "Dockerfile.OE",
+        "deploy/desktop/macos/scripts/preinstall",
     ]
     for name in sources:
         _write(repository, name, "中" * 61 + "\n")
     _write(repository, ".gitignore", "node_modules/\nignored.py\n")
-    for name in ["README.md", "schema.json", "pnpm-lock.yaml", "node_modules/dependency.ts", "ignored.py"]:
+    for name in [
+        "README.md",
+        "schema.json",
+        "pnpm-lock.yaml",
+        "node_modules/dependency.ts",
+        "ignored.py",
+    ]:
         _write(repository, name, "中" * 61 + "\n")
     actual = {path.as_posix() for path in _checker().source_paths(repository)}
     assert actual == set(sources)

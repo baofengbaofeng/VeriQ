@@ -82,7 +82,7 @@ it.each(["/text", "/empty"])("accepts status assertions but rejects JSON extract
     expect(r.assertions.map((x) => x.status)).toEqual(["PASSED", "FAILED"]);
     expect(r.assertions[1]?.actual).toEqual({ present: false });
 });
-it("WARN does not block extraction; CONTINUE_FAIL still fails the step", async () => {
+it("WARN does not block extraction", async () => {
     const ctx = createStepContext(f.options);
     const r = await executeStep(
         step(
@@ -124,6 +124,88 @@ it("WARN does not block extraction; CONTINUE_FAIL still fails the step", async (
     expect(r.assertions[0]?.status).toBe("WARN");
     expect(ctx.vars.nil).toBeNull();
     expect(ctx.vars).not.toHaveProperty("absent");
+});
+it.each(["CONTINUE_FAIL", "BLOCK", "response"] as const)("attributes failures to their own phase: %s", async (mode) => {
+    const events: import("../src/context.js").LiveStepEvent[] = [];
+    const ctx = createStepContext({
+        ...f.options,
+        vars: {},
+        onEvent: async (event) => {
+            events.push(event);
+        },
+    });
+    const plan = step(
+        {
+            id: "save",
+            action: "apiRequest",
+            method: "GET",
+            path: "/save",
+            extract: [{ source: "response:action", pointer: "/id", to: "saved", valueType: "string", required: true }],
+        },
+        mode === "response"
+            ? [
+                  a({
+                      id: "status",
+                      type: "httpStatus",
+                      source: "response:action",
+                      operator: "equals",
+                      expected: 201,
+                      severity: "CONTINUE_FAIL",
+                  }),
+              ]
+            : [],
+        [
+            a({
+                id: "saved",
+                type: "responseField",
+                source: "response:action",
+                pointer: "/id",
+                operator: "equals",
+                expected: "{{vars.saved}}",
+            }),
+        ],
+    );
+    if (mode !== "response") {
+        plan.before.push({
+            sourcePath: "/before",
+            parameters: [],
+            assertion: {
+                id: "prior",
+                expectedSource: "REQ-1",
+                type: "url",
+                source: "page",
+                operator: "contains",
+                expected: "/never-on-this-page",
+                timeoutMs: 50,
+                severity: mode,
+            },
+        });
+    }
+    const requestsBefore = f.requests.length;
+    const result = await executeStep(plan, ctx);
+    expect(result.status).toBe("FAILED");
+    expect(events.at(-1)).toMatchObject({ type: "STEP_FINISHED", result: { status: "FAILED" } });
+    if (mode === "CONTINUE_FAIL") {
+        expect(ctx.vars.saved).toBe("saved-1");
+        expect(result.errorCode).toBeUndefined();
+        expect(result.observers).toMatchObject([{ observerId: "action", matchedCount: 1 }]);
+        expect(events.slice(1, -1)).toMatchObject([
+            { type: "ASSERTION_RESULT", assertionId: "prior", result: { status: "FAILED" } },
+            { type: "ASSERTION_RESULT", assertionId: "saved", result: { status: "PASSED" } },
+            { type: "OBSERVER_RESULT", result: { observerId: "action", matchedCount: 1 } },
+        ]);
+    } else {
+        expect(ctx.vars).not.toHaveProperty("saved");
+        if (mode === "BLOCK") {
+            expect(f.requests).toHaveLength(requestsBefore);
+            expect(result.blockedByAssertionId).toBe("prior");
+            expect(result.assertions[1]).toMatchObject({ id: "saved", status: "SKIPPED" });
+        } else {
+            expect(result.errorCode).toBe("RESPONSE_ASSERTION_FAILED");
+            expect(result.assertions).toMatchObject([{ id: "status", status: "FAILED" }]);
+        }
+    }
+    ctx.dispose();
 });
 it.each([
     ["fill", "name", "A"],

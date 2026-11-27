@@ -3,7 +3,7 @@
     "info": {
         "title": "VeriQ Platform API",
         "version": "1.0.0",
-        "description": "Versioned control and Runtime contracts. JSON Schema is canonical. Server authorization must validate all nested Workspace references. API document does not imply implemented endpoints."
+        "description": "Production control and Runtime operations. Historical offline export and import operations are documented in offline-fixtures.json for compatibility fixtures."
     },
     "servers": [{ "url": "/" }],
     "paths": {
@@ -192,6 +192,15 @@
                     }
                 },
                 "description": "Returns validated nonsecret installed frontend metadata; development without a published frontend returns 503 BUILD_INFO_UNAVAILABLE."
+            },
+            "head": {
+                "operationId": "headBuildInfo",
+                "tags": ["platform"],
+                "security": [],
+                "responses": {
+                    "200": { "description": "Build information available." },
+                    "503": { "description": "Build information unavailable." }
+                }
             }
         },
         "/api/v1/auth/login": {
@@ -261,7 +270,7 @@
             "get": {
                 "operationId": "session",
                 "tags": ["auth"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }, { "ServiceToken": [] }],
+                "security": [{ "WebSession": [] }],
                 "parameters": [],
                 "responses": {
                     "200": {
@@ -319,7 +328,7 @@
             "post": {
                 "operationId": "logout",
                 "tags": ["auth"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }, { "ServiceToken": [] }],
+                "security": [{ "WebSession": [], "CsrfToken": [] }],
                 "parameters": [],
                 "requestBody": {
                     "required": true,
@@ -573,7 +582,7 @@
             "get": {
                 "operationId": "listWorkspaces",
                 "tags": ["workspaces"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }],
+                "security": [{ "WebSession": [] }],
                 "parameters": [
                     {
                         "name": "cursor",
@@ -707,7 +716,7 @@
             "get": {
                 "operationId": "getWorkspace",
                 "tags": ["workspaces"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }],
+                "security": [{ "WebSession": [] }],
                 "parameters": [
                     {
                         "name": "workspaceId",
@@ -902,7 +911,7 @@
             "get": {
                 "operationId": "listMembers",
                 "tags": ["workspaces"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }],
+                "security": [{ "WebSession": [] }],
                 "parameters": [
                     {
                         "name": "workspaceId",
@@ -1190,7 +1199,7 @@
             "get": {
                 "operationId": "listInvitations",
                 "tags": ["workspaces"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }],
+                "security": [{ "WebSession": [] }],
                 "parameters": [
                     {
                         "name": "workspaceId",
@@ -1270,7 +1279,7 @@
                 "operationId": "listResources",
                 "description": "Resource list. With kind=DATASET, items include the saved draft summary.",
                 "tags": ["workspaces"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }],
+                "security": [{ "WebSession": [] }],
                 "parameters": [
                     {
                         "name": "workspaceId",
@@ -1423,12 +1432,7 @@
             "get": {
                 "operationId": "listDatasetCopySources",
                 "tags": ["workspaces"],
-                "security": [
-                    {
-                        "WebSession": [],
-                        "CsrfToken": []
-                    }
-                ],
+                "security": [{ "WebSession": [] }],
                 "parameters": [
                     {
                         "name": "workspaceId",
@@ -1687,7 +1691,7 @@
             "get": {
                 "operationId": "getResource",
                 "tags": ["workspaces"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }],
+                "security": [{ "WebSession": [] }],
                 "parameters": [
                     {
                         "name": "workspaceId",
@@ -1843,7 +1847,7 @@
             "get": {
                 "operationId": "getDraft",
                 "tags": ["workspaces"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }],
+                "security": [{ "WebSession": [] }],
                 "parameters": [
                     {
                         "name": "workspaceId",
@@ -2318,7 +2322,7 @@
             "get": {
                 "operationId": "listVersions",
                 "tags": ["workspaces"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }],
+                "security": [{ "WebSession": [] }],
                 "parameters": [
                     {
                         "name": "workspaceId",
@@ -2404,7 +2408,7 @@
             "get": {
                 "operationId": "getVersion",
                 "tags": ["workspaces"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }],
+                "security": [{ "WebSession": [] }],
                 "parameters": [
                     {
                         "name": "workspaceId",
@@ -2489,7 +2493,7 @@
             "get": {
                 "operationId": "listDependents",
                 "tags": ["workspaces"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }],
+                "security": [{ "WebSession": [] }],
                 "parameters": [
                     {
                         "name": "workspaceId",
@@ -4542,225 +4546,6 @@
                 }
             }
         },
-        "/api/v1/workspaces/{workspaceId}/service-accounts/{serviceAccountId}": {
-            "get": {
-                "operationId": "getServiceAccount",
-                "tags": ["workspaces"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }, { "ServiceToken": [] }],
-                "parameters": [
-                    {
-                        "name": "workspaceId",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "$ref": "#/components/schemas/Id" }
-                    },
-                    {
-                        "name": "serviceAccountId",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "$ref": "#/components/schemas/Id" }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Success.",
-                        "content": {
-                            "application/json": {
-                                "schema": { "$ref": "#/components/schemas/ServiceAccountDTOEnvelope" }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "401": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "403": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "404": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "409": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "422": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "429": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    }
-                }
-            },
-            "put": {
-                "operationId": "updateServiceAccount",
-                "tags": ["workspaces"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }, { "ServiceToken": [] }],
-                "parameters": [
-                    {
-                        "name": "workspaceId",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "$ref": "#/components/schemas/Id" }
-                    },
-                    {
-                        "name": "serviceAccountId",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "$ref": "#/components/schemas/Id" }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Success.",
-                        "content": {
-                            "application/json": {
-                                "schema": { "$ref": "#/components/schemas/ServiceAccountDTOEnvelope" }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "401": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "403": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "404": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "409": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "422": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "429": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    }
-                },
-                "requestBody": {
-                    "required": true,
-                    "content": {
-                        "application/json": { "schema": { "$ref": "#/components/schemas/ServiceAccountWrite" } }
-                    }
-                }
-            },
-            "delete": {
-                "operationId": "deleteServiceAccount",
-                "tags": ["workspaces"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }, { "ServiceToken": [] }],
-                "parameters": [
-                    {
-                        "name": "workspaceId",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "$ref": "#/components/schemas/Id" }
-                    },
-                    {
-                        "name": "serviceAccountId",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "$ref": "#/components/schemas/Id" }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Success.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/EmptyEnvelope" } }
-                        }
-                    },
-                    "400": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "401": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "403": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "404": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "409": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "422": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "429": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    }
-                }
-            }
-        },
         "/api/v1/workspaces/{workspaceId}/execution-plans/{planId}/trigger": {
             "post": {
                 "operationId": "triggerExecutionPlan",
@@ -4853,7 +4638,7 @@
             "get": {
                 "operationId": "listRuns",
                 "tags": ["workspaces"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }, { "ServiceToken": [] }],
+                "security": [{ "WebSession": [] }],
                 "parameters": [
                     {
                         "name": "workspaceId",
@@ -4923,7 +4708,7 @@
             "post": {
                 "operationId": "createRun",
                 "tags": ["workspaces"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }, { "ServiceToken": [] }],
+                "security": [{ "WebSession": [], "CsrfToken": [] }],
                 "parameters": [
                     {
                         "name": "workspaceId",
@@ -5131,158 +4916,6 @@
                 }
             }
         },
-        "/api/v1/workspaces/{workspaceId}/runs/{runId}/rerun": {
-            "post": {
-                "operationId": "rerun",
-                "tags": ["workspaces"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }, { "ServiceToken": [] }],
-                "parameters": [
-                    {
-                        "name": "workspaceId",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "$ref": "#/components/schemas/Id" }
-                    },
-                    {
-                        "name": "runId",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "$ref": "#/components/schemas/Id" }
-                    },
-                    {
-                        "name": "Idempotency-Key",
-                        "in": "header",
-                        "required": true,
-                        "schema": { "type": "string", "minLength": 1, "maxLength": 160 },
-                        "description": "Scoped to authenticated Workspace and operation. Same key/different payload returns 409."
-                    }
-                ],
-                "responses": {
-                    "202": {
-                        "description": "Success.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/RunDTOEnvelope" } }
-                        }
-                    },
-                    "400": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "401": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "403": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "404": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "409": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "422": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "429": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    }
-                },
-                "requestBody": {
-                    "required": true,
-                    "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TriggerRequest" } } }
-                }
-            }
-        },
-        "/api/v1/workspaces/{workspaceId}/runs/{runId}/events": {
-            "get": {
-                "operationId": "runEvents",
-                "tags": ["workspaces"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }, { "ServiceToken": [] }],
-                "parameters": [
-                    {
-                        "name": "workspaceId",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "$ref": "#/components/schemas/Id" }
-                    },
-                    {
-                        "name": "runId",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "$ref": "#/components/schemas/Id" }
-                    },
-                    { "name": "Last-Event-ID", "in": "header", "required": false, "schema": { "type": "string" } }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Replayable events with cursor IDs.",
-                        "content": { "text/event-stream": { "schema": { "type": "string" } } }
-                    },
-                    "400": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "401": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "403": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "404": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "409": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "422": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "429": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    }
-                }
-            }
-        },
         "/api/v1/workspaces/{workspaceId}/runs/{runId}/report": {
             "get": {
                 "operationId": "getRunReport",
@@ -5412,83 +5045,11 @@
                 }
             }
         },
-        "/api/v1/workspaces/{workspaceId}/jobs": {
-            "get": {
-                "operationId": "listJobs",
-                "tags": ["workspaces"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }, { "ServiceToken": [] }],
-                "parameters": [
-                    {
-                        "name": "workspaceId",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "$ref": "#/components/schemas/Id" }
-                    },
-                    { "name": "cursor", "in": "query", "required": false, "schema": { "type": "string" } },
-                    {
-                        "name": "limit",
-                        "in": "query",
-                        "required": false,
-                        "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 30 }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Success.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/JobDTOPageEnvelope" } }
-                        }
-                    },
-                    "400": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "401": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "403": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "404": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "409": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "422": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "429": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    }
-                }
-            }
-        },
         "/api/v1/workspaces/{workspaceId}/jobs/{jobId}": {
             "get": {
                 "operationId": "getJob",
                 "tags": ["workspaces"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }],
+                "security": [{ "WebSession": [] }],
                 "parameters": [
                     {
                         "name": "workspaceId",
@@ -5548,150 +5109,6 @@
                         }
                     }
                 }
-            }
-        },
-        "/api/v1/workspaces/{workspaceId}/artifacts/{artifactId}": {
-            "get": {
-                "operationId": "getArtifact",
-                "tags": ["workspaces"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }, { "ServiceToken": [] }],
-                "parameters": [
-                    {
-                        "name": "workspaceId",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "$ref": "#/components/schemas/Id" }
-                    },
-                    {
-                        "name": "artifactId",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "$ref": "#/components/schemas/Id" }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Success.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ArtifactDTOEnvelope" } }
-                        }
-                    },
-                    "400": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "401": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "403": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "404": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "409": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "422": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "429": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    }
-                },
-                "description": "T12 authorization obligation: raw Trace, screenshots, HTML and downloads are CREDENTIAL_RESTRICTED regardless of producer claims; require current Workspace/Attempt authorization and MANAGE_ENVIRONMENT to receive raw paths or bytes. Ordinary report access exposes redacted structured metadata only. This schema does not implement storage or authorization."
-            }
-        },
-        "/api/v1/workspaces/{workspaceId}/artifacts/{artifactId}/download": {
-            "get": {
-                "operationId": "downloadArtifact",
-                "tags": ["workspaces"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }, { "ServiceToken": [] }],
-                "parameters": [
-                    {
-                        "name": "workspaceId",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "$ref": "#/components/schemas/Id" }
-                    },
-                    {
-                        "name": "artifactId",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "$ref": "#/components/schemas/Id" }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Authorized artifact stream.",
-                        "content": {
-                            "application/octet-stream": { "schema": { "type": "string", "format": "binary" } }
-                        }
-                    },
-                    "400": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "401": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "403": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "404": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "409": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "422": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "429": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    }
-                },
-                "description": "T12 authorization obligation: raw Trace, screenshots, HTML and downloads are CREDENTIAL_RESTRICTED regardless of producer claims; require current Workspace/Attempt authorization and MANAGE_ENVIRONMENT to receive raw paths or bytes. Ordinary report access exposes redacted structured metadata only. This schema does not implement storage or authorization."
             }
         },
         "/api/v1/workspaces/{workspaceId}/runtimes": {
@@ -6262,91 +5679,10 @@
             }
         },
         "/api/v1/workspaces/{workspaceId}/bundles": {
-            "post": {
-                "operationId": "createBundle",
-                "tags": ["workspaces"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }],
-                "parameters": [
-                    {
-                        "name": "workspaceId",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "$ref": "#/components/schemas/Id" }
-                    },
-                    {
-                        "name": "Idempotency-Key",
-                        "in": "header",
-                        "required": true,
-                        "schema": { "type": "string", "minLength": 1, "maxLength": 160, "pattern": "^[!-~]{1,160}$" },
-                        "description": "Scoped to authenticated Workspace and operation. Same key/different payload returns 409."
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Synchronous export completed. Same key, actor and request replays this immutable bundle after current authority checks.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/BundleDTOEnvelope" } }
-                        }
-                    },
-                    "400": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "401": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "403": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "404": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "409": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "410": {
-                        "description": "The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "422": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "429": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    }
-                },
-                "requestBody": {
-                    "required": true,
-                    "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BundleCreate" } } }
-                },
-                "description": "Requires a durable Workspace-scoped Idempotency-Key. Different actor or payload conflicts. In-progress, failed or ambiguous requests are never automatically taken over."
-            },
             "get": {
                 "operationId": "listBundles",
                 "tags": ["workspaces"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }],
+                "security": [{ "WebSession": [] }],
                 "parameters": [
                     {
                         "name": "workspaceId",
@@ -6418,7 +5754,7 @@
             "get": {
                 "operationId": "getBundle",
                 "tags": ["workspaces"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }],
+                "security": [{ "WebSession": [] }],
                 "parameters": [
                     {
                         "name": "workspaceId",
@@ -6489,245 +5825,6 @@
                         }
                     }
                 }
-            }
-        },
-        "/api/v1/workspaces/{workspaceId}/bundles/{bundleId}/manifest": {
-            "get": {
-                "operationId": "getBundleManifest",
-                "tags": ["workspaces"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }],
-                "parameters": [
-                    {
-                        "name": "workspaceId",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "$ref": "#/components/schemas/Id" }
-                    },
-                    {
-                        "name": "bundleId",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "$ref": "#/components/schemas/Id" }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Success.",
-                        "content": {
-                            "application/json": {
-                                "schema": { "$ref": "#/components/schemas/BundleManifestV1Envelope" }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "401": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "403": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "404": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "409": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "410": {
-                        "description": "The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "422": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "429": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/workspaces/{workspaceId}/bundles/{bundleId}/download": {
-            "get": {
-                "operationId": "downloadBundle",
-                "tags": ["workspaces"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }],
-                "parameters": [
-                    {
-                        "name": "workspaceId",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "$ref": "#/components/schemas/Id" }
-                    },
-                    {
-                        "name": "bundleId",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "$ref": "#/components/schemas/Id" }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Authorized artifact stream.",
-                        "content": {
-                            "application/octet-stream": { "schema": { "type": "string", "format": "binary" } }
-                        }
-                    },
-                    "400": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "401": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "403": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "404": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "409": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "410": {
-                        "description": "The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "422": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "429": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/workspaces/{workspaceId}/result-imports": {
-            "post": {
-                "operationId": "importOfflineResult",
-                "tags": ["workspaces"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }],
-                "parameters": [
-                    {
-                        "name": "workspaceId",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "$ref": "#/components/schemas/Id" }
-                    },
-                    {
-                        "name": "Idempotency-Key",
-                        "in": "header",
-                        "required": true,
-                        "schema": { "type": "string", "minLength": 1, "maxLength": 160 },
-                        "description": "Scoped to authenticated Workspace and operation. Same key/different payload returns 409."
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Success.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ImportDTOEnvelope" } }
-                        }
-                    },
-                    "400": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "401": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "403": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "404": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "409": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "410": {
-                        "description": "The referenced signed bundle import authority has expired.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "422": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "429": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    }
-                },
-                "requestBody": {
-                    "required": true,
-                    "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OfflineResultV1" } } }
-                },
-                "description": "Idempotent domain key is (workspaceId,bundleId,localRunId); validates signature, closure, provenance and current membership."
             }
         },
         "/api/v1/workspaces/{workspaceId}/ai/providers/{providerId}/connection-tests": {
@@ -7138,291 +6235,6 @@
                 }
             }
         },
-        "/api/v1/workspaces/{workspaceId}/secrets": {
-            "post": {
-                "operationId": "createSecret",
-                "tags": ["workspaces"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }, { "ServiceToken": [] }],
-                "parameters": [
-                    {
-                        "name": "workspaceId",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "$ref": "#/components/schemas/Id" }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Success.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/SecretDTOEnvelope" } }
-                        }
-                    },
-                    "400": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "401": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "403": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "404": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "409": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "422": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "429": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    }
-                },
-                "requestBody": {
-                    "required": true,
-                    "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SecretWrite" } } }
-                }
-            },
-            "get": {
-                "operationId": "listSecrets",
-                "tags": ["workspaces"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }, { "ServiceToken": [] }],
-                "parameters": [
-                    {
-                        "name": "workspaceId",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "$ref": "#/components/schemas/Id" }
-                    },
-                    { "name": "cursor", "in": "query", "required": false, "schema": { "type": "string" } },
-                    {
-                        "name": "limit",
-                        "in": "query",
-                        "required": false,
-                        "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 30 }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Success.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/SecretDTOPageEnvelope" } }
-                        }
-                    },
-                    "400": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "401": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "403": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "404": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "409": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "422": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "429": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/workspaces/{workspaceId}/secrets/{secretId}/versions": {
-            "post": {
-                "operationId": "rotateSecret",
-                "tags": ["workspaces"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }, { "ServiceToken": [] }],
-                "parameters": [
-                    {
-                        "name": "workspaceId",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "$ref": "#/components/schemas/Id" }
-                    },
-                    {
-                        "name": "secretId",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "$ref": "#/components/schemas/Id" }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Success.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/SecretDTOEnvelope" } }
-                        }
-                    },
-                    "400": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "401": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "403": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "404": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "409": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "422": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "429": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    }
-                },
-                "requestBody": {
-                    "required": true,
-                    "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SecretWrite" } } }
-                }
-            }
-        },
-        "/api/v1/workspaces/{workspaceId}/secrets/{secretId}/revoke": {
-            "post": {
-                "operationId": "revokeSecret",
-                "tags": ["workspaces"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }, { "ServiceToken": [] }],
-                "parameters": [
-                    {
-                        "name": "workspaceId",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "$ref": "#/components/schemas/Id" }
-                    },
-                    {
-                        "name": "secretId",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "$ref": "#/components/schemas/Id" }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Success.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/SecretDTOEnvelope" } }
-                        }
-                    },
-                    "400": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "401": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "403": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "404": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "409": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "422": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "429": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    }
-                }
-            }
-        },
         "/api/v1/workspaces/{workspaceId}/audit": {
             "get": {
                 "operationId": "getWorkspaceAudit",
@@ -7642,80 +6454,7 @@
                 }
             }
         },
-        "/api/v1/workspaces/{workspaceId}/service-accounts/{serviceAccountId}/revoke": {
-            "post": {
-                "operationId": "revokeServiceAccount",
-                "tags": ["workspaces"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }, { "ServiceToken": [] }],
-                "parameters": [
-                    {
-                        "name": "workspaceId",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "$ref": "#/components/schemas/Id" }
-                    },
-                    {
-                        "name": "serviceAccountId",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "$ref": "#/components/schemas/Id" }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Success.",
-                        "content": {
-                            "application/json": {
-                                "schema": { "$ref": "#/components/schemas/ServiceAccountDTOEnvelope" }
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "401": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "403": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "404": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "409": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "422": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "429": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    }
-                }
-            }
-        },
-        "/internal/v1/runtimes/claim": {
+        "/internal/v1/jobs/claim": {
             "post": {
                 "operationId": "claimJob",
                 "tags": ["runtimes"],
@@ -8508,84 +7247,6 @@
                 "description": "T12 authorization obligation: raw Trace, screenshots, HTML and downloads are CREDENTIAL_RESTRICTED regardless of producer claims; require current Workspace/Attempt authorization and MANAGE_ENVIRONMENT to receive raw paths or bytes. Ordinary report access exposes redacted structured metadata only. This schema does not implement storage or authorization."
             }
         },
-        "/internal/v1/attempts/{attemptId}/artifacts/{artifactId}/commit": {
-            "post": {
-                "operationId": "commitArtifact",
-                "tags": ["attempts"],
-                "security": [{ "DeviceToken": [] }],
-                "parameters": [
-                    {
-                        "name": "attemptId",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "$ref": "#/components/schemas/Id" }
-                    },
-                    {
-                        "name": "artifactId",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "$ref": "#/components/schemas/Id" }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Success.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ArtifactDTOEnvelope" } }
-                        }
-                    },
-                    "400": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "401": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "403": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "404": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "409": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "422": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "429": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    }
-                },
-                "requestBody": {
-                    "required": true,
-                    "content": {
-                        "application/json": { "schema": { "$ref": "#/components/schemas/ArtifactCommitRequest" } }
-                    }
-                },
-                "description": "T12 authorization obligation: raw Trace, screenshots, HTML and downloads are CREDENTIAL_RESTRICTED regardless of producer claims; require current Workspace/Attempt authorization and MANAGE_ENVIRONMENT to receive raw paths or bytes. Ordinary report access exposes redacted structured metadata only. This schema does not implement storage or authorization."
-            }
-        },
         "/internal/v1/maintenance/expired-leases/reap": {
             "post": {
                 "operationId": "maintenanceExpireLeases",
@@ -8878,7 +7539,7 @@
             "get": {
                 "operationId": "getValidationReceipt",
                 "tags": ["workspaces"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }],
+                "security": [{ "WebSession": [] }],
                 "parameters": [
                     {
                         "name": "workspaceId",
@@ -10667,7 +9328,7 @@
             "get": {
                 "operationId": "previewResourceValidation",
                 "tags": ["workspaces"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }],
+                "security": [{ "WebSession": [] }],
                 "parameters": [
                     {
                         "name": "workspaceId",
@@ -10746,7 +9407,7 @@
             "get": {
                 "operationId": "listCredentials",
                 "tags": ["credentials"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }],
+                "security": [{ "WebSession": [] }],
                 "parameters": [
                     { "name": "workspaceId", "in": "path", "required": true, "schema": { "type": "string" } },
                     { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 100 } },
@@ -10955,7 +9616,7 @@
             "get": {
                 "operationId": "listAuthAdapters",
                 "tags": ["credentials"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }],
+                "security": [{ "WebSession": [] }],
                 "parameters": [
                     { "name": "workspaceId", "in": "path", "required": true, "schema": { "type": "string" } },
                     { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 100 } },
@@ -11909,7 +10570,7 @@
             "get": {
                 "operationId": "getPublishedCompiledSource",
                 "tags": ["workspaces"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }],
+                "security": [{ "WebSession": [] }],
                 "parameters": [
                     {
                         "name": "workspaceId",
@@ -12565,314 +11226,6 @@
                 "summary": "Read issuer public keys through current authenticated device binding"
             }
         },
-        "/internal/v1/workspaces/{workspaceId}/bundles/{bundleId}/download": {
-            "get": {
-                "operationId": "downloadDeviceBundle",
-                "tags": ["workspaces"],
-                "security": [{ "DeviceToken": [] }],
-                "parameters": [
-                    {
-                        "name": "workspaceId",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "$ref": "#/components/schemas/Id" }
-                    },
-                    {
-                        "name": "bundleId",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "$ref": "#/components/schemas/Id" }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "Authorized artifact stream.",
-                        "content": {
-                            "application/octet-stream": { "schema": { "type": "string", "format": "binary" } }
-                        }
-                    },
-                    "400": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "401": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "403": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "404": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "409": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "410": {
-                        "description": "The retained report, bundle or AI payload has expired. This is a domain result and does not revoke the employee session.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "422": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "429": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    }
-                }
-            }
-        },
-        "/internal/v1/workspaces/{workspaceId}/result-imports": {
-            "post": {
-                "operationId": "importNativeOfflineResult",
-                "tags": ["workspaces"],
-                "security": [{ "DeviceToken": [] }],
-                "parameters": [
-                    {
-                        "name": "workspaceId",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "$ref": "#/components/schemas/Id" }
-                    },
-                    {
-                        "name": "Idempotency-Key",
-                        "in": "header",
-                        "required": true,
-                        "schema": { "type": "string", "minLength": 1, "maxLength": 160 },
-                        "description": "Scoped to authenticated Workspace and operation. Same key/different payload returns 409."
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Success.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ImportDTOEnvelope" } }
-                        }
-                    },
-                    "400": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "401": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "403": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "404": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "409": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "410": {
-                        "description": "The referenced signed bundle import authority has expired.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "422": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    },
-                    "429": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
-                        }
-                    }
-                },
-                "requestBody": {
-                    "required": true,
-                    "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OfflineResultV1" } } }
-                },
-                "description": "Idempotent domain key is (workspaceId,bundleId,localRunId); validates signature, closure, provenance and current membership."
-            }
-        },
-        "/api/v1/workspaces/{workspaceId}/result-import-uploads": {
-            "post": {
-                "operationId": "reserveOfflineUpload",
-                "tags": ["workspaces"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }],
-                "parameters": [
-                    {
-                        "name": "workspaceId",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "$ref": "#/components/schemas/Id" }
-                    }
-                ],
-                "requestBody": {
-                    "required": true,
-                    "content": {
-                        "application/json": { "schema": { "$ref": "#/components/schemas/OfflineUploadRequest" } }
-                    }
-                },
-                "responses": {
-                    "201": {
-                        "description": "Private bounded upload reservation",
-                        "content": {
-                            "application/json": {
-                                "schema": { "$ref": "#/components/schemas/OfflineUploadDTOEnvelope" }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/workspaces/{workspaceId}/result-import-uploads/{uploadId}": {
-            "put": {
-                "operationId": "uploadOfflineChunk",
-                "tags": ["workspaces"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }],
-                "parameters": [
-                    {
-                        "name": "workspaceId",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "$ref": "#/components/schemas/Id" }
-                    },
-                    {
-                        "name": "uploadId",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "$ref": "#/components/schemas/Id" }
-                    },
-                    {
-                        "name": "offset",
-                        "in": "query",
-                        "required": true,
-                        "schema": { "type": "integer", "minimum": 0, "maximum": 33554432 }
-                    }
-                ],
-                "requestBody": {
-                    "required": true,
-                    "content": {
-                        "application/octet-stream": {
-                            "schema": { "type": "string", "format": "binary", "maxLength": 1048576 }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "description": "Verified received offset",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/OfflineChunkDTOEnvelope" } }
-                        }
-                    }
-                }
-            }
-        },
-        "/internal/v1/workspaces/{workspaceId}/result-import-uploads": {
-            "post": {
-                "operationId": "reserveNativeOfflineUpload",
-                "tags": ["workspaces"],
-                "security": [{ "DeviceToken": [] }],
-                "parameters": [
-                    {
-                        "name": "workspaceId",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "$ref": "#/components/schemas/Id" }
-                    }
-                ],
-                "requestBody": {
-                    "required": true,
-                    "content": {
-                        "application/json": { "schema": { "$ref": "#/components/schemas/OfflineUploadRequest" } }
-                    }
-                },
-                "responses": {
-                    "201": {
-                        "description": "Private bounded upload reservation",
-                        "content": {
-                            "application/json": {
-                                "schema": { "$ref": "#/components/schemas/OfflineUploadDTOEnvelope" }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/internal/v1/workspaces/{workspaceId}/result-import-uploads/{uploadId}": {
-            "put": {
-                "operationId": "uploadNativeOfflineChunk",
-                "tags": ["workspaces"],
-                "security": [{ "DeviceToken": [] }],
-                "parameters": [
-                    {
-                        "name": "workspaceId",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "$ref": "#/components/schemas/Id" }
-                    },
-                    {
-                        "name": "uploadId",
-                        "in": "path",
-                        "required": true,
-                        "schema": { "$ref": "#/components/schemas/Id" }
-                    },
-                    {
-                        "name": "offset",
-                        "in": "query",
-                        "required": true,
-                        "schema": { "type": "integer", "minimum": 0, "maximum": 33554432 }
-                    }
-                ],
-                "requestBody": {
-                    "required": true,
-                    "content": {
-                        "application/octet-stream": {
-                            "schema": { "type": "string", "format": "binary", "maxLength": 1048576 }
-                        }
-                    }
-                },
-                "responses": {
-                    "200": {
-                        "description": "Verified received offset",
-                        "content": {
-                            "application/json": { "schema": { "$ref": "#/components/schemas/OfflineChunkDTOEnvelope" } }
-                        }
-                    }
-                }
-            }
-        },
         "/api/v1/workspaces/{workspaceId}/runs/{runId}/ci-report": {
             "get": {
                 "operationId": "getCIReport",
@@ -13084,7 +11437,7 @@
             "get": {
                 "operationId": "getSampleWorkspacePackage",
                 "tags": ["examples"],
-                "security": [{ "WebSession": [], "CsrfToken": [] }],
+                "security": [{ "WebSession": [] }],
                 "parameters": [],
                 "responses": {
                     "200": {

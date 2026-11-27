@@ -5,6 +5,7 @@ cancel 对未启动重试立即收尾并保留既有失败语义。
 """
 
 import json
+from collections.abc import Sequence
 from hashlib import sha256
 from typing import Any
 from uuid import uuid4
@@ -44,7 +45,21 @@ def run_dto(run: Run) -> dict[str, Any]:
     }
 
 
-def selected_axes(variant: dict, default_role: str, selection: dict) -> tuple[list[str], list[str]]:
+async def cancel_queued_job(session: AsyncSession, job: Job) -> None:
+    """把已结束尝试的结果与当前取消一起归约，使待重试用例保留既有失败，并使首次排队的用例归为取消。"""
+    history = await session.scalars(
+        select(Attempt.outcome).where(Attempt.job_id == job.id, Attempt.phase == "FINISHED")
+    )
+    outcome = aggregate([*(result or "INCOMPLETE" for result in history), "CANCELLED"])
+    job.state, job.outcome = "FINISHED", outcome
+    execution = await session.get(CaseExecution, job.case_execution_id)
+    if execution:
+        execution.state, execution.outcome = "FINISHED", outcome
+
+
+def selected_axes(
+    variant: dict[str, Any], default_role: str, selection: dict[str, Any]
+) -> tuple[list[str], list[str]]:
     """按单个套件条目的覆盖或用例默认值筛选角色及浏览器，准入计数、真实展开和对话预览使用同一匹配语义。"""
     roles = [r for r in variant.get("roleKeys", [default_role]) if r in selection["roleKeys"]]
     browsers = [
@@ -105,9 +120,11 @@ class RunService:
         request_hash = sha256(
             canonical_bytes(
                 {
-                    "actorId": self.actor.token_id
-                    if isinstance(self.actor, ServicePrincipal)
-                    else self.actor.id,
+                    "actorId": (
+                        self.actor.token_id
+                        if isinstance(self.actor, ServicePrincipal)
+                        else self.actor.id
+                    ),
                     "request": data,
                 }
             )
@@ -283,7 +300,11 @@ class RunService:
                 variables = data.get("variables", {})
                 validate_initial_variables(document.get("initialVariables", {}), variables)
                 dataset_id = variant.get("datasetVersionId", document.get("datasetVersionId"))
-                rows = dataset_matrix_rows(assets[dataset_id]["document"]) if dataset_id else [None]
+                rows: Sequence[dict[str, Any] | None]
+                if dataset_id:
+                    rows = dataset_matrix_rows(assets[dataset_id]["document"])
+                else:
+                    rows = (None,)
                 roles, browsers = selected_axes(variant, document["roleKey"], data)
                 for role_key in roles:
                     selected_role = next(
@@ -330,12 +351,16 @@ class RunService:
                                 workspace_id=workspace_id,
                                 run_id=run.id,
                                 case_version_id=case["versionId"],
-                                published_case_version_id=case["versionId"]
-                                if await self.session.get(ResourceVersion, case["versionId"])
-                                else None,
-                                candidate_version_id=None
-                                if await self.session.get(ResourceVersion, case["versionId"])
-                                else case["versionId"],
+                                published_case_version_id=(
+                                    case["versionId"]
+                                    if await self.session.get(ResourceVersion, case["versionId"])
+                                    else None
+                                ),
+                                candidate_version_id=(
+                                    None
+                                    if await self.session.get(ResourceVersion, case["versionId"])
+                                    else case["versionId"]
+                                ),
                                 source_snapshot_hash=validation.snapshot_hash,
                                 variant_key=sha256(canonical_bytes(provenance)).hexdigest(),
                                 provenance=provenance,
@@ -450,9 +475,9 @@ class RunService:
                                     state="QUEUED",
                                     snapshot_hash=snapshot_hash,
                                     manifest_hash=manifest_hash,
-                                    requested_runtime_id=runtimes[0].id
-                                    if len(runtimes) == 1
-                                    else None,
+                                    requested_runtime_id=(
+                                        runtimes[0].id if len(runtimes) == 1 else None
+                                    ),
                                     requested_location=location,
                                     max_retries=data.get("maxRetries", 0),
                                     required_capabilities={
@@ -478,9 +503,11 @@ class RunService:
                                             else {}
                                         ),
                                     },
-                                    requester_service_token_id=self.actor.token_id
-                                    if isinstance(self.actor, ServicePrincipal)
-                                    else None,
+                                    requester_service_token_id=(
+                                        self.actor.token_id
+                                        if isinstance(self.actor, ServicePrincipal)
+                                        else None
+                                    ),
                                     created_by=self.attribution,
                                     created_at=now(),
                                 )
@@ -531,22 +558,7 @@ class RunService:
                 job.state = "CANCEL_REQUESTED"
                 active = True
             else:
-                history = (
-                    (
-                        await self.session.execute(
-                            select(Attempt.outcome).where(
-                                Attempt.job_id == job.id, Attempt.phase == "FINISHED"
-                            )
-                        )
-                    )
-                    .scalars()
-                    .all()
-                )
-                outcome = aggregate([*(result or "INCOMPLETE" for result in history), "CANCELLED"])
-                job.state, job.outcome = "FINISHED", outcome
-                execution = await self.session.get(CaseExecution, job.case_execution_id)
-                if execution:
-                    execution.state, execution.outcome = "FINISHED", outcome
+                await cancel_queued_job(self.session, job)
         if not active:
             cases = (
                 (

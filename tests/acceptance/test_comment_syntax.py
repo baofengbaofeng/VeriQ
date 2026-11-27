@@ -555,11 +555,17 @@ def test_html_parser_dependency_faults_are_named(
 
 def test_all_tracked_actual_html_keeps_original_bytes_and_no_comments() -> None:
     """
-    真实库存中的四个页面以已知摘要绑定原字节，只有完整成熟语法资格通过且返回零范围才能固定无注释结论。
+    工作区跟踪的每个页面都以已知摘要绑定原字节，只有完整成熟语法资格通过且返回零范围才能固定无注释结论。
     """
     expected = {
         "apps/desktop/src/renderer/index.html": "200abad5c14d5758e5601f11e0292eb8159d64adb1befbb541580daf63ceb295",
-        "apps/web/index.html": "cefe8249cf878aa659ccb43dcb25935bb67c6e2166d311a1ff19e6a71909c51f",
+        "apps/web/index.html": "988c5af3c5d95ddb35359d25ac262049afb20d37a01d39cc310a7e15bed3037c",
+        "apps/web/tests/agent-strict-fixture.html": (
+            "d7a8c188fddbc1f6e9a721ccb0889cdd140a77c37a8809a1ebf0e38084f8868d"
+        ),
+        "apps/web/tests/identity-strict-fixture.html": (
+            "73b19cb6c847410b6bfe8a122e7c8627f409f166d2f212586c33eddb0636196f"
+        ),
         "apps/web/tests/interaction-fixture.html": "dc64c3ddc545fc17404716ca3f1c925caaa99356c02c2970117a50c9397ffd7e",
         "fixtures/demo-app/index.html": "a18e94a56ac8757946e458abb46686b0dee08729d9dfd46de5417faea80e3d22",
     }

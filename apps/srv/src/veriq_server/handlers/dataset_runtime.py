@@ -1,8 +1,10 @@
 """私有数据通道只接受当前任务的设备租约证明，返回规范字节并禁止缓存，拒绝后不在错误正文中披露行内容。"""
 
 import asyncio
+from typing import Any
 
 from ..contracts import canonical_bytes
+from ..datasets.policy import DatasetBinding
 from ..datasets.request import fetch_rows
 from ..service import now, stamp
 from ..auth.authorization import WorkspaceScope
@@ -16,8 +18,10 @@ from .execution import ExecutionAPI
 class StaticDatasetAPI(ExecutionAPI):
     """沿用设备执行接口的证明解析和会话撤销语义，候选验证源可以在准备时读取，测试数据须等激活完成。"""
 
-    async def post(self, attempt_id: str) -> None:
+    async def post(self, attempt_id: str | None = None) -> None:
         """设备授权、工作区、围栏和取消状态均在读取不可变正文之前重新核对，整个读取使用同一安装锁和事务。"""
+        if attempt_id is None:
+            raise Problem(404, "NOT_FOUND", "Attempt not found")
         selection = self.body("StaticDatasetSelection")
         async with self.db.sessions.begin() as session:
             await lock_installation(session)
@@ -46,7 +50,7 @@ class HttpDatasetAPI(ExecutionAPI):
 
     body_limit = 65536
     _disconnected = False
-    _read: asyncio.Task | None = None
+    _read: asyncio.Task[list[dict[str, Any]]] | None = None
 
     def on_connection_close(self) -> None:
         """请求离开私有通道后只取消本处理器持有的上游读取，让连接池收回套接字和并发槽而不影响其它测试。"""
@@ -55,14 +59,16 @@ class HttpDatasetAPI(ExecutionAPI):
             self._read.cancel()
         super().on_connection_close()
 
-    async def post(self, attempt_id: str) -> None:
+    async def post(self, attempt_id: str | None = None) -> None:
         """读取前、每页或重试之前及返回前均使用新事务。网络请求期间没有打开安装锁，也没有长期数据库会话。"""
+        if attempt_id is None:
+            raise Problem(404, "NOT_FOUND", "Attempt not found")
         selection = self.body("HttpDatasetSelection")
         proof = self.header_proof()
         vid = selection["versionId"]
         denied = Problem(403, "DATASET_NOT_ASSIGNED", "Dataset is not assigned to this Attempt")
 
-        async def authorize(resolve=False):
+        async def authorize(resolve: bool = False) -> DatasetBinding:
             async with self.db.sessions.begin() as session:
                 await lock_installation(session)
                 return await LeaseService(session, self.config).http_dataset(
@@ -71,7 +77,7 @@ class HttpDatasetAPI(ExecutionAPI):
 
         config, secret = await authorize(resolve=True)
 
-        async def recheck():
+        async def recheck() -> None:
             current, _ = await authorize()
             if current != config:
                 raise denied

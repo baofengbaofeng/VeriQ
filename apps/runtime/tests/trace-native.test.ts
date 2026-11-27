@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm, readFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { chromium } from "@playwright/test";
 import { openTrace } from "../src/trace.ts";
 
@@ -17,10 +17,6 @@ test(
         const path = join(root, "original.zip"),
             controller = new AbortController();
         const browser = await chromium.launch({
-            executablePath: resolve(
-                "../../.superpowers/cache/playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chro" +
-                    "me-headless-shell",
-            ),
             headless: true,
         });
         let opened: Promise<void> | undefined;

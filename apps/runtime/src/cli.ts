@@ -409,7 +409,7 @@ runtime
                 const journal = await WindowsAttemptJournal.open(root);
                 try {
                     await journal.requireNoLegacy();
-                    journal.records();
+                    for (const record of journal.records()) void record;
                 } finally {
                     journal.close();
                 }

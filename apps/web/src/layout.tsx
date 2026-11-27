@@ -422,7 +422,7 @@ function Header({
         breakpoint.addEventListener("change", synchronize);
         return () => breakpoint.removeEventListener("change", synchronize);
     }, [breakpoint]);
-    // 回到宽屏后合上临时展开的工具组，保留桌面端始终内联的初始状态。
+    // 宽屏始终内联显示工具组，离开紧凑布局时清除临时展开状态，再次缩窄窗口后仍从收起状态开始。
     useEffect(() => {
         if (!compact) setExpanded(false);
     }, [compact]);

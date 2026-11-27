@@ -6,9 +6,8 @@ from urllib.parse import quote
 
 
 def test_report_projection_masks_values_and_authentication_headers():
-    assert importlib.util.find_spec("veriq_server.services.report") is not None, (
-        "Missing scoped report service"
-    )
+    spec = importlib.util.find_spec("veriq_server.services.report")
+    assert spec is not None, "Missing scoped report service"
     module = importlib.import_module("veriq_server.services.report")
     secret = "synthetic/private credential!"
     payload = {

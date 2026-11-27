@@ -326,7 +326,7 @@
     min-width: 0;
 }
 /*
- * 两种布局的新建入口使用同一蓝色和白色前景，键盘焦点仍由共享控件的焦点配色负责。
+ * 侧栏和聊天区的新建按钮共用蓝底白字及悬停配色，键盘焦点出现时继续采用共享控件的焦点样式。
  */
 .vq-agent :is(.vq-agent-new, .vq-agent-new-chat):where(:not(:focus-visible)) {
     border-color: var(--vq-button-fill, #465fff);

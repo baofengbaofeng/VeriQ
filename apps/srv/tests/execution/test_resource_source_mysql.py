@@ -12,11 +12,14 @@ import pytest
 from test_auth import setup, login
 from test_workspace import workspace, new_member, client
 from test_lease_mysql import device
-from test_agent_mysql import business, server_compile_once
+import test_agent_mysql
+import test_http_datasets
 from test_engine_capabilities_mysql import _settings_with_inventory, _write_inventory
-from test_http_datasets import dataset_deployment
 from veriq_server.db import Artifact
 from veriq_server.settings import Settings
+
+business_service = test_agent_mysql.business_service
+shared_dataset_deployment = test_http_datasets.shared_dataset_deployment
 
 
 async def test_published_source_exact_bytes_integrity_scope_and_current_membership(site):
@@ -68,7 +71,7 @@ async def test_published_source_exact_bytes_integrity_scope_and_current_membersh
     previous = approved.read_bytes() if approved.exists() else None
     try:
         approved.write_bytes((release / "inventory.json").read_bytes())
-        await server_compile_once(db, release)
+        await test_agent_mysql.server_compile_once(db, release)
         status = (await c.get(f"/api/v1/workspaces/{ws}/jobs/{job_id}")).json()["data"]
         assert status["state"] == "FINISHED" and status["outcome"] == "PASSED"
         receipt = (await c.get(f"/api/v1/workspaces/{ws}/jobs/{job_id}/validation-receipt")).json()[
@@ -178,7 +181,7 @@ async def test_published_source_exact_bytes_integrity_scope_and_current_membersh
             json={"revision": candidate["revision"], "sourceHash": candidate["sourceHash"]},
         )
         assert failed.status_code == 202
-        await server_compile_once(db, release)
+        await test_agent_mysql.server_compile_once(db, release)
         failed_job = f"/api/v1/workspaces/{ws}/jobs/{failed.json()['data']['id']}"
         failure = (await c.get(failed_job)).json()["data"]
         assert failure["outcome"] == "ERROR" and failure["errorCode"] == "UNKNOWN_ELEMENT"
@@ -431,8 +434,8 @@ async def test_static_fetch_is_scoped_to_attempt_fence_and_version(site):
     assert (await c.post(path, json=selection, headers=headers)).status_code == 401
 
 
-@pytest.fixture
-async def dataset_wire(monkeypatch):
+@pytest.fixture(name="dataset_wire")
+async def _dataset_wire(monkeypatch):
     """真实回环服务器按线上的路径记录每一笔请求，测试只替换部署目标套接字，继续使用 HTTPX 完整收发响应。"""
     from veriq_server.datasets import request
 
@@ -461,9 +464,9 @@ async def dataset_wire(monkeypatch):
         port = server.sockets[0].getsockname()[1]
 
         class Loopback(httpx.AsyncHTTPTransport):
-            async def handle_async_request(self, req):
-                req.url = req.url.copy_with(scheme="http", host="127.0.0.1", port=port)
-                return await super().handle_async_request(req)
+            async def handle_async_request(self, request):
+                request.url = request.url.copy_with(scheme="http", host="127.0.0.1", port=port)
+                return await super().handle_async_request(request)
 
         monkeypatch.setattr(request, "open_transport", Loopback)
         yield calls, state
@@ -782,6 +785,8 @@ async def test_legacy_published_dataset_revalidation_uses_frozen_original(
         scratch_parent = profile / "scratch"
         scratch_parent.mkdir(mode=0o700)
 
+        browser_executable = await test_agent_mysql.runtime_browser_executable()
+
         async def launch(*args):
             return await asyncio.create_subprocess_exec(
                 "node",
@@ -790,7 +795,7 @@ async def test_legacy_published_dataset_revalidation_uses_frozen_original(
                 "tests/support/run-connected-attempt.ts",
                 str(profile),
                 str(release),
-                "/usr/bin/chromium",
+                browser_executable,
                 *args,
                 env={**os.environ, "TMPDIR": str(scratch_parent)},
                 cwd="apps/runtime",
@@ -802,7 +807,7 @@ async def test_legacy_published_dataset_revalidation_uses_frozen_original(
             _, err = await child.communicate()
             assert child.returncode == 0, err.decode()
 
-        await server_compile_once(db, release)
+        await test_agent_mysql.server_compile_once(db, release)
         async with db.sessions() as session:
             migrated = await session.get(Job, migration_id)
             assert migrated.outcome == "PASSED", (migrated.state, migrated.outcome)
@@ -905,16 +910,13 @@ async def test_legacy_published_dataset_revalidation_uses_frozen_original(
                 await session.execute(select(Job).where(Job.run_id == rerun.json()["data"]["id"]))
             ).scalar_one()
             assert queued.required_capabilities["validationJobId"] == migration_id
-        workdirs = list((profile / "agent/work").iterdir())
-        assert len(workdirs) == 2
-        for directory in workdirs:
-            assert (directory / "completion.json").exists()
+        work_root = profile / "agent/work"
+        assert {entry.name for entry in work_root.iterdir()} == {attempt.id}
+        testdir = work_root / attempt.id
+        assert (testdir / "completion.json").is_file()
         for file in profile.rglob("*"):
             if file.is_file() and not file.is_symlink():
                 assert marker.encode() not in file.read_bytes(), file
-        testdir = next(
-            directory for directory in workdirs if (directory / "execution.json").exists()
-        )
         selected = json.loads((testdir / "execution.json").read_bytes())["selectedRow"]
         assert selected["rowSha256"] == sha256(canonical_bytes(expected_row)).hexdigest()
 
@@ -1054,13 +1056,32 @@ async def test_legacy_published_dataset_revalidation_uses_frozen_original(
                     ).all()
                 )
                 assert marker not in json.dumps(retained)
-            journal = json.loads((profile / "agent/attempts" / (attempt.id + ".json")).read_bytes())
+            name = attempt.id + ".json"
+            active_path = profile / "agent/attempts" / name
+            settled_path = profile / "agent/settled-attempts" / name
+            pending_path = profile / "agent/claim-request.json"
+            if end == "cancel":
+                journal = json.loads(settled_path.read_bytes())
+                assert not active_path.exists() and not pending_path.exists()
+            else:
+                journal = json.loads(active_path.read_bytes())
+                assert not settled_path.exists()
+                assert (
+                    json.loads(pending_path.read_bytes())["clientRequestId"]
+                    == journal["claimRequestId"]
+                )
+            assert journal["claim"]["attemptId"] == attempt.id
             assert journal["stop"]["processStopScope"] == "FULL_DESCENDANT_TREE"
-            tombstone = scratch_parent / journal["allocation"]["temporaryName"]
-            modules = Path(journal["work"]) / "node_modules"
-            await asyncio.to_thread(inspect_files, tombstone)
-            assert (tombstone / ".veriq-retirement-inventory").is_file()
-            assert (modules / ".veriq-retired").is_file()
+            scratch = scratch_parent / journal["allocation"]["temporaryName"]
+            work = Path(journal["work"])
+            for allocated in (scratch, work):
+                assert (allocated / ".veriq-owner").read_text(encoding="utf-8") == journal[
+                    "allocation"
+                ]["owner"]
+            await asyncio.to_thread(inspect_files, scratch)
+            assert (work / "node_modules").is_dir()
+            assert not (scratch / ".veriq-retirement-inventory").exists()
+            assert not (work / "node_modules/.veriq-retired").exists()
             assert journal["dataCleanup"] == "OWNERSHIP_UNCONFIRMED"
         for file in profile.rglob("*"):
             if file.is_file() and not file.is_symlink():
@@ -1095,7 +1116,9 @@ async def test_mvp_exposes_connected_runtime_only(site):
 def test_protected_occurrences_expand_only_frozen_case_and_resolve_parameter_provenance():
     from veriq_server.services.connected_datasets import protected_occurrences
 
-    wire = lambda p: "v_" + sha256(p.encode("utf8")).hexdigest()
+    def wire(path: str) -> str:
+        return "v_" + sha256(path.encode("utf8")).hexdigest()
+
     tree = {
         "assets": [
             {"versionId": "dataset", "kind": "DATASET", "document": {"fields": {"value": {}}}},
@@ -1405,9 +1428,9 @@ async def test_http_dataset_rechecks_access_before_delivery(dataset_deployment, 
         port = server.sockets[0].getsockname()[1]
 
         class Loopback(httpx.AsyncHTTPTransport):
-            async def handle_async_request(self, req):
-                req.url = req.url.copy_with(scheme="http", host="127.0.0.1", port=port)
-                return await super().handle_async_request(req)
+            async def handle_async_request(self, request):
+                request.url = request.url.copy_with(scheme="http", host="127.0.0.1", port=port)
+                return await super().handle_async_request(request)
 
         monkeypatch.setattr(request, "open_transport", Loopback)
 
@@ -1578,8 +1601,8 @@ async def test_old_http_projection_reuses_only_the_live_capable_revalidation():
     assert result == (migration, None)
 
 
-@pytest.fixture
-async def historical_http_case(site, dataset_deployment):
+@pytest.fixture(name="historical_http_case")
+async def _historical_http_case(site, dataset_deployment):
     """共用正常创建的环境、HTTP 数据版本、用例草稿和受信设备，旧回执与新投影分别由各测试场景单独生成。"""
     from test_http_datasets import REF, config, connection
     from test_publish import create
@@ -1777,7 +1800,7 @@ async def test_previously_projected_http_job_revalidates_its_immutable_bundle(
 
 @pytest.mark.parametrize("ready", [False, True], ids=["pending", "ready"])
 async def test_historical_scheduler_redirect_keeps_only_its_original_lineage(
-    site, historical_http_case, dataset_deployment, monkeypatch, ready
+    site, historical_http_case, dataset_deployment, monkeypatch, ready, tmp_path
 ):
     """使用旧代调度器的真实重定向写入与撤权发布方，只有原清单所派生的验证可恢复执行，其它同源验证不能借用。"""
     from uuid import uuid4
@@ -1938,7 +1961,16 @@ async def test_historical_scheduler_redirect_keeps_only_its_original_lineage(
             assert fresh.required_capabilities["publishedValidationJobId"] == original
             assert replacement_id not in (original, redirected, sibling.id)
     else:
+        from test_runs_mysql import historical_compiler_settings
+        from veriq_server.services.server_compilation import _claim
+
         replacement_id = redirected
+        static_worker = historical_compiler_settings(tmp_path, connected=True)
+        assert await _claim(db, static_worker) is None
+        async with db.sessions() as session:
+            waiting = await session.get(Job, redirected)
+            assert waiting.required_capabilities["httpDatasets"] == "1.0"
+            assert (waiting.state, waiting.server_compilation_id) == ("QUEUED", None)
     await completed(db, replacement_id, connected=True)
     result = await claim(live=True)
     assert result.status_code == 200, result.text

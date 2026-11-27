@@ -33,7 +33,9 @@ def save_state(path: Path, state: dict[str, Any]) -> None:
     parent = path.parent.stat()
     if parent.st_mode & 0o022:
         raise RuntimeError("State directory must not be writable by group or others")
-    with tempfile.NamedTemporaryFile(mode="w", dir=path.parent, delete=False, encoding="utf-8") as target:
+    with tempfile.NamedTemporaryFile(
+        mode="w", dir=path.parent, delete=False, encoding="utf-8"
+    ) as target:
         temporary = Path(target.name)
         try:
             os.chmod(temporary, 0o600)
@@ -57,7 +59,9 @@ def replace_ids(value: Any, aliases: dict[str, str]) -> Any:
     return aliases.get(value, value) if isinstance(value, str) else value
 
 
-def publish(api: Platform, base: str, resource: dict[str, Any], content: dict[str, Any], timeout: int) -> str:
+def publish(
+    api: Platform, base: str, resource: dict[str, Any], content: dict[str, Any], timeout: int
+) -> str:
     """复用真实草稿修订、服务端 sourceHash 预览和异步验证作业，仅在匹配回执可读取后调用发布端点；任何失败均保留草稿，
     不把排队状态写成已发布版本。
 
@@ -74,9 +78,14 @@ def publish(api: Platform, base: str, resource: dict[str, Any], content: dict[st
     if draft["content"] != content:
         raise RuntimeError("Existing draft differs; import will not overwrite edits")
     preview = api.request("GET", route + "/validation-preview")
-    job = api.request("POST", route + "/validate", {
-        "revision": preview["revision"], "sourceHash": preview["sourceHash"],
-    })
+    job = api.request(
+        "POST",
+        route + "/validate",
+        {
+            "revision": preview["revision"],
+            "sourceHash": preview["sourceHash"],
+        },
+    )
     deadline = time.monotonic() + timeout
     while True:
         job = api.request("GET", base + "/jobs/" + job["id"])
@@ -86,12 +95,19 @@ def publish(api: Platform, base: str, resource: dict[str, Any], content: dict[st
                 raise RuntimeError("Real sample validation failed; inspect the platform Job")
             break
         if time.monotonic() >= deadline:
-            raise RuntimeError("Validation timed out; check the server compilation worker and resume")
+            raise RuntimeError(
+                "Validation timed out; check the server compilation worker and resume"
+            )
         time.sleep(min(2, max(0, deadline - time.monotonic())))
     receipt = api.request("GET", base + "/jobs/" + job["id"] + "/validation-receipt")
-    version = api.request("POST", route + "/publish", {
-        "revision": preview["revision"], "validationReceiptId": receipt["id"],
-    })
+    version = api.request(
+        "POST",
+        route + "/publish",
+        {
+            "revision": preview["revision"],
+            "validationReceiptId": receipt["id"],
+        },
+    )
     return str(version["id"])
 
 
@@ -103,21 +119,37 @@ def import_workspace(api: Platform, args: argparse.Namespace, state: dict[str, A
     业务地址来自 Runtime 可达的配置，绝不假定 localhost 指向控制服务。
     """
     package = sample_package()
-    if "sampleSourceInventory" in state and state["sampleSourceInventory"] != package["sourceInventory"]:
+    if (
+        "sampleSourceInventory" in state
+        and state["sampleSourceInventory"] != package["sourceInventory"]
+    ):
         raise RuntimeError("Installed sample sources changed; use a new Workspace key")
     state["sampleSourceInventory"] = package["sourceInventory"]
     if not args.workspace_only:
-        options = {"demoURL": args.demo_url.rstrip("/"), "buildSha": args.build_sha,
-                   "locale": args.locale, "timezone": args.timezone, "runtimeId": args.runtime_id}
+        options = {
+            "demoURL": args.demo_url.rstrip("/"),
+            "buildSha": args.build_sha,
+            "locale": args.locale,
+            "timezone": args.timezone,
+            "runtimeId": args.runtime_id,
+        }
         if "sampleOptions" in state and state["sampleOptions"] != options:
             raise RuntimeError("Sample import options changed; restore the original configuration")
         state["sampleOptions"] = options
     if "workspaceId" not in state:
-        workspace = next((item for item in api.items("/api/v1/workspaces") if item["key"] == args.workspace_key), None)
+        workspace = next(
+            (item for item in api.items("/api/v1/workspaces") if item["key"] == args.workspace_key),
+            None,
+        )
         if workspace is None:
-            workspace = api.request("POST", "/api/v1/workspaces", {
-                "key": args.workspace_key, "name": "VeriQ employee example",
-            })
+            workspace = api.request(
+                "POST",
+                "/api/v1/workspaces",
+                {
+                    "key": args.workspace_key,
+                    "name": "VeriQ employee example",
+                },
+            )
         state["workspaceId"] = workspace["id"]
         save_state(args.state, state)
     base = "/api/v1/workspaces/" + state["workspaceId"]
@@ -128,9 +160,17 @@ def import_workspace(api: Platform, args: argparse.Namespace, state: dict[str, A
     if not args.runtime_id:
         raise RuntimeError("Provide --runtime-id after registering and authorizing a Runtime")
     if "adapter" not in state:
-        adapter = api.request("POST", base + "/auth-adapters", {"configuration": {
-            "kind": "HTTP_BEARER", "identityPath": "/me", "identityPointer": "/id",
-        }})
+        adapter = api.request(
+            "POST",
+            base + "/auth-adapters",
+            {
+                "configuration": {
+                    "kind": "HTTP_BEARER",
+                    "identityPath": "/me",
+                    "identityPointer": "/id",
+                }
+            },
+        )
         state["adapter"] = adapter["versionId"]
         save_state(args.state, state)
     for key, secret_ref, identity, variable in [
@@ -141,9 +181,15 @@ def import_workspace(api: Platform, args: argparse.Namespace, state: dict[str, A
             token = os.environ.get(variable)
             if not token or len(token) < 24:
                 raise RuntimeError(f"Provide {variable} through the secret environment")
-            result = api.request("POST", base + "/credentials", {
-                "secretRef": secret_ref, "value": {"token": token}, "allowedIdentityIds": [identity],
-            })
+            result = api.request(
+                "POST",
+                base + "/credentials",
+                {
+                    "secretRef": secret_ref,
+                    "value": {"token": token},
+                    "allowedIdentityIds": [identity],
+                },
+            )
             state[key] = result["versionId"]
             save_state(args.state, state)
     manifest = package["manifest"]
@@ -155,34 +201,61 @@ def import_workspace(api: Platform, args: argparse.Namespace, state: dict[str, A
         if key == "environment":
             origin = args.demo_url.rstrip("/")
             document = content["document"]
-            document.update(baseURL=origin, apiBaseURL=origin, fixtureBaseURL=origin,
-                            allowedOrigins=[origin], buildSha=args.build_sha,
-                            locale=args.locale, timezone=args.timezone)
+            document.update(
+                baseURL=origin,
+                apiBaseURL=origin,
+                fixtureBaseURL=origin,
+                allowedOrigins=[origin],
+                buildSha=args.build_sha,
+                locale=args.locale,
+                timezone=args.timezone,
+            )
         resource_key = "demo-" + key
         resource = resources.get((content["kind"], resource_key))
         if resource is None:
-            resource = api.request("POST", base + "/resources", {
-                "kind": content["kind"], "key": resource_key, "name": "Demo " + key, "content": content,
-            })
+            resource = api.request(
+                "POST",
+                base + "/resources",
+                {
+                    "kind": content["kind"],
+                    "key": resource_key,
+                    "name": "Demo " + key,
+                    "content": content,
+                },
+            )
         version = publish(api, base, resource, content, args.validation_timeout)
         resolved[aliases[key]] = version
         state.setdefault("versions", {})[key] = version
         save_state(args.state, state)
     plan_content = {
-        "name": "Demo employee smoke", "suiteVersionId": state["versions"]["suite"],
-        "environmentVersionId": state["versions"]["environment"], "browsers": ["chromium"],
-        "runtimeIds": [args.runtime_id], "overlapPolicy": "QUEUE", "maxCaseRetries": 0,
-        "roleKeys": ["editor"], "variables": {},
+        "name": "Demo employee smoke",
+        "suiteVersionId": state["versions"]["suite"],
+        "environmentVersionId": state["versions"]["environment"],
+        "browsers": ["chromium"],
+        "runtimeIds": [args.runtime_id],
+        "overlapPolicy": "QUEUE",
+        "maxCaseRetries": 0,
+        "roleKeys": ["editor"],
+        "variables": {},
     }
     if "planId" not in state:
-        candidates = [plan for plan in api.items(base + "/execution-plans") if all(plan.get(k) == v for k,
-            v in plan_content.items())]
-        plan = candidates[0] if candidates else api.request("POST", base + "/execution-plans", plan_content)
+        candidates = [
+            plan
+            for plan in api.items(base + "/execution-plans")
+            if all(plan.get(k) == v for k, v in plan_content.items())
+        ]
+        plan = (
+            candidates[0]
+            if candidates
+            else api.request("POST", base + "/execution-plans", plan_content)
+        )
         state["planId"] = plan["id"]
         save_state(args.state, state)
     else:
         plan = api.request("GET", base + "/execution-plans/" + state["planId"])
-        if plan.get("archived") or any(plan.get(key) != value for key, value in plan_content.items()):
+        if plan.get("archived") or any(
+            plan.get(key) != value for key, value in plan_content.items()
+        ):
             raise RuntimeError("Existing plan changed; inspect it instead of overwriting edits")
     print(f"Published sample Workspace: {state['workspaceId']}")
     print(f"HTTP execution plan: {state['planId']}")
@@ -196,7 +269,9 @@ def main() -> None:
     参数不接受密码或业务令牌，防止操作系统进程列表泄漏。build SHA 来自目标应用，不能用 VeriQ 本身提交替代。
     示例导入不调用模型、不触发 Run、不自动授予 Runtime 信任。
     """
-    parser = argparse.ArgumentParser(description="Import real VeriQ sample assets through public APIs")
+    parser = argparse.ArgumentParser(
+        description="Import real VeriQ sample assets through public APIs"
+    )
     parser.add_argument("--server", required=True)
     parser.add_argument("--workspace-key", default="veriq-demo")
     parser.add_argument("--email", required=True)
@@ -244,7 +319,8 @@ def entrypoint() -> None:
         raise SystemExit(str(error)) from None
     except (ValueError, OSError, KeyError):
         raise SystemExit(
-            "Sample import failed; inspect platform Job and configuration without exposing secrets") from None
+            "Sample import failed; inspect platform Job and configuration without exposing secrets"
+        ) from None
 
 
 if __name__ == "__main__":

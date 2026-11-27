@@ -40,14 +40,17 @@ def upgrade() -> None:
     op.execute("UPDATE veriq_artifact_deletions SET deleted_at = NULL")
 
 
-def downgrade() -> None:
-    count = (
-        op.get_bind()
-        .execute(sa.text("SELECT COUNT(*) FROM veriq_artifact_publications"))
-        .scalar_one()
-    )
+def require_downgrade_safe(connection: sa.Connection) -> None:
+    """确认制品发布日志与退役围栏均为空，旧版本缺少这些记录时无法决定对象是否还可以安全发布。"""
+    count = connection.execute(
+        sa.text("SELECT COUNT(*) FROM veriq_artifact_publications")
+    ).scalar_one()
     if count:
         raise RuntimeError(
             "Publication journals and retirement fences require a proved-safe migration"
         )
+
+
+def downgrade() -> None:
+    require_downgrade_safe(op.get_bind())
     op.drop_table("veriq_artifact_publications")

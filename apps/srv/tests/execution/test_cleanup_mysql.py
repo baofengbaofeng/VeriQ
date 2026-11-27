@@ -1,5 +1,7 @@
+from datetime import timedelta
 from uuid import uuid4
 import json
+import pytest
 from sqlalchemy import select, text
 from test_auth import setup, login
 from test_workspace import workspace
@@ -7,10 +9,14 @@ from test_runs_mysql import published, environment
 from test_lease_mysql import device, auth, claim_body
 from test_completion_mysql import upload
 from veriq_server.contracts import canonical_bytes
-from veriq_server.db import Job, Attempt, CapacityPool, Artifact
+from veriq_server.db import Job, Attempt, AuditLog, CapacityPool, Artifact, ServiceToken
+from veriq_server.service import now
 
 
-async def test_cleanup_uses_same_queue_scoped_actor_and_waits_for_unknown_process_stop(site):
+@pytest.mark.parametrize("expired", [True, False], ids=["expired", "revoked"])
+async def test_cleanup_uses_same_queue_scoped_actor_and_waits_for_unknown_process_stop(
+    site, expired
+):
     c, db = site
     await setup(c)
     await login(c)
@@ -106,13 +112,24 @@ async def test_cleanup_uses_same_queue_scoped_actor_and_waits_for_unknown_proces
             {"id": claim["attemptId"]},
         )
 
-    async def maintenance(operation):
+    async def maintenance(operation, credential=token, expected_status=200):
         response = await c.post(
             "/internal/v1/maintenance/" + operation,
             json={"workspaceId": ws, "limit": 100},
-            headers={"Authorization": "Bearer " + token["token"], "Idempotency-Key": str(uuid4())},
+            headers={
+                "Authorization": "Bearer " + credential["token"],
+                "Idempotency-Key": str(uuid4()),
+            },
         )
-        assert response.status_code == 200, response.text
+        assert response.status_code == expected_status, response.text
+        return response.json().get("data", {})
+
+    async def issue(account_id, operations):
+        response = await c.post(
+            base + f"/service-accounts/{account_id}/tokens",
+            json={"purpose": "MAINTENANCE", "operations": operations},
+        )
+        assert response.status_code == 201, response.text
         return response.json()["data"]
 
     assert (await maintenance("expired-leases/reap"))["processedCount"] == 1
@@ -138,6 +155,18 @@ async def test_cleanup_uses_same_queue_scoped_actor_and_waits_for_unknown_proces
         ]
 
         assert (await session.get(Attempt, claim["attemptId"])).capacity_state == "QUARANTINED"
+    async with db.sessions.begin() as session:
+        old = await session.get(ServiceToken, token["id"])
+        if expired:
+            old.expires_at = now() - timedelta(seconds=1)
+        else:
+            old.revoked_at = now()
+    operation = "fixture-cleanups/reconcile"
+    other = (await c.post(base + "/service-accounts", json={"name": "Other"})).json()["data"]
+    foreign = await issue(other["id"], [operation])
+    assert (await maintenance(operation, foreign))["processedCount"] == 0
+    wrong_scope = await issue(account["id"], ["expired-leases/reap"])
+    await maintenance(operation, wrong_scope, expected_status=403)
     stopped = await c.post(
         origin + "/reconcile",
         json={
@@ -149,6 +178,30 @@ async def test_cleanup_uses_same_queue_scoped_actor_and_waits_for_unknown_proces
         headers=auth(d),
     )
     assert stopped.status_code == 200, stopped.text
+    assert (
+        await c.post("/internal/v1/jobs/claim", json=claim_body(d), headers=auth(d))
+    ).status_code == 204
+    renewed = await issue(account["id"], [operation])
+    assert (await maintenance(operation, renewed))["processedCount"] == 1
+    assert (await maintenance(operation, renewed))["processedCount"] == 0
+    async with db.sessions() as session:
+        recovered = (await session.scalars(select(Job).where(Job.kind == "CLEANUP"))).one()
+        assert recovered.id == cleanup.id
+        audit = (
+            await session.scalars(
+                select(AuditLog).where(
+                    AuditLog.target_id == cleanup.id, AuditLog.action == "cleanup.reauthorized"
+                )
+            )
+        ).one()
+        previous = await session.scalar(
+            select(AuditLog.actor_id).where(
+                AuditLog.target_id == cleanup.id,
+                AuditLog.action == "cleanup.authorization_replaced",
+            )
+        )
+        assert previous == token["id"]
+        assert audit.actor_id == renewed["id"]
     claim = (await c.post("/internal/v1/jobs/claim", json=claim_body(d), headers=auth(d))).json()[
         "data"
     ]

@@ -4,8 +4,11 @@
 数据库之外的快照输入没有依赖引用，因此不需要模拟 SQL 结果。晋升使用真实异步权威锁和原子文件替换。
 """
 
+import asyncio
+import fcntl
 from hashlib import sha256
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
@@ -13,6 +16,9 @@ from uuid import uuid4
 import pytest
 
 from veriq_server.auth.authorization import WorkspaceScope
+from veriq_server.bundles import authority
+from veriq_server.bundles.issuer import Issuer
+from veriq_server.promote_engine import promote_engine
 from veriq_server.services.resource import ResourceService
 from veriq_server.settings import Settings
 
@@ -31,7 +37,7 @@ async def test_new_engine_selection_changes_source_hash_without_mutating_old_sna
             "kind": "ELEMENT_CATALOG",
             "document": {
                 "schemaVersion": "1.0",
-                "elements": [{"key": "save", "locator": {"by": "testId", "value": "save"}}],
+                "elements": [{"key": "save", "locator": {"by": "veriqId", "value": "save"}}],
             },
         },
     )
@@ -47,16 +53,14 @@ async def test_new_engine_selection_changes_source_hash_without_mutating_old_sna
     assert json.dumps(previous, sort_keys=True) == frozen
 
 
-@pytest.fixture
-def promotion(tmp_path: Path):
+@pytest.fixture(name="promotion")
+def promotion_fixture(tmp_path: Path):
     """操作员晋升应将新版本加入已有批准清单，而同版本不同字节必须拒绝并保留原文件；真实合成签发者使测试走与并发 Bundle
     导出相同的 issuer 和 inventory 锁协议。
 
     四个候选文件的长度和摘要由实际字节计算。初始空库存表示尚未批准任何发行，不需要虚构旧批准记录。
 
     """
-    from veriq_server.bundles.issuer import Issuer
-
     issuer = tmp_path / "issuer/issuer.json"
     issuer.parent.mkdir()
     Issuer.initialize(issuer)
@@ -104,8 +108,6 @@ async def test_promotion_retains_old_version_and_rejects_same_version_different_
     两次成功晋升分别建立旧版本与新候选版本。冲突失败后直接比较批准文件字节，确认没有部分写入。
 
     """
-    from veriq_server.promote_engine import promote_engine
-
     settings, candidate, engine, approved = promotion
     inventory = candidate / "inventory.json"
     await promote_engine(settings, candidate)
@@ -134,12 +136,6 @@ async def test_promotion_waits_for_issuer_guard_and_cancellation_keeps_inventory
     换。
 
     """
-    import asyncio
-    import fcntl
-    import os
-    from veriq_server.bundles import authority
-    from veriq_server.promote_engine import promote_engine
-
     settings, candidate, _, approved = promotion
     before = approved.read_bytes()
     path = Path(settings.bundle_issuer_path).with_suffix(".lock")
@@ -181,12 +177,6 @@ async def test_promotion_rechecks_candidate_after_waiting_for_guard(
     分别隔离身份与摘要检查。
 
     """
-    import asyncio
-    import fcntl
-    import os
-    from veriq_server.bundles import authority
-    from veriq_server.promote_engine import promote_engine
-
     settings, candidate, engine, approved = promotion
     before = approved.read_bytes()
     descriptor = authority.open_lock(Path(settings.bundle_issuer_path).with_suffix(".lock"))

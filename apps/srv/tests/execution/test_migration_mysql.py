@@ -4,6 +4,7 @@
 所有模式切换都沿用现有独占测试数据库，异常路径也必须经真实 Alembic 恢复当前版本。
 """
 
+import argparse
 import contextlib
 import datetime
 import hashlib
@@ -18,7 +19,7 @@ import sqlalchemy as sa
 import test_auth
 import test_workspace
 import veriq_server
-from veriq_server import db as models
+from veriq_server import cli, db as models
 
 
 async def test_upgrade_preserves_0005_queued_validate_and_source(site):
@@ -34,7 +35,9 @@ async def test_upgrade_preserves_0005_queued_validate_and_source(site):
     account = (await client.get("/api/v1/account")).json()["data"]
     resource, draft, artifacts, job = _legacy_rows(workspace_id, account["id"])
     async with _migration_connection(database) as (connection, change):
-        assert (await connection.execute(sa.text("SELECT COUNT(*) FROM veriq_artifacts"))).scalar_one() == 0
+        assert (
+            await connection.execute(sa.text("SELECT COUNT(*) FROM veriq_artifacts"))
+        ).scalar_one() == 0
         await change("0005_runtimes", downgrade=True)
 
         def seed(sync):
@@ -62,7 +65,10 @@ async def test_upgrade_preserves_0005_queued_validate_and_source(site):
 
         await connection.run_sync(seed)
         await connection.commit()
+        clock = sa.text("SELECT UTC_TIMESTAMP(6)")
+        before_upgrade = (await connection.execute(clock)).scalar_one()
         await change("head")
+        after_upgrade = (await connection.execute(clock)).scalar_one()
 
     async with database.sessions() as session:
         upgraded = await session.get(models.Job, job["id"])
@@ -80,8 +86,12 @@ async def test_upgrade_preserves_0005_queued_validate_and_source(site):
 
     path = f"/api/v1/workspaces/{workspace_id}/resources/{resource['id']}"
     assert (await client.get(path)).json()["data"] == {
-        "id": resource["id"], "workspaceId": workspace_id, "kind": resource["kind"],
-        "key": resource["key"], "name": resource["name"], "status": "DRAFT",
+        "id": resource["id"],
+        "workspaceId": workspace_id,
+        "kind": resource["kind"],
+        "key": resource["key"],
+        "name": resource["name"],
+        "status": "DRAFT",
     }
     assert (await client.get(path + "/draft")).json()["data"]["content"] == draft["document_json"]
     preview = (await client.get(path + "/validation-preview")).json()["data"]
@@ -92,9 +102,20 @@ async def test_upgrade_preserves_0005_queued_validate_and_source(site):
     )
     assert queued.status_code == 202, queued.text
     assert queued.json()["data"] == {
-        "id": job["id"], "workspaceId": workspace_id, "kind": "VALIDATE", "state": "QUEUED",
+        "id": job["id"],
+        "workspaceId": workspace_id,
+        "kind": "VALIDATE",
+        "state": "QUEUED",
     }
-    assert (await client.get("/api/v1/account")).json()["data"] == account
+    updated_account = (await client.get("/api/v1/account")).json()["data"]
+    created_at = datetime.datetime.fromisoformat(updated_account.pop("createdAt"))
+    assert datetime.datetime.fromisoformat(account.pop("createdAt")) <= before_upgrade.replace(
+        tzinfo=datetime.UTC
+    )
+    assert (
+        before_upgrade <= created_at.astimezone(datetime.UTC).replace(tzinfo=None) <= after_upgrade
+    )
+    assert updated_account == account
 
 
 async def test_nonempty_artifact_refuses_downgrade_and_retains_history(site):
@@ -115,7 +136,12 @@ async def test_nonempty_artifact_refuses_downgrade_and_retains_history(site):
     }
     response = await client.post(
         f"/api/v1/workspaces/{workspace_id}/resources",
-        json={"kind": "ELEMENT_CATALOG", "key": "retention", "name": "Retention", "content": content},
+        json={
+            "kind": "ELEMENT_CATALOG",
+            "key": "retention",
+            "name": "Retention",
+            "content": content,
+        },
     )
     assert response.status_code == 201, response.text
     path = f"/api/v1/workspaces/{workspace_id}/resources/{response.json()['data']['id']}"
@@ -126,15 +152,25 @@ async def test_nonempty_artifact_refuses_downgrade_and_retains_history(site):
     )
     assert queued.status_code == 202, queued.text
     async with _migration_connection(database) as (connection, change):
-        before = (await connection.execute(sa.text("SELECT * FROM veriq_artifacts ORDER BY sha256"))).all()
+        before = (
+            await connection.execute(sa.text("SELECT * FROM veriq_artifacts ORDER BY sha256"))
+        ).all()
         jobs = (await connection.execute(sa.text("SELECT * FROM veriq_jobs ORDER BY id"))).all()
-        revision = (await connection.execute(sa.text("SELECT version_num FROM veriq_alembic_version"))).scalar_one()
+        revision = (
+            await connection.execute(sa.text("SELECT version_num FROM veriq_alembic_version"))
+        ).scalar_one()
         assert len(before) == 2 and all(row.created_at is not None for row in before)
-        with pytest.raises(RuntimeError, match="^Artifact retention history must be retained; downgrade refused$"):
+        with pytest.raises(
+            RuntimeError, match="^Artifact retention history must be retained; downgrade refused$"
+        ):
             await change("0005_runtimes", downgrade=True)
         await connection.rollback()
-        assert (await connection.execute(sa.text("SELECT * FROM veriq_artifacts ORDER BY sha256"))).all() == before
-        assert (await connection.execute(sa.text("SELECT * FROM veriq_jobs ORDER BY id"))).all() == jobs
+        assert (
+            await connection.execute(sa.text("SELECT * FROM veriq_artifacts ORDER BY sha256"))
+        ).all() == before
+        assert (
+            await connection.execute(sa.text("SELECT * FROM veriq_jobs ORDER BY id"))
+        ).all() == jobs
         after_revision = (
             await connection.execute(sa.text("SELECT version_num FROM veriq_alembic_version"))
         ).scalar_one()
@@ -144,7 +180,9 @@ async def test_nonempty_artifact_refuses_downgrade_and_retains_history(site):
         # 单步只移除没有复制记录的来源列，不会触碰制品年龄，原有制品无需先删除即可回退到上一版本。
         await change("0015_artifact_retention", downgrade=True)
         assert not await _has_copy_audit_column(connection)
-        assert (await connection.execute(sa.text("SELECT * FROM veriq_artifacts ORDER BY sha256"))).all() == before
+        assert (
+            await connection.execute(sa.text("SELECT * FROM veriq_artifacts ORDER BY sha256"))
+        ).all() == before
         await change("head")
         assert await _has_copy_audit_column(connection)
     assert (await client.get(path)).status_code == 200
@@ -166,7 +204,15 @@ async def test_copy_provenance_refuses_direct_downgrade(site):
             )
         )
     async with _migration_connection(database) as (connection, change):
-        before = (await connection.execute(sa.text("SELECT version_num FROM veriq_alembic_version"))).scalar_one()
+        schema = sa.text(
+            "SELECT table_name, ordinal_position, column_name, column_type "
+            "FROM information_schema.columns WHERE table_schema = DATABASE() "
+            "ORDER BY table_name, ordinal_position"
+        )
+        columns_before = (await connection.execute(schema)).all()
+        before = (
+            await connection.execute(sa.text("SELECT version_num FROM veriq_alembic_version"))
+        ).scalar_one()
         with pytest.raises(
             RuntimeError, match="^Dataset copy provenance must be retained; downgrade refused$"
         ):
@@ -174,18 +220,24 @@ async def test_copy_provenance_refuses_direct_downgrade(site):
         await connection.rollback()
         assert await _has_copy_audit_column(connection)
         assert await _has_agent_tables(connection)
-        after = (await connection.execute(sa.text("SELECT version_num FROM veriq_alembic_version"))).scalar_one()
+        after = (
+            await connection.execute(sa.text("SELECT version_num FROM veriq_alembic_version"))
+        ).scalar_one()
+        assert (await connection.execute(schema)).all() == columns_before
         assert after == before
     async with database.sessions() as session:
         event = await session.get(models.AuditLog, event_id)
         assert (event.target_id, event.source_version_id) == (target, source)
 
 
-async def test_upgrade_from_dataset_head_keeps_copy_provenance(site):
+async def test_upgrade_from_dataset_head_keeps_copy_provenance(site, tmp_path):
     """集成升级直接接受已部署数据集修订，来源审计继续可读，空对话表与唯一的新版本记录同时出现。"""
     _, database = site
     source, target, event_id = (str(uuid.uuid4()) for _ in range(3))
     async with _migration_connection(database) as (connection, change):
+        initial_head = (
+            await connection.execute(sa.text("SELECT version_num FROM veriq_alembic_version"))
+        ).scalar_one()
         await change("0016_dataset_copy_audit", downgrade=True)
         assert await _has_copy_audit_column(connection)
         assert not await _has_agent_tables(connection)
@@ -199,13 +251,58 @@ async def test_upgrade_from_dataset_head_keeps_copy_provenance(site):
             )
         )
         await connection.commit()
-        await change("head")
-        revision = (await connection.execute(sa.text("SELECT version_num FROM veriq_alembic_version"))).scalar_one()
+        await change("0017_conversational_agent")
+        revision = (
+            await connection.execute(sa.text("SELECT version_num FROM veriq_alembic_version"))
+        ).scalar_one()
         assert revision == "0017_conversational_agent"
         assert await _has_agent_tables(connection)
+        await connection.commit()
+        config_path = tmp_path / "operator.json"
+        cli.secure_write(
+            config_path,
+            json.dumps(
+                {
+                    "database_url": database.engine.url.render_as_string(hide_password=False),
+                    "environment": "development",
+                    "public_url": "http://127.0.0.1:18889",
+                    "master_key": "a" * 64,
+                    "signing_key": "b" * 64,
+                }
+            ),
+        )
+        await cli.run(argparse.Namespace(config=config_path, command="migrate"))
+        assert (
+            await connection.execute(sa.text("SELECT version_num FROM veriq_alembic_version"))
+        ).scalar_one() == initial_head
     async with database.sessions() as session:
         event = await session.get(models.AuditLog, event_id)
         assert (event.target_id, event.source_version_id) == (target, source)
+
+
+async def test_bound_file_volume_refuses_relative_downgrade(site):
+    """已绑定文件卷的安装不能回退到无法校验卷身份的架构，拒绝后需从数据库读回原绑定及未改变的迁移版本。"""
+    _, database = site
+    volume_id = str(uuid.uuid4())
+    async with _migration_connection(database) as (connection, change):
+        await change("0025_file_volume", downgrade=True)
+        await connection.execute(
+            sa.update(models.Installation)
+            .where(models.Installation.id == 1)
+            .values(file_volume_id=volume_id)
+        )
+        await connection.commit()
+        with pytest.raises(
+            RuntimeError, match="^Bound FILE volume identity must be retained; downgrade refused$"
+        ):
+            await change("-1", downgrade=True)
+        await connection.rollback()
+        assert (
+            await connection.execute(sa.select(models.Installation.file_volume_id))
+        ).scalar_one() == volume_id
+        assert (
+            await connection.execute(sa.text("SELECT version_num FROM veriq_alembic_version"))
+        ).scalar_one() == "0025_file_volume"
 
 
 async def _has_agent_tables(connection):
@@ -236,11 +333,15 @@ async def test_legacy_schema_restores_head_after_test_body_failure(site):
                 await connection.execute(sa.text("SELECT version_num FROM veriq_alembic_version"))
             ).scalar_one()
             await change("0005_runtimes", downgrade=True)
-            revision = (await connection.execute(sa.text("SELECT version_num FROM veriq_alembic_version"))).scalar_one()
+            revision = (
+                await connection.execute(sa.text("SELECT version_num FROM veriq_alembic_version"))
+            ).scalar_one()
             assert revision == "0005_runtimes"
             raise AssertionError("controlled legacy fixture failure")
     async with database.engine.connect() as observer:
-        revision = (await observer.execute(sa.text("SELECT version_num FROM veriq_alembic_version"))).scalar_one()
+        revision = (
+            await observer.execute(sa.text("SELECT version_num FROM veriq_alembic_version"))
+        ).scalar_one()
         assert revision == original_head
     assert (await client.get("/api/v1/setup")).status_code == 200
 
@@ -255,49 +356,104 @@ def _legacy_rows(workspace_id, user_id):
     resource_id = "00000000-0000-4000-8000-000000000005"
     job_id = "00000000-0000-4000-8000-000000000006"
     created_at = datetime.datetime(2024, 6, 1, 12)
-    content = {"kind": "ELEMENT_CATALOG", "document": {
-        "schemaVersion": "1.0", "elements": [{"key": "save", "locator": {"by": "veriqId", "value": "save"}}],
-    }}
+    content = {
+        "kind": "ELEMENT_CATALOG",
+        "document": {
+            "schemaVersion": "1.0",
+            "elements": [{"key": "save", "locator": {"by": "veriqId", "value": "save"}}],
+        },
+    }
     document_hash = hashlib.sha256(_json_bytes(content)).hexdigest()
-    candidate_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"veriq:{workspace_id}:{resource_id}:1:{document_hash}"))
+    candidate_id = str(
+        uuid.uuid5(uuid.NAMESPACE_URL, f"veriq:{workspace_id}:{resource_id}:1:{document_hash}")
+    )
     snapshot = {
-        "schemaVersion": "1.0", "workspaceId": workspace_id, "engineVersion": "0.1.0",
-        "entryCaseVersionIds": [], "assets": [{
-            "resourceId": resource_id, "versionId": candidate_id, "sha256": document_hash, **content,
-        }],
+        "schemaVersion": "1.0",
+        "workspaceId": workspace_id,
+        "engineVersion": "0.1.0",
+        "entryCaseVersionIds": [],
+        "assets": [
+            {
+                "resourceId": resource_id,
+                "versionId": candidate_id,
+                "sha256": document_hash,
+                **content,
+            }
+        ],
     }
     source_hash = hashlib.sha256(_json_bytes(snapshot)).hexdigest()
-    snapshot.update(sourceHash=source_hash, validationTarget={
-        "resourceId": resource_id, "versionId": candidate_id, "revision": 1,
-    })
+    snapshot.update(
+        sourceHash=source_hash,
+        validationTarget={
+            "resourceId": resource_id,
+            "versionId": candidate_id,
+            "revision": 1,
+        },
+    )
     source = _json_bytes(snapshot)
     snapshot_hash = hashlib.sha256(source).hexdigest()
-    manifest = _json_bytes({
-        "schemaVersion": "1.0", "workspaceId": workspace_id, "jobId": job_id,
-        "snapshotSha256": snapshot_hash, "engineVersion": "0.1.0", "kind": "VALIDATE",
-        "resourceId": resource_id, "revision": 1, "sourceHash": source_hash,
-    })
+    manifest = _json_bytes(
+        {
+            "schemaVersion": "1.0",
+            "workspaceId": workspace_id,
+            "jobId": job_id,
+            "snapshotSha256": snapshot_hash,
+            "engineVersion": "0.1.0",
+            "kind": "VALIDATE",
+            "resourceId": resource_id,
+            "revision": 1,
+            "sourceHash": source_hash,
+        }
+    )
     manifest_hash = hashlib.sha256(manifest).hexdigest()
     resource = {
-        "id": resource_id, "workspace_id": workspace_id, "kind": "ELEMENT_CATALOG",
-        "key": "migration", "name": "Migration", "status": "DRAFT", "latest_version_id": None,
+        "id": resource_id,
+        "workspace_id": workspace_id,
+        "kind": "ELEMENT_CATALOG",
+        "key": "migration",
+        "name": "Migration",
+        "status": "DRAFT",
+        "latest_version_id": None,
     }
     draft = {
-        "resource_id": resource_id, "workspace_id": workspace_id, "revision": 1,
-        "document_json": content, "updated_by": user_id, "updated_at": created_at,
+        "resource_id": resource_id,
+        "workspace_id": workspace_id,
+        "revision": 1,
+        "document_json": content,
+        "updated_by": user_id,
+        "updated_at": created_at,
     }
-    artifacts = [{
-        "workspace_id": workspace_id, "sha256": digest, "content": raw,
-        "size_bytes": len(raw), "media_type": "application/json",
-    } for digest, raw in ((snapshot_hash, source), (manifest_hash, manifest))]
+    artifacts = [
+        {
+            "workspace_id": workspace_id,
+            "sha256": digest,
+            "content": raw,
+            "size_bytes": len(raw),
+            "media_type": "application/json",
+        }
+        for digest, raw in ((snapshot_hash, source), (manifest_hash, manifest))
+    ]
     job = {
-        "id": job_id, "workspace_id": workspace_id, "kind": "VALIDATE", "subject_id": resource_id,
-        "state": "QUEUED", "snapshot_hash": snapshot_hash, "manifest_hash": manifest_hash,
-        "validation_key": hashlib.sha256(_json_bytes({
-            "resourceId": resource_id, "revision": 1, "sourceHash": source_hash,
-        })).hexdigest(),
+        "id": job_id,
+        "workspace_id": workspace_id,
+        "kind": "VALIDATE",
+        "subject_id": resource_id,
+        "state": "QUEUED",
+        "snapshot_hash": snapshot_hash,
+        "manifest_hash": manifest_hash,
+        "validation_key": hashlib.sha256(
+            _json_bytes(
+                {
+                    "resourceId": resource_id,
+                    "revision": 1,
+                    "sourceHash": source_hash,
+                }
+            )
+        ).hexdigest(),
         "required_capabilities": {"engineVersion": "0.1.0", "compileAssets": True},
-        "active_attempt_id": None, "created_by": user_id, "created_at": created_at,
+        "active_attempt_id": None,
+        "created_by": user_id,
+        "created_at": created_at,
     }
     return resource, draft, artifacts, job
 
@@ -318,7 +474,9 @@ async def _migration_connection(database):
     未提交的测试写入先回滚，已提交的旧版事实由正常升级保留。
     """
     config = alembic_config.Config()
-    config.set_main_option("script_location", str(pathlib.Path(veriq_server.__file__).parent / "migrations"))
+    config.set_main_option(
+        "script_location", str(pathlib.Path(veriq_server.__file__).parent / "migrations")
+    )
     head = script.ScriptDirectory.from_config(config).get_current_head()
     async with database.engine.connect() as connection:
 
@@ -345,5 +503,7 @@ async def _migration_connection(database):
         finally:
             await connection.rollback()
             await change("head")
-            revision = (await connection.execute(sa.text("SELECT version_num FROM veriq_alembic_version"))).scalar_one()
+            revision = (
+                await connection.execute(sa.text("SELECT version_num FROM veriq_alembic_version"))
+            ).scalar_one()
             assert revision == head

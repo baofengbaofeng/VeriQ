@@ -45,7 +45,7 @@ from apps.srv.tests.operations import readiness_support
 
 # 显式绑定两项公共夹具，让 pytest 在本模块发现同一守卫和启动器并正常解析它们的依赖关系。
 create_readiness_server = readiness_support.create_readiness_server
-site = readiness_support.site
+site = readiness_support.site_fixture
 
 
 @pytest.fixture(name="readiness_site")
@@ -276,7 +276,7 @@ async def test_healthy_readiness_checks_real_dependencies_and_removes_probe(read
     context = readiness_site
     response = await context["client"].get("/health/ready")
     readiness_support.assert_public_response(response, context["config"])
-    assert list(context["artifacts"].iterdir()) == []
+    assert not any(context["artifacts"].iterdir())
     legacy = await context["client"].get("/api/v1/health/ready")
     assert legacy.status_code == 200
     assert legacy.json()["data"] == {"ready": True}

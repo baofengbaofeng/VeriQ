@@ -7,9 +7,7 @@ from veriq_server.validation import validate_api
 
 def test_cursor_roundtrip_at_admission_bound_and_rejects_foreign_or_future_positions():
     module = importlib.import_module("veriq_server.handlers.report")
-    assert hasattr(module, "encode_cursor"), (
-        "Cursor serialization needs an explicit bounded contract"
-    )
+    assert hasattr(module, "encode_cursor"), "Missing cursor encoder"
     scope = {"workspaceId": str(uuid4()), "runId": str(uuid4()), "userId": str(uuid4())}
     positions = {str(uuid4()): 9007199254740991 for _ in range(2000)}
     token = module.encode_cursor("b" * 64, scope, positions)

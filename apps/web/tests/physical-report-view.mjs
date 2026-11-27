@@ -22,7 +22,7 @@ const server = await createServer({
 });
 await server.listen();
 const browser = await chromium.launch({
-    executablePath: chromium.executablePath(),
+    executablePath: process.env.VERIQ_TEST_CHROMIUM || chromium.executablePath(),
     headless: true,
     args: ["--no-sandbox"],
 });
@@ -39,9 +39,7 @@ try {
     await page.getByRole("button", { name: "Sign in" }).click();
     await expect(page.locator("dl")).toBeVisible();
     await page.getByRole("link", { name: "Reports", exact: true }).click();
-    await page.getByRole("banner").locator("button.vq-user-trigger").click();
-    await page.getByRole("menuitem", { name: /^(Language|语言)/ }).click();
-    await page.getByRole("menuitemradio", { name: "English" }).click();
+    await expect(page.locator("html")).toHaveAttribute("lang", "en");
     await page
         .getByRole("table", { name: "Run history" })
         .getByRole("row", { name: /Managed cloud|Connected local/ })

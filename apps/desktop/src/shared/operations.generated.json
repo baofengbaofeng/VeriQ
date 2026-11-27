@@ -461,15 +461,6 @@
         "idempotency": false,
         "kind": "json"
     },
-    "rerun": {
-        "path": "/api/v1/workspaces/{workspaceId}/runs/{runId}/rerun",
-        "method": "POST",
-        "ids": ["workspaceId", "runId"],
-        "queries": {},
-        "request": "TriggerRequest",
-        "idempotency": true,
-        "kind": "json"
-    },
     "getRunReport": {
         "path": "/api/v1/workspaces/{workspaceId}/runs/{runId}/report",
         "method": "GET",

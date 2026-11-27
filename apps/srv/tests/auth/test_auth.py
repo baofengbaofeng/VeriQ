@@ -1,12 +1,33 @@
-import httpx
-from sqlalchemy import select
+"""使用独立的浏览器会话及真实服务核对首次安装、管理员停用、密码重置和线上会话失效的条件。"""
 
-from veriq_server.db import User, UserToken
-from veriq_server.service import digest
+import asyncio
+import hashlib
+import json
+import shutil
+import ssl
+from datetime import datetime, timedelta, timezone
+from ipaddress import ip_address
+from pathlib import Path
+
+import httpx
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.x509.oid import NameOID
+from sqlalchemy import select, text, update
+from tornado.httpserver import HTTPServer
+from tornado.netutil import bind_sockets
+
+from veriq_server import __version__, readiness
+from veriq_server.app import make_app
+from veriq_server.db import User, UserSession, UserToken
+from veriq_server.service import digest, now
+from veriq_server.settings import Settings
 from veriq_server.validation import validate_api
 
 
 async def setup(c):
+    """使用测试环境预置的安装密钥创建首位管理员，返回完整响应以供并发安装用例检查冲突状态。"""
     return await c.post(
         "/api/v1/setup",
         json={
@@ -19,6 +40,7 @@ async def setup(c):
 
 
 async def login(c, email="admin@example.com", password="Long password 123!"):
+    """通过登录接口建立指定用户的会话，成功后同步新令牌使后续修改请求携带当前会话的防伪凭证。"""
     r = await c.post("/api/v1/auth/login", json={"email": email, "password": password})
     if r.status_code == 200:
         c.headers["X-CSRF-Token"] = r.json()["data"]["csrfToken"]
@@ -26,6 +48,7 @@ async def login(c, email="admin@example.com", password="Long password 123!"):
 
 
 async def test_setup_guard_and_session_security(site):
+    """让两次安装竞争同一管理员名额，核对登录后的会话和防伪令牌均按接口要求生效及注销。"""
     c, db = site
     bad = await c.post(
         "/api/v1/setup",
@@ -37,7 +60,6 @@ async def test_setup_guard_and_session_security(site):
         },
     )
     assert bad.status_code == 403
-    import asyncio
 
     results = await asyncio.gather(setup(c), setup(c))
     assert sorted(r.status_code for r in results) == [201, 409]
@@ -62,6 +84,7 @@ async def test_setup_guard_and_session_security(site):
 
 
 async def test_admin_reset_disable_and_last_admin(site):
+    """覆盖管理员创建账号及签发一次性重置链接的过程，并核对数据库摘要、停用状态和匿名响应。"""
     c, db = site
     await setup(c)
     await login(c)
@@ -125,11 +148,7 @@ async def test_admin_reset_disable_and_last_admin(site):
 
 
 async def test_expiry_revoke_password_origin_and_safe_errors(site):
-    from datetime import timedelta
-    from sqlalchemy import update
-    from veriq_server.db import UserSession
-    from veriq_server.service import now
-
+    """让真实会话记录过期并重新登录，检查会话撤销、密码变更、跨源写入及超大请求的公开失败结果。"""
     c, db = site
     await setup(c)
     await login(c)
@@ -186,8 +205,7 @@ async def test_expiry_revoke_password_origin_and_safe_errors(site):
 
 
 async def test_concurrent_last_admin_and_disabled_session(site):
-    import asyncio
-
+    """两个独立浏览器同时停用各自的管理员账号，验证只有一项成功且被停用的会话随即无法读取。"""
     c, db = site
     await setup(c)
     await login(c)
@@ -231,7 +249,8 @@ async def test_concurrent_last_admin_and_disabled_session(site):
 
 
 async def test_reset_and_admin_revoke_invalidate_another_browser(site):
-    c, db = site
+    """在独立客户端保留普通成员的原有会话，分别验证密码重置和管理员撤销使该会话立即失效。"""
+    c, _ = site
     await setup(c)
     await login(c)
     uid = (
@@ -287,11 +306,6 @@ async def test_production_cookie_and_database_shape(site, static_package, tmp_pa
     SameSite=Strict。canonical readiness 同时要求真实数据库、迁移、静态库存及临时 FILE 根可用。
     最后的版本、事务隔离、迁移和列约束仍逐项检查。
     """
-    from veriq_server.app import make_app
-    from veriq_server.settings import Settings
-    from veriq_server import readiness
-    from tornado.httpserver import HTTPServer
-    from sqlalchemy import text
 
     c, db = site
     await setup(c)
@@ -439,24 +453,6 @@ async def test_production_https_browser_uses_built_frontend(site, static_package
     九十秒超时是整个浏览器测试上限，不改变产品请求逻辑。finally 始终关闭监听与仍存连接。数据库最终释放仍由现有 site
     fixture 管理。
     """
-    import asyncio
-    from datetime import datetime, timedelta, timezone
-    import hashlib
-    from ipaddress import ip_address
-    import json
-    from pathlib import Path
-    import shutil
-    import ssl
-
-    from cryptography import x509
-    from cryptography.hazmat.primitives import hashes, serialization
-    from cryptography.hazmat.primitives.asymmetric import ec
-    from cryptography.x509.oid import NameOID
-    from tornado.httpserver import HTTPServer
-    from tornado.netutil import bind_sockets
-    from veriq_server import __version__
-    from veriq_server.app import make_app
-    from veriq_server.settings import Settings
 
     c, db = site
     await setup(c)
@@ -464,9 +460,9 @@ async def test_production_https_browser_uses_built_frontend(site, static_package
     # 若构建未执行应明确失败，不能自动调用发行流水线或默默跳过浏览器验收。复制目的地仅为此测试的 tmp_path 包目录。已有
     # source/static/dist 不会被创建或清理。
     built = Path("apps/web/dist")
-    assert (built / ".vite/manifest.json").is_file(), (
-        "Run pnpm --filter @veriq/web build before production browser tests"
-    )
+    manifest_path = built / ".vite/manifest.json"
+    build_hint = "Run pnpm --filter @veriq/web build before production browser tests"
+    assert manifest_path.is_file(), build_hint
     shutil.rmtree(static_package)
     shutil.copytree(built, static_package)
     # 测试库存只为观察服务端完整性门禁准备输入，逐个文件读取精确内容并记录稳定的相对路径；正式库存 writer、

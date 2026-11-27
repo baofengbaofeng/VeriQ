@@ -257,6 +257,311 @@
                 "ENVIRONMENT"
             ]
         },
+        "NotificationWorkspaceInviteDTO": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "$ref": "#/$defs/Id"
+                },
+                "kind": {
+                    "const": "WORKSPACE_INVITED"
+                },
+                "workspaceId": {
+                    "$ref": "#/$defs/Id"
+                },
+                "workspaceName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                },
+                "occurredAt": {
+                    "$ref": "#/$defs/Timestamp"
+                },
+                "readAt": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/Timestamp"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "invitationId": {
+                    "$ref": "#/$defs/Id"
+                },
+                "actorName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                },
+                "invitationRole": {
+                    "enum": ["ADMIN", "EDITOR", "EXECUTOR", "VIEWER"]
+                },
+                "invitationStatus": {
+                    "enum": ["PENDING", "ACCEPTED", "REVOKED", "EXPIRED", "UNAVAILABLE"]
+                }
+            },
+            "required": [
+                "id",
+                "kind",
+                "workspaceId",
+                "workspaceName",
+                "occurredAt",
+                "readAt",
+                "invitationId",
+                "actorName",
+                "invitationRole",
+                "invitationStatus"
+            ],
+            "additionalProperties": false
+        },
+        "NotificationAgentReplyDTO": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "$ref": "#/$defs/Id"
+                },
+                "kind": {
+                    "const": "AGENT_REPLY"
+                },
+                "workspaceId": {
+                    "$ref": "#/$defs/Id"
+                },
+                "workspaceName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                },
+                "occurredAt": {
+                    "$ref": "#/$defs/Timestamp"
+                },
+                "readAt": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/Timestamp"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "sessionId": {
+                    "$ref": "#/$defs/Id"
+                },
+                "turnId": {
+                    "$ref": "#/$defs/Id"
+                },
+                "sessionTitle": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                },
+                "preview": {
+                    "type": "string",
+                    "minLength": 0,
+                    "maxLength": 120
+                }
+            },
+            "required": [
+                "id",
+                "kind",
+                "workspaceId",
+                "workspaceName",
+                "occurredAt",
+                "readAt",
+                "sessionId",
+                "turnId",
+                "sessionTitle",
+                "preview"
+            ],
+            "additionalProperties": false
+        },
+        "NotificationRunDTO": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "$ref": "#/$defs/Id"
+                },
+                "kind": {
+                    "enum": ["RUN_STARTED", "RUN_FINISHED"]
+                },
+                "workspaceId": {
+                    "$ref": "#/$defs/Id"
+                },
+                "workspaceName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                },
+                "occurredAt": {
+                    "$ref": "#/$defs/Timestamp"
+                },
+                "readAt": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/Timestamp"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "runId": {
+                    "$ref": "#/$defs/Id"
+                },
+                "planName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                },
+                "outcome": {
+                    "anyOf": [
+                        {
+                            "$ref": "#/$defs/Outcome"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                }
+            },
+            "required": [
+                "id",
+                "kind",
+                "workspaceId",
+                "workspaceName",
+                "occurredAt",
+                "readAt",
+                "runId",
+                "planName",
+                "outcome"
+            ],
+            "additionalProperties": false
+        },
+        "NotificationDTO": {
+            "oneOf": [
+                {
+                    "$ref": "#/$defs/NotificationWorkspaceInviteDTO"
+                },
+                {
+                    "$ref": "#/$defs/NotificationAgentReplyDTO"
+                },
+                {
+                    "$ref": "#/$defs/NotificationRunDTO"
+                }
+            ]
+        },
+        "NotificationInboxDTO": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "maxItems": 100,
+                    "items": {
+                        "$ref": "#/$defs/NotificationDTO"
+                    }
+                },
+                "nextCursor": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                },
+                "unreadCount": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                },
+                "readThrough": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                }
+            },
+            "required": ["items", "unreadCount", "readThrough"],
+            "additionalProperties": false
+        },
+        "NotificationReadAllRequest": {
+            "type": "object",
+            "properties": {
+                "through": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                }
+            },
+            "required": ["through"],
+            "additionalProperties": false
+        },
+        "NotificationReadAllDTO": {
+            "type": "object",
+            "properties": {
+                "updated": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                }
+            },
+            "required": ["updated"],
+            "additionalProperties": false
+        },
+        "NotificationAcceptDTO": {
+            "type": "object",
+            "properties": {
+                "workspaceId": {
+                    "$ref": "#/$defs/Id"
+                }
+            },
+            "required": ["workspaceId"],
+            "additionalProperties": false
+        },
+        "NotificationAgentSeenRequest": {
+            "type": "object",
+            "properties": {
+                "workspaceId": {
+                    "$ref": "#/$defs/Id"
+                },
+                "sessionId": {
+                    "$ref": "#/$defs/Id"
+                },
+                "turnId": {
+                    "$ref": "#/$defs/Id"
+                }
+            },
+            "required": ["workspaceId", "sessionId", "turnId"],
+            "additionalProperties": false
+        },
+        "NotificationAgentSeenDTO": {
+            "type": "object",
+            "properties": {
+                "acknowledged": {
+                    "type": "boolean"
+                }
+            },
+            "required": ["acknowledged"],
+            "additionalProperties": false
+        },
+        "NotificationInboxEvent": {
+            "type": "object",
+            "properties": {
+                "revision": {
+                    "type": "string",
+                    "pattern": "^(?:0|[1-9][0-9]{0,19})$(?![\\s\\S])"
+                }
+            },
+            "required": ["revision"],
+            "additionalProperties": false
+        },
+        "NotificationAuthorizationEvent": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "const": "AUTHENTICATION_REQUIRED"
+                }
+            },
+            "required": ["code"],
+            "additionalProperties": false
+        },
         "Outcome": {
             "type": "string",
             "enum": ["PASSED", "FAILED", "ERROR", "UNSTABLE", "CANCELLED", "INCOMPLETE", "SKIPPED"]
@@ -9729,6 +10034,107 @@
                 }
             },
             "required": ["id", "workspaceId", "source", "state", "snapshotHash", "createdAt"],
+            "additionalProperties": false
+        },
+        "api_NotificationWorkspaceInviteDTO": {
+            "$ref": "#/$defs/NotificationWorkspaceInviteDTO"
+        },
+        "api_NotificationAgentReplyDTO": {
+            "$ref": "#/$defs/NotificationAgentReplyDTO"
+        },
+        "api_NotificationRunDTO": {
+            "$ref": "#/$defs/NotificationRunDTO"
+        },
+        "api_NotificationDTO": {
+            "$ref": "#/$defs/NotificationDTO"
+        },
+        "api_NotificationInboxDTO": {
+            "$ref": "#/$defs/NotificationInboxDTO"
+        },
+        "api_NotificationReadAllRequest": {
+            "$ref": "#/$defs/NotificationReadAllRequest"
+        },
+        "api_NotificationReadAllDTO": {
+            "$ref": "#/$defs/NotificationReadAllDTO"
+        },
+        "api_NotificationAcceptDTO": {
+            "$ref": "#/$defs/NotificationAcceptDTO"
+        },
+        "api_NotificationAgentSeenRequest": {
+            "$ref": "#/$defs/NotificationAgentSeenRequest"
+        },
+        "api_NotificationAgentSeenDTO": {
+            "$ref": "#/$defs/NotificationAgentSeenDTO"
+        },
+        "api_NotificationInboxEvent": {
+            "$ref": "#/$defs/NotificationInboxEvent"
+        },
+        "api_NotificationAuthorizationEvent": {
+            "$ref": "#/$defs/NotificationAuthorizationEvent"
+        },
+        "api_NotificationDTOEnvelope": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/$defs/api_NotificationDTO"
+                },
+                "requestId": {
+                    "type": "string"
+                }
+            },
+            "required": ["data", "requestId"],
+            "additionalProperties": false
+        },
+        "api_NotificationInboxDTOEnvelope": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/$defs/api_NotificationInboxDTO"
+                },
+                "requestId": {
+                    "type": "string"
+                }
+            },
+            "required": ["data", "requestId"],
+            "additionalProperties": false
+        },
+        "api_NotificationReadAllDTOEnvelope": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/$defs/api_NotificationReadAllDTO"
+                },
+                "requestId": {
+                    "type": "string"
+                }
+            },
+            "required": ["data", "requestId"],
+            "additionalProperties": false
+        },
+        "api_NotificationAcceptDTOEnvelope": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/$defs/api_NotificationAcceptDTO"
+                },
+                "requestId": {
+                    "type": "string"
+                }
+            },
+            "required": ["data", "requestId"],
+            "additionalProperties": false
+        },
+        "api_NotificationAgentSeenDTOEnvelope": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "$ref": "#/$defs/api_NotificationAgentSeenDTO"
+                },
+                "requestId": {
+                    "type": "string"
+                }
+            },
+            "required": ["data", "requestId"],
             "additionalProperties": false
         },
         "api_JobDTO": {

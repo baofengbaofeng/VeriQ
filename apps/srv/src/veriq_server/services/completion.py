@@ -279,15 +279,12 @@ class CompletionService:
                 e["type"] == "CLEANUP_RESULT" and e["payload"]["cleanupStatus"] == status
                 for e in events
             )
+            outcome = "PASSED" if status == "SUCCEEDED" and evidence_complete else "INCOMPLETE"
             facts = {
                 "business": manifest["businessOutcome"],
                 "cleanup": status,
                 "evidence": "COMPLETE" if evidence_complete else "INCOMPLETE",
-                "outcome": "ERROR"
-                if status == "FAILED"
-                else "PASSED"
-                if status == "SUCCEEDED" and evidence_complete
-                else "INCOMPLETE",
+                "outcome": "ERROR" if status == "FAILED" else outcome,
             }
         # 各 kind 的归约器只裁定业务结果；停止布尔值与实际提供的范围单独保留，历史清单未声明范围时不得替它补造全后代或受
         # 控集合的保证。

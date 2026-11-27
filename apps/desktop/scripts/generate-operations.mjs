@@ -9,7 +9,7 @@ const allowed = new Set(
 listDatasetCopySources copyDataset previewHttpDataset
 listResources createResource getResource updateResource getDraft updateDraft validateResource publishResource
 listVersions getVersion listDependents previewResourceValidation getPublishedCompiledSource getJob getValidationReceipt
-listRuns createRun getRun cancelRun rerun getRunReport streamRunReport getAttemptHistory getAttemptArtifacts
+listRuns createRun getRun cancelRun getRunReport streamRunReport getAttemptHistory getAttemptArtifacts
 getReportDisplay downloadAttemptArtifact getWorkspaceAudit
 listBundles getBundle
 listProviders createProvider getProvider updateProvider deleteProvider testProvider previewAiContext generateDraft

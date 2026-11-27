@@ -3,6 +3,7 @@
 import asyncio
 import re
 from collections.abc import Awaitable, Callable
+from dataclasses import replace
 from datetime import timedelta
 from functools import cache
 from hashlib import sha256
@@ -14,11 +15,12 @@ import httpx
 import openai
 from jsonschema import Draft202012Validator, FormatChecker, ValidationError
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..auth.authorization import Permission
+from ..auth.authorization import Permission, WorkspaceScope
 from ..contracts import _schema, canonical_bytes
-from ..db import AgentTurn, AiGeneration
-from ..infrastructure.providers import DraftContext, ProviderGateway
+from ..db import AgentSession, User, AgentTurn, AiGeneration
+from ..infrastructure.providers import ModelReply, DraftContext, ProviderGateway
 from ..service import Problem, audit, lock_installation, now
 from ..validation import validate_api
 from .agent_actions import apply_proposal, current_selection, proposal_preview
@@ -34,6 +36,7 @@ from .agent_sessions import (
     update_automatic_title,
 )
 from .agent_tools import (
+    AgentTool,
     ToolExecution,
     configuration_tools,
     resolve_tool,
@@ -121,7 +124,7 @@ def _asks_for_report(text: str) -> bool:
 
 
 @cache
-def _response_schema():
+def _response_schema() -> dict[str, Any]:
     """模型看到的增量与最终公开预览共享字段约束，已有基准允许少填未变选项，服务器持有的旧值永不接收。"""
     defs = _schema()["$defs"]
     plan = defs["AgentPlanPreview"]
@@ -180,7 +183,7 @@ def _response_schema():
 
 
 @cache
-def _tool_catalog():
+def _tool_catalog() -> dict[str, AgentTool]:
     """以当前版本化配置定义生成一次工具注册表，供同一轮次的模型声明及服务端执行复用，杜绝形状漂移。"""
     return configuration_tools(_response_schema()["$defs"])
 
@@ -191,23 +194,50 @@ def _agent_tools() -> list[dict[str, Any]]:
     return [tool.advertised() for tool in _tool_catalog().values()]
 
 
-async def _latest_proposal(s, session_id):
-    return await s.scalar(
-        select(AgentTurn)
-        .where(
-            AgentTurn.session_id == session_id,
-            AgentTurn.proposal.is_not(None),
-            AgentTurn.status == "COMPLETED",
+async def _latest_proposal(s: AsyncSession, session_id: str) -> AgentTurn | None:
+    return (
+        await s.scalars(
+            select(AgentTurn)
+            .where(
+                AgentTurn.session_id == session_id,
+                AgentTurn.proposal.is_not(None),
+                AgentTurn.status == "COMPLETED",
+            )
+            .order_by(AgentTurn.created_at.desc(), AgentTurn.id.desc())
+            .limit(1)
         )
-        .order_by(AgentTurn.created_at.desc(), AgentTurn.id.desc())
-        .limit(1)
-    )
+    ).one_or_none()
 
 
 class ConversationalAgent(AgentSessionService):
     """组织授权、预算、上下文和提议确认，领域表写入继续委托实际业务服务，整个模型网络等待期间不占用安装锁。"""
 
-    async def expire(self, s, owned):
+    async def _require_turn_provider(
+        self, session: AsyncSession, scope: WorkspaceScope, turn: AgentTurn
+    ) -> None:
+        """比较预留时的供应商与当前获授权的选择，变更后的请求不得继续把会话数据发送到旧地址或公开旧回复。"""
+        provider = await self.resolve_provider(session, scope)
+        if (provider.id, provider.revision) != (turn.provider_id, turn.provider_revision):
+            raise Problem(409, "AI_PROVIDER_CHANGED", "Provider selection changed during the call")
+
+    async def _require_active_attempt(
+        self, session: AsyncSession, scope: WorkspaceScope, reserved: AgentTurn
+    ) -> None:
+        """检查当前轮次仍持有这条预留并且供应商许可仍有效，避免工具或迟到回调在结算围栏以外继续远程调用。"""
+        turn = await session.get(AgentTurn, reserved.id)
+        if turn is None or turn.status != "RUNNING" or turn.attempt_id != reserved.attempt_id:
+            raise Problem(409, "AGENT_ATTEMPT_CHANGED", "Conversation attempt is no longer active")
+        await self._require_turn_provider(session, scope, turn)
+
+    async def _authorize_attempt(self, scope: WorkspaceScope, reserved: AgentTurn) -> None:
+        """在网络发送或推送增量之前以独立短事务重查当前身份、会话、预留及运营许可，随后释放连接再等待网络。"""
+        async with self.transaction(scope, Permission.EDIT) as (session, actor):
+            await self.require_owned_session(
+                session, scope, actor, reserved.session_id, active=True
+            )
+            await self._require_active_attempt(session, scope, reserved)
+
+    async def expire(self, s: AsyncSession, owned: AgentSession) -> AgentTurn | None:
         """读取或继续会话时封存超过网络时限的未完成轮次，保留未知上游费用并释放会话，新请求不得重用旧尝试。"""
         pending = await s.scalar(
             select(AgentTurn).where(AgentTurn.session_id == owned.id, AgentTurn.status == "RUNNING")
@@ -228,7 +258,7 @@ class ConversationalAgent(AgentSessionService):
             usage.status = "FAILED"
         return None
 
-    async def confirm(self, scope, session_id, turn_id):
+    async def confirm(self, scope: WorkspaceScope, session_id: str, turn_id: str) -> dict[str, Any]:
         """只根据路由定位已经保存的提议，已有回执首先检查当前操作权限，未确认的旧提议让位于后续新的结构化选择。"""
         async with self.transaction(scope, write=True) as (s, user):
             owned = await self.require_owned_session(s, scope, user, session_id, active=True)
@@ -238,15 +268,21 @@ class ConversationalAgent(AgentSessionService):
             return turn_dto(turn)
 
     @staticmethod
-    async def _reject_superseded(s, owned, turn):
+    async def _reject_superseded(s: AsyncSession, owned: AgentSession, turn: AgentTurn) -> None:
         """直接按钮和对话短语使用相同的新鲜度规则，已确认回执可重放但任何旧的未确认提议均失去执行资格。"""
         if turn.proposal and not turn.receipt and turn is not await _latest_proposal(s, owned.id):
             raise Problem(
                 409, "AGENT_PROPOSAL_SUPERSEDED", "Review and confirm the most recent proposal"
             )
 
-    async def _confirmation_source(self, s, owned, target, actions):
+    async def _confirmation_source(
+        self, s: AsyncSession, owned: AgentSession, target: str | None, actions: set[str]
+    ) -> AgentTurn:
         """根据同一私有会话定位用户已审阅的源轮次，只接受实际完成的提议并校验确认短语允许的动作类别。"""
+        if target is None:
+            raise Problem(
+                409, "AGENT_CONFIRM_TARGET_REQUIRED", "Review a proposal before confirming it"
+            )
         source = await self.require_owned_turn(s, owned, target)
         if not source.proposal or source.status != "COMPLETED":
             raise Problem(409, "AGENT_NO_PROPOSAL", "Select a completed proposal before confirming")
@@ -256,7 +292,18 @@ class ConversationalAgent(AgentSessionService):
             )
         return source
 
-    async def _replay(self, s, scope, user, owned, existing, target, actions, req, fingerprint):
+    async def _replay(
+        self,
+        s: AsyncSession,
+        scope: WorkspaceScope,
+        user: User,
+        owned: AgentSession,
+        existing: AgentTurn,
+        target: str | None,
+        actions: set[str] | None,
+        req: dict[str, Any],
+        fingerprint: str | None,
+    ) -> dict[str, Any]:
         """重复请求同时绑定原始文本与精确提议，哪怕不同提议得到同一派发回执也不能复用当前请求编号。"""
         recorded = (existing.receipt or {}).get(CONFIRMATION_SOURCE)
         if (
@@ -278,7 +325,9 @@ class ConversationalAgent(AgentSessionService):
             await apply_proposal(s, scope, user, source)
         return turn_dto(existing)
 
-    async def submit(self, scope, session_id, req):
+    async def submit(
+        self, scope: WorkspaceScope, session_id: str, req: dict[str, Any]
+    ) -> dict[str, Any]:
         """短事务先处理请求重放和无模型确认，否则持久化调用身份与预算，再在锁外调用指定供应商一次。"""
         actions = CONFIRM.get(req["text"].strip().casefold().rstrip(".!。！"))
         target = req.get("expectedProposalId")
@@ -379,6 +428,13 @@ class ConversationalAgent(AgentSessionService):
             audit(s, "agent.call_reserved", user.id, turn.id, workspace_id=scope.workspace_id)
         reply = None
         try:
+            await self._authorize_attempt(scope, turn)
+        except Problem as problem:
+            # 请求尚未离开服务端，此处可以释放整笔预留，即使之后权限恢复也不应再用这次预留发起调用。
+            return await self._finish(
+                scope, turn, config, key, draft.context, ModelReply(None, 0, 0, problem.code)
+            )
+        try:
             reply = await asyncio.wait_for(ProviderGateway(config, key).generate(draft), timeout=35)
         except (
             TimeoutError,
@@ -394,11 +450,11 @@ class ConversationalAgent(AgentSessionService):
 
     async def submit_stream(
         self,
-        scope,
-        session_id,
-        req,
+        scope: WorkspaceScope,
+        session_id: str,
+        req: dict[str, Any],
         emit: Callable[[str, dict[str, Any]], Awaitable[None]],
-    ):
+    ) -> dict[str, Any]:
         """流式提交：确认与重放是确定性即时路径，复用 submit；普通文本在短事务内建 turn 并预留预算后，先回调
         emit("start", turn_dto) 暴露轮次标识，再边生成边回调 emit("delta", ...) 透传增量，最终仍经 _finish 校验并落库，
         返回权威 turn_dto。模型调用超时放宽到 300s，允许长输出逐块到达。
@@ -483,21 +539,29 @@ class ConversationalAgent(AgentSessionService):
             )
             s.add(turn)
             audit(s, "agent.call_reserved", user.id, turn.id, workspace_id=scope.workspace_id)
-        await emit("start", turn_dto(turn))
         reasoning_summary = ""
         steps: list[dict[str, Any]] = []
         proposal: dict[str, Any] | None = None
         related_run_id: str | None = None
         reply_redactor = ReplyStreamRedactor({key})
 
-        async def authorize_output() -> None:
-            # 每帧发送前只在短读取事务中重查员工与会话，网络写出不会持有数据库锁或延迟其他员工撤销权限。
-            async with self.transaction(scope, Permission.EDIT) as (read_session, actor):
-                await self.require_owned_session(
-                    read_session, scope, actor, session_id, active=True
-                )
+        denied: str | None = None
 
-        publish = guard_agent_stream(authorize_output, emit)
+        async def authorize_round(session: AsyncSession | None = None) -> str | None:
+            """每次写出、网络续轮均检查相同许可，一旦本次尝试观察到撤销便保持关闭，同时让已发出的用量完成结算。"""
+            nonlocal denied
+            if denied is None:
+                try:
+                    if session is None:
+                        await self._authorize_attempt(scope, turn)
+                    else:
+                        await self._require_active_attempt(session, scope, turn)
+                except Problem as problem:
+                    denied = problem.code
+            return denied
+
+        publish = guard_agent_stream(authorize_round, emit)
+        await publish("start", turn_dto(turn))
 
         async def on_text(text: str) -> None:
             if fragment := reply_redactor.feed(text):
@@ -531,7 +595,9 @@ class ConversationalAgent(AgentSessionService):
                     return {"error": "AGENT_ACCESS_REVOKED"}
                 if tool.result_kind in {"proposal", "resource_proposal"}:
                     proposal = None
-                result = await self._run_tool(scope, session_id, tool, arguments, context, {key})
+                result = await self._run_tool(
+                    scope, session_id, tool, arguments, context, {key}, authorize_round
+                )
                 if tool.result_kind in {"proposal", "resource_proposal"}:
                     proposal = result
                 elif tool.result_kind == "run":
@@ -546,7 +612,10 @@ class ConversationalAgent(AgentSessionService):
                 # 员工看到确切的完整草稿，模型只收到提议动作及种类，控制面不会再次发送原始配置正文。
                 if tool.result_kind == "resource_proposal":
                     return {"type": RESOURCE_ACTION, "kind": result["resource"]["kind"]}
-                return sanitize(result, {key})
+                sanitized = sanitize(result, {key})
+                return (
+                    sanitized if isinstance(sanitized, dict) else {"error": "AGENT_OUTPUT_INVALID"}
+                )
             except Problem as problem:
                 steps.append({"name": step_name, "status": "FAILED", "errorCode": problem.code})
                 await publish(
@@ -564,7 +633,13 @@ class ConversationalAgent(AgentSessionService):
         try:
             reply = await asyncio.wait_for(
                 ProviderGateway(config, key).generate_agent_stream(
-                    draft, _agent_tools(), on_text, on_thinking, execute, max_rounds
+                    draft,
+                    _agent_tools(),
+                    on_text,
+                    on_thinking,
+                    execute,
+                    max_rounds,
+                    authorize_round=authorize_round,
                 ),
                 timeout=_STREAM_TIMEOUT_SECONDS,
             )
@@ -579,6 +654,8 @@ class ConversationalAgent(AgentSessionService):
             pass
         if reply is not None and reply.error_code is None and (tail := reply_redactor.finish()):
             await publish("delta", {"text": tail})
+        if denied is not None:
+            reply = replace(reply or ModelReply(None, None, None), output=None, error_code=denied)
         return await self._finish(
             scope,
             turn,
@@ -591,8 +668,16 @@ class ConversationalAgent(AgentSessionService):
         )
 
     async def _finish(
-        self, scope, reserved, config, key, context, reply, thinking=None, stream=None
-    ):
+        self,
+        scope: WorkspaceScope,
+        reserved: AgentTurn,
+        config: dict[str, Any],
+        key: str,
+        context: dict[str, Any],
+        reply: ModelReply | None,
+        thinking: str | None = None,
+        stream: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """结算已发出的上游调用与公开模型回复分开判断，即使成员权限、供应商修订或会话状态改变也能记录已发生的费用。"""
         denied = None
         owned = None
@@ -618,20 +703,11 @@ class ConversationalAgent(AgentSessionService):
                 error = denied.code if denied else None
                 if not error:
                     try:
-                        provider = await self.resolve_provider(s, scope)
-                        if (provider.id, provider.revision) != (
-                            turn.provider_id,
-                            turn.provider_revision,
-                        ):
-                            raise Problem(
-                                409,
-                                "AI_PROVIDER_CHANGED",
-                                "Provider selection changed during the call",
-                            )
+                        await self._require_turn_provider(s, scope, turn)
                         if reply is None or reply.error_code:
                             raise Problem(
                                 502,
-                                reply.error_code if reply else "AI_PROVIDER_ERROR",
+                                (reply.error_code if reply else None) or "AI_PROVIDER_ERROR",
                                 "Provider call failed",
                             )
                         if stream is not None:
@@ -680,7 +756,9 @@ class ConversationalAgent(AgentSessionService):
             raise denied
         return result
 
-    async def _run_reply(self, s, scope, user, run_ids):
+    async def _run_reply(
+        self, s: AsyncSession, scope: WorkspaceScope, user: User, run_ids: list[str]
+    ) -> str:
         """回复仅使用当前授权的运行摘要，模型文本不能提供运行状态、结果或作为替代标识使用。"""
         report = ReportService(s, user, self.ai.settings)
         lines = []
@@ -689,7 +767,9 @@ class ConversationalAgent(AgentSessionService):
             lines.append(f"Run {rid} · {summary['state']} · {summary['outcome'] or '—'}")
         return "\n".join(lines)
 
-    async def _requested_report(self, s, scope, user, prompt, available):
+    async def _requested_report(
+        self, s: AsyncSession, scope: WorkspaceScope, user: User, prompt: str, available: set[str]
+    ) -> tuple[str, str | None]:
         """先判断用户是否点名运行，再决定能否回退到唯一历史运行；未确认目标不产生报告链接或模型生成的结论。"""
         chinese = any("\u4e00" <= character <= "\u9fff" for character in prompt)
         unavailable = (
@@ -714,7 +794,16 @@ class ConversationalAgent(AgentSessionService):
                 raise
             return unavailable, None
 
-    async def _accept(self, s, scope, user, turn, output, context, thinking=None):
+    async def _accept(
+        self,
+        s: AsyncSession,
+        scope: WorkspaceScope,
+        user: User,
+        turn: AgentTurn,
+        output: dict[str, Any],
+        context: dict[str, Any],
+        thinking: str | None = None,
+    ) -> None:
         """限制模型输出键并验证每个引用，取得当前报告事实后才一次赋值到轮次，任何中途拒绝都不会残留半份提议。"""
         canonical_bytes(output)
         Draft202012Validator(_response_schema(), format_checker=FormatChecker()).validate(output)
@@ -764,8 +853,17 @@ class ConversationalAgent(AgentSessionService):
         turn.reply, turn.proposal, turn.related_run_id = reply_text, proposal, related
 
     async def _accept_stream(
-        self, s, scope, user, turn, reply_text, proposal, related_run_id, steps, thinking
-    ):
+        self,
+        s: AsyncSession,
+        scope: WorkspaceScope,
+        user: User,
+        turn: AgentTurn,
+        reply_text: object,
+        proposal: dict[str, Any] | None,
+        related_run_id: str | None,
+        steps: list[dict[str, Any]] | None,
+        thinking: str | None,
+    ) -> None:
         """把最终回复和工具结果先作为完整候选校验，失效的正文、步骤、关联标识及提议不会留在失败轮次中。"""
         if not isinstance(reply_text, str) or not reply_text.strip():
             raise Problem(422, "AGENT_OUTPUT_INVALID", "Conversation reply is empty")
@@ -787,22 +885,33 @@ class ConversationalAgent(AgentSessionService):
         turn.steps = steps
         turn.reply, turn.proposal, turn.related_run_id = reply_text, proposal, related_run_id
 
-    async def _run_tool(self, scope, session_id, tool, arguments, context, protected):
+    async def _run_tool(
+        self,
+        scope: WorkspaceScope,
+        session_id: str,
+        tool: AgentTool,
+        arguments: dict[str, Any],
+        context: dict[str, Any],
+        protected: set[str],
+        authorize_round: Callable[[AsyncSession], Awaitable[str | None]],
+    ) -> dict[str, Any]:
         """每次工具调用都按目录校验参数，在短事务使用重新授权的登录身份及会话，模型只读数据或准备待确认提议。"""
         tool.validate_arguments(arguments)
         prepares = tool.result_kind in {"proposal", "resource_proposal"}
         async with self.transaction(scope, tool.permission, write=prepares) as (s, user):
             await self.require_owned_session(s, scope, user, session_id, active=True)
+            if denied := await authorize_round(s):
+                raise Problem(409, denied, "Conversation attempt is no longer authorized")
             call = ToolExecution(s, scope, user, context, self.ai.settings, protected)
             return await tool.handler(call, arguments)
 
     @staticmethod
-    def _step_summary(result_kind, result):
+    def _step_summary(result_kind: str, result: dict[str, Any]) -> str:
         """根据目录定义的结果类型投影固定信息作为工具步骤摘要，完整候选列表或资源正文只出现在获授权的审阅卡片。"""
         if result_kind == "run":
             return f"{result.get('state', '')} · {result.get('outcome') or '—'}"
         if result_kind == "resource_proposal":
-            return result["resource"]["kind"]
+            return str(result["resource"]["kind"])
         if result_kind == "proposal":
             return str(result.get("type", "proposal"))
         return ""

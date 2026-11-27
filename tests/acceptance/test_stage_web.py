@@ -13,12 +13,11 @@ import sys
 
 import pytest
 
-
 ROOT = Path(__file__).resolve().parents[2]
 
 
-@pytest.fixture
-def site(tmp_path: Path) -> tuple[Path, Path, Path]:
+@pytest.fixture(name="site")
+def site_fixture(tmp_path: Path) -> tuple[Path, Path, Path]:
     """准备合法入口、真实模块图以及图外 worker 字节，并保留一个旧指纹资源作为清理探针；只有清单来自所有普通文件时才能同
     时覆盖这两类相反的发布要求。
 
@@ -60,7 +59,7 @@ def _stage(root: Path, target: Path | None = None) -> subprocess.CompletedProces
     ]
     if target is not None:
         command += ["--target", str(target)]
-    return subprocess.run(command, capture_output=True, text=True)
+    return subprocess.run(command, capture_output=True, text=True, check=False)
 
 
 def test_stage_inventories_graph_externals_and_removes_old_files(site) -> None:

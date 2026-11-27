@@ -13,10 +13,13 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Any, Protocol
 from uuid import UUID
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..auth.authorization import Permission, WorkspaceScope
 from ..db import (
     Artifact,
+    ArtifactDeletion,
+    Installation,
     ArtifactPublication,
     Attempt,
     AttemptUpload,
@@ -25,6 +28,7 @@ from ..db import (
     OfflineImport,
     OfflineImportUpload,
 )
+from ..file_volume import check_volume, initial_volume
 from ..service import Problem
 from ..settings import Settings
 from .workspace import WorkspaceRepository
@@ -92,19 +96,28 @@ class FileArtifactStore:
     避免越权下载 Trace。
     """
 
-    def __init__(self, root: Path):
+    def __init__(self, root: Path, volume_id: str | None = None):
         """解析并保存根目录绝对路径，后续路径拼接都相对于该根，FileArtifactStore.__init__ 遵守本文件边界。__init__
         处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载
 
         Trace。
         """
-        self.root = root.resolve()
+        self.root = root.absolute()
+        self.volume_id = volume_id
 
     def _path(self, workspace: str, digest: str, incarnation: str | None = None) -> Path:
+        if self.volume_id is not None:
+            check_volume(self.root, self.volume_id)
         path = self.root / key(workspace, digest, incarnation)
         if path.parent.is_symlink() or path.is_symlink():
             raise ValueError("UNSAFE_ARTIFACT_PATH")
         return path
+
+    def check_retired(self, workspace: str, digest: str, incarnation: str | None) -> None:
+        """升级绑定前逐代核对已经完成删除的对象仍有零字节退役屏障，防止缺失历史的目录成为安装的权威卷。"""
+        path = self._path(workspace, digest, incarnation)
+        if not path.is_file() or path.stat().st_size != 0:
+            raise ValueError("Missing retired artifact barrier")
 
     async def put(
         self, workspace: str, digest: str, content: bytes, incarnation: str | None = None
@@ -306,14 +319,82 @@ class S3ArtifactStore:
         )
 
 
-def artifact_store(settings: Settings, backend: str | None = None) -> ArtifactStore:
+async def bind_volume(
+    session: AsyncSession, installation: Installation, root: Path, *, adopt: bool = False
+) -> str:
+    """调用者持有共享数据库的安装行锁，在历史证据核验完成后登记原卷，避免多个节点同时绑定各自的卷。"""
+    if installation.file_volume_id:
+        return installation.file_volume_id
+
+    # 历史发布尚未结算时，其他节点可能仍持有写入中的字节，须先在旧部署完成对账，才可确定原卷。
+    if adopt and await session.scalar(
+        select(ArtifactPublication.id)
+        .where(
+            ArtifactPublication.storage_backend == "FILE", ArtifactPublication.state == "PENDING"
+        )
+        .limit(1)
+    ):
+        raise Problem(
+            409, "ARTIFACT_VOLUME_PENDING", "Reconcile pending FILE publications before binding"
+        )
+
+    if adopt:
+        store = FileArtifactStore(root)
+        rows = await session.stream(
+            select(
+                Artifact.workspace_id,
+                Artifact.sha256,
+                Artifact.size_bytes,
+                Artifact.storage_incarnation,
+            ).where(Artifact.storage_backend == "FILE", Artifact.expired_at.is_(None))
+        )
+        async for workspace, digest, size, incarnation in rows:
+            await store.read(workspace, digest, size, incarnation)
+
+        retired = await session.stream_scalars(
+            select(ArtifactDeletion).where(ArtifactDeletion.storage_backend == "FILE")
+        )
+        async for deletion in retired:
+            if deletion.deleted_at is None:
+                raise Problem(
+                    409,
+                    "ARTIFACT_VOLUME_PENDING",
+                    "Reconcile pending FILE deletions before binding",
+                )
+            await asyncio.to_thread(
+                store.check_retired,
+                deletion.workspace_id,
+                deletion.sha256,
+                deletion.storage_incarnation,
+            )
+    else:
+        for model in (Artifact, ArtifactPublication, ArtifactDeletion):
+            exists = await session.scalar(
+                select(1).select_from(model).where(model.storage_backend == "FILE").limit(1)
+            )
+            if exists:
+                raise Problem(
+                    503,
+                    "ARTIFACT_VOLUME_UNBOUND",
+                    "Verify the original volume with bind-file-volume",
+                )
+
+    installation.file_volume_id = await asyncio.to_thread(initial_volume, root)
+    return installation.file_volume_id
+
+
+async def artifact_store(
+    session: AsyncSession, installation: Installation, settings: Settings, backend: str
+) -> ArtifactStore:
     """按 Settings.artifact_backend 选择 FILE 或 S3 实现并返回 ArtifactStore。artifact_store 处理报告或证据访问：
     原始制品与结构化报告权限需分开校验，避免越权下载
 
     Trace。
     """
-    if (backend or settings.artifact_backend) == "FILE":
-        return FileArtifactStore(Path(settings.artifact_directory))
+    if backend == "FILE":
+        root = Path(settings.artifact_directory)
+        volume_id = await bind_volume(session, installation, root)
+        return FileArtifactStore(root, volume_id)
     if not settings.artifact_s3_bucket:
         raise Problem(503, "ARTIFACT_STORE_UNAVAILABLE", "S3 bucket is not configured")
     return S3ArtifactStore(

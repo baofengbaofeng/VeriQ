@@ -1,3 +1,5 @@
+"""在回环邮件服务器上观察密码重置投递，核对存在和不存在的账号获得相同的公开响应且日志保护凭据。"""
+
 import asyncio
 from email import policy
 from email.parser import BytesParser
@@ -14,6 +16,7 @@ from test_auth import setup, login
 
 
 async def test_local_smtp_delivery_and_private_failure(site, caplog):
+    """捕获真实邮件并使用其中的重置链接，再让邮件服务器拒绝投递，检查公开响应与日志中的私密字段。"""
     c, db = site
     await setup(c)
     messages = []

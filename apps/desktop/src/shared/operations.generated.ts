@@ -280,15 +280,6 @@ export type CloudOperation =
           data: S["CancelRequest"];
       }
     | {
-          operation: "rerun";
-          params: {
-              workspaceId: string;
-              runId: string;
-          };
-          data: S["TriggerRequest"];
-          idempotencyKey: string;
-      }
-    | {
           operation: "getRunReport";
           params: {
               workspaceId: string;
