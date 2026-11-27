@@ -568,11 +568,11 @@ class MaintenanceService:
             or previous.service_account_id != token.service_account_id
             or previous.purpose != "MAINTENANCE"
             or "fixture-cleanups/reconcile" not in (previous.operation_scopes or [])
-            or (previous.revoked_at is None and previous.expires_at > current)
-            or await self.session.scalar(
-                select(Attempt.id).where(Attempt.job_id == job.id).limit(1)
-            )
         ):
+            return False
+        if previous.revoked_at is None and previous.expires_at > current:
+            return False
+        if await self.session.scalar(select(Attempt.id).where(Attempt.job_id == job.id).limit(1)):
             return False
         audit(
             self.session,

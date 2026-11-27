@@ -1,3 +1,5 @@
+"""统一管理控制面请求的会话身份、请求关联与错误响应，在具体业务处理前验证请求来源及大小。"""
+
 import json
 import logging
 import time
@@ -26,6 +28,13 @@ class API(RequestHandler):
     勿假设通用成功默认值。
     """
 
+    config: Settings
+    db: Database
+    action: str
+    request_id: str
+    started: float
+    _session_activity: tuple[str, datetime] | None
+
     body_limit = 65536
 
     def initialize(
@@ -45,7 +54,7 @@ class API(RequestHandler):
             self.SUPPORTED_METHODS = methods
         self.request_id = str(uuid4())
         self.started = time.monotonic()
-        self._session_activity: tuple[str, datetime] | None = None
+        self._session_activity = None
 
     def on_finish(self) -> None:
         """成功完成请求后才投递已认证观察值，失败响应与单纯会话探测不形成活动，当前事务无需等待活动写入。"""

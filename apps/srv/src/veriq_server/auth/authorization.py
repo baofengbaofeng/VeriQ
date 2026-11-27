@@ -1,3 +1,8 @@
+"""按工作区成员的有效状态、所属工作区和角色校验操作权限，并单独检查嵌套资源引用是否指向同一工作区。
+
+服务层也可取得某项权限对应的角色，用于数据库查询。私人设备的派单授权由设备服务核验。
+"""
+
 from dataclasses import dataclass
 from enum import StrEnum
 

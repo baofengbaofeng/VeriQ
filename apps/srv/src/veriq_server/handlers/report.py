@@ -1,3 +1,5 @@
+"""读取工作区内已授权的报告及证据，在稳定的数据库快照内计算增量后向员工会话逐帧发送变化。"""
+
 import asyncio
 import json
 from typing import Any
@@ -49,7 +51,8 @@ def decode_cursor(
             or len(positions) > 2000
             or any(
                 k not in known
-                or type(v) is not int
+                or isinstance(v, bool)
+                or not isinstance(v, int)
                 or v < 0
                 or v > 9007199254740991
                 or v > known[k]
@@ -64,6 +67,35 @@ def decode_cursor(
             "REPORT_RESYNC_REQUIRED",
             "Cursor invalid or expired; reload authoritative report and history",
         ) from None
+
+
+async def _stream_events(
+    service: ReportService, scope: WorkspaceScope, known: dict[str, int], positions: dict[str, int]
+) -> list[dict[str, Any]]:
+    """按照当前快照已经确认的最大序列读取事件，同一帧的事件数和字节数共用预算，游标只推进已读取的部分。"""
+    events: list[dict[str, Any]] = []
+    event_bytes = 0
+    for attempt_id, sequence in known.items():
+        offset = positions.get(attempt_id, 0)
+        if sequence <= offset:
+            continue
+        page = await service.events(
+            scope, attempt_id, offset, 100 - len(events), 1024 * 1024 - event_bytes
+        )
+        events.extend(page["items"])
+        event_bytes += sum(len(canonical_bytes(e)) for e in page["items"])
+        positions[attempt_id] = page["nextSequence"]
+        if len(events) >= 100 or event_bytes >= 1024 * 1024:
+            break
+    return events
+
+
+def _report_frame(cursor: str, events: list[dict[str, Any]], report: dict[str, Any]) -> str:
+    """在快照事务结束后才序列化报告和本帧事件，使用与该帧内容一致的签名游标支持断开连接后的重放。"""
+    payload = json.dumps(
+        {"events": events, "report": report}, separators=(",", ":"), ensure_ascii=False
+    )
+    return f"id: {cursor}\nevent: report\ndata: {payload}\n\n"
 
 
 class ReportAPI(API):
@@ -83,6 +115,7 @@ class ReportAPI(API):
             raise Problem(401, "EMPLOYEE_SESSION_REQUIRED", "Use the scoped CI report endpoint")
 
     body_limit = 256 * 1024
+    disconnected = False
 
     async def get(self, workspace_id: str, subject_id: str = "", upload_id: str = "") -> None:
         """GET 分发报告/展示/制品列表/事件/审计；制品下载在校验哈希后沙箱附件输出；制品下载在外部读后再次授权并记
@@ -92,40 +125,7 @@ class ReportAPI(API):
         """
         scope = WorkspaceScope(workspace_id)
         if self.action == "report-artifact":
-            async with self.db.sessions.begin() as session:
-                installation = await lock_installation(session)
-                user, _ = await self.identity(session)
-                upload, artifact = await ArtifactService(session, user).authorized(
-                    scope, subject_id, upload_id
-                )
-                digest, size, backend, content, incarnation = (
-                    artifact.sha256,
-                    artifact.size_bytes,
-                    artifact.storage_backend,
-                    artifact.content,
-                    artifact.storage_incarnation,
-                )
-                store = (
-                    await artifact_store(session, installation, self.config, backend)
-                    if backend != "INLINE"
-                    else None
-                )
-            if store is not None:
-                content = await store.read(workspace_id, digest, size, incarnation)
-            if content is None:
-                raise Problem(409, "INVALID_ARTIFACT", "Artifact bytes missing")
-            verify(content, digest, size)
-            async with self.db.sessions.begin() as session:
-                await lock_installation(session)
-                user, _ = await self.identity(session)
-                # 外部证据读取并校验后重新授权及记录审计，防止读取期间权限已被撤销，仍按旧授权交付下载内容。
-                await ArtifactService(session, user).authorized(scope, subject_id, upload_id)
-                audit(session, "artifact.download", user.id, upload_id, workspace_id=workspace_id)
-            self.set_header("Content-Type", "application/octet-stream")
-            self.set_header("Cache-Control", "private, no-store")
-            self.set_header("Content-Security-Policy", "sandbox; default-src 'none'")
-            self.set_header("Content-Disposition", f'attachment; filename="{upload_id}.bin"')
-            self.finish(content)
+            await self._download(scope, subject_id, upload_id)
             return
         async with self.db.sessions.begin() as session:
             if self.action == "report":
@@ -154,6 +154,43 @@ class ReportAPI(API):
                 result = await service.audit(scope, self.get_query_argument("after", ""))
         self.respond(result)
 
+    async def _download(self, scope: WorkspaceScope, subject_id: str, upload_id: str) -> None:
+        """按已授权的证据实例读取并验证外部字节，在下载开始之前重新核对调用者的当前权限并提交审计记录。"""
+        async with self.db.sessions.begin() as session:
+            installation = await lock_installation(session)
+            user, _ = await self.identity(session)
+            _, artifact = await ArtifactService(session, user).authorized(
+                scope, subject_id, upload_id
+            )
+            digest, size, backend, content, incarnation = (
+                artifact.sha256,
+                artifact.size_bytes,
+                artifact.storage_backend,
+                artifact.content,
+                artifact.storage_incarnation,
+            )
+            store = (
+                await artifact_store(session, installation, self.config, backend)
+                if backend != "INLINE"
+                else None
+            )
+        if store is not None:
+            content = await store.read(scope.workspace_id, digest, size, incarnation)
+        if content is None:
+            raise Problem(409, "INVALID_ARTIFACT", "Artifact bytes missing")
+        verify(content, digest, size)
+        async with self.db.sessions.begin() as session:
+            await lock_installation(session)
+            user, _ = await self.identity(session)
+            # 外部证据读取并校验后重新授权及记录审计，防止读取期间权限已被撤销，仍按旧授权交付下载内容。
+            await ArtifactService(session, user).authorized(scope, subject_id, upload_id)
+            audit(session, "artifact.download", user.id, upload_id, workspace_id=scope.workspace_id)
+        self.set_header("Content-Type", "application/octet-stream")
+        self.set_header("Cache-Control", "private, no-store")
+        self.set_header("Content-Security-Policy", "sandbox; default-src 'none'")
+        self.set_header("Content-Disposition", f'attachment; filename="{upload_id}.bin"')
+        self.finish(content)
+
     def on_connection_close(self) -> None:
         """SSE 连接关闭时置位 disconnected，让流循环尽快退出而不再 flush；标志位供 post 循环检查，避免向已断开套接字
         flush。on_connection_close
@@ -161,6 +198,31 @@ class ReportAPI(API):
         处理报告或证据访问：原始制品与结构化报告权限需分开校验，避免越权下载 Trace。
         """
         self.disconnected = True
+
+    async def _poll_report(
+        self,
+        scope: WorkspaceScope,
+        run_id: str,
+        positions: dict[str, int],
+        previous: ReportStreamState | None,
+        cursor: str | None,
+    ) -> tuple[ReportStreamState, str | None]:
+        """在同一个可重复读快照内确认用户和运行的归属，使用本轮实际读取的事件序列签发下一次恢复游标。"""
+        async with self.db.sessions.begin() as session:
+            await session.connection(execution_options={"isolation_level": "REPEATABLE READ"})
+            user, _ = await self.identity(session)
+            service = ReportService(session, user, self.config)
+            state = await observe_report(session, await service.run(scope, run_id))
+            binding = {"workspaceId": scope.workspace_id, "runId": run_id, "userId": user.id}
+            secret = self.config.signing_key.get_secret_value()
+            if previous is None and cursor:
+                positions.update(decode_cursor(secret, binding, cursor, state.known))
+            events = await _stream_events(service, scope, state.known, positions)
+            if not events and state == previous:
+                return state, None
+            report = await service.get(scope, run_id, authorities=state.authorities)
+            encoded = encode_cursor(secret, binding, positions)
+        return state, _report_frame(encoded, events, report)
 
     async def post(self, workspace_id: str, run_id: str) -> None:
         """每轮在新的可重复读快照中鉴权并比较运行、门禁和证据变化，事务结束后再发送数据或心跳。"""
@@ -173,56 +235,12 @@ class ReportAPI(API):
         first = True
         while not self.disconnected:
             try:
-                async with self.db.sessions.begin() as session:
-                    await session.connection(
-                        execution_options={"isolation_level": "REPEATABLE READ"}
-                    )
-                    user, _ = await self.identity(session)
-                    service = ReportService(session, user, self.config)
-                    run = await service.run(scope, run_id)
-                    state = await observe_report(session, run)
-                    binding = {"workspaceId": workspace_id, "runId": run_id, "userId": user.id}
-                    known = state.known
-                    if first and cursor:
-                        positions = decode_cursor(
-                            self.config.signing_key.get_secret_value(), binding, cursor, known
-                        )
-                    events: list[dict[str, Any]] = []
-                    event_bytes = 0
-                    for attempt_id, sequence in known.items():
-                        if sequence <= positions.get(attempt_id, 0):
-                            continue
-                        page = await service.events(
-                            scope,
-                            attempt_id,
-                            positions.get(attempt_id, 0),
-                            100 - len(events),
-                            1024 * 1024 - event_bytes,
-                        )
-                        events.extend(page["items"])
-                        event_bytes += sum(len(canonical_bytes(e)) for e in page["items"])
-                        positions[attempt_id] = page["nextSequence"]
-                        if len(events) >= 100 or event_bytes >= 1024 * 1024:
-                            break
-                    send_report = first or bool(events) or state != previous
-                    if send_report:
-                        report = await service.get(scope, run_id, authorities=state.authorities)
-                        encoded = encode_cursor(
-                            self.config.signing_key.get_secret_value(), binding, positions
-                        )
+                state, frame = await self._poll_report(scope, run_id, positions, previous, cursor)
                 # 事件正文组装完成后先离开数据库事务，再向客户端写入并等待刷新，避免网络背压期间继续持有事务或权威锁。
                 if first:
                     self.set_header("Content-Type", "text/event-stream")
                     self.set_header("X-Accel-Buffering", "no")
-                if send_report:
-                    payload = json.dumps(
-                        {"events": events, "report": report},
-                        separators=(",", ":"),
-                        ensure_ascii=False,
-                    )
-                    self.write(f"id: {encoded}\nevent: report\ndata: {payload}\n\n")
-                else:
-                    self.write(": keepalive\n\n")
+                self.write(frame if frame is not None else ": keepalive\n\n")
                 await self.flush()
                 previous, first = state, False
                 await asyncio.sleep(1)

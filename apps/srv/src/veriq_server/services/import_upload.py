@@ -13,11 +13,18 @@ from sqlalchemy import select
 from ..auth.authorization import WorkspaceScope
 from ..bundles.authority import authority_guard
 from ..contracts import validate_schema
-from ..db import OfflineImportUpload, OfflineImport, OfflineAttempt, Artifact, ArtifactPublication
+from ..db import (
+    OfflineImportUpload,
+    OfflineImport,
+    OfflineAttempt,
+    Artifact,
+    ArtifactPublication,
+    Installation,
+)
 from ..service import Problem, now, lock_installation
 from .import_result import ImportService
 from .bundle import safe_path
-from .artifact import artifact_store, listed_offline_artifact
+from .artifact import ArtifactStore, artifact_store, listed_offline_artifact
 
 
 class ImportUploadService(ImportService):
@@ -187,7 +194,6 @@ class ImportUploadService(ImportService):
         replay = await self.completed_chunk(scope, upload_id, offset, raw)
         if replay is not None:
             return replay
-        content: bytes | None = None
         async with authority_guard(self.settings, False) as authority:
             installation = await lock_installation(self.session)
             row = await self.current(scope, upload_id, authority)
@@ -209,76 +215,28 @@ class ImportUploadService(ImportService):
                 return {"id": row.id, "receivedBytes": len(retained), "complete": False}
             if sha256(retained).hexdigest() != row.sha256:
                 raise Problem(409, "ARTIFACT_HASH_MISMATCH", "Complete bytes differ")
-            artifact = await self.session.get(Artifact, (scope.workspace_id, row.sha256))
-            backend = (
-                artifact.storage_backend
-                if artifact and not artifact.expired_at
-                else self.settings.artifact_backend
-            )
-            store = (
-                await artifact_store(self.session, installation, self.settings, backend)
-                if backend != "INLINE"
-                else None
-            )
-            if artifact and not artifact.expired_at:
-                if artifact.size_bytes != row.size_bytes:
-                    raise Problem(409, "ARTIFACT_CONFLICT", "Artifact size differs")
-                incarnation = artifact.storage_incarnation
-                if backend == "INLINE":
-                    if artifact.content != retained:
-                        raise Problem(409, "ARTIFACT_CONFLICT", "Artifact bytes differ")
-                    row.state = "COMPLETE"
-                    row.content = None
-                    row.expires_at = now() + timedelta(days=self.settings.artifact_retention_days)
-                    await self.session.commit()
-                    return {"id": row.id, "receivedBytes": row.size_bytes, "complete": True}
-                publication = await self.session.get(ArtifactPublication, incarnation)
-                if not publication or publication.state == "RETIRED":
-                    raise Problem(410, "ARTIFACT_EXPIRED", "Publication is retired")
-            else:
-                incarnation = str(uuid4())
-                publication = ArtifactPublication(
-                    id=incarnation,
-                    workspace_id=scope.workspace_id,
-                    sha256=row.sha256,
-                    storage_backend=backend,
-                    upload_id=None,
-                    offline_upload_id=row.id,
-                    state="PENDING",
-                )
-                self.session.add(publication)
-                if artifact:
-                    artifact.content = None
-                    artifact.storage_backend = backend
-                    artifact.storage_incarnation = incarnation
-                    artifact.expired_at = None
-                    artifact.deleted_at = None
-                else:
-                    artifact = Artifact(
-                        workspace_id=scope.workspace_id,
-                        sha256=row.sha256,
-                        content=None,
-                        size_bytes=row.size_bytes,
-                        media_type="application/octet-stream",
-                        storage_backend=backend,
-                        storage_incarnation=incarnation,
-                    )
-                    self.session.add(artifact)
-            row.storage_incarnation = incarnation
-            content = retained
+            staged = await self._stage_publication(row, retained, installation)
+            if staged is None:
+                return await self._complete_upload(row)
+            incarnation, store = staged
             digest = row.sha256
             await self.session.commit()
         # 收齐字节并核对摘要后先提交外部发布意图。File 或 S3 写入在事务和配置锁之外进行，
         # 返回后重新核验当前权威、上传和产物实例，确认未退役才将上传置为 COMPLETE、发布置为 COMMITTED。
         try:
-            assert store is not None
-            await store.put(scope.workspace_id, digest, content, incarnation)
+            await store.put(scope.workspace_id, digest, retained, incarnation)
         except (ValueError, OSError):
             raise Problem(
                 409,
                 "ARTIFACT_PUBLICATION_FAILED",
                 "Evidence publication was retired or failed; retained authority must be reconciled",
             ) from None
+        return await self._commit_publication(scope, upload_id, incarnation)
+
+    async def _commit_publication(
+        self, scope: WorkspaceScope, upload_id: str, incarnation: str
+    ) -> dict[str, Any]:
+        """外部存储写入完成后重新授权发起人，只有产物和发布记录仍属于同一活动实例才允许提交上传完成状态。"""
         async with authority_guard(self.settings, False) as authority:
             await lock_installation(self.session)
             row = await self.current(scope, upload_id, authority)
@@ -288,21 +246,85 @@ class ImportUploadService(ImportService):
             publication = await self.session.get(
                 ArtifactPublication, incarnation, populate_existing=True
             )
+            if not artifact or artifact.expired_at or artifact.storage_incarnation != incarnation:
+                raise Problem(410, "ARTIFACT_EXPIRED", "Publication authority changed")
             if (
-                not artifact
-                or artifact.expired_at
-                or artifact.storage_incarnation != incarnation
-                or not publication
+                not publication
                 or publication.workspace_id != scope.workspace_id
                 or publication.state == "RETIRED"
             ):
                 raise Problem(410, "ARTIFACT_EXPIRED", "Publication authority changed")
-            row.state = "COMPLETE"
-            row.content = None
-            row.expires_at = now() + timedelta(days=self.settings.artifact_retention_days)
             publication.state = "COMMITTED"
-            await self.session.commit()
-            return {"id": row.id, "receivedBytes": row.size_bytes, "complete": True}
+            return await self._complete_upload(row)
+
+    async def _stage_publication(
+        self, row: OfflineImportUpload, retained: bytes, installation: Installation
+    ) -> tuple[str, ArtifactStore] | None:
+        """持有安装锁时核验同工作区内的产物实例并预订外部写入，已验证字节相同的内联产物可以直接完成上传。"""
+        artifact = await self.session.get(Artifact, (row.workspace_id, row.sha256))
+        backend = (
+            artifact.storage_backend
+            if artifact and not artifact.expired_at
+            else self.settings.artifact_backend
+        )
+        store = (
+            await artifact_store(self.session, installation, self.settings, backend)
+            if backend != "INLINE"
+            else None
+        )
+        if artifact and not artifact.expired_at:
+            if artifact.size_bytes != row.size_bytes:
+                raise Problem(409, "ARTIFACT_CONFLICT", "Artifact size differs")
+            incarnation = artifact.storage_incarnation
+            if backend == "INLINE":
+                if artifact.content != retained:
+                    raise Problem(409, "ARTIFACT_CONFLICT", "Artifact bytes differ")
+                return None
+            if incarnation is None:
+                raise Problem(410, "ARTIFACT_EXPIRED", "Publication is retired")
+            publication = await self.session.get(ArtifactPublication, incarnation)
+            if not publication or publication.state == "RETIRED":
+                raise Problem(410, "ARTIFACT_EXPIRED", "Publication is retired")
+        else:
+            incarnation = str(uuid4())
+            publication = ArtifactPublication(
+                id=incarnation,
+                workspace_id=row.workspace_id,
+                sha256=row.sha256,
+                storage_backend=backend,
+                upload_id=None,
+                offline_upload_id=row.id,
+                state="PENDING",
+            )
+            self.session.add(publication)
+            if artifact:
+                artifact.content = None
+                artifact.storage_backend = backend
+                artifact.storage_incarnation = incarnation
+                artifact.expired_at = None
+                artifact.deleted_at = None
+            else:
+                artifact = Artifact(
+                    workspace_id=row.workspace_id,
+                    sha256=row.sha256,
+                    content=None,
+                    size_bytes=row.size_bytes,
+                    media_type="application/octet-stream",
+                    storage_backend=backend,
+                    storage_incarnation=incarnation,
+                )
+                self.session.add(artifact)
+        row.storage_incarnation = incarnation
+        assert store is not None
+        return incarnation, store
+
+    async def _complete_upload(self, row: OfflineImportUpload) -> dict[str, Any]:
+        """确认产物发布已满足交付条件后清空暂存正文并提交完成状态，在同一事务中设置上传记录的保留期限。"""
+        row.state = "COMPLETE"
+        row.content = None
+        row.expires_at = now() + timedelta(days=self.settings.artifact_retention_days)
+        await self.session.commit()
+        return {"id": row.id, "receivedBytes": row.size_bytes, "complete": True}
 
     async def completed_chunk(
         self, scope: WorkspaceScope, upload_id: str, offset: int, raw: bytes
