@@ -85,6 +85,7 @@ export type SdkEvent =
     | {
           type: "CLEANUP_RESULT";
           cleanupStatus: CaseResult["cleanupStatus"];
+          errorCode?: string;
       }
     | {
           type: "CASE_FINISHED";
@@ -122,7 +123,13 @@ export function sdkFact(event: SdkEvent): Fact {
                 payload: event.result,
             };
         case "CLEANUP_RESULT":
-            return { type: event.type, payload: { cleanupStatus: event.cleanupStatus } };
+            return {
+                type: event.type,
+                payload: {
+                    cleanupStatus: event.cleanupStatus,
+                    ...(event.errorCode ? { errorCode: event.errorCode } : {}),
+                },
+            };
         case "CASE_FINISHED":
             return {
                 type: "ATTEMPT_FINISHED",

@@ -102,6 +102,9 @@ export type ProtectedExecutionErrorCode =
   | "OBSERVER_DISPOSED"
   | "OBSERVER_WINDOW_REQUIRED"
   | "ORIGIN_NOT_ALLOWED"
+  | "PAGE_CLEANUP_FAILED"
+  | "PAGE_CLEANUP_UNAVAILABLE"
+  | "PAGE_PREPARE_FAILED"
   | "PERSISTENCE_CHECKPOINT_FAILED"
   | "READ_ONLY_QUERY_REQUIRED"
   | "REDACTION_PROVIDER_REQUIRED"
@@ -2636,6 +2639,71 @@ export interface CaseDslV1 {
   fixtureVersionId?: Id;
   datasetVersionId?: Id;
   persistenceCheckpointStepId?: Key;
+  lifecycle?: {
+    /**
+     * @maxItems 500
+     */
+    prepare?: StepV1[];
+    /**
+     * @maxItems 3
+     */
+    cleanup?:
+      | []
+      | [
+          {
+            on: "SUCCESS" | "FAILURE" | "CANCELLED";
+            /**
+             * @minItems 1
+             * @maxItems 500
+             */
+            steps: [StepV1, ...StepV1[]];
+          }
+        ]
+      | [
+          {
+            on: "SUCCESS" | "FAILURE" | "CANCELLED";
+            /**
+             * @minItems 1
+             * @maxItems 500
+             */
+            steps: [StepV1, ...StepV1[]];
+          },
+          {
+            on: "SUCCESS" | "FAILURE" | "CANCELLED";
+            /**
+             * @minItems 1
+             * @maxItems 500
+             */
+            steps: [StepV1, ...StepV1[]];
+          }
+        ]
+      | [
+          {
+            on: "SUCCESS" | "FAILURE" | "CANCELLED";
+            /**
+             * @minItems 1
+             * @maxItems 500
+             */
+            steps: [StepV1, ...StepV1[]];
+          },
+          {
+            on: "SUCCESS" | "FAILURE" | "CANCELLED";
+            /**
+             * @minItems 1
+             * @maxItems 500
+             */
+            steps: [StepV1, ...StepV1[]];
+          },
+          {
+            on: "SUCCESS" | "FAILURE" | "CANCELLED";
+            /**
+             * @minItems 1
+             * @maxItems 500
+             */
+            steps: [StepV1, ...StepV1[]];
+          }
+        ];
+  };
   /**
    * @minItems 1
    * @maxItems 500
@@ -3364,6 +3432,10 @@ export interface HeartbeatRequest {
 export interface HeartbeatDTO {
   leaseExpiresAt: Timestamp;
   cancelRequested: boolean;
+  /**
+   * Cooperative page cleanup is authorized for this active, explicitly cancelled test within its existing lease.
+   */
+  pageCleanupAllowed?: boolean;
   serverTime: Timestamp;
   leaseDurationMs: number;
 }
@@ -3494,6 +3566,7 @@ export interface ExpectedPlansV1 {
     steps: {
       id: Key;
       order: number;
+      phase?: "PREPARE" | "CLEANUP_SUCCESS" | "CLEANUP_FAILURE" | "CLEANUP_CANCELLED";
       parentId?: Key;
       failurePolicy: "STOP" | "CONTINUE" | "BLOCK";
       /**
@@ -3686,6 +3759,7 @@ export interface ReportDisplayV1 {
       sourcePath: string;
       action: string;
       order: number;
+      phase?: "PREPARE" | "CLEANUP_SUCCESS" | "CLEANUP_FAILURE" | "CLEANUP_CANCELLED";
       parentId?: Key;
       /**
        * @maxItems 5000

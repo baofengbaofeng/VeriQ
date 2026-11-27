@@ -431,6 +431,123 @@ async def test_debug_candidate_waits_for_validation_without_fabricating_publishe
     assert recovered.json()["data"]["attemptId"] == claim.json()["data"]["attemptId"]
 
 
+async def test_draft_run_selects_frozen_rows(site):
+    """已冻结候选按原数据顺序展开指定行，省略时保留完整矩阵，重复提交复用运行。"""
+    from test_publish import queue
+    from veriq_server.db import Run
+
+    c, db = site
+    await setup(c)
+    await login(c)
+    ws = await workspace(c)
+    runtime = await device(c, ws)
+    env = await environment(c, db, ws)
+    catalog = await published(
+        c,
+        db,
+        ws,
+        "catalog",
+        "ELEMENT_CATALOG",
+        {
+            "schemaVersion": "1.0",
+            "elements": [{"key": "save", "locator": {"by": "veriqId", "value": "save"}}],
+        },
+    )
+    dataset = await published(
+        c,
+        db,
+        ws,
+        "dataset",
+        "DATASET",
+        {
+            "schemaVersion": "1.0",
+            "columns": {"value": "string"},
+            "rows": [{"key": key, "values": {"value": f"frozen-{key}"}} for key in "abc"],
+        },
+    )
+    draft = await create(
+        c,
+        ws,
+        "draft",
+        {
+            "kind": "CASE",
+            "document": {
+                "schemaVersion": "1.0",
+                "caseKey": "draft",
+                "title": "Draft",
+                "kind": "READ",
+                "roleKey": "reader",
+                "catalogVersionId": catalog,
+                "datasetVersionId": dataset,
+                "steps": [{"id": "open", "action": "goto", "path": "/"}],
+            },
+        },
+    )
+    _, validation = await queue(c, draft)
+    path = f"/api/v1/workspaces/{ws}/runs"
+    request = {
+        "draftValidationJobId": validation["id"],
+        "environmentVersionId": env,
+        "roleKeys": ["reader"],
+        "browsers": ["chromium"],
+        "runtimeIds": [runtime["runnerId"]],
+    }
+
+    async def create_run(data, key=None):
+        return await c.post(path, json=data, headers={"Idempotency-Key": key or str(uuid4())})
+
+    key = str(uuid4())
+    selected = await create_run({**request, "dataRowKeys": ["b"]}, key)
+    assert selected.status_code == 202, selected.text
+    run_id = selected.json()["data"]["id"]
+    replay = await create_run({**request, "dataRowKeys": ["b"]}, key)
+    assert replay.json()["data"]["id"] == run_id
+    changed = await create_run({**request, "dataRowKeys": ["a"]}, key)
+    assert changed.status_code == 409
+    assert changed.json()["code"] == "IDEMPOTENCY_CONFLICT"
+    assert "frozen-b" not in selected.text
+
+    for keys in ([], ["b", "b"], [f"row{i}" for i in range(1001)]):
+        rejected = await create_run({**request, "dataRowKeys": keys})
+        assert rejected.status_code == 400
+    missing = await create_run({**request, "dataRowKeys": ["missing"]})
+    assert missing.status_code == 422
+    assert missing.json()["code"] == "INVALID_DATA_ROW_SELECTION"
+    published_selection = {k: value for k, value in request.items() if k != "draftValidationJobId"}
+    rejected = await create_run({**published_selection, "caseVersionIds": [], "dataRowKeys": ["b"]})
+    assert rejected.status_code == 422
+    assert rejected.json()["code"] == "INVALID_DATA_ROW_SELECTION"
+
+    subset = await create_run({**request, "dataRowKeys": ["c", "a"]})
+    assert subset.status_code == 202, subset.text
+    full = await create_run(request)
+    assert full.status_code == 202, full.text
+    async with db.sessions() as session:
+        runs = (await session.execute(select(Run).where(Run.workspace_id == ws))).scalars().all()
+        assert len(runs) == 3
+        for response, expected in (
+            (selected, ["b"]),
+            (subset, ["a", "c"]),
+            (full, ["a", "b", "c"]),
+        ):
+            admitted = await session.get(Run, response.json()["data"]["id"])
+            artifact = await session.get(Artifact, (ws, admitted.snapshot_hash))
+            matrix = json.loads(artifact.content)["matrix"]
+            assert [entry["provenance"]["rowKey"] for entry in matrix] == expected
+            jobs = (
+                (await session.execute(select(Job).where(Job.run_id == admitted.id)))
+                .scalars()
+                .all()
+            )
+            assert len(jobs) == len(expected)
+            for job in jobs:
+                frozen = await _snapshot(session, ws, job)
+                row_key = frozen["selectedRow"]["rowKey"]
+                assert row_key in expected
+                assert frozen["selectedRow"]["versionId"] == dataset
+                assert "dataRow" not in frozen
+
+
 async def test_claim_skips_corrupt_historical_inputs_and_aggregates_failed_run(site, monkeypatch):
     from test_lease_mysql import auth, claim_body, queued_browser_jobs
     from veriq_server.db import Run, ValidationReceipt

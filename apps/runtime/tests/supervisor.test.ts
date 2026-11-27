@@ -459,3 +459,48 @@ test("an unresponsive platform loses its lease, closes its HTTP sample and drain
         await rm(directory, { recursive: true, force: true });
     }
 });
+
+test("heartbeat distinguishes explicit cleanup grace from ordinary stop", async (t) => {
+    const { Heartbeat } = await import("../src/agent/heartbeat.ts");
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    for (const pageCleanupAllowed of [false, true]) {
+        let stopped: string | undefined;
+        let checks = 0;
+        const now = performance.now();
+        const heartbeat = new Heartbeat(
+            {
+                request: async () => ({
+                    cancelRequested: true,
+                    pageCleanupAllowed: pageCleanupAllowed && checks++ === 0,
+                    serverTime: "2026-01-01T00:00:00Z",
+                    leaseExpiresAt: "2026-01-01T00:01:00Z",
+                    leaseDurationMs: 60000,
+                }),
+            } as unknown as ConstructorParameters<typeof Heartbeat>[0],
+            {
+                attemptId: "cancel",
+                serverTime: "2026-01-01T00:00:00Z",
+                expiresAt: "2026-01-01T00:01:00Z",
+                leaseDurationMs: 60000,
+            } as ConstructorParameters<typeof Heartbeat>[1],
+            now,
+            now,
+            (reason) => {
+                stopped = reason;
+            },
+        );
+        try {
+            heartbeat.start();
+            t.mock.timers.tick(10000);
+            await Promise.resolve();
+            assert.equal(stopped, pageCleanupAllowed ? "USER_CANCELLED_WITH_CLEANUP" : "USER_CANCELLED");
+            if (pageCleanupAllowed) {
+                t.mock.timers.tick(1000);
+                await Promise.resolve();
+                assert.equal(stopped, "USER_CANCELLED");
+            }
+        } finally {
+            heartbeat.close();
+        }
+    }
+});

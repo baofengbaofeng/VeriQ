@@ -49,9 +49,14 @@ export class Heartbeat {
                 },
             );
             if (this.done) return;
-            // 平台明确请求取消时立即触发受控停机，停止更新租约期限，避免剩余租约继续授权新的业务副作用。
+            // 取消不延长租约。页面清理仅在平台明确授权后继续短间隔复核，失去授权立即停机。
             if (grant.cancelRequested) {
-                this.stop("USER_CANCELLED");
+                if (grant.pageCleanupAllowed === true) {
+                    this.deadline = Math.min(this.deadline, leaseDeadline(grant, sent, performance.now()));
+                    this.arm();
+                    this.stop("USER_CANCELLED_WITH_CLEANUP");
+                    this.timer = setTimeout(() => void this.beat(), 1000);
+                } else this.stop("USER_CANCELLED");
                 return;
             }
             this.deadline = leaseDeadline(grant, sent, performance.now());

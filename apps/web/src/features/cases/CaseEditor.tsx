@@ -5,8 +5,8 @@
  */
 
 import { ResourceSelectField, ResourceSelectItem } from "../resources/ResourceSelect";
-import { useState } from "react";
-import { useFormContext } from "react-hook-form";
+import { useEffect, useState } from "react";
+import { FormProvider, useForm, useFormContext } from "react-hook-form";
 import { tx, useAppLocale } from "../../locale";
 import type { CaseDslV1, StepV1, ObserverV1 } from "@veriq/contracts";
 import { Button } from "@veriq/ui";
@@ -251,16 +251,50 @@ export function CaseEditor({ versions, flow = false }: { versions: VersionOption
         </>
     );
 }
+export function RecordingStepConfiguration({
+    step,
+    versions,
+    preceding,
+    onChange,
+    bindings,
+}: {
+    step: StepV1;
+    versions: VersionOption[];
+    preceding: StepV1[];
+    onChange: (step: StepV1) => void;
+    bindings: string[];
+}) {
+    const form = useForm<{ step: object }>({ defaultValues: { step } });
+    const { getValues, watch } = form;
+    useEffect(() => {
+        const subscription = watch(() => onChange(getValues("step") as StepV1));
+        return () => subscription.unsubscribe();
+    }, [getValues, onChange, watch]);
+    return (
+        <FormProvider {...form}>
+            <StepFields
+                path="step"
+                versions={versions}
+                preceding={preceding}
+                scope="CASE"
+                recordingBindings={bindings}
+            />
+        </FormProvider>
+    );
+}
+
 function StepFields({
     path,
     versions,
     preceding,
     scope,
+    recordingBindings,
 }: {
     path: string;
     versions: VersionOption[];
     preceding: StepV1[];
     scope: "CASE" | "FLOW";
+    recordingBindings?: string[];
 }) {
     useAppLocale();
     const step = useValue<StepV1>(path),
@@ -280,7 +314,7 @@ function StepFields({
     ];
     return (
         <>
-            <Field name={`${path}.id`} label={tx("步骤 ID / Step ID")} />
+            {!recordingBindings && <Field name={`${path}.id`} label={tx("步骤 ID / Step ID")} />}
             <ResourceSelectField
                 label={tx("动作 / Action")}
                 required
@@ -346,11 +380,28 @@ function StepFields({
             {["goto", "apiRequest"].includes(step.action) && (
                 <Field name={`${path}.path`} label={tx("相对路径 / Origin-relative path")} />
             )}
-            {["click", "check", "uncheck", "fill", "press", "selectOption", "upload"].includes(step.action) && (
-                <Field name={`${path}.target`} label={tx("元素 key / Target")} />
-            )}
+            {!recordingBindings &&
+                ["click", "check", "uncheck", "fill", "press", "selectOption", "upload"].includes(step.action) && (
+                    <Field name={`${path}.target`} label={tx("元素 key / Target")} />
+                )}
             {["fill", "press"].includes(step.action) && (
                 <Field name={`${path}.value`} label={tx("值 / Value (bindings allowed)")} />
+            )}
+            {recordingBindings && ["fill", "press", "selectOption"].includes(step.action) && (
+                <ResourceSelectField
+                    label={tx("从冻结字段绑定 / Bind frozen data field")}
+                    value=""
+                    onValueChange={(binding) => {
+                        if (binding) set(`${path}.value`, binding);
+                    }}
+                >
+                    <ResourceSelectItem value="">{tx("选择字段 / Choose field")}</ResourceSelectItem>
+                    {recordingBindings.map((binding) => (
+                        <ResourceSelectItem key={binding} value={binding}>
+                            {binding}
+                        </ResourceSelectItem>
+                    ))}
+                </ResourceSelectField>
             )}
             {step.action === "selectOption" && (
                 <JsonField name={`${path}.value`} label={tx("选项 / String or string array")} allowBinding />

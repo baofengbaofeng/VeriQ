@@ -13,18 +13,20 @@ import type { PlatformComponents } from "@veriq/contracts";
 import type { DesktopState } from "../shared/bridge";
 import { DesktopAgentForms } from "./AgentForms";
 import { RetentionPanel } from "./RetentionPanel";
+import { RecordingWorkspace } from "./recording/RecordingWorkspace";
 import { desktopErrorMessage, desktopStateLabel } from "../shared/desktop-errors";
 import { credentialGuidance } from "../shared/credential-status";
 import { cloudAdapters, DesktopLocalReports } from "./adapters";
 
 type S = PlatformComponents["schemas"];
-const tabs = ["overview", "resources", "reports", "ai", "conversation", "settings"] as const;
+const tabs = ["overview", "resources", "recording", "reports", "ai", "conversation", "settings"] as const;
 type Tab = (typeof tabs)[number];
 const bridge = window.veriq;
 const labels = {
     zh: {
         overview: "工作台",
         resources: "云端资源",
+        recording: "浏览器测试设计",
         reports: "报告与历史",
         ai: "AI 辅助",
         conversation: "测试 Agent",
@@ -48,6 +50,7 @@ const labels = {
     en: {
         overview: "Overview",
         resources: "Cloud resources",
+        recording: "Browser test design",
         reports: "Reports & history",
         ai: "AI assistance",
         conversation: "Test Agent",
@@ -662,6 +665,24 @@ export function App() {
                             )}
                         </>
                     )}
+                    {tab === "recording" &&
+                        (workspace && userId && state?.origin ? (
+                            <RecordingWorkspace
+                                key={cloudScope}
+                                workspaceId={workspace.id}
+                                owner={JSON.stringify([state.origin, userId, workspace.id])}
+                                language={language}
+                                openReport={(id) => {
+                                    setCloudRun({ owner: cloudScope, id });
+                                    setReportLocal(false);
+                                    setTab("reports");
+                                }}
+                            />
+                        ) : (
+                            <p className="panel" role="status">
+                                请连接平台、登录并选择工作区。 / Connect to VeriQ, sign in, and select a Workspace.
+                            </p>
+                        ))}
                     {tab === "conversation" &&
                         (workspace && userId && conversationOwner && adapters ? (
                             <section className="panel">

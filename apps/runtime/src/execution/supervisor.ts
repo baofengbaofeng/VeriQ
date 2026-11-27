@@ -28,6 +28,8 @@ import {
     type JobManifestV1,
     type CompletionManifestV1,
     type CompiledAssetBundle,
+    type AssetSnapshotV1,
+    type ConnectedSourceSnapshotV2,
     type ExecutionSnapshotV1,
     type ConnectedExecutionSnapshotV2,
     type StaticDatasetSelection,
@@ -607,6 +609,10 @@ export class ExecutionSupervisor {
         const client = this.options.client,
             events = new EventBuffer(claim, client),
             controller = new AbortController();
+        const cleanupAuthority = new AbortController();
+        let declaredCancelCleanup = false,
+            startedBusiness = false,
+            pageCleanupDeadline: number | undefined;
         let reason: string | undefined,
             child: OwnedProcess | undefined,
             liveTransfers: HttpDatasetTransfers | undefined,
@@ -633,7 +639,23 @@ export class ExecutionSupervisor {
                 this.source ? performance.now() + Math.max(0, heartbeat.remaining() - 1000) : undefined,
             ));
         const stopRequest = (why: string) => {
-            reason ??= why;
+            const authorizedCancel = why === "USER_CANCELLED_WITH_CLEANUP";
+            const stopReason = authorizedCancel ? "USER_CANCELLED" : why;
+            reason ??= stopReason;
+            const available = heartbeat ? heartbeat.remaining() - 4000 : 0;
+            if (
+                authorizedCancel &&
+                startedBusiness &&
+                declaredCancelCleanup &&
+                reason === "USER_CANCELLED" &&
+                !cleanupAuthority.signal.aborted &&
+                available > 1000
+            ) {
+                pageCleanupDeadline ??= performance.now() + Math.min(12000, available);
+                controller.abort();
+                return;
+            }
+            cleanupAuthority.abort();
             controller.abort();
             if (this.source && startIssued) void stopOnce(reason).catch(() => {});
         };
@@ -722,6 +744,13 @@ export class ExecutionSupervisor {
                           source.assets.some((asset: { kind: string }) => asset.kind === "DATASET"))
                 )
                     throw new Error("CONNECTED_SOURCE_REQUIRED");
+                const selectedCaseVersionId = execution.caseVersionId;
+                const selected = (source as AssetSnapshotV1 | ConnectedSourceSnapshotV2).assets.find(
+                    (asset) => asset.kind === "CASE" && asset.versionId === selectedCaseVersionId,
+                );
+                declaredCancelCleanup =
+                    selected?.kind === "CASE" &&
+                    selected.document.lifecycle?.cleanup?.some(({ on }) => on === "CANCELLED") === true;
                 await write("source/asset-snapshot.json", sourceBytes);
                 await write("execution.json", subject);
                 await write("bundle.json", descriptor);
@@ -841,7 +870,14 @@ export class ExecutionSupervisor {
                     // 该请求禁止重定向，设备授权头不会用于业务站点请求。
                     return this.resolveCredential(claim, reference, controller.signal);
                 }
-                if (message.type === "status") return { cancelled: controller.signal.aborted };
+                if (message.type === "status")
+                    return {
+                        cancelled: controller.signal.aborted,
+                        cleanupAllowed:
+                            !cleanupAuthority.signal.aborted &&
+                            (pageCleanupDeadline === undefined || performance.now() < pageCleanupDeadline - 1000) &&
+                            heartbeat.remaining() > 1000,
+                    };
                 if (message.type === "event") {
                     const event = message.event as Parameters<EventBuffer["sdk"]>[0];
                     await events.sdk(event);
@@ -1040,13 +1076,24 @@ export class ExecutionSupervisor {
             record.state = "RUNNING";
             await commit();
             if (controller.signal.aborted) throw new Error("ATTEMPT_STOPPING");
+            startedBusiness = true;
             child.send({ type: "START" });
             const cancelled = new Promise<void>((resolve) => {
                 if (controller.signal.aborted) resolve();
                 else controller.signal.addEventListener("abort", () => resolve(), { once: true });
             });
             await Promise.race([child.exited, cancelled]);
-            if (controller.signal.aborted && !this.source)
+            if (controller.signal.aborted && pageCleanupDeadline !== undefined) {
+                const authorityRevoked = new Promise<void>((resolve) => {
+                    if (cleanupAuthority.signal.aborted) resolve();
+                    else cleanupAuthority.signal.addEventListener("abort", () => resolve(), { once: true });
+                });
+                await Promise.race([
+                    child.exited,
+                    authorityRevoked,
+                    delay(Math.max(0, pageCleanupDeadline - performance.now()), undefined, { ref: false }),
+                ]);
+            } else if (controller.signal.aborted && !this.source)
                 await Promise.race([
                     child.exited,
                     delay(Math.max(0, Math.min(30000, heartbeat.remaining() - 1000)), undefined, {
@@ -1065,7 +1112,11 @@ export class ExecutionSupervisor {
              * 报告而失败关闭。
              */
             if (this.source && manifest.kind === "TEST" && !evidenceProtected) {
-                if (controller.signal.aborted) throw new Error(reason ?? "ATTEMPT_STOPPING");
+                if (
+                    controller.signal.aborted &&
+                    (pageCleanupDeadline === undefined || cleanupAuthority.signal.aborted || !caseResult)
+                )
+                    throw new Error(reason ?? "ATTEMPT_STOPPING");
                 try {
                     this.source.native.openPrivateDirectory(tmp, false).close();
                     if (!privateEndpoint) throw new Error("REPORT_PRIVACY_UNCONFIRMED");

@@ -23,6 +23,7 @@ from ..db import Resource, ResourceDraft, ResourceVersion, User, Job
 from ..repositories.resource import ResourceRepository
 from ..service import Problem, audit, now, stamp
 from .agent_form_receipts import record_form_receipt
+from .snapshots import case_step_lists
 from .workspace import WorkspaceRepository
 
 ENGINE_VERSION = "0.1.0"
@@ -181,11 +182,12 @@ def asset_references(content: dict[str, Any]) -> list[tuple[str, str]]:
                 result.append((case["datasetVersionId"], "DATASET"))
     assertions = list(doc.get("assertions", [])) if kind == "ASSERTION_TEMPLATE" else []
     if kind in {"CASE", "FLOW"}:
-        for step in doc["steps"]:
-            if step["action"] == "callFlow":
-                result.append((step["versionId"], "FLOW"))
-            assertions.extend(step.get("beforeAssertions", []))
-            assertions.extend(step.get("afterAssertions", []))
+        for _, steps in case_step_lists(doc):
+            for step in steps:
+                if step["action"] == "callFlow":
+                    result.append((step["versionId"], "FLOW"))
+                assertions.extend(step.get("beforeAssertions", []))
+                assertions.extend(step.get("afterAssertions", []))
     for assertion in assertions:
         if assertion["type"] == "template":
             result.append((assertion["versionId"], "ASSERTION_TEMPLATE"))
@@ -411,6 +413,27 @@ class ResourceService:
         """
         await self.authorize(scope, data["kind"])
         self._check_draft(scope, data["kind"], data["content"])
+        client_id = data.get("clientDraftId")
+        request_hash = None
+        if client_id:
+            resource_id = str(
+                uuid5(
+                    NAMESPACE_URL,
+                    f"veriq:draft:{scope.workspace_id}:{self.user.id}:{client_id.lower()}",
+                )
+            )
+            request = {key: value for key, value in data.items() if key != "clientDraftId"}
+            request_hash = sha256(canonical_bytes(request)).hexdigest()
+            replay = await self.session.get(Resource, resource_id)
+            if replay:
+                if (
+                    replay.workspace_id != scope.workspace_id
+                    or replay.creation_request_hash != request_hash
+                ):
+                    raise Problem(409, "IDEMPOTENCY_CONFLICT", "Draft creation request changed")
+                return resource_dto(replay)
+        else:
+            resource_id = str(uuid4())
         existing = (
             await self.session.execute(
                 select(Resource.id).where(
@@ -425,12 +448,13 @@ class ResourceService:
                 409, "RESOURCE_KEY_EXISTS", "Resource key is retained, including archived resources"
             )
         resource = Resource(
-            id=str(uuid4()),
+            id=resource_id,
             workspace_id=scope.workspace_id,
             kind=data["kind"],
             key=data["key"],
             name=data["name"],
             status="DRAFT",
+            creation_request_hash=request_hash,
         )
         self.session.add(resource)
         await self.session.flush()
