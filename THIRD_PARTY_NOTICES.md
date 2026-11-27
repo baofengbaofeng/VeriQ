@@ -2,19 +2,19 @@
 
 VeriQ 沿用 AGPL-3.0 项目许可证。第三方代码继续适用各自的许可证。
 
-网页界面更新选用 `@radix-ui/react-dropdown-menu` 2.2.1、`@radix-ui/react-select` 2.4.1 和 `@radix-ui/react-tooltip` 1.4.1（MIT），并继续使用既有的 `@radix-ui/react-dialog` 1.3.1（MIT）与 `class-variance-authority` 0.7.1（Apache-2.0）。新增安装的 19 个包均声明采用 MIT，三项新增的直接控件也在其中。分发时须保留上游版权声明、许可证原文以及随附的 NOTICE 文件。用途、署名、保留的元数据证据及 2026-11-17 对生产依赖图的漏洞公告查询见 [ADR-024](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/decisions/ADR-024-web-ui-dependencies.md)。查询结果限于当时的记录，发行仍须单独核对软件物料清单（SBOM）。
+网页界面更新选用 `@radix-ui/react-dropdown-menu` 2.2.1、`@radix-ui/react-select` 2.4.1 和 `@radix-ui/react-tooltip` 1.4.1（MIT），并继续使用既有的 `@radix-ui/react-dialog` 1.3.1（MIT）与 `class-variance-authority` 0.7.1（Apache-2.0）。新增安装的 19 个包均声明采用 MIT，三项新增的直接控件也在其中。分发时须保留上游版权声明、许可证原文以及随附的 NOTICE 文件。用途、署名、保留的元数据证据及 2026-11-17 对生产依赖图的漏洞公告查询见 [ADR-024](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%86%B3%E7%AD%96%E8%AE%B0%E5%BD%95/ADR-024-%E7%BD%91%E9%A1%B5%E7%AE%A1%E7%90%86%E5%8F%B0%E7%95%8C%E9%9D%A2%E4%BE%9D%E8%B5%96%E9%80%89%E5%9E%8B.md)。查询结果限于当时的记录，发行仍须单独核对软件物料清单（SBOM）。
 
-T01 的依赖选型、精确版本、直接依赖声明的许可证、替换边界和验证范围见 [ADR-003](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/decisions/ADR-003-engineering-baseline.md)。机器可读清单记录实际安装的依赖元数据，包含开发依赖。解析后的完整依赖版本和哈希见锁文件。[npm 许可清单](docs/dependencies/npm-license-inventory.json) · [Python 许可清单](docs/dependencies/python-license-inventory.json) · [依赖清单与审计索引](docs/dependencies/README.md)
+T01 的依赖选型、精确版本、直接依赖声明的许可证、替换边界和验证范围见 [ADR-003](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%86%B3%E7%AD%96%E8%AE%B0%E5%BD%95/ADR-003-%E5%B7%A5%E7%A8%8B%E5%B7%A5%E5%85%B7%E9%93%BE%E4%B8%8E%E5%85%B1%E4%BA%AB%E5%A5%91%E7%BA%A6%E5%9F%BA%E7%BA%BF.md)。机器可读清单记录实际安装的依赖元数据，包含开发依赖。解析后的完整依赖版本和哈希见锁文件。[npm 许可清单](docs/dependencies/npm-license-inventory.json) · [Python 许可清单](docs/dependencies/python-license-inventory.json) · [依赖清单与审计索引](docs/dependencies/README.md)
 
 对于提供两种许可证供选择的直接依赖，DOMPurify 选用 Apache-2.0，cryptography 选用 BSD-3-Clause，structlog 选用 MIT。仍须保留上游版权声明与许可证原文，具体条款以上游包的许可证文件为准。
 
 仓库尚未产出完整的 VeriQ 发行物。现有清单记录已安装依赖的元数据，最终的原生二进制 SBOM 和安装包声明须按各支持平台的实际交付内容单独编制。组装发行物时，须纳入 Python 与 npm 依赖、Node、Electron/Chromium、Playwright 浏览器、原生工具和所选 MySQL 分发版本随附的许可证原文与声明。当前 Linux 安装中未安装的目标平台专用可选依赖，也须纳入相应平台的发行核查。须逐项履行各依赖的署名义务，包括采用 CC-BY-4.0 的传递依赖所附的声明。
 
-T04 使用 `rfc8785 0.1.4` 与 `canonicalize 2.1.0` 实现 RFC 8785/JCS 规范化，两者均采用 Apache-2.0。发行物须随附两者的上游 LICENSE 原文。已安装依赖的元数据清单与锁文件均收录这两个精确版本。[ADR-005](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/decisions/ADR-005-immutable-asset-validation.md)
+T04 使用 `rfc8785 0.1.4` 与 `canonicalize 2.1.0` 实现 RFC 8785/JCS 规范化，两者均采用 Apache-2.0。发行物须随附两者的上游 LICENSE 原文。已安装依赖的元数据清单与锁文件均收录这两个精确版本。[ADR-005](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%86%B3%E7%AD%96%E8%AE%B0%E5%BD%95/ADR-005-%E4%B8%8D%E5%8F%AF%E5%8F%98%E6%B5%8B%E8%AF%95%E8%B5%84%E4%BA%A7%E6%A0%A1%E9%AA%8C%E8%A7%84%E5%88%99.md)
 
-T05 的 Node 编译器继续使用已锁定的 TypeScript 5.9.3、Ajv 8.18.0 和 `ajv-formats` 3.0.1，并新增 Vitest V8 覆盖率工具 4.1.12，用于开发验证。新增依赖的 MIT 与 BSD-3-Clause 许可元数据收录在 npm 清单中。[ADR-006](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/decisions/ADR-006-deterministic-compilation-artifacts.md)
+T05 的 Node 编译器继续使用已锁定的 TypeScript 5.9.3、Ajv 8.18.0 和 `ajv-formats` 3.0.1，并新增 Vitest V8 覆盖率工具 4.1.12，用于开发验证。新增依赖的 MIT 与 BSD-3-Clause 许可元数据收录在 npm 清单中。[ADR-006](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%86%B3%E7%AD%96%E8%AE%B0%E5%BD%95/ADR-006-%E7%A1%AE%E5%AE%9A%E6%80%A7%E7%BC%96%E8%AF%91%E4%B8%8E%E5%88%B6%E5%93%81%E7%94%9F%E6%88%90%E8%A7%84%E5%88%99.md)
 
-T12 新增下列存储及流式传输依赖。Moto、Flask 及相关服务端辅助组件仅用于开发环境中的模拟器。生产和开发环境的精确依赖图保存在 `apps/srv/uv.lock` 与 `pnpm-lock.yaml`。分发 `python-dateutil` 时选用 BSD-3-Clause，实际发行物须随附上游许可证文件。[ADR-014](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/decisions/ADR-014-reporting-and-evidence-storage.md)
+T12 新增下列存储及流式传输依赖。Moto、Flask 及相关服务端辅助组件仅用于开发环境中的模拟器。生产和开发环境的精确依赖图保存在 `apps/srv/uv.lock` 与 `pnpm-lock.yaml`。分发 `python-dateutil` 时选用 BSD-3-Clause，实际发行物须随附上游许可证文件。[ADR-014](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%86%B3%E7%AD%96%E8%AE%B0%E5%BD%95/ADR-014-%E6%B5%8B%E8%AF%95%E6%8A%A5%E5%91%8A%E4%B8%8E%E6%89%A7%E8%A1%8C%E8%AF%81%E6%8D%AE%E5%AD%98%E5%82%A8.md)
 
 | 依赖包 | 版本 | 许可证 |
 | --- | --- | --- |
@@ -38,7 +38,7 @@ T12 新增下列存储及流式传输依赖。Moto、Flask 及相关服务端辅
 | xmltodict | 1.0.4 | MIT |
 | eventsource-parser | 4.1.3 | MIT |
 
-T13 新增官方模型服务 SDK 及下列解析出的 Python 依赖，继续复用既有的 HTTPX、Pydantic 和 cryptography。2026-11-11 对新增依赖图的 OSV 查询未返回漏洞公告，结果限于查询当时。发行物须保留上游许可证原文。`sniffio` 选用 MIT。按 `tqdm` 的上游许可证，代码采用 MPL-2.0，其中部分贡献采用 MIT，分发时须保留两者的声明。[ADR-015](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/decisions/ADR-015-model-service-integration-boundaries.md)
+T13 新增官方模型服务 SDK 及下列解析出的 Python 依赖，继续复用既有的 HTTPX、Pydantic 和 cryptography。2026-11-11 对新增依赖图的 OSV 查询未返回漏洞公告，结果限于查询当时。发行物须保留上游许可证原文。`sniffio` 选用 MIT。按 `tqdm` 的上游许可证，代码采用 MPL-2.0，其中部分贡献采用 MIT，分发时须保留两者的声明。[ADR-015](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%86%B3%E7%AD%96%E8%AE%B0%E5%BD%95/ADR-015-%E6%A8%A1%E5%9E%8B%E6%9C%8D%E5%8A%A1%E6%8E%A5%E5%85%A5%E4%B8%8E%E8%BE%85%E5%8A%A9%E8%83%BD%E5%8A%9B%E8%BE%B9%E7%95%8C.md)
 
 | 依赖包 | 版本 | 许可证 |
 | --- | --- | --- |
@@ -52,11 +52,11 @@ T13 新增官方模型服务 SDK 及下列解析出的 Python 依赖，继续复
 
 T14 新增 `yauzl` 3.4.0（MIT）、解析得到的 `pend` 1.2.0（MIT），以及仅供开发使用的 `@types/yauzl` 3.4.0（MIT）。Python 写入 ZIP 继续使用既有标准库，Ed25519 继续复用 cryptography 和 Node crypto。审计记录新增依赖图的精确版本 OSV 查询结果和已安装许可证文件的哈希。查询在记录时点未返回漏洞公告，范围限于本次新增依赖，发行时仍须另行核查。分发时须随附上游 MIT 声明。[离线归档依赖审计](docs/dependencies/offline-archive-dependency-audit.json)
 
-T18 新增仅供开发使用的 Biome 2.6.7（选用 MIT）和 CycloneDX-bom 8.0.1，Python 依赖图的变更涉及 12 个精确版本的包。既有运行时版本保持不变。工具审计记录许可证和 2026-11-13 的 OSV 查询结果，当时未返回漏洞公告。服务端 SBOM 收集实际安装依赖的许可证原文。网页端物料清单记录打包前的生产依赖闭包，并保留上游 LICENSE、NOTICE 与 README 文件。控制服务的运行时 wheelhouse 不安装这些构建工具。[ADR-020](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/decisions/ADR-020-server-release-process.md) · [服务端发行工具审计](docs/dependencies/server-release-tools-audit.json)
+T18 新增仅供开发使用的 Biome 2.6.7（选用 MIT）和 CycloneDX-bom 8.0.1，Python 依赖图的变更涉及 12 个精确版本的包。既有运行时版本保持不变。工具审计记录许可证和 2026-11-13 的 OSV 查询结果，当时未返回漏洞公告。服务端 SBOM 收集实际安装依赖的许可证原文。网页端物料清单记录打包前的生产依赖闭包，并保留上游 LICENSE、NOTICE 与 README 文件。控制服务的运行时 wheelhouse 不安装这些构建工具。[ADR-020](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%86%B3%E7%AD%96%E8%AE%B0%E5%BD%95/ADR-020-%E6%9C%8D%E5%8A%A1%E7%AB%AF%E5%8F%91%E5%B8%83%E6%B5%81%E7%A8%8B%E4%B8%8E%E5%BC%95%E6%93%8E%E6%99%8B%E5%8D%87.md) · [服务端发行工具审计](docs/dependencies/server-release-tools-audit.json)
 
 T20 将已锁定的 `@electron/fuses` 1.8.0（MIT）提升为桌面端直接依赖，用于核验 Cookie 加密 fuse，各依赖版本保持不变。审计覆盖实际安装闭包中的 13 个精确版本，记录 MIT 和 ISC 许可证、与注册表一致的完整性信息及 2026-11-14 的 OSV 响应。该次查询未返回这些版本的漏洞公告，评估范围限于所列依赖。发行物须保留所有上游许可证原文。[Electron Cookie fuse 审计](docs/dependencies/electron-cookie-fuses-audit.json)
 
-R03 为恢复测试将已解析的 `undici` 7.30.2（MIT）直接声明为仅供开发使用的依赖，并新增 `tough-cookie` 6.1.0（BSD-3-Clause）及其依赖 `tldts` 7.5.4、`tldts-core` 7.5.4（MIT）。单元测试入口也直接声明既有的 `tsx` 4.23.15（MIT），其解析闭包保持不变。新增解析的包只有 `tough-cookie`、`tldts` 和 `tldts-core`。分发时须保留每个包的上游 LICENSE 及版权声明。这些依赖仅用于恢复测试，Runtime 的生产依赖闭包和锁定的执行引擎保持不变。单一源（origin）的传输边界、Playwright 自动追踪的范围、依赖发布时间证据及带日期的精确版本漏洞公告查询见 [ADR-025](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/decisions/ADR-025-web-test-recovery-transport-and-tracing.md)。
+R03 为恢复测试将已解析的 `undici` 7.30.2（MIT）直接声明为仅供开发使用的依赖，并新增 `tough-cookie` 6.1.0（BSD-3-Clause）及其依赖 `tldts` 7.5.4、`tldts-core` 7.5.4（MIT）。单元测试入口也直接声明既有的 `tsx` 4.23.15（MIT），其解析闭包保持不变。新增解析的包只有 `tough-cookie`、`tldts` 和 `tldts-core`。分发时须保留每个包的上游 LICENSE 及版权声明。这些依赖仅用于恢复测试，Runtime 的生产依赖闭包和锁定的执行引擎保持不变。单一源（origin）的传输边界、Playwright 自动追踪的范围、依赖发布时间证据及带日期的精确版本漏洞公告查询见 [ADR-025](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%86%B3%E7%AD%96%E8%AE%B0%E5%BD%95/ADR-025-%E7%BD%91%E9%A1%B5%E6%B5%8B%E8%AF%95%E6%81%A2%E5%A4%8D%E4%BC%A0%E8%BE%93%E4%B8%8E%E8%B7%9F%E8%B8%AA.md)。
 
 V09 新增仅供开发使用的 `tree-sitter` 0.26.1、`tree-sitter-bash` 0.25.1、`tree-sitter-css` 0.25.0 和 `tree-sitter-java` 0.23.5，均采用 MIT。审计保留各 wheel 中的许可证原文、确切的分发来源及 wheel 的 SHA-256 哈希，以及带日期的精确版本 OSV 响应。上游版权声明如下。[源码注释解析器审计](docs/dependencies/source-comment-parsers-audit.json)
 
@@ -65,15 +65,15 @@ V09 新增仅供开发使用的 `tree-sitter` 0.26.1、`tree-sitter-bash` 0.25.1
 - `tree-sitter-css`：Copyright (c) 2018 Max Brunsfeld
 - `tree-sitter-java`：Copyright (c) 2017 Ayman Nadeem
 
-分发开发环境或这些工具时，须保留完整的 MIT 版权声明、许可声明和保证免责声明。控制服务的生产 `--no-dev` wheelhouse 不含这些工具，其代码也不复制到服务端 wheel 或 Runtime。保留的 OSV 响应在各自的取证时点未列出漏洞公告，评估范围限于所列依赖。注释解析的用途边界、ABI 验证以及生产依赖闭包不变的证据见 [ADR-026](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/decisions/ADR-026-trusted-comment-parsers.md)。
+分发开发环境或这些工具时，须保留完整的 MIT 版权声明、许可声明和保证免责声明。控制服务的生产 `--no-dev` wheelhouse 不含这些工具，其代码也不复制到服务端 wheel 或 Runtime。保留的 OSV 响应在各自的取证时点未列出漏洞公告，评估范围限于所列依赖。注释解析的用途边界、ABI 验证以及生产依赖闭包不变的证据见 [ADR-026](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%86%B3%E7%AD%96%E8%AE%B0%E5%BD%95/ADR-026-%E5%8F%AF%E4%BF%A1%E6%BA%90%E7%A0%81%E6%B3%A8%E9%87%8A%E8%A7%A3%E6%9E%90%E5%99%A8%E9%80%89%E5%9E%8B.md)。
 
 这一阶段的适配器仅支持符合条件的 Shell、CSS 和 Java 源码。Java 适配器拒绝原始 Unicode 转义写法和裸 CR 字节，即使它们出现在其他方面合法的输入中。适配器接受 LF 与 CRLF。固定版本的语法解析器可能将裸 CR 后的代码归入行注释，JLS §3.4 与 §3.7 则定义了相应的行边界。
 
-V09 为严格检查 S3 类型新增四个仅供开发使用的 MIT 分发包。`boto3-stubs[s3]` 1.44.0 和 `mypy-boto3-s3` 1.44.0 的上游版权声明为 Copyright (c) 2026 Vlad Emelianov。`botocore-stubs` 1.43.126 和 `types-s3transfer` 0.19.3 的上游版权声明为 Copyright (c) 2022 Vlad Emelianov。分发这些工具时，须保留原始版权声明、许可声明和保证免责声明。审计保存官方 wheel 的哈希、MIT 原文及 2026-11-17 的精确版本 OSV 查询。较旧核心类型声明的核验范围见 ADR，生产 `--no-dev` 依赖导出仍包含原有的 56 个条目和分发包哈希。[S3 SDK 类型存根审计](docs/dependencies/s3-sdk-type-stubs-audit.json) · [ADR-027](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/decisions/ADR-027-object-storage-sdk-type-stubs.md)
+V09 为严格检查 S3 类型新增四个仅供开发使用的 MIT 分发包。`boto3-stubs[s3]` 1.44.0 和 `mypy-boto3-s3` 1.44.0 的上游版权声明为 Copyright (c) 2026 Vlad Emelianov。`botocore-stubs` 1.43.126 和 `types-s3transfer` 0.19.3 的上游版权声明为 Copyright (c) 2022 Vlad Emelianov。分发这些工具时，须保留原始版权声明、许可声明和保证免责声明。审计保存官方 wheel 的哈希、MIT 原文及 2026-11-17 的精确版本 OSV 查询。较旧核心类型声明的核验范围见 ADR，生产 `--no-dev` 依赖导出仍包含原有的 56 个条目和分发包哈希。[S3 SDK 类型存根审计](docs/dependencies/s3-sdk-type-stubs-audit.json) · [ADR-027](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%86%B3%E7%AD%96%E8%AE%B0%E5%BD%95/ADR-027-%E5%AF%B9%E8%B1%A1%E5%AD%98%E5%82%A8%E5%BC%80%E5%8F%91%E7%B1%BB%E5%9E%8B%E5%AD%98%E6%A0%B9%E9%80%89%E5%9E%8B.md)
 
 ## V09 符合条件的 HTML 注释解析器
 
-V09 使用仅供开发的 `tree-sitter-html` 0.23.2 将注释适配器扩展至符合条件的 HTML。该包采用 MIT，仅用于源码静态计量，未纳入控制服务的生产 `--no-dev` 依赖。分发时须保留下方的上游声明。Linux x86_64 wheel、精确版本 OSV 响应和支持范围见[源码注释解析器审计](docs/dependencies/source-comment-parsers-audit.json)与 [ADR-026](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/decisions/ADR-026-trusted-comment-parsers.md)。
+V09 使用仅供开发的 `tree-sitter-html` 0.23.2 将注释适配器扩展至符合条件的 HTML。该包采用 MIT，仅用于源码静态计量，未纳入控制服务的生产 `--no-dev` 依赖。分发时须保留下方的上游声明。Linux x86_64 wheel、精确版本 OSV 响应和支持范围见[源码注释解析器审计](docs/dependencies/source-comment-parsers-audit.json)与 [ADR-026](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%86%B3%E7%AD%96%E8%AE%B0%E5%BD%95/ADR-026-%E5%8F%AF%E4%BF%A1%E6%BA%90%E7%A0%81%E6%B3%A8%E9%87%8A%E8%A7%A3%E6%9E%90%E5%99%A8%E9%80%89%E5%9E%8B.md)。
 
 ### 上游许可证原文
 
@@ -103,7 +103,7 @@ SOFTWARE.
 
 ## Excel 数据集导入
 
-Excel 导入使用 `read-excel-file` 9.3.20、`fflate` 0.8.3 及解析出的 `saxen` 11.2.0、`unzipper-esm` 0.13.3 和 `worker-f` 0.1.25。五个包均采用 MIT，分发须保留上游许可证和版权原文。Web 发行 SBOM 按实际安装闭包收集这些声明。[ADR-032](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/decisions/ADR-032-excel-dataset-import.md) · [精确版本审计](docs/dependencies/excel-import-dependency-audit.json)
+Excel 导入使用 `read-excel-file` 9.3.20、`fflate` 0.8.3 及解析出的 `saxen` 11.2.0、`unzipper-esm` 0.13.3 和 `worker-f` 0.1.25。五个包均采用 MIT，分发须保留上游许可证和版权原文。Web 发行 SBOM 按实际安装闭包收集这些声明。[ADR-032](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%86%B3%E7%AD%96%E8%AE%B0%E5%BD%95/ADR-032-%E7%94%B5%E5%AD%90%E8%A1%A8%E6%A0%BC%E6%95%B0%E6%8D%AE%E9%9B%86%E5%AF%BC%E5%85%A5%E8%A7%84%E5%88%99.md) · [精确版本审计](docs/dependencies/excel-import-dependency-audit.json)
 
 ## TailAdmin React Free 界面来源
 
