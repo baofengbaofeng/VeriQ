@@ -44,8 +44,13 @@ def upgrade() -> None:
     op.create_index("ix_ai_history", "veriq_ai_generations", ["workspace_id", "created_at", "id"])
 
 
-def downgrade() -> None:
-    if op.get_bind().execute(sa.text("SELECT COUNT(*) FROM veriq_ai_generations")).scalar_one():
+def require_downgrade_safe(connection: sa.Connection) -> None:
+    """检查人工智能生成请求的持久化预留记录，只有空历史才允许移除旧版不能重建的生成与配额事实。"""
+    if connection.execute(sa.text("SELECT COUNT(*) FROM veriq_ai_generations")).scalar_one():
         raise RuntimeError("AI reservation history must be retained")
+
+
+def downgrade() -> None:
+    require_downgrade_safe(op.get_bind())
     op.drop_table("veriq_ai_generations")
     op.drop_table("veriq_ai_providers")

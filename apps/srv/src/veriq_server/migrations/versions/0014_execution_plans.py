@@ -52,17 +52,21 @@ def upgrade() -> None:
     op.create_unique_constraint("uq_run_plan_sequence", "veriq_runs", ["plan_id", "plan_sequence"])
 
 
-def downgrade() -> None:
+def require_downgrade_safe(connection: sa.Connection) -> None:
     """存在计划或执行令牌时拒绝降级，因为旧版本不能表达已授予的计划范围或运行顺序；空数据库才可逆向删除本迁移字段，
     避免降级悄然扩大或遗失独立服务身份的授权。
     """
-    connection = op.get_bind()
     if connection.execute(sa.text("SELECT COUNT(*) FROM veriq_execution_plans")).scalar():
         raise RuntimeError("Execution plans must be retained; downgrade refused")
     if connection.execute(
         sa.text("SELECT COUNT(*) FROM veriq_service_tokens WHERE purpose='EXECUTION'")
     ).scalar():
         raise RuntimeError("Execution tokens must be retained; downgrade refused")
+
+
+def downgrade() -> None:
+    """在确认执行计划和专用令牌能够安全回退后，再按外键与唯一索引的依赖顺序移除新增字段和计划表。"""
+    require_downgrade_safe(op.get_bind())
     op.drop_constraint("fk_run_service_token", "veriq_runs", type_="foreignkey")
     op.drop_constraint("fk_run_plan", "veriq_runs", type_="foreignkey")
     op.drop_constraint("uq_run_plan_sequence", "veriq_runs", type_="unique")

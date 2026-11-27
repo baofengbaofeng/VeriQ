@@ -4,6 +4,7 @@
 所有模式切换都沿用现有独占测试数据库，异常路径也必须经真实 Alembic 恢复当前版本。
 """
 
+import argparse
 import contextlib
 import datetime
 import hashlib
@@ -18,7 +19,7 @@ import sqlalchemy as sa
 import test_auth
 import test_workspace
 import veriq_server
-from veriq_server import db as models
+from veriq_server import cli, db as models
 
 
 async def test_upgrade_preserves_0005_queued_validate_and_source(site):
@@ -64,7 +65,10 @@ async def test_upgrade_preserves_0005_queued_validate_and_source(site):
 
         await connection.run_sync(seed)
         await connection.commit()
+        clock = sa.text("SELECT UTC_TIMESTAMP(6)")
+        before_upgrade = (await connection.execute(clock)).scalar_one()
         await change("head")
+        after_upgrade = (await connection.execute(clock)).scalar_one()
 
     async with database.sessions() as session:
         upgraded = await session.get(models.Job, job["id"])
@@ -103,7 +107,15 @@ async def test_upgrade_preserves_0005_queued_validate_and_source(site):
         "kind": "VALIDATE",
         "state": "QUEUED",
     }
-    assert (await client.get("/api/v1/account")).json()["data"] == account
+    updated_account = (await client.get("/api/v1/account")).json()["data"]
+    created_at = datetime.datetime.fromisoformat(updated_account.pop("createdAt"))
+    assert datetime.datetime.fromisoformat(account.pop("createdAt")) <= before_upgrade.replace(
+        tzinfo=datetime.UTC
+    )
+    assert (
+        before_upgrade <= created_at.astimezone(datetime.UTC).replace(tzinfo=None) <= after_upgrade
+    )
+    assert updated_account == account
 
 
 async def test_nonempty_artifact_refuses_downgrade_and_retains_history(site):
@@ -192,6 +204,12 @@ async def test_copy_provenance_refuses_direct_downgrade(site):
             )
         )
     async with _migration_connection(database) as (connection, change):
+        schema = sa.text(
+            "SELECT table_name, ordinal_position, column_name, column_type "
+            "FROM information_schema.columns WHERE table_schema = DATABASE() "
+            "ORDER BY table_name, ordinal_position"
+        )
+        columns_before = (await connection.execute(schema)).all()
         before = (
             await connection.execute(sa.text("SELECT version_num FROM veriq_alembic_version"))
         ).scalar_one()
@@ -205,17 +223,21 @@ async def test_copy_provenance_refuses_direct_downgrade(site):
         after = (
             await connection.execute(sa.text("SELECT version_num FROM veriq_alembic_version"))
         ).scalar_one()
+        assert (await connection.execute(schema)).all() == columns_before
         assert after == before
     async with database.sessions() as session:
         event = await session.get(models.AuditLog, event_id)
         assert (event.target_id, event.source_version_id) == (target, source)
 
 
-async def test_upgrade_from_dataset_head_keeps_copy_provenance(site):
+async def test_upgrade_from_dataset_head_keeps_copy_provenance(site, tmp_path):
     """集成升级直接接受已部署数据集修订，来源审计继续可读，空对话表与唯一的新版本记录同时出现。"""
     _, database = site
     source, target, event_id = (str(uuid.uuid4()) for _ in range(3))
     async with _migration_connection(database) as (connection, change):
+        initial_head = (
+            await connection.execute(sa.text("SELECT version_num FROM veriq_alembic_version"))
+        ).scalar_one()
         await change("0016_dataset_copy_audit", downgrade=True)
         assert await _has_copy_audit_column(connection)
         assert not await _has_agent_tables(connection)
@@ -229,15 +251,58 @@ async def test_upgrade_from_dataset_head_keeps_copy_provenance(site):
             )
         )
         await connection.commit()
-        await change("head")
+        await change("0017_conversational_agent")
         revision = (
             await connection.execute(sa.text("SELECT version_num FROM veriq_alembic_version"))
         ).scalar_one()
         assert revision == "0017_conversational_agent"
         assert await _has_agent_tables(connection)
+        await connection.commit()
+        config_path = tmp_path / "operator.json"
+        cli.secure_write(
+            config_path,
+            json.dumps(
+                {
+                    "database_url": database.engine.url.render_as_string(hide_password=False),
+                    "environment": "development",
+                    "public_url": "http://127.0.0.1:18889",
+                    "master_key": "a" * 64,
+                    "signing_key": "b" * 64,
+                }
+            ),
+        )
+        await cli.run(argparse.Namespace(config=config_path, command="migrate"))
+        assert (
+            await connection.execute(sa.text("SELECT version_num FROM veriq_alembic_version"))
+        ).scalar_one() == initial_head
     async with database.sessions() as session:
         event = await session.get(models.AuditLog, event_id)
         assert (event.target_id, event.source_version_id) == (target, source)
+
+
+async def test_bound_file_volume_refuses_relative_downgrade(site):
+    """已绑定文件卷的安装不能回退到无法校验卷身份的架构，拒绝后需从数据库读回原绑定及未改变的迁移版本。"""
+    _, database = site
+    volume_id = str(uuid.uuid4())
+    async with _migration_connection(database) as (connection, change):
+        await change("0025_file_volume", downgrade=True)
+        await connection.execute(
+            sa.update(models.Installation)
+            .where(models.Installation.id == 1)
+            .values(file_volume_id=volume_id)
+        )
+        await connection.commit()
+        with pytest.raises(
+            RuntimeError, match="^Bound FILE volume identity must be retained; downgrade refused$"
+        ):
+            await change("-1", downgrade=True)
+        await connection.rollback()
+        assert (
+            await connection.execute(sa.select(models.Installation.file_volume_id))
+        ).scalar_one() == volume_id
+        assert (
+            await connection.execute(sa.text("SELECT version_num FROM veriq_alembic_version"))
+        ).scalar_one() == "0025_file_volume"
 
 
 async def _has_agent_tables(connection):
