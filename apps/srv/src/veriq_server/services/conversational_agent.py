@@ -3,6 +3,7 @@
 import asyncio
 import re
 from collections.abc import Awaitable, Callable
+from dataclasses import replace
 from datetime import timedelta
 from functools import cache
 from hashlib import sha256
@@ -211,6 +212,31 @@ async def _latest_proposal(s: AsyncSession, session_id: str) -> AgentTurn | None
 class ConversationalAgent(AgentSessionService):
     """组织授权、预算、上下文和提议确认，领域表写入继续委托实际业务服务，整个模型网络等待期间不占用安装锁。"""
 
+    async def _require_turn_provider(
+        self, session: AsyncSession, scope: WorkspaceScope, turn: AgentTurn
+    ) -> None:
+        """比较预留时的供应商与当前获授权的选择，变更后的请求不得继续把会话数据发送到旧地址或公开旧回复。"""
+        provider = await self.resolve_provider(session, scope)
+        if (provider.id, provider.revision) != (turn.provider_id, turn.provider_revision):
+            raise Problem(409, "AI_PROVIDER_CHANGED", "Provider selection changed during the call")
+
+    async def _require_active_attempt(
+        self, session: AsyncSession, scope: WorkspaceScope, reserved: AgentTurn
+    ) -> None:
+        """检查当前轮次仍持有这条预留并且供应商许可仍有效，避免工具或迟到回调在结算围栏以外继续远程调用。"""
+        turn = await session.get(AgentTurn, reserved.id)
+        if turn is None or turn.status != "RUNNING" or turn.attempt_id != reserved.attempt_id:
+            raise Problem(409, "AGENT_ATTEMPT_CHANGED", "Conversation attempt is no longer active")
+        await self._require_turn_provider(session, scope, turn)
+
+    async def _authorize_attempt(self, scope: WorkspaceScope, reserved: AgentTurn) -> None:
+        """在网络发送或推送增量之前以独立短事务重查当前身份、会话、预留及运营许可，随后释放连接再等待网络。"""
+        async with self.transaction(scope, Permission.EDIT) as (session, actor):
+            await self.require_owned_session(
+                session, scope, actor, reserved.session_id, active=True
+            )
+            await self._require_active_attempt(session, scope, reserved)
+
     async def expire(self, s: AsyncSession, owned: AgentSession) -> AgentTurn | None:
         """读取或继续会话时封存超过网络时限的未完成轮次，保留未知上游费用并释放会话，新请求不得重用旧尝试。"""
         pending = await s.scalar(
@@ -402,6 +428,13 @@ class ConversationalAgent(AgentSessionService):
             audit(s, "agent.call_reserved", user.id, turn.id, workspace_id=scope.workspace_id)
         reply = None
         try:
+            await self._authorize_attempt(scope, turn)
+        except Problem as problem:
+            # 请求尚未离开服务端，此处可以释放整笔预留，即使之后权限恢复也不应再用这次预留发起调用。
+            return await self._finish(
+                scope, turn, config, key, draft.context, ModelReply(None, 0, 0, problem.code)
+            )
+        try:
             reply = await asyncio.wait_for(ProviderGateway(config, key).generate(draft), timeout=35)
         except (
             TimeoutError,
@@ -506,21 +539,29 @@ class ConversationalAgent(AgentSessionService):
             )
             s.add(turn)
             audit(s, "agent.call_reserved", user.id, turn.id, workspace_id=scope.workspace_id)
-        await emit("start", turn_dto(turn))
         reasoning_summary = ""
         steps: list[dict[str, Any]] = []
         proposal: dict[str, Any] | None = None
         related_run_id: str | None = None
         reply_redactor = ReplyStreamRedactor({key})
 
-        async def authorize_output() -> None:
-            # 每帧发送前只在短读取事务中重查员工与会话，网络写出不会持有数据库锁或延迟其他员工撤销权限。
-            async with self.transaction(scope, Permission.EDIT) as (read_session, actor):
-                await self.require_owned_session(
-                    read_session, scope, actor, session_id, active=True
-                )
+        denied: str | None = None
 
-        publish = guard_agent_stream(authorize_output, emit)
+        async def authorize_round(session: AsyncSession | None = None) -> str | None:
+            """每次写出、网络续轮均检查相同许可，一旦本次尝试观察到撤销便保持关闭，同时让已发出的用量完成结算。"""
+            nonlocal denied
+            if denied is None:
+                try:
+                    if session is None:
+                        await self._authorize_attempt(scope, turn)
+                    else:
+                        await self._require_active_attempt(session, scope, turn)
+                except Problem as problem:
+                    denied = problem.code
+            return denied
+
+        publish = guard_agent_stream(authorize_round, emit)
+        await publish("start", turn_dto(turn))
 
         async def on_text(text: str) -> None:
             if fragment := reply_redactor.feed(text):
@@ -554,7 +595,9 @@ class ConversationalAgent(AgentSessionService):
                     return {"error": "AGENT_ACCESS_REVOKED"}
                 if tool.result_kind in {"proposal", "resource_proposal"}:
                     proposal = None
-                result = await self._run_tool(scope, session_id, tool, arguments, context, {key})
+                result = await self._run_tool(
+                    scope, session_id, tool, arguments, context, {key}, authorize_round
+                )
                 if tool.result_kind in {"proposal", "resource_proposal"}:
                     proposal = result
                 elif tool.result_kind == "run":
@@ -590,7 +633,13 @@ class ConversationalAgent(AgentSessionService):
         try:
             reply = await asyncio.wait_for(
                 ProviderGateway(config, key).generate_agent_stream(
-                    draft, _agent_tools(), on_text, on_thinking, execute, max_rounds
+                    draft,
+                    _agent_tools(),
+                    on_text,
+                    on_thinking,
+                    execute,
+                    max_rounds,
+                    authorize_round=authorize_round,
                 ),
                 timeout=_STREAM_TIMEOUT_SECONDS,
             )
@@ -605,6 +654,8 @@ class ConversationalAgent(AgentSessionService):
             pass
         if reply is not None and reply.error_code is None and (tail := reply_redactor.finish()):
             await publish("delta", {"text": tail})
+        if denied is not None:
+            reply = replace(reply or ModelReply(None, None, None), output=None, error_code=denied)
         return await self._finish(
             scope,
             turn,
@@ -652,16 +703,7 @@ class ConversationalAgent(AgentSessionService):
                 error = denied.code if denied else None
                 if not error:
                     try:
-                        provider = await self.resolve_provider(s, scope)
-                        if (provider.id, provider.revision) != (
-                            turn.provider_id,
-                            turn.provider_revision,
-                        ):
-                            raise Problem(
-                                409,
-                                "AI_PROVIDER_CHANGED",
-                                "Provider selection changed during the call",
-                            )
+                        await self._require_turn_provider(s, scope, turn)
                         if reply is None or reply.error_code:
                             raise Problem(
                                 502,
@@ -851,12 +893,15 @@ class ConversationalAgent(AgentSessionService):
         arguments: dict[str, Any],
         context: dict[str, Any],
         protected: set[str],
+        authorize_round: Callable[[AsyncSession], Awaitable[str | None]],
     ) -> dict[str, Any]:
         """每次工具调用都按目录校验参数，在短事务使用重新授权的登录身份及会话，模型只读数据或准备待确认提议。"""
         tool.validate_arguments(arguments)
         prepares = tool.result_kind in {"proposal", "resource_proposal"}
         async with self.transaction(scope, tool.permission, write=prepares) as (s, user):
             await self.require_owned_session(s, scope, user, session_id, active=True)
+            if denied := await authorize_round(s):
+                raise Problem(409, denied, "Conversation attempt is no longer authorized")
             call = ToolExecution(s, scope, user, context, self.ai.settings, protected)
             return await tool.handler(call, arguments)
 
