@@ -125,7 +125,7 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
     const tab = settingsTabs.find((entry) => entry.id === params.get("tab"))?.id ?? "basic";
     function activate(next: SettingsTab) {
         if (next === tab) return;
-        if (tab === "auth-credentials") params.delete("workspaceId");
+        if (!params.has("fromAgentForm") && tab === "auth-credentials") params.delete("workspaceId");
         if (next === "basic") params.delete("tab");
         else params.set("tab", next);
         void navigate({ pathname: location.pathname, search: params.toString(), hash: location.hash });

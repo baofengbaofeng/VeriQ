@@ -1,5 +1,5 @@
 import type { Session } from "electron";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { PlatformComponents } from "@veriq/contracts";
 import type { CloudOperation } from "../shared/operations.generated";
 import { object, parseSchema, resolveOperation, type ResolvedOperation } from "./policy";
@@ -10,6 +10,18 @@ type S = PlatformComponents["schemas"];
  * 完整 DTO，避免类型谎报已删去的凭证字段。
  */
 export type PublicSession = Pick<S["SessionDTO"], "user" | "expiresAt">;
+
+// 只列出桌面尚无原生视图的固定站内目标；与网页表单路由的对应关系由独立测试校验，服务端不能返回地址。
+const browserForms = {
+    AUTH_CREDENTIALS: "/workspaces?tab=auth-credentials",
+    DEVICE_ACCESS: "/runtimes",
+    DEVICE_CREDENTIAL_DELIVERY: "/runtimes",
+    CI_PLAN_TOKENS: "/execution-plans",
+    WORKSPACE_MEMBERS: "/workspaces?tab=members",
+    AI_PROVIDERS: "/workspaces?tab=ai-providers",
+    NOTIFICATION_INBOX: "/notifications",
+    WORKSPACE_ARCHIVE: "/workspaces",
+} as const satisfies Partial<Record<S["AgentWorkspaceCapability"], string>>;
 
 /**
  * 控制地址配置仅接受完整 HTTPS Origin 或本机开发 HTTP Origin，拒绝路径、用户信息和查询字符串；包中的签发者标签不能替代
@@ -41,6 +53,10 @@ export class HostSession {
     private lifetime = new AbortController();
     private streams = new Map<string, ReadableStreamDefaultReader<Uint8Array>>();
     private pendingStreams = new Set<string>();
+    private browserFormRequest = 0;
+    private browserFormGrant:
+        | { ticket: string; href: string; workspaceId: string; actor: PublicSession; expires: number }
+        | undefined;
     workspace: S["WorkspaceDTO"] | undefined;
     user: PublicSession | undefined;
     readonly origin: string;
@@ -168,6 +184,66 @@ export class HostSession {
             return this.bytes(response, 1024 * 1024);
         }
         return this.json(resolved);
+    }
+
+    /**
+     * 系统浏览器与宿主登录分区独立；仅在服务端确认当前员工持有该轮次、能力仍相符且工作区代次仍有效时启动固定表单。
+     */
+    async prepareAgentWebForm(input: unknown): Promise<string> {
+        const ref = object(input, ["workspaceId", "sessionId", "turnId", "capability"]);
+        const { workspaceId, sessionId, turnId, capability } = ref;
+        if (
+            typeof workspaceId !== "string" ||
+            typeof sessionId !== "string" ||
+            typeof turnId !== "string" ||
+            typeof capability !== "string" ||
+            !Object.hasOwn(browserForms, capability)
+        ) {
+            throw new Error("IPC_PAYLOAD_INVALID");
+        }
+        const actor = this.user;
+        const lifetime = this.lifetime.signal;
+        if (!actor || this.workspace?.id !== workspaceId) throw new Error("WORKSPACE_SCOPE_MISMATCH");
+        const request = ++this.browserFormRequest;
+        this.browserFormGrant = undefined;
+        const card = parseSchema(
+            "AgentWorkspaceForm",
+            await this.cloud({
+                operation: "getAgentWorkspaceForm",
+                params: { workspaceId, sessionId, turnId },
+            }),
+        );
+        if (
+            lifetime.aborted ||
+            this.browserFormRequest !== request ||
+            this.user !== actor ||
+            this.workspace?.id !== workspaceId ||
+            card.workspaceId !== workspaceId ||
+            card.capability !== capability
+        ) {
+            throw new Error("WORKSPACE_SCOPE_MISMATCH");
+        }
+        const target = new URL(browserForms[capability as keyof typeof browserForms], this.origin);
+        if (capability !== "NOTIFICATION_INBOX") target.searchParams.set("workspaceId", workspaceId);
+        target.searchParams.set("fromAgentForm", "1");
+        const ticket = randomUUID();
+        this.browserFormGrant = { ticket, href: target.href, workspaceId, actor, expires: performance.now() + 5000 };
+        return ticket;
+    }
+
+    /**
+     * 渲染进程在服务器复核完成后重新检查原会话的取消信号，再请求使用票据；宿主消费后才打开页面且不接受地址。
+     */
+    async openAgentWebForm(input: unknown, open: (url: string) => Promise<void>): Promise<void> {
+        const { ticket } = object(input, ["ticket"]);
+        const grant = this.browserFormGrant;
+        if (!grant || grant.ticket !== ticket) throw new Error("BROWSER_FORM_UNAVAILABLE");
+        this.browserFormGrant = undefined;
+        const sameScope = this.user === grant.actor && this.workspace?.id === grant.workspaceId;
+        if (grant.expires <= performance.now() || !sameScope) {
+            throw new Error("BROWSER_FORM_UNAVAILABLE");
+        }
+        await open(grant.href);
     }
 
     /**
@@ -343,6 +419,7 @@ export class HostSession {
      * 只用于已验证的新工作区切换。正常登出和认证过期还会清空用户与 CSRF。
      */
     invalidate(clearUser = true): void {
+        this.browserFormGrant = undefined;
         this.lifetime.abort();
         this.lifetime = new AbortController();
         this.pendingStreams.clear();

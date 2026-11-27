@@ -586,6 +586,10 @@ function installBridge() {
                 } catch {}
                 return selected;
             }
+            case "prepareAgentWebForm":
+                return host.prepareAgentWebForm(input);
+            case "openAgentWebForm":
+                return host.openAgentWebForm(input, (url) => shell.openExternal(url));
             case "cloud":
                 resolveOperation(input, host.workspace?.id);
                 return host.cloud(input as CloudOperation);

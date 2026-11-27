@@ -342,6 +342,42 @@
         "idempotency": false,
         "kind": "json"
     },
+    "listAgentTasks": {
+        "path": "/api/v1/workspaces/{workspaceId}/agent/sessions/{sessionId}/tasks",
+        "method": "GET",
+        "ids": ["workspaceId", "sessionId"],
+        "queries": {},
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "createAgentTask": {
+        "path": "/api/v1/workspaces/{workspaceId}/agent/sessions/{sessionId}/tasks",
+        "method": "POST",
+        "ids": ["workspaceId", "sessionId"],
+        "queries": {},
+        "request": "AgentTaskCreate",
+        "idempotency": false,
+        "kind": "json"
+    },
+    "stopAgentTask": {
+        "path": "/api/v1/workspaces/{workspaceId}/agent/sessions/{sessionId}/tasks/{taskId}/stop",
+        "method": "POST",
+        "ids": ["workspaceId", "sessionId", "taskId"],
+        "queries": {},
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "getAgentWorkspaceForm": {
+        "path": "/api/v1/workspaces/{workspaceId}/agent/sessions/{sessionId}/turns/{turnId}/workspace-form",
+        "method": "GET",
+        "ids": ["workspaceId", "sessionId", "turnId"],
+        "queries": {},
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
     "streamAgentTurn": {
         "path": "/api/v1/workspaces/{workspaceId}/agent/sessions/{sessionId}/turns/stream",
         "method": "POST",

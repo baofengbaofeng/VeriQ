@@ -3,7 +3,7 @@
  * 进入抽屉不会自动创建会话或请求模型；当前未选择工作区时仅展示目录状态提示。
  */
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { Auth } from "../../auth-context";
 import { tx, useAppLocale } from "../../locale";
 import { Sheet } from "../../components";
@@ -23,6 +23,7 @@ import { acknowledgeAgentReply } from "../notifications/transport";
  */
 export function AgentSheet({ target, clearTarget }: { target?: AgentNotificationTarget; clearTarget?: () => void }) {
     useAppLocale();
+    const navigateForm = useNavigate();
     const { user } = useContext(Auth);
     const { workspace } = useWorkspaceDirectory();
     const { selected, signal } = useWorkspace();
@@ -93,6 +94,19 @@ export function AgentSheet({ target, clearTarget }: { target?: AgentNotification
                                 target={target}
                                 onReplyVisible={acknowledgeAgentReply}
                                 wide={wide}
+                                formLauncher={{
+                                    platform: "web",
+                                    open: (destination) => {
+                                        if (
+                                            destination.platform !== "web" ||
+                                            destination.workspaceId !== activeWorkspace.id
+                                        )
+                                            return;
+                                        setOpen(false);
+                                        clearTarget?.();
+                                        void navigateForm(destination.href);
+                                    },
+                                }}
                                 navigate={(runId) => (
                                     <Link to={`/reports?workspaceId=${activeWorkspace.id}&runId=${runId}`}>
                                         {tx("Open full report")}

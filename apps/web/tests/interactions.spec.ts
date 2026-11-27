@@ -141,6 +141,8 @@ test("Agent drawer keeps its composer at the bottom and only separates conversat
             return route.fulfill({ json: { data: { items: archived ? [] : [session], nextCursor: null } } });
         }
         if (url.pathname === `${agentPath}/sessions/${session.id}`) return route.fulfill({ json: { data: session } });
+        if (url.pathname === `${agentPath}/sessions/${session.id}/tasks`)
+            return route.fulfill({ json: { data: { items: [] } } });
         if (url.pathname === `${agentPath}/sessions/${session.id}/turns`) {
             const turns = Array.from({ length: turnCount }, (_, index) => ({
                 id: `00000000-0000-4000-8000-${String(index + 10).padStart(12, "0")}`,
@@ -1350,4 +1352,164 @@ test("dataset editor keeps column headers above empty results", async ({ page })
     await expect(unmapped).toHaveAttribute("colspan", "3");
     await expect(unmapped).toHaveCSS("text-align", "center");
     await expect(drawer.getByRole("button", { name: "Apply import", exact: true })).toBeEnabled();
+});
+
+/**
+ * 真实会话组件通过已授权的运行卡委托跟进，跨会话和重新打开后仅显示当前会话任务，停止跟进保留原运行状态。
+ */
+test("background following survives reopening and leaves the conversation and run independent", async ({ page }) => {
+    test.setTimeout(55_000);
+    await page.addInitScript(() => localStorage.setItem("veriq.language", "en"));
+    const workspaceId = "00000000-0000-4000-8000-000000000001";
+    const root = `/api/v1/workspaces/${workspaceId}`;
+    const base = `${root}/agent/sessions`;
+    const first = {
+        id: "00000000-0000-4000-8000-000000000003",
+        title: "Release tests",
+        archived: false,
+        createdAt: "2026-01-01T00:00:00Z",
+    };
+    const second = { ...first, id: "00000000-0000-4000-8000-000000000004", title: "Another conversation" };
+    const thread = `${base}/${first.id}`;
+    const otherThread = `${base}/${second.id}`;
+    const runId = "00000000-0000-4000-8000-000000000005";
+    const taskId = "00000000-0000-4000-8000-000000000006";
+    const task = { id: taskId, runId, mode: "MANUAL", state: "FOLLOWING" };
+    const turn = {
+        id: "00000000-0000-4000-8000-000000000007",
+        createdAt: first.createdAt,
+        text: "Watch this run",
+        status: "COMPLETED",
+    };
+    const proposal = {
+        type: "TRIGGER_PLAN",
+        planId: "00000000-0000-4000-8000-000000000009",
+        planRevision: 1,
+        delegateRun: true,
+    };
+    let created = false;
+    let revoked = false;
+    let finished = false;
+    let analyzing = false;
+    let analysis: { basis: string; suggestions: string[] } | undefined;
+    const analysisTask = () => ({
+        id: "00000000-0000-4000-8000-000000000008",
+        runId,
+        mode: "MANUAL",
+        state: analysis ? "COMPLETED" : "ANALYZING",
+        analysis,
+    });
+    const submissions: Record<string, unknown>[] = [];
+    const requests: string[] = [];
+    await page.route("**/api/v1/**", async (route) => {
+        const request = route.request();
+        const { pathname, searchParams } = new URL(request.url());
+        const data = (value: unknown) => route.fulfill({ json: { data: value } });
+        if (pathname === root + "/agent/settings") return data({ providerStatus: "READY" });
+        if (pathname === base) return data({ items: searchParams.get("archived") === "false" ? [first, second] : [] });
+        if (pathname === thread) return data(first);
+        if (pathname === otherThread) return data(second);
+        if (pathname === thread + "/turns" && request.method() === "GET")
+            return data({ items: [{ ...turn, relatedRunId: runId, proposal }] });
+        if (pathname === thread + "/turns" && request.method() === "POST") {
+            const body = request.postDataJSON();
+            submissions.push(body);
+            return data({
+                ...turn,
+                id: body.requestId,
+                text: body.text,
+                reply: "Plan confirmed.",
+                receipt: { type: "TRIGGER_PLAN", planId: proposal.planId, planRevision: 1, runId, decision: "REUSED" },
+            });
+        }
+        if (pathname === otherThread + "/turns" || pathname === otherThread + "/tasks") return data({ items: [] });
+        if (pathname === root + `/runs/${runId}/report`) {
+            return data({
+                run: { id: runId, workspaceId, state: finished ? "FINISHED" : "RUNNING" },
+                cases: [],
+                statistics: { caseCount: 0 },
+                gateAtExecution: { passed: true },
+                gateNow: { passed: true },
+            });
+        }
+        if (pathname.endsWith("/events/stream")) return route.abort();
+        if (pathname === thread + "/tasks" && request.method() === "GET") {
+            if (revoked) return route.fulfill({ status: 404, json: { code: "AGENT_SESSION_NOT_FOUND" } });
+            return data({ items: analyzing ? [analysisTask(), task] : created ? [task] : [] });
+        }
+        requests.push(pathname);
+        if (pathname === thread + "/tasks" && request.method() === "POST") {
+            const requestId = expect.stringMatching(/^[a-f0-9-]{36}$/);
+            if (created) {
+                expect(request.postDataJSON()).toEqual({ runId, requestId, analyze: true });
+                analyzing = true;
+                return data(analysisTask());
+            }
+            expect(request.postDataJSON()).toEqual({ runId, requestId });
+            created = true;
+            return data(task);
+        }
+        if (pathname === thread + "/turns/stream") {
+            const message = request.postDataJSON();
+            submissions.push(message);
+            const reply = { ...turn, id: message.requestId, text: message.text, reply: "Received" };
+            return route.fulfill({
+                contentType: "text/event-stream",
+                body: `event: done\ndata: ${JSON.stringify(reply)}\n\n`,
+            });
+        }
+        if (pathname === `${thread}/tasks/${taskId}/stop` && request.method() === "POST") {
+            expect(request.postData()).toBeNull();
+            task.state = "STOPPED";
+            return data(task);
+        }
+        return route.abort();
+    });
+    await page.goto("/tests/interaction-fixture.html?agent-appearance=wide");
+    const choose = (title: string) => page.getByRole("button", { name: new RegExp(title) }).click();
+    await choose(first.title);
+    const report = page.getByRole("region", { name: "Run status" });
+    await report.getByRole("button", { name: "Follow in background" }).click();
+    const tasks = page.getByRole("region", { name: "Background tasks" });
+    await expect(tasks).toContainText("Following run");
+    const mode = page.getByRole("combobox", { name: "Run follow-up" });
+    await expect(mode).toHaveValue("AUTO");
+    await mode.selectOption("SUBAGENT");
+    await page.getByRole("textbox", { name: "Message" }).fill("Describe this run");
+    await page.getByRole("button", { name: "Send", exact: true }).click();
+    await expect(page.getByText("Received", { exact: true })).toBeVisible();
+    expect(submissions[0]?.delegationMode).toEqual("SUBAGENT");
+    await expect(mode).toHaveValue("AUTO");
+    await mode.selectOption("MAIN");
+    await page.getByRole("textbox", { name: "Message" }).fill("confirm action");
+    await page.getByRole("button", { name: "Send", exact: true }).click();
+    await expect(page.getByText("Plan confirmed.", { exact: true })).toBeVisible();
+    expect(submissions[1]).toEqual({
+        text: "confirm action",
+        requestId: expect.stringMatching(/^[a-f0-9-]{36}$/),
+        expectedProposalId: turn.id,
+    });
+    await choose(second.title);
+    await expect(tasks).toHaveCount(0);
+    await page.reload();
+    await choose(first.title);
+    await tasks.getByRole("button", { name: "Stop following" }).click();
+    await expect(tasks).toContainText("Stopped following");
+    await expect(report).toContainText("RUNNING");
+    expect(requests).toEqual([thread + "/tasks", thread + "/turns/stream", `${thread}/tasks/${taskId}/stop`]);
+    finished = true;
+    await report.getByRole("button", { name: "Refresh run status" }).click();
+    await expect(report).toContainText("FINISHED");
+    await report.getByRole("button", { name: "Analyze in background" }).click();
+    await expect(tasks).toContainText("Analyzing run");
+    await expect(tasks.getByRole("button", { name: "Stop following" })).toBeEnabled();
+    analysis = { basis: "The readiness check timed out.", suggestions: ["Review the startup log."] };
+    await expect(tasks).toContainText(analysis.basis);
+    await expect(tasks.getByText(analysis.suggestions[0], { exact: true })).toBeVisible();
+    revoked = true;
+    await expect(page.getByRole("alert").filter({ hasText: "AGENT_SESSION_NOT_FOUND" })).toBeVisible({
+        timeout: 15_000,
+    });
+    await expect(tasks).toHaveCount(0);
+    await expect(report).toHaveCount(0);
 });

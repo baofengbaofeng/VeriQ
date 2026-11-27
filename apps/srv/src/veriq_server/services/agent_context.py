@@ -191,7 +191,12 @@ async def build_context(
     ]
     # 配置草稿全文只在已授权的审阅卡片展示，后续模型上下文仅沿用资源回执和原有规划候选。
     plan_proposals = [
-        t.proposal if t.proposal and "resource" not in t.proposal else None for t in recent
+        (
+            t.proposal
+            if t.proposal and t.proposal.get("type") in {"SAVE_PLAN", "TRIGGER_PLAN", "RUN_ONCE"}
+            else None
+        )
+        for t in recent
     ]
     mentions = (
         text

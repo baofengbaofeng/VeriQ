@@ -2,7 +2,7 @@
  * Web 入口验证链接指定的工作区，并提供与桌面共享的在线会话视图。页面加载链接不会自动创建会话或请求模型。
  */
 import { useContext, useMemo } from "react";
-import { Link, Navigate, useSearchParams } from "react-router-dom";
+import { useNavigate, Link, Navigate, useSearchParams } from "react-router-dom";
 import { Auth } from "../../auth-context";
 import { tx, useAppLocale } from "../../locale";
 import { Panel } from "../../ui";
@@ -21,6 +21,7 @@ const isId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  */
 export function AgentPage() {
     useAppLocale();
+    const navigateForm = useNavigate();
     const { user } = useContext(Auth);
     const { workspace, requested } = useWorkspaceDirectory();
     const { selected, signal } = useWorkspace();
@@ -51,6 +52,14 @@ export function AgentPage() {
                     onReplyVisible={acknowledgeAgentReply}
                     parentSignal={signal}
                     initialPlanId={initialPlan}
+                    formLauncher={{
+                        platform: "web",
+                        open: (destination) => {
+                            if (destination.platform === "web" && destination.workspaceId === workspace.id) {
+                                void navigateForm(destination.href);
+                            }
+                        },
+                    }}
                     navigate={(runId) => (
                         <Link to={`/reports?workspaceId=${workspace.id}&runId=${runId}`}>{tx("Open full report")}</Link>
                     )}

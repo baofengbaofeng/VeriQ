@@ -7992,6 +7992,347 @@
             "required": ["name", "mediaType", "sizeBytes"],
             "additionalProperties": false
         },
+        "AgentTask": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "$ref": "#/$defs/Id"
+                },
+                "runId": {
+                    "$ref": "#/$defs/Id"
+                },
+                "state": {
+                    "type": "string",
+                    "enum": ["QUEUED", "FOLLOWING", "COMPLETED", "STOPPED", "FAILED", "ANALYZING"]
+                },
+                "mode": {
+                    "type": "string",
+                    "enum": ["MANUAL", "AUTO"]
+                },
+                "outcome": {
+                    "type": "string",
+                    "maxLength": 24
+                },
+                "errorCode": {
+                    "type": "string",
+                    "maxLength": 80
+                },
+                "analysis": {
+                    "type": "object",
+                    "properties": {
+                        "basis": {
+                            "type": "string",
+                            "maxLength": 4000
+                        },
+                        "suggestions": {
+                            "type": "array",
+                            "maxItems": 30,
+                            "items": {
+                                "type": "string",
+                                "maxLength": 2000
+                            }
+                        }
+                    },
+                    "required": ["basis", "suggestions"],
+                    "additionalProperties": false
+                }
+            },
+            "required": ["id", "runId", "state", "mode"],
+            "additionalProperties": false
+        },
+        "AgentTaskCreate": {
+            "type": "object",
+            "properties": {
+                "requestId": {
+                    "$ref": "#/$defs/Id"
+                },
+                "runId": {
+                    "$ref": "#/$defs/Id"
+                },
+                "analyze": {
+                    "type": "boolean"
+                }
+            },
+            "required": ["requestId", "runId"],
+            "additionalProperties": false
+        },
+        "AgentTaskCollection": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/AgentTask"
+                    },
+                    "maxItems": 100
+                }
+            },
+            "required": ["items"],
+            "additionalProperties": false
+        },
+        "AgentDelegationMode": {
+            "type": "string",
+            "enum": ["AUTO", "SUBAGENT", "MAIN"]
+        },
+        "AgentValidateResourceProposal": {
+            "type": "object",
+            "properties": {
+                "type": {
+                    "const": "VALIDATE_RESOURCE"
+                },
+                "resourceId": {
+                    "$ref": "#/$defs/Id"
+                },
+                "revision": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                },
+                "sourceHash": {
+                    "$ref": "#/$defs/Sha256"
+                }
+            },
+            "required": ["type", "resourceId", "revision", "sourceHash"],
+            "additionalProperties": false
+        },
+        "AgentPublishResourceProposal": {
+            "type": "object",
+            "properties": {
+                "type": {
+                    "const": "PUBLISH_RESOURCE"
+                },
+                "resourceId": {
+                    "$ref": "#/$defs/Id"
+                },
+                "revision": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                },
+                "sourceHash": {
+                    "$ref": "#/$defs/Sha256"
+                },
+                "validationJobId": {
+                    "$ref": "#/$defs/Id"
+                },
+                "validationReceiptId": {
+                    "$ref": "#/$defs/Id"
+                }
+            },
+            "required": ["type", "resourceId", "revision", "sourceHash", "validationJobId", "validationReceiptId"],
+            "additionalProperties": false
+        },
+        "AgentValidateResourceReceipt": {
+            "type": "object",
+            "properties": {
+                "type": {
+                    "const": "VALIDATE_RESOURCE"
+                },
+                "resourceId": {
+                    "$ref": "#/$defs/Id"
+                },
+                "revision": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                },
+                "sourceHash": {
+                    "$ref": "#/$defs/Sha256"
+                },
+                "validationJobId": {
+                    "$ref": "#/$defs/Id"
+                }
+            },
+            "required": ["type", "resourceId", "revision", "sourceHash", "validationJobId"],
+            "additionalProperties": false
+        },
+        "AgentPublishResourceReceipt": {
+            "type": "object",
+            "properties": {
+                "type": {
+                    "const": "PUBLISH_RESOURCE"
+                },
+                "resourceId": {
+                    "$ref": "#/$defs/Id"
+                },
+                "revision": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                },
+                "sourceHash": {
+                    "$ref": "#/$defs/Sha256"
+                },
+                "validationJobId": {
+                    "$ref": "#/$defs/Id"
+                },
+                "validationReceiptId": {
+                    "$ref": "#/$defs/Id"
+                },
+                "versionId": {
+                    "$ref": "#/$defs/Id"
+                }
+            },
+            "required": [
+                "type",
+                "resourceId",
+                "revision",
+                "sourceHash",
+                "validationJobId",
+                "validationReceiptId",
+                "versionId"
+            ],
+            "additionalProperties": false
+        },
+        "AgentDraftOperations": {
+            "oneOf": [
+                {
+                    "type": "object",
+                    "properties": {
+                        "type": {
+                            "type": "string",
+                            "enum": ["CANCEL_RUN", "RERUN_RUN"]
+                        },
+                        "sourceRunId": {
+                            "$ref": "#/$defs/Id"
+                        }
+                    },
+                    "required": ["type", "sourceRunId"],
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "type": {
+                            "const": "VALIDATE_RESOURCE"
+                        },
+                        "resourceId": {
+                            "$ref": "#/$defs/Id"
+                        },
+                        "revision": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 9007199254740991
+                        }
+                    },
+                    "required": ["type", "resourceId", "revision"],
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "type": {
+                            "const": "PUBLISH_RESOURCE"
+                        },
+                        "resourceId": {
+                            "$ref": "#/$defs/Id"
+                        },
+                        "revision": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 9007199254740991
+                        },
+                        "validationJobId": {
+                            "$ref": "#/$defs/Id"
+                        }
+                    },
+                    "required": ["type", "resourceId", "revision", "validationJobId"],
+                    "additionalProperties": false
+                }
+            ]
+        },
+        "AgentWorkspaceCapability": {
+            "type": "string",
+            "enum": [
+                "ENVIRONMENT",
+                "FIXTURE",
+                "HTTP_DATASET",
+                "AUTH_CREDENTIALS",
+                "DEVICE_ACCESS",
+                "DEVICE_CREDENTIAL_DELIVERY",
+                "CI_PLAN_TOKENS",
+                "WORKSPACE_MEMBERS",
+                "AI_PROVIDERS",
+                "NOTIFICATION_INBOX",
+                "WORKSPACE_ARCHIVE",
+                "REPORT_EVIDENCE",
+                "WORKSPACE_AUDIT",
+                "LOCAL_RETENTION"
+            ]
+        },
+        "AgentWorkspaceForm": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["type", "workspaceId", "capability"],
+            "properties": {
+                "type": {
+                    "const": "OPEN_WORKSPACE_FORM"
+                },
+                "workspaceId": {
+                    "$ref": "#/$defs/Id"
+                },
+                "capability": {
+                    "$ref": "#/$defs/AgentWorkspaceCapability"
+                }
+            }
+        },
+        "AgentResourceBatchProposal": {
+            "type": "object",
+            "properties": {
+                "type": {
+                    "const": "SAVE_RESOURCE_DRAFTS"
+                },
+                "items": {
+                    "type": "array",
+                    "maxItems": 5,
+                    "minItems": 2,
+                    "items": {
+                        "$ref": "#/$defs/AgentResourceDraftProposal"
+                    }
+                }
+            },
+            "required": ["type", "items"],
+            "additionalProperties": false
+        },
+        "AgentResourceDraftReceipt": {
+            "type": "object",
+            "properties": {
+                "type": {
+                    "const": "SAVE_RESOURCE_DRAFT"
+                },
+                "resourceId": {
+                    "$ref": "#/$defs/Id"
+                },
+                "revision": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                },
+                "kind": {
+                    "$ref": "#/$defs/AgentConfigurableResourceKind"
+                }
+            },
+            "required": ["type", "resourceId", "revision", "kind"],
+            "additionalProperties": false
+        },
+        "AgentResourceBatchReceipt": {
+            "type": "object",
+            "properties": {
+                "type": {
+                    "const": "SAVE_RESOURCE_DRAFTS"
+                },
+                "items": {
+                    "type": "array",
+                    "maxItems": 5,
+                    "minItems": 2,
+                    "items": {
+                        "$ref": "#/$defs/AgentResourceDraftReceipt"
+                    }
+                }
+            },
+            "required": ["type", "items"],
+            "additionalProperties": false
+        },
         "AgentTurnSubmit": {
             "type": "object",
             "properties": {
@@ -8010,13 +8351,29 @@
                     "type": "array",
                     "minItems": 1,
                     "maxItems": 3,
-                    "items": { "$ref": "#/$defs/AgentAttachmentUpload" }
+                    "items": {
+                        "$ref": "#/$defs/AgentAttachmentUpload"
+                    }
+                },
+                "delegationMode": {
+                    "$ref": "#/$defs/AgentDelegationMode"
                 }
             },
             "required": ["requestId", "text"],
             "additionalProperties": false,
-            "if": { "properties": { "text": { "const": "" } } },
-            "then": { "properties": { "attachments": true }, "required": ["attachments"] }
+            "if": {
+                "properties": {
+                    "text": {
+                        "const": ""
+                    }
+                }
+            },
+            "then": {
+                "properties": {
+                    "attachments": true
+                },
+                "required": ["attachments"]
+            }
         },
         "AgentPlanPreview": {
             "type": "object",
@@ -8247,7 +8604,9 @@
                     },
                     "if": {
                         "type": "object",
-                        "properties": { "planId": true },
+                        "properties": {
+                            "planId": true
+                        },
                         "required": ["planId"]
                     },
                     "then": {
@@ -8255,7 +8614,9 @@
                         "properties": {
                             "plan": {
                                 "type": "object",
-                                "properties": { "revision": true },
+                                "properties": {
+                                    "revision": true
+                                },
                                 "required": ["revision"]
                             }
                         }
@@ -8265,7 +8626,9 @@
                         "properties": {
                             "plan": {
                                 "type": "object",
-                                "properties": { "revision": false }
+                                "properties": {
+                                    "revision": false
+                                }
                             }
                         }
                     }
@@ -8301,6 +8664,12 @@
                             },
                             "required": [],
                             "additionalProperties": false
+                        },
+                        "delegateRun": {
+                            "type": "boolean"
+                        },
+                        "analyzeRun": {
+                            "type": "boolean"
                         }
                     },
                     "required": ["type", "planId", "planRevision"],
@@ -8323,6 +8692,12 @@
                             "type": "integer",
                             "minimum": 1,
                             "maximum": 2147483646
+                        },
+                        "delegateRun": {
+                            "type": "boolean"
+                        },
+                        "analyzeRun": {
+                            "type": "boolean"
                         }
                     },
                     "required": ["type", "selection"],
@@ -8332,7 +8707,52 @@
                         "planRevision": ["planId"]
                     }
                 },
-                { "$ref": "#/$defs/AgentResourceDraftProposal" }
+                {
+                    "$ref": "#/$defs/AgentResourceDraftProposal"
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "type": {
+                            "const": "CANCEL_RUN"
+                        },
+                        "sourceRunId": {
+                            "$ref": "#/$defs/Id"
+                        },
+                        "sourceSnapshotHash": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{64}$"
+                        }
+                    },
+                    "required": ["type", "sourceRunId", "sourceSnapshotHash"],
+                    "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "type": {
+                            "const": "RERUN_RUN"
+                        },
+                        "sourceRunId": {
+                            "$ref": "#/$defs/Id"
+                        },
+                        "sourceSnapshotHash": {
+                            "type": "string",
+                            "pattern": "^[a-f0-9]{64}$"
+                        }
+                    },
+                    "required": ["type", "sourceRunId", "sourceSnapshotHash"],
+                    "additionalProperties": false
+                },
+                {
+                    "$ref": "#/$defs/AgentValidateResourceProposal"
+                },
+                {
+                    "$ref": "#/$defs/AgentPublishResourceProposal"
+                },
+                {
+                    "$ref": "#/$defs/AgentResourceBatchProposal"
+                }
             ]
         },
         "AgentReceipt": {
@@ -8397,15 +8817,45 @@
                     "additionalProperties": false
                 },
                 {
+                    "$ref": "#/$defs/AgentResourceDraftReceipt"
+                },
+                {
+                    "$ref": "#/$defs/AgentValidateResourceReceipt"
+                },
+                {
+                    "$ref": "#/$defs/AgentPublishResourceReceipt"
+                },
+                {
                     "type": "object",
                     "properties": {
-                        "type": { "const": "SAVE_RESOURCE_DRAFT" },
-                        "resourceId": { "$ref": "#/$defs/Id" },
-                        "revision": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
-                        "kind": { "$ref": "#/$defs/AgentConfigurableResourceKind" }
+                        "type": {
+                            "const": "CANCEL_RUN"
+                        },
+                        "runId": {
+                            "$ref": "#/$defs/Id"
+                        }
                     },
-                    "required": ["type", "resourceId", "revision", "kind"],
+                    "required": ["type", "runId"],
                     "additionalProperties": false
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "type": {
+                            "const": "RERUN_RUN"
+                        },
+                        "sourceRunId": {
+                            "$ref": "#/$defs/Id"
+                        },
+                        "runId": {
+                            "$ref": "#/$defs/Id"
+                        }
+                    },
+                    "required": ["type", "sourceRunId", "runId"],
+                    "additionalProperties": false
+                },
+                {
+                    "$ref": "#/$defs/AgentResourceBatchReceipt"
                 }
             ]
         },
@@ -8423,7 +8873,9 @@
                     "type": "array",
                     "minItems": 1,
                     "maxItems": 3,
-                    "items": { "$ref": "#/$defs/AgentAttachmentDTO" }
+                    "items": {
+                        "$ref": "#/$defs/AgentAttachmentDTO"
+                    }
                 },
                 "status": {
                     "type": "string",
@@ -8469,12 +8921,29 @@
                     "items": {
                         "$ref": "#/$defs/AgentTurnStepDTO"
                     }
+                },
+                "delegationMode": {
+                    "$ref": "#/$defs/AgentDelegationMode"
+                },
+                "workspaceForm": {
+                    "$ref": "#/$defs/AgentWorkspaceForm"
                 }
             },
             "required": ["id", "text", "status", "createdAt"],
             "additionalProperties": false,
-            "if": { "properties": { "text": { "const": "" } } },
-            "then": { "properties": { "attachments": true }, "required": ["attachments"] },
+            "if": {
+                "properties": {
+                    "text": {
+                        "const": ""
+                    }
+                }
+            },
+            "then": {
+                "properties": {
+                    "attachments": true
+                },
+                "required": ["attachments"]
+            },
             "dependentRequired": {
                 "providerId": ["providerRevision"],
                 "providerRevision": ["providerId"]

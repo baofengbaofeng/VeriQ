@@ -315,6 +315,23 @@ def make_app(settings: Settings, db: Database, delivery: Delivery | None = None)
             "agent-confirm",
             ("POST",),
         ),
+        (
+            "/api/v1/workspaces/([0-9a-fA-F-]{36})/agent/sessions/([0-9a-fA-F-]{36})/tasks",
+            "agent-tasks",
+            ("GET", "POST"),
+        ),
+        (
+            "/api/v1/workspaces/([0-9a-fA-F-]{36})/agent/sessions/([0-9a-fA-F-]{36})"
+            "/tasks/([0-9a-fA-F-]{36})/stop",
+            "agent-task-stop",
+            ("POST",),
+        ),
+        (
+            "/api/v1/workspaces/([0-9a-fA-F-]{36})/agent/sessions/([0-9a-fA-F-]{36})"
+            "/turns/([0-9a-fA-F-]{36})/workspace-form",
+            "agent-workspace-form",
+            ("GET",),
+        ),
         ("/api/v1/workspaces/([0-9a-fA-F-]{36})/ai/providers", "ai-providers", ("GET", "POST")),
         (
             "/api/v1/workspaces/([0-9a-fA-F-]{36})/ai/providers/([0-9a-fA-F-]{36})",

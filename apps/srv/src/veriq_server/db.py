@@ -1278,6 +1278,32 @@ class AgentTurn(Base):
     steps: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON(none_as_null=True))
     attachments: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON(none_as_null=True))
     attachment_fingerprint: Mapped[str | None] = mapped_column(hash_type)
+    delegation_mode: Mapped[str | None] = mapped_column(String(8, collation="ascii_bin"))
+    workspace_capability: Mapped[str | None] = mapped_column(String(32, collation="ascii_bin"))
+
+
+class AgentTask(Base):
+    """私有会话的后台任务独立于对话轮次及被跟踪的运行，通过稳定意图、下次检查时间和当前权限恢复进度。"""
+
+    __tablename__ = "veriq_agent_tasks"
+    __table_args__ = (
+        UniqueConstraint("session_id", "request_id", "mode", name="uq_agent_task_request"),
+        Index("ix_agent_task_session", "session_id", "created_at", "id"),
+        Index("ix_agent_task_due", "next_check_at", "id"),
+        Index("ix_agent_task_usage", "analysis_attempt_id"),
+    )
+    id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    session_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_agent_sessions.id"))
+    run_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_runs.id"))
+    request_id: Mapped[str] = mapped_column(String(48, collation="ascii_bin"))
+    mode: Mapped[str] = mapped_column(String(6, collation="ascii_bin"))
+    state: Mapped[str] = mapped_column(String(12, collation="ascii_bin"))
+    error_code: Mapped[str | None] = mapped_column(String(80, collation="ascii_bin"))
+    analysis_requested: Mapped[bool] = mapped_column(Boolean, default=False)
+    analysis_attempt_id: Mapped[str | None] = mapped_column(uuid_type)
+    analysis: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True))
+    created_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
+    next_check_at: Mapped[datetime | None] = mapped_column(DATETIME(fsp=6))
 
 
 class Bundle(Base):

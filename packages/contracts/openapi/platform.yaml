@@ -3454,6 +3454,236 @@
                 }
             }
         },
+        "/api/v1/workspaces/{workspaceId}/agent/sessions/{sessionId}/tasks": {
+            "get": {
+                "operationId": "listAgentTasks",
+                "tags": ["agent"],
+                "security": [
+                    {
+                        "WebSession": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "workspaceId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/components/schemas/Id"
+                        }
+                    },
+                    {
+                        "name": "sessionId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/components/schemas/Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Authorized Test Agent tasks.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AgentTaskCollectionEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "default": {
+                        "description": "Stable JSON error.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "operationId": "createAgentTask",
+                "tags": ["agent"],
+                "security": [
+                    {
+                        "WebSession": [],
+                        "CsrfToken": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "workspaceId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/components/schemas/Id"
+                        }
+                    },
+                    {
+                        "name": "sessionId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/components/schemas/Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Authorized Test Agent tasks.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AgentTaskEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "default": {
+                        "description": "Stable JSON error.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AgentTaskCreate"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/workspaces/{workspaceId}/agent/sessions/{sessionId}/tasks/{taskId}/stop": {
+            "post": {
+                "operationId": "stopAgentTask",
+                "tags": ["agent"],
+                "security": [
+                    {
+                        "WebSession": [],
+                        "CsrfToken": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "workspaceId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/components/schemas/Id"
+                        }
+                    },
+                    {
+                        "name": "sessionId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/components/schemas/Id"
+                        }
+                    },
+                    {
+                        "name": "taskId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/components/schemas/Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Authorized Test Agent tasks.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AgentTaskEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "default": {
+                        "description": "Stable JSON error.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/workspaces/{workspaceId}/agent/sessions/{sessionId}/turns/{turnId}/workspace-form": {
+            "get": {
+                "operationId": "getAgentWorkspaceForm",
+                "tags": ["agent"],
+                "security": [
+                    {
+                        "WebSession": []
+                    }
+                ],
+                "parameters": [
+                    {
+                        "name": "workspaceId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/components/schemas/Id"
+                        }
+                    },
+                    {
+                        "name": "sessionId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/components/schemas/Id"
+                        }
+                    },
+                    {
+                        "name": "turnId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/components/schemas/Id"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Authorized workspace form.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AgentWorkspaceFormEnvelope"
+                                }
+                            }
+                        }
+                    },
+                    "default": {
+                        "description": "Stable JSON error.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ErrorEnvelope"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/workspaces/{workspaceId}/agent/sessions/{sessionId}/turns/stream": {
             "post": {
                 "operationId": "streamAgentTurn",
@@ -12077,6 +12307,63 @@
             },
             "AgentSessionDTO": {
                 "$ref": "../schemas/platform-v1.schema.json#/$defs/AgentSessionDTO"
+            },
+            "AgentDelegationMode": {
+                "$ref": "../schemas/platform-v1.schema.json#/$defs/AgentDelegationMode"
+            },
+            "AgentTaskCreate": {
+                "$ref": "../schemas/platform-v1.schema.json#/$defs/AgentTaskCreate"
+            },
+            "AgentTask": {
+                "$ref": "../schemas/platform-v1.schema.json#/$defs/AgentTask"
+            },
+            "AgentTaskCollection": {
+                "$ref": "../schemas/platform-v1.schema.json#/$defs/AgentTaskCollection"
+            },
+            "AgentTaskEnvelope": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "$ref": "#/components/schemas/AgentTask"
+                    },
+                    "requestId": {
+                        "$ref": "#/components/schemas/Id"
+                    }
+                },
+                "required": ["data", "requestId"],
+                "additionalProperties": false
+            },
+            "AgentTaskCollectionEnvelope": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "$ref": "#/components/schemas/AgentTaskCollection"
+                    },
+                    "requestId": {
+                        "$ref": "#/components/schemas/Id"
+                    }
+                },
+                "required": ["data", "requestId"],
+                "additionalProperties": false
+            },
+            "AgentWorkspaceForm": {
+                "$ref": "../schemas/platform-v1.schema.json#/$defs/AgentWorkspaceForm"
+            },
+            "AgentWorkspaceCapability": {
+                "$ref": "../schemas/platform-v1.schema.json#/$defs/AgentWorkspaceCapability"
+            },
+            "AgentWorkspaceFormEnvelope": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "$ref": "#/components/schemas/AgentWorkspaceForm"
+                    },
+                    "requestId": {
+                        "$ref": "#/components/schemas/Id"
+                    }
+                },
+                "required": ["data", "requestId"],
+                "additionalProperties": false
             },
             "AgentTurnSubmit": {
                 "$ref": "../schemas/platform-v1.schema.json#/$defs/AgentTurnSubmit"

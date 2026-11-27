@@ -198,6 +198,37 @@ export type CloudOperation =
           data: S["AgentTurnSubmit"];
       }
     | {
+          operation: "listAgentTasks";
+          params: {
+              workspaceId: string;
+              sessionId: string;
+          };
+      }
+    | {
+          operation: "createAgentTask";
+          params: {
+              workspaceId: string;
+              sessionId: string;
+          };
+          data: S["AgentTaskCreate"];
+      }
+    | {
+          operation: "stopAgentTask";
+          params: {
+              workspaceId: string;
+              sessionId: string;
+              taskId: string;
+          };
+      }
+    | {
+          operation: "getAgentWorkspaceForm";
+          params: {
+              workspaceId: string;
+              sessionId: string;
+              turnId: string;
+          };
+      }
+    | {
           operation: "streamAgentTurn";
           params: {
               workspaceId: string;

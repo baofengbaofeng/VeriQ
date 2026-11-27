@@ -13,7 +13,9 @@ from ..db import User
 from ..service import Problem
 from ..settings import Settings
 from .agent_actions import current_selection, proposal_preview
+from .agent_capabilities import workspace_form_tool
 from .agent_context import run_summary
+from .agent_resource_batch import RESOURCE_BATCH_ACTION, resource_batch_tool
 from .agent_resource_drafts import (
     CONFIGURABLE_KINDS,
     MAX_RESOURCE_PROPOSAL_BYTES,
@@ -21,6 +23,8 @@ from .agent_resource_drafts import (
     find_configuration,
     prepare_resource_draft,
 )
+from .agent_resource_lifecycle import resource_lifecycle_tools
+from .agent_run_operations import prepare_run_operation, read_run_report
 from .ai import sanitize
 from .report import ReportService
 
@@ -112,6 +116,25 @@ async def _find(call: ToolExecution, args: dict[str, Any]) -> dict[str, Any]:
     return await find_configuration(call.session, call.scope, args, call.context, call.protected)
 
 
+async def _read_report(call: ToolExecution, args: dict[str, Any]) -> dict[str, Any]:
+    """报告材料通过领域服务取得，工具仅发送经授权和限制的结构化数据，不提供原始证据下载。"""
+    report = ReportService(call.session, call.user, call.settings)
+    return await read_run_report(report, call.scope, args["runId"].lower())
+
+
+async def _diagnose_report(call: ToolExecution, args: dict[str, Any]) -> dict[str, Any]:
+    """从同一正式报告取得失败断言和尝试标识，用于向员工回溯证据和提示接下来要检查的环节。"""
+    report = ReportService(call.session, call.user, call.settings)
+    return await read_run_report(report, call.scope, args["runId"].lower(), diagnose=True)
+
+
+async def _prepare_run(call: ToolExecution, args: dict[str, Any]) -> dict[str, Any]:
+    """先检查运行范围和可重跑条件，再冻结提议供员工审阅；运行副作用发生在现有确认事务。"""
+    return await prepare_run_operation(
+        call.session, call.scope, call.user, args["proposal"], call.context
+    )
+
+
 async def _execution_preview(call: ToolExecution, args: dict[str, Any]) -> dict[str, Any]:
     """执行计划提议沿用授权候选与修订合并，实际确认仍重新验证设备权限和同一组用例矩阵的适用性。"""
     result = await proposal_preview(
@@ -135,7 +158,7 @@ def sanitize_proposal_output(output: object, protected: set[str]) -> dict[str, A
     proposal = output.get("proposal") if isinstance(output, dict) else None
     if (
         isinstance(proposal, dict)
-        and proposal.get("type") == RESOURCE_ACTION
+        and proposal.get("type") in {RESOURCE_ACTION, RESOURCE_BATCH_ACTION}
         and (not isinstance(sanitized, dict) or sanitized.get("proposal") != proposal)
     ):
         raise Problem(
@@ -157,6 +180,36 @@ def configuration_tools(definitions: dict[str, Any]) -> dict[str, AgentTool]:
         for k in ("Id", "Key", "AgentConfigurableResourceKind", "AgentResourceDraftProposal")
     }
     tools = (
+        workspace_form_tool(),
+        resource_batch_tool(),
+        AgentTool(
+            "get_run_report_v1",
+            "Read the bounded authoritative report and gate for an exact Run.",
+            _arguments({"runId": {"$ref": "#/$defs/Id"}}, ["runId"], ids),
+            Permission.VIEW,
+            _read_report,
+            "run",
+        ),
+        AgentTool(
+            "diagnose_run_v1",
+            "Read bounded failing cases, attempts and assertion evidence for an exact Run.",
+            _arguments({"runId": {"$ref": "#/$defs/Id"}}, ["runId"], ids),
+            Permission.VIEW,
+            _diagnose_report,
+            "run",
+        ),
+        AgentTool(
+            "prepare_run_operation_v1",
+            "Prepare cancellation or a repeat of a supported completed Run for review.",
+            _arguments(
+                {"proposal": _schema()["$defs"]["AgentDraftOperations"]["oneOf"][0]},
+                ["proposal"],
+                ids,
+            ),
+            Permission.EXECUTE,
+            _prepare_run,
+            "proposal",
+        ),
         AgentTool(
             "get_run_status_v1",
             "读取指定运行的当前状态和结果摘要。",
@@ -204,7 +257,7 @@ def configuration_tools(definitions: dict[str, Any]) -> dict[str, AgentTool]:
             "resource_proposal",
         ),
     )
-    return {tool.name: tool for tool in tools}
+    return {**{tool.name: tool for tool in tools}, **resource_lifecycle_tools()}
 
 
 def resolve_tool(tools: dict[str, AgentTool], name: str) -> AgentTool:

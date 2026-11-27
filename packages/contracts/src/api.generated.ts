@@ -474,6 +474,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspaceId}/agent/sessions/{sessionId}/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listAgentTasks"];
+        put?: never;
+        post: operations["createAgentTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspaceId}/agent/sessions/{sessionId}/tasks/{taskId}/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["stopAgentTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspaceId}/agent/sessions/{sessionId}/turns/{turnId}/workspace-form": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getAgentWorkspaceForm"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspaceId}/agent/sessions/{sessionId}/turns/stream": {
         parameters: {
             query?: never;
@@ -4617,11 +4665,68 @@ export interface components {
             createdAt: components["schemas"]["Timestamp"];
             archived: boolean;
         };
+        /**
+         * @enum {string}
+         */
+        AgentDelegationMode: "AUTO" | "SUBAGENT" | "MAIN";
+        AgentTaskCreate: {
+            requestId: components["schemas"]["Id"];
+            runId: components["schemas"]["Id"];
+            analyze?: boolean;
+        };
+        AgentTask: {
+            id: components["schemas"]["Id"];
+            runId: components["schemas"]["Id"];
+            /**
+             * @enum {string}
+             */
+            state: "QUEUED" | "FOLLOWING" | "COMPLETED" | "STOPPED" | "FAILED" | "ANALYZING";
+            /**
+             * @enum {string}
+             */
+            mode: "MANUAL" | "AUTO";
+            outcome?: string;
+            errorCode?: string;
+            analysis?: {
+                basis: string;
+                suggestions: string[];
+            };
+        };
+        AgentTaskCollection: {
+            items: components["schemas"]["AgentTask"][];
+        };
+        AgentTaskEnvelope: {
+            data: components["schemas"]["AgentTask"];
+            requestId: components["schemas"]["Id"];
+        };
+        AgentTaskCollectionEnvelope: {
+            data: components["schemas"]["AgentTaskCollection"];
+            requestId: components["schemas"]["Id"];
+        };
+        AgentWorkspaceForm: {
+            /**
+             * @constant
+             */
+            type: "OPEN_WORKSPACE_FORM";
+            workspaceId: components["schemas"]["Id"];
+            capability: components["schemas"]["AgentWorkspaceCapability"];
+        };
+        /**
+         * @enum {string}
+         */
+        AgentWorkspaceCapability: "ENVIRONMENT" | "FIXTURE" | "HTTP_DATASET" | "AUTH_CREDENTIALS" | "DEVICE_ACCESS"
+            | "DEVICE_CREDENTIAL_DELIVERY" | "CI_PLAN_TOKENS" | "WORKSPACE_MEMBERS" | "AI_PROVIDERS"
+            | "NOTIFICATION_INBOX" | "WORKSPACE_ARCHIVE" | "REPORT_EVIDENCE" | "WORKSPACE_AUDIT" | "LOCAL_RETENTION";
+        AgentWorkspaceFormEnvelope: {
+            data: components["schemas"]["AgentWorkspaceForm"];
+            requestId: components["schemas"]["Id"];
+        };
         AgentTurnSubmit: {
             requestId: components["schemas"]["Id"];
             expectedProposalId?: components["schemas"]["Id"];
             text: string;
             attachments?: components["schemas"]["AgentAttachmentUpload"][];
+            delegationMode?: components["schemas"]["AgentDelegationMode"];
         };
         /**
          * @enum {string}
@@ -4688,6 +4793,8 @@ export interface components {
                 buildSha?: string;
                 reason?: string;
             };
+            delegateRun?: boolean;
+            analyzeRun?: boolean;
         } | {
             /**
              * @constant
@@ -4696,7 +4803,25 @@ export interface components {
             selection: components["schemas"]["AgentRunSelection"];
             planId?: components["schemas"]["Id"];
             planRevision?: number;
-        } | components["schemas"]["AgentResourceDraftProposal"];
+            delegateRun?: boolean;
+            analyzeRun?: boolean;
+        } | components["schemas"]["AgentResourceDraftProposal"] | {
+            /**
+             * @constant
+             */
+            type: "CANCEL_RUN";
+            sourceRunId: components["schemas"]["Id"];
+            sourceSnapshotHash: string;
+        } | {
+            /**
+             * @constant
+             */
+            type: "RERUN_RUN";
+            sourceRunId: components["schemas"]["Id"];
+            sourceSnapshotHash: string;
+        } | components["schemas"]["AgentValidateResourceProposal"]
+            | components["schemas"]["AgentPublishResourceProposal"]
+            | components["schemas"]["AgentResourceBatchProposal"];
         AgentReceipt: {
             /**
              * @constant
@@ -4722,15 +4847,21 @@ export interface components {
              */
             type: "RUN_ONCE";
             runId: components["schemas"]["Id"];
+        } | components["schemas"]["AgentResourceDraftReceipt"] | components["schemas"]["AgentValidateResourceReceipt"]
+            | components["schemas"]["AgentPublishResourceReceipt"] | {
+            /**
+             * @constant
+             */
+            type: "CANCEL_RUN";
+            runId: components["schemas"]["Id"];
         } | {
             /**
              * @constant
              */
-            type: "SAVE_RESOURCE_DRAFT";
-            resourceId: components["schemas"]["Id"];
-            revision: number;
-            kind: components["schemas"]["AgentConfigurableResourceKind"];
-        };
+            type: "RERUN_RUN";
+            sourceRunId: components["schemas"]["Id"];
+            runId: components["schemas"]["Id"];
+        } | components["schemas"]["AgentResourceBatchReceipt"];
         AgentTurnDTO: {
             id: components["schemas"]["Id"];
             text: string;
@@ -4749,6 +4880,8 @@ export interface components {
             receipt?: components["schemas"]["AgentReceipt"];
             thinking?: string;
             steps?: components["schemas"]["AgentTurnStepDTO"][];
+            delegationMode?: components["schemas"]["AgentDelegationMode"];
+            workspaceForm?: components["schemas"]["AgentWorkspaceForm"];
         };
         AgentTurnStepDTO: {
             name: string;
@@ -6395,6 +6528,71 @@ export interface components {
             };
             resourceId?: components["schemas"]["Id"];
             revision?: number;
+        };
+        AgentValidateResourceProposal: {
+            /**
+             * @constant
+             */
+            type: "VALIDATE_RESOURCE";
+            resourceId: components["schemas"]["Id"];
+            revision: number;
+            sourceHash: components["schemas"]["Sha256"];
+        };
+        AgentPublishResourceProposal: {
+            /**
+             * @constant
+             */
+            type: "PUBLISH_RESOURCE";
+            resourceId: components["schemas"]["Id"];
+            revision: number;
+            sourceHash: components["schemas"]["Sha256"];
+            validationJobId: components["schemas"]["Id"];
+            validationReceiptId: components["schemas"]["Id"];
+        };
+        AgentResourceBatchProposal: {
+            /**
+             * @constant
+             */
+            type: "SAVE_RESOURCE_DRAFTS";
+            items: components["schemas"]["AgentResourceDraftProposal"][];
+        };
+        AgentResourceDraftReceipt: {
+            /**
+             * @constant
+             */
+            type: "SAVE_RESOURCE_DRAFT";
+            resourceId: components["schemas"]["Id"];
+            revision: number;
+            kind: components["schemas"]["AgentConfigurableResourceKind"];
+        };
+        AgentValidateResourceReceipt: {
+            /**
+             * @constant
+             */
+            type: "VALIDATE_RESOURCE";
+            resourceId: components["schemas"]["Id"];
+            revision: number;
+            sourceHash: components["schemas"]["Sha256"];
+            validationJobId: components["schemas"]["Id"];
+        };
+        AgentPublishResourceReceipt: {
+            /**
+             * @constant
+             */
+            type: "PUBLISH_RESOURCE";
+            resourceId: components["schemas"]["Id"];
+            revision: number;
+            sourceHash: components["schemas"]["Sha256"];
+            validationJobId: components["schemas"]["Id"];
+            validationReceiptId: components["schemas"]["Id"];
+            versionId: components["schemas"]["Id"];
+        };
+        AgentResourceBatchReceipt: {
+            /**
+             * @constant
+             */
+            type: "SAVE_RESOURCE_DRAFTS";
+            items: components["schemas"]["AgentResourceDraftReceipt"][];
         };
         DurationMs: number;
         /**
@@ -11093,6 +11291,156 @@ export interface operations {
              * @description Stable JSON error; code is a machine-readable domain code.
              */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listAgentTasks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["Id"];
+                sessionId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /**
+             * @description Authorized Test Agent tasks.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentTaskCollectionEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error.
+             */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    createAgentTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["Id"];
+                sessionId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentTaskCreate"];
+            };
+        };
+        responses: {
+            /**
+             * @description Authorized Test Agent tasks.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentTaskEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error.
+             */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    stopAgentTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["Id"];
+                sessionId: components["schemas"]["Id"];
+                taskId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /**
+             * @description Authorized Test Agent tasks.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentTaskEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error.
+             */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getAgentWorkspaceForm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspaceId: components["schemas"]["Id"];
+                sessionId: components["schemas"]["Id"];
+                turnId: components["schemas"]["Id"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /**
+             * @description Authorized workspace form.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentWorkspaceFormEnvelope"];
+                };
+            };
+            /**
+             * @description Stable JSON error.
+             */
+            default: {
                 headers: {
                     [name: string]: unknown;
                 };

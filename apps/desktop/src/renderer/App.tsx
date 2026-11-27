@@ -12,6 +12,7 @@ import {
 } from "@veriq/web/desktop";
 import type { PlatformComponents } from "@veriq/contracts";
 import type { DesktopState } from "../shared/bridge";
+import { openAgentFormInBrowser } from "./agent-web-form";
 import { RetentionPanel } from "./RetentionPanel";
 import { desktopErrorMessage, desktopStateLabel } from "../shared/desktop-errors";
 import { credentialGuidance } from "../shared/credential-status";
@@ -91,6 +92,7 @@ export function App() {
     const [localWorkspace, setLocalWorkspace] = useState("");
     const [runId, setRun] = useState(""),
         [reportLocal, setReportLocal] = useState(false);
+    const [formResource, setFormResource] = useState<{ owner: string; kind: "ENVIRONMENT" | "FIXTURE" | "DATASET" }>();
     const [cloudRun, setCloudRun] = useState<{ owner: string; id: string }>();
     const [deviceName, setDeviceName] = useState("VeriQ Desktop");
     const [enrollment, setEnrollment] = useState<Omit<S["EnrollmentDTO"], "deviceCode">>();
@@ -205,7 +207,10 @@ export function App() {
                             type="button"
                             key={key}
                             aria-current={tab === key ? "page" : undefined}
-                            onClick={() => setTab(key)}
+                            onClick={() => {
+                                if (key === "resources") setFormResource(undefined);
+                                setTab(key);
+                            }}
                         >
                             {t[key]}
                         </button>
@@ -571,6 +576,7 @@ export function App() {
                                 key={workspace.id}
                                 workspace={workspace}
                                 adapter={adapters.resources}
+                                {...(formResource?.owner === cloudScope ? { fixedKind: formResource.kind } : {})}
                                 signal={scope.signal}
                             />
                         ) : (
@@ -671,6 +677,24 @@ export function App() {
                                     adapter={adapters.conversation}
                                     providers={adapters.ai}
                                     reports={adapters.reports}
+                                    formLauncher={{
+                                        platform: "desktop",
+                                        openWebForm: (ref, active) => openAgentFormInBrowser(bridge, ref, active),
+                                        open: (destination) => {
+                                            if (
+                                                destination.platform !== "desktop" ||
+                                                destination.workspaceId !== workspace.id
+                                            )
+                                                return;
+                                            if (destination.tab === "resources")
+                                                setFormResource({ owner: cloudScope, kind: destination.resourceKind });
+                                            if (destination.tab === "reports") {
+                                                setCloudRun(undefined);
+                                                setReportLocal(false);
+                                            }
+                                            setTab(destination.tab);
+                                        },
+                                    }}
                                     navigate={(id) => (
                                         <button
                                             type="button"

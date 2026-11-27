@@ -25,9 +25,13 @@ from ..service import Problem, audit, lock_installation, now
 from ..validation import validate_api
 from .agent_actions import apply_proposal, current_selection, proposal_preview
 from .agent_attachments import ATTACHMENT_PROMPT, read_attachments
+from .agent_capabilities import CAPABILITY_IDS, workspace_form_card
 from .agent_context import UUID_IN_TEXT, build_context, run_summary
 from .agent_reply_stream import ReplyStreamRedactor, guard_agent_stream, sanitize_stream_reply
+from .agent_resource_batch import RESOURCE_BATCH_ACTION, prepare_resource_batch
 from .agent_resource_drafts import RESOURCE_ACTION, prepare_resource_draft
+from .agent_resource_lifecycle import RESOURCE_LIFECYCLE_ACTIONS, prepare_resource_lifecycle
+from .agent_run_operations import RUN_ACTIONS, format_run_report, prepare_run_operation
 from .agent_sessions import (
     CONFIRMATION_SOURCE,
     AgentSessionService,
@@ -59,6 +63,9 @@ SYSTEM = (
     "SAVE_PLAN use a published suite; for an edit choose its planId and use plan.revision from context, supplying "
     "only intended changes since that revision. New plans need all preview fields. For TRIGGER_PLAN use the "
     "selected planId and planRevision. Use RUN_ONCE for transient changes. Never send previousPlan or variables. "
+    "For a new run, set delegateRun to false when the user only wants a launch receipt; recommend "
+    "background tracking with delegateRun true for requested progress or follow-up. "
+    "Set analyzeRun only when the employee requests background interpretation of the completed report. "
     "Use find_configuration_v1 before choosing resources or dependencies. Use prepare_resource_draft_v1 for "
     "a complete reviewed resource draft, with resourceId and revision for existing drafts. Preserve the current "
     "configuration; ask for the full source if the available projection cannot recreate it safely. The draft "
@@ -66,6 +73,10 @@ SYSTEM = (
     "A static DATASET has schemaVersion 2.0, shape TABLE or TREE, fields with type/required/nullable, and "
     "source with kind STATIC and rows. Use provided requirements for assertions, and ask before guessing "
     "missing source fields. Never send secrets, credential connections, executable scripts or arbitrary tools. "
+    "Use validation and publication tools for an exact resource revision. Use prepare_resource_batch_v1 "
+    "to review two to five related independent draft changes together. Use report tools for bounded "
+    "failure evidence. Prepare cancellation or a supported rerun as an exact Run proposal. For "
+    "sensitive inputs or administrator settings, offer the relevant workspace form. "
     "Proposals need employee confirmation. Never claim an action "
     "was performed. Never invent results, gates, evidence or expected values."
 )
@@ -93,18 +104,31 @@ REPORT_ACTION = re.compile(
     r"(?:(?:me|the|current|actual|latest|run|test|its)\s+)*(?:status|progress|results?|reports?)\b"
     r"|(?:查看|查询|打开|显示)(?:当前|最新|这次|该|本次)?(?:运行)?(?:状态|进度|结果|报告)"
 )
-SAVE = {"SAVE_PLAN", RESOURCE_ACTION}
+REPORT_DETAIL = re.compile(
+    r"\b(?:diagnos\w*|failure|assertions?|attempts?|evidence|gate reasons?)\b"
+    r"|失败原因|诊断|断言|尝试|证据|门禁",
+    re.I,
+)
+RUN_REQUEST = re.compile(
+    r"^(?:please\s+)?(?:run|rerun|launch|start|trigger|execute|cancel)\s+"
+    r"(?!(?:[0-9a-f-]{36}\s+)?(?:status|progress|results?|reports?)\b)"
+    r"|^(?:请帮我|请|帮我)?(?:运行|重跑|启动|触发|执行|取消|跑一轮)(?!状态|进度|结果|报告)",
+    re.I,
+)
+SAVE = {"SAVE_PLAN", RESOURCE_ACTION, RESOURCE_BATCH_ACTION}
 RUN = {"RUN_ONCE", "TRIGGER_PLAN"}
+PREVIEWS = {"proposal", "resource_proposal", "resource_batch_proposal"}
+REVIEWED_ACTIONS = SAVE | RUN | RESOURCE_LIFECYCLE_ACTIONS | RUN_ACTIONS
 CONFIRM = {
-    "confirm": SAVE | RUN,
-    "confirm action": SAVE | RUN,
-    "确认": SAVE | RUN,
-    "确认操作": SAVE | RUN,
+    "confirm": REVIEWED_ACTIONS,
+    "confirm action": REVIEWED_ACTIONS,
+    "确认": REVIEWED_ACTIONS,
+    "确认操作": REVIEWED_ACTIONS,
     "confirm plan": {"SAVE_PLAN"},
     "confirm save": SAVE,
     "确认保存": SAVE,
-    "confirm draft": {RESOURCE_ACTION},
-    "确认保存草稿": {RESOURCE_ACTION},
+    "confirm draft": {RESOURCE_ACTION, RESOURCE_BATCH_ACTION},
+    "确认保存草稿": {RESOURCE_ACTION, RESOURCE_BATCH_ACTION},
     "confirm run": RUN,
     "确认执行": RUN,
     "确认运行": RUN,
@@ -166,8 +190,14 @@ def _response_schema() -> dict[str, Any]:
     plan_choices = [create, edit, trigger, based_once, direct_once]
     subset["DraftPlanProposal"] = {"oneOf": plan_choices}
     subset["AgentResourceDraftProposal"] = resource_model_schema()
+    subset["AgentResourceBatchProposal"] = defs["AgentResourceBatchProposal"]
     subset["DraftProposal"] = {
-        "oneOf": [*plan_choices, {"$ref": "#/$defs/AgentResourceDraftProposal"}]
+        "oneOf": [
+            *plan_choices,
+            {"$ref": "#/$defs/AgentResourceDraftProposal"},
+            {"$ref": "#/$defs/AgentResourceBatchProposal"},
+            *defs["AgentDraftOperations"]["oneOf"],
+        ]
     }
     return {
         "type": "object",
@@ -177,6 +207,12 @@ def _response_schema() -> dict[str, Any]:
             "reply": {"type": "string", "minLength": 1, "maxLength": 12000},
             "proposal": {"$ref": "#/$defs/DraftProposal"},
             "relatedRunId": {"$ref": "#/$defs/Id"},
+            "workspaceForm": {
+                "type": "object",
+                "properties": {"capability": {"enum": list(CAPABILITY_IDS)}},
+                "required": ["capability"],
+                "additionalProperties": False,
+            },
         },
         "$defs": subset,
     }
@@ -264,8 +300,8 @@ class ConversationalAgent(AgentSessionService):
             owned = await self.require_owned_session(s, scope, user, session_id, active=True)
             turn = await self.require_owned_turn(s, owned, turn_id)
             await self._reject_superseded(s, owned, turn)
-            await apply_proposal(s, scope, user, turn)
-            return turn_dto(turn)
+            await apply_proposal(s, scope, user, turn, self.ai.settings)
+            return await self.visible_turn(s, scope, user, turn)
 
     @staticmethod
     async def _reject_superseded(s: AsyncSession, owned: AgentSession, turn: AgentTurn) -> None:
@@ -310,6 +346,10 @@ class ConversationalAgent(AgentSessionService):
             existing.text != req["text"]
             or recorded != target
             or existing.attachment_fingerprint != fingerprint
+            or (
+                actions is None
+                and (existing.delegation_mode or "AUTO") != req.get("delegationMode", "AUTO")
+            )
         ):
             raise Problem(
                 409, "IDEMPOTENCY_CONFLICT", "This request ID already represents different intent"
@@ -322,8 +362,8 @@ class ConversationalAgent(AgentSessionService):
                     "IDEMPOTENCY_CONFLICT",
                     "The confirmed proposal no longer matches this request",
                 )
-            await apply_proposal(s, scope, user, source)
-        return turn_dto(existing)
+            await apply_proposal(s, scope, user, source, self.ai.settings)
+        return await self.visible_turn(s, scope, user, existing)
 
     async def submit(
         self, scope: WorkspaceScope, session_id: str, req: dict[str, Any]
@@ -338,6 +378,10 @@ class ConversationalAgent(AgentSessionService):
             if actions and req.get("attachments"):
                 raise Problem(
                     422, "AGENT_ATTACHMENT_INVALID", "Confirmation does not accept attachments"
+                )
+            if actions and "delegationMode" in req:
+                raise Problem(
+                    400, "INVALID_REQUEST", "Review the proposed delegation before confirming"
                 )
             if actions and not target:
                 raise Problem(
@@ -366,11 +410,12 @@ class ConversationalAgent(AgentSessionService):
                 text=req["text"],
                 created_at=now(),
                 status="RUNNING",
+                delegation_mode=None if actions else req.get("delegationMode", "AUTO"),
             )
             if actions:
                 source = await self._confirmation_source(s, owned, target, actions)
                 await self._reject_superseded(s, owned, source)
-                receipt = await apply_proposal(s, scope, user, source)
+                receipt = await apply_proposal(s, scope, user, source, self.ai.settings)
                 # 单独确认轮次保留服务端重放关联，API 与模型历史仍只投影公共回执字段，重放沿原轮次返回。
                 turn.receipt = {**receipt, CONFIRMATION_SOURCE: source.id}
                 turn.status, turn.related_run_id = "COMPLETED", source.related_run_id
@@ -486,6 +531,7 @@ class ConversationalAgent(AgentSessionService):
                 text=req["text"],
                 created_at=now(),
                 status="RUNNING",
+                delegation_mode=req.get("delegationMode", "AUTO"),
             )
             provider = await self.resolve_provider(s, scope)
             config = dict(provider.config)
@@ -543,6 +589,8 @@ class ConversationalAgent(AgentSessionService):
         steps: list[dict[str, Any]] = []
         proposal: dict[str, Any] | None = None
         related_run_id: str | None = None
+        workspace_capability: str | None = None
+        report_projection: dict[str, Any] | None = None
         reply_redactor = ReplyStreamRedactor({key})
 
         denied: str | None = None
@@ -581,7 +629,7 @@ class ConversationalAgent(AgentSessionService):
                 await publish("thinking", {"text": fragment})
 
         async def execute(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
-            nonlocal proposal, related_run_id
+            nonlocal proposal, related_run_id, workspace_capability, report_projection
             if len(steps) >= 40:
                 return {"error": "AGENT_TOOL_LIMIT", "message": "Too many tool calls in this turn"}
             step_id = str(uuid4())
@@ -593,15 +641,19 @@ class ConversationalAgent(AgentSessionService):
                     "step", {"id": step_id, "name": step_name, "status": "RUNNING"}
                 ):
                     return {"error": "AGENT_ACCESS_REVOKED"}
-                if tool.result_kind in {"proposal", "resource_proposal"}:
+                if tool.result_kind in PREVIEWS:
                     proposal = None
                 result = await self._run_tool(
                     scope, session_id, tool, arguments, context, {key}, authorize_round
                 )
-                if tool.result_kind in {"proposal", "resource_proposal"}:
+                if tool.result_kind in PREVIEWS:
                     proposal = result
                 elif tool.result_kind == "run":
                     related_run_id = result.get("runId")
+                    if name in {"get_run_report_v1", "diagnose_run_v1"}:
+                        report_projection = result
+                elif tool.result_kind == "workspace_form":
+                    workspace_capability = result["capability"]
                 summary = self._step_summary(tool.result_kind, result)
                 steps.append({"name": step_name, "status": "SUCCEEDED", "summary": summary})
                 if not await publish(
@@ -612,6 +664,10 @@ class ConversationalAgent(AgentSessionService):
                 # 员工看到确切的完整草稿，模型只收到提议动作及种类，控制面不会再次发送原始配置正文。
                 if tool.result_kind == "resource_proposal":
                     return {"type": RESOURCE_ACTION, "kind": result["resource"]["kind"]}
+                if tool.result_kind == "resource_batch_proposal":
+                    return {"type": RESOURCE_BATCH_ACTION, "itemCount": len(result["items"])}
+                if tool.result_kind == "workspace_form":
+                    return {"capability": workspace_capability}
                 sanitized = sanitize(result, {key})
                 return (
                     sanitized if isinstance(sanitized, dict) else {"error": "AGENT_OUTPUT_INVALID"}
@@ -664,7 +720,13 @@ class ConversationalAgent(AgentSessionService):
             context,
             reply,
             reasoning_summary or None,
-            {"proposal": proposal, "relatedRunId": related_run_id, "steps": steps or None},
+            {
+                "proposal": proposal,
+                "relatedRunId": related_run_id,
+                "steps": steps or None,
+                "workspaceCapability": workspace_capability,
+                "report": report_projection,
+            },
         )
 
     async def _finish(
@@ -711,16 +773,33 @@ class ConversationalAgent(AgentSessionService):
                                 "Provider call failed",
                             )
                         if stream is not None:
+                            reply_text = sanitize_stream_reply(reply.output, {key})
+                            report = stream.get("report")
+                            requested = UUID_IN_TEXT.findall(turn.text)
+                            if (
+                                report
+                                and not stream.get("proposal")
+                                and REPORT_DETAIL.search(turn.text)
+                                and report.get("runId") == stream.get("relatedRunId")
+                                and (
+                                    not requested
+                                    or {rid.lower() for rid in requested} == {report["runId"]}
+                                )
+                            ):
+                                reply_text = format_run_report(
+                                    report, chinese=bool(re.search(r"[\u3400-\u9fff]", turn.text))
+                                )
                             await self._accept_stream(
                                 s,
                                 scope,
                                 user,
                                 turn,
-                                sanitize_stream_reply(reply.output, {key}),
+                                reply_text,
                                 stream.get("proposal"),
                                 stream.get("relatedRunId"),
                                 stream.get("steps"),
                                 thinking,
+                                stream.get("workspaceCapability"),
                             )
                         else:
                             await self._accept(
@@ -751,7 +830,9 @@ class ConversationalAgent(AgentSessionService):
                     turn.id,
                     workspace_id=scope.workspace_id,
                 )
-            result = turn_dto(turn)
+            result = (
+                await self.visible_turn(s, scope, user, turn) if denied is None else turn_dto(turn)
+            )
         if denied:
             raise denied
         return result
@@ -812,7 +893,13 @@ class ConversationalAgent(AgentSessionService):
         proposal = None
         reply_text = output["reply"]
         available = {r["runId"] for r in context["runs"]}
-        asks_for_report = _asks_for_report(turn.text)
+        candidate = output.get("proposal")
+        launching = (
+            isinstance(candidate, dict)
+            and candidate.get("type") in RUN | RUN_ACTIONS
+            and RUN_REQUEST.search(turn.text.lstrip())
+        )
+        asks_for_report = not launching and _asks_for_report(turn.text)
         report_text = None
         if asks_for_report:
             report_text, related = await self._requested_report(
@@ -828,10 +915,18 @@ class ConversationalAgent(AgentSessionService):
                 )
             if related and "proposal" not in output:
                 report_text = await self._run_reply(s, scope, user, [related])
-        if "proposal" in output and (not asks_for_report or related):
-            candidate = output["proposal"]
-            if candidate["type"] == RESOURCE_ACTION:
+        if candidate and (not asks_for_report or related):
+            kind = candidate["type"]
+            if kind == RESOURCE_ACTION:
                 proposal = await prepare_resource_draft(s, scope, user, candidate, context)
+            elif kind == RESOURCE_BATCH_ACTION:
+                proposal = await prepare_resource_batch(s, scope, user, candidate, context)
+            elif kind in RESOURCE_LIFECYCLE_ACTIONS:
+                proposal = await prepare_resource_lifecycle(
+                    s, scope, user, candidate, self.ai.settings, context
+                )
+            elif kind in RUN_ACTIONS:
+                proposal = await prepare_run_operation(s, scope, user, candidate, context)
             else:
                 proposal = await proposal_preview(s, scope, user, candidate, context)
                 try:
@@ -843,13 +938,20 @@ class ConversationalAgent(AgentSessionService):
                     proposal, reply_text = None, problem.message
         if report_text is not None:
             reply_text = report_text
+        capability = None
+        if form := output.get("workspaceForm"):
+            capability = form["capability"]
+            form = await workspace_form_card(s, scope, user, capability)
         turn.reasoning_summary = thinking
         dto = {**turn_dto(turn), "status": "COMPLETED", "reply": reply_text}
         if proposal:
             dto["proposal"] = proposal
         if related:
             dto["relatedRunId"] = related
+        if form:
+            dto["workspaceForm"] = form
         validate_api("AgentTurnDTO", dto)
+        turn.workspace_capability = capability
         turn.reply, turn.proposal, turn.related_run_id = reply_text, proposal, related
 
     async def _accept_stream(
@@ -863,15 +965,22 @@ class ConversationalAgent(AgentSessionService):
         related_run_id: str | None,
         steps: list[dict[str, Any]] | None,
         thinking: str | None,
+        workspace_capability: str | None = None,
     ) -> None:
         """把最终回复和工具结果先作为完整候选校验，失效的正文、步骤、关联标识及提议不会留在失败轮次中。"""
         if not isinstance(reply_text, str) or not reply_text.strip():
             raise Problem(422, "AGENT_OUTPUT_INVALID", "Conversation reply is empty")
+        form = (
+            await workspace_form_card(s, scope, user, workspace_capability)
+            if workspace_capability
+            else None
+        )
         results = {
             "proposal": proposal,
             "relatedRunId": related_run_id,
             "steps": steps,
             "thinking": thinking,
+            "workspaceForm": form,
         }
         dto = {
             **turn_dto(turn),
@@ -883,6 +992,7 @@ class ConversationalAgent(AgentSessionService):
         validate_api("AgentTurnDTO", dto)
         turn.reasoning_summary = thinking
         turn.steps = steps
+        turn.workspace_capability = workspace_capability
         turn.reply, turn.proposal, turn.related_run_id = reply_text, proposal, related_run_id
 
     async def _run_tool(
@@ -897,7 +1007,7 @@ class ConversationalAgent(AgentSessionService):
     ) -> dict[str, Any]:
         """每次工具调用都按目录校验参数，在短事务使用重新授权的登录身份及会话，模型只读数据或准备待确认提议。"""
         tool.validate_arguments(arguments)
-        prepares = tool.result_kind in {"proposal", "resource_proposal"}
+        prepares = tool.result_kind in PREVIEWS
         async with self.transaction(scope, tool.permission, write=prepares) as (s, user):
             await self.require_owned_session(s, scope, user, session_id, active=True)
             if denied := await authorize_round(s):
@@ -912,6 +1022,10 @@ class ConversationalAgent(AgentSessionService):
             return f"{result.get('state', '')} · {result.get('outcome') or '—'}"
         if result_kind == "resource_proposal":
             return str(result["resource"]["kind"])
+        if result_kind == "resource_batch_proposal":
+            return str(len(result["items"]))
         if result_kind == "proposal":
             return str(result.get("type", "proposal"))
+        if result_kind == "validation":
+            return f"{result.get('state', '')} · {result.get('outcome') or '—'}"
         return ""
