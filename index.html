@@ -1,25 +1,232 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="VeriQ 面向企业 Web 系统，支持可复现的自动化冒烟与回归测试。">
+<meta name="description" content="VeriQ automates smoke and regression testing for enterprise web applications.">
 <meta name="color-scheme" content="dark light">
-<title>VeriQ · 可复现的 Web 测试</title>
-<script src="./assets/homepage/preferences.js"></script>
-<link rel="stylesheet" href="./assets/homepage/style.css">
+<title>VeriQ · Reproducible web testing</title>
+<script>
+try {
+  const theme = localStorage.getItem('veriq-theme');
+  if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
+} catch {}
+</script>
+<style>
+:root {
+  color-scheme: dark;
+  --bg:#0b1325; --surface:#111d33; --text:#f5f8ff; --muted:#b0c0d8;
+  --line:#2a3a55; --accent:#91caff; --button-text:#0b1325; --grid:#8cb8ef16;
+  --glow:#376cc36b; --pass:#95e5c2; --fail:#ffb1bc;
+}
+:root[data-theme="light"] {
+  color-scheme:light;
+  --bg:#f5f8ff; --surface:#fff; --text:#172741; --muted:#465974;
+  --line:#cad8ea; --accent:#2159ad; --button-text:#fff; --grid:#3d6bb31b;
+  --glow:#78acfa69; --pass:#006544; --fail:#a02240;
+}
+* { box-sizing:border-box }
+html { scroll-behavior:smooth }
+body { margin:0; background:var(--bg); color:var(--text); font:16px/1.65 system-ui,sans-serif }
+a { color:inherit; text-decoration:none }
+a:hover { color:var(--accent) }
+button { font:inherit; cursor:pointer }
+:focus-visible { outline:3px solid var(--accent); outline-offset:4px }
+.wrap { width:min(100% - 64px, 1160px); margin-inline:auto }
+header { border-bottom:1px solid var(--line) }
+.navigation,.brand,.actions,.links,.footer { display:flex; align-items:center; gap:24px }
+.navigation { min-height:74px; justify-content:space-between }
+.brand { gap:10px; font-size:20px; font-weight:750 }
+.brand img { width:36px; height:36px }
+.links,.actions { color:var(--muted); font-size:14px }
+.actions { gap:8px }
+.actions button {
+  color:var(--text);
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:8px;
+  padding:6px 11px }
+.actions button:hover { border-color:var(--accent) }
+.hero {
+  background:linear-gradient(0deg,var(--bg),transparent 76%),
+    linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:auto,32px 32px,32px 32px;
+}
+.hero-layout {
+  display:grid;
+  grid-template-columns:1.25fr .75fr;
+  align-items:center;
+  gap:62px;
+  min-height:480px;
+  padding-block:54px }
+.status { display:inline-flex; align-items:center; gap:8px; color:var(--accent); font-size:14px; font-weight:650 }
+.status::before { content:""; width:7px; height:7px; border-radius:50%; background:currentColor }
+h1,h2,h3,p { margin:0 }
+h1 { font-size:clamp(42px,5.4vw,76px); line-height:1.09; letter-spacing:-.055em; margin-block:18px 22px }
+h1 span { display:block }
+h1 span + span { color:var(--accent) }
+.lede { color:var(--muted); font-size:19px; max-width:48ch }
+.cta {
+  display:inline-block;
+  margin-top:25px;
+  padding:11px 18px;
+  border-radius:9px;
+  background:var(--accent);
+  color:var(--button-text);
+  font-weight:750 }
+.cta:hover { color:var(--button-text); text-decoration:underline }
+.orbit {
+  display:grid;
+  place-items:center;
+  justify-self:center;
+  width:min(100%,284px);
+  aspect-ratio:1;
+  border:1px solid var(--line);
+  border-radius:50%;
+  background:radial-gradient(circle,var(--glow),transparent 72%);
+  box-shadow:0 0 0 18px var(--grid),0 0 0 37px var(--grid) }
+.orbit img { width:62%; height:auto }
+.section { padding-block:30px 54px; scroll-margin-top:20px }
+h2 { font-size:clamp(28px,3vw,42px); letter-spacing:-.035em; line-height:1.2; margin-bottom:22px }
+h3 { font-size:20px; margin-bottom:8px }
+.cards,.steps { display:grid; gap:15px }
+.cards { grid-template-columns:repeat(3,1fr) }
+.card,.report,.steps li { border:1px solid var(--line); background:var(--surface); border-radius:12px }
+.card { padding:22px }
+.card p,.steps li p,.report p,.footer { color:var(--muted) }
+.workflow { border-top:1px solid var(--line); padding-top:45px }
+.steps { grid-template-columns:repeat(4,1fr); list-style:none; margin:0; padding:0; counter-reset:step }
+.steps li { counter-increment:step; padding:16px }
+.steps li::before {
+  content:counter(step,decimal-leading-zero);
+  color:var(--accent);
+  font:700 14px ui-monospace,monospace }
+.steps h3 { margin:7px 0 4px; font-size:16px }
+.steps p { font-size:14px }
+.report { margin-top:20px; padding:23px }
+.report table { border-collapse:collapse; width:100%; margin-block:12px; text-align:left }
+.report th,.report td { padding:8px 5px; border-bottom:1px solid var(--line) }
+.report th[scope="col"] { color:var(--muted); font-size:14px }
+.pass { color:var(--pass); font-weight:700 }
+.fail { color:var(--fail); font-weight:700 }
+footer { border-top:1px solid var(--line); padding-block:23px }
+.footer { justify-content:space-between; flex-wrap:wrap }
+.footer a { color:var(--accent) }
+html { scroll-padding-top:20px }
+.section-intro,.architecture figcaption,.diagram-group span,.stack-grid dd,.release { color:var(--muted) }
+.architecture {
+  margin:20px 0 0;
+  padding:clamp(16px,3vw,30px);
+  border:1px solid var(--line);
+  background:var(--surface);
+  border-radius:12px }
+.topology { display:grid; gap:5px; text-align:center }
+.diagram-group { display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:8px }
+.diagram-group strong { padding:8px 14px; border:1px solid var(--line); border-radius:8px; background:var(--bg) }
+.diagram-group.control,.diagram-group.execution { flex-direction:column }
+.diagram-group.control strong,.diagram-group.execution strong,.connector { color:var(--accent) }
+.connector { font-size:22px; line-height:1.2 }
+.architecture figcaption { border-top:1px solid var(--line); margin-top:20px; padding-top:14px; font-size:14px }
+.stack-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:15px; margin:0 }
+.stack-grid dt { font-weight:750; margin-bottom:6px }
+.stack-grid dd { margin:0 }
+.release { margin-top:20px }
+@media(max-width:820px) {
+  .wrap { width:calc(100% - 40px) }
+  .hero-layout { gap:30px; min-height:400px }
+  .steps,.stack-grid { grid-template-columns:repeat(2,1fr) }
+  .navigation { flex-wrap:wrap; gap:12px; padding-block:12px }
+  .links { order:3; width:100%; flex-wrap:wrap; gap:12px 20px }
+}
+@media(max-width:590px) {
+  .navigation { flex-wrap:wrap; gap:12px; padding-block:12px }
+  .links { order:3; width:100% }
+  .hero-layout,.cards,.stack-grid { grid-template-columns:1fr }
+  .hero-layout { padding-block:36px; gap:36px }
+  .orbit { width:148px; }
+  .card,.report { padding:16px }
+}
+@media(prefers-reduced-motion:reduce) { html { scroll-behavior:auto } }
+</style>
 </head>
 <body id="top">
 <header>
-  <nav class="wrap navigation" aria-label="主要导航" data-en-label="Main navigation" data-zh-label="主要导航">
-    <a class="brand" href="#top"><img src="assets/branding/veriq-logo.svg" alt="" width="36" height="36">VeriQ</a>
+  <nav class="wrap navigation" aria-label="Main navigation" data-en-label="Main navigation" data-zh-label="主要导航">
+    <a class="brand" href="#top"><img src="data:image/svg+xml;base64,
+PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdC
+b3g9IjAgMCAxMDI0IDEwMjQiCiAgICByb2xlPSJpbWciIGFyaWEtbGFiZWxsZWRieT0idmVyaXEtbG9nby10aXRsZSB2ZXJp
+cS1sb2dvLWRlc2NyaXB0aW9uIj4KICAgIDx0aXRsZSBpZD0idmVyaXEtbG9nby10aXRsZSI+VmVyaVE8L3RpdGxlPgogICAg
+PGRlc2MgaWQ9InZlcmlxLWxvZ28tZGVzY3JpcHRpb24iPgogICAgICAgIOa3semdm+iTneWchuinkuaWueW9ouiDjOaZr+S4
+iueahOWGsOiTneiHs+mdkue7v+iJsiBWL1Eg5YWx56yU5qCH5b+X77yM55m96Imy55S75biD5bey5Y676Zmk77yM5aSW6YOo
+5L+d5oyB6YCP5piO44CCCiAgICA8L2Rlc2M+CiAgICA8ZGVmcz4KICAgICAgICA8bGluZWFyR3JhZGllbnQgaWQ9InZlcmlx
+LWJhY2tncm91bmQiIHgxPSIwIiB5MT0iMCIgeDI9IjEwMjQiIHkyPSIxMDI0IiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VP
+blVzZSI+CiAgICAgICAgICAgIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iIzI5M2M1OSIvPgogICAgICAgICAgICA8
+c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiM0OTU1NzgiLz4KICAgICAgICA8L2xpbmVhckdyYWRpZW50PgogICAgICAg
+IDxsaW5lYXJHcmFkaWVudCBpZD0idmVyaXEtZ2x5cGgiIHgxPSIyMTAiIHkxPSIyMyIgeDI9IjY4MCIgeTI9IjY3MiIgZ3Jh
+ZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogICAgICAgICAgICA8c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiNi
+NGRjZmEiLz4KICAgICAgICAgICAgPHN0b3Agb2Zmc2V0PSIwLjQ4IiBzdG9wLWNvbG9yPSIjNzliZGU4Ii8+CiAgICAgICAg
+ICAgIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzY4Y2ZjMyIvPgogICAgICAgIDwvbGluZWFyR3JhZGllbnQ+CiAg
+ICA8L2RlZnM+CiAgICA8cmVjdCB3aWR0aD0iMTAyNCIgaGVpZ2h0PSIxMDI0IiByeD0iMTc0IiBmaWxsPSJ1cmwoI3Zlcmlx
+LWJhY2tncm91bmQpIi8+CiAgICA8ZyB0cmFuc2Zvcm09InNjYWxlKDAuOTg1NTYzMDQyIDAuOTkwMzI4ODIwKSB0cmFuc2xh
+dGUoMTMyIDE1OSkiPgogICAgICAgIDxwYXRoIGZpbGw9InVybCgjdmVyaXEtZ2x5cGgpIiBmaWxsLXJ1bGU9ImV2ZW5vZGQi
+IGQ9IgogICAgICAgICAgICBNIDMwNy41MDAgNjcxLjAzMgogICAgICAgICAgICBDIDI4MC43MjEgNjY3LjIwMSAyNTYuNTg3
+IDY1NC40NzggMjQxLjM2NSA2MzYuMTY3CiAgICAgICAgICAgIEMgMjM2LjkzMyA2MzAuODM2IDIzMS44MDYgNjIxLjM4MiAy
+MTUuNzgzIDU4OS4wMDAKICAgICAgICAgICAgQyAyMDQuNzYxIDU2Ni43MjUgMTkyLjQ4NCA1NDEuNzUwIDE4OC40OTkgNTMz
+LjUwMAogICAgICAgICAgICBDIDE4NC41MTUgNTI1LjI1MCAxNzMuOTQ4IDUwMy42NTAgMTY1LjAxNyA0ODUuNTAwCiAgICAg
+ICAgICAgIEMgMTU2LjA4NiA0NjcuMzUwIDEzNy43OTcgNDMwLjA4NiAxMjQuMzczIDQwMi42OTEKICAgICAgICAgICAgQyAx
+MTAuOTUwIDM3NS4yOTcgODQuMjA3IDMyMS4zOTkgNjQuOTQ2IDI4Mi45MjAKICAgICAgICAgICAgQyAzOS4wNDQgMjMxLjE3
+NSAyOS42NDUgMjExLjQ2NSAyOC44NTEgMjA3LjIyOAogICAgICAgICAgICBDIDI3LjM4MiAxOTkuMzg5IDI4LjMzNyAxODYu
+NzAxIDMwLjkwNiAxNzkuOTE0CiAgICAgICAgICAgIEMgMzUuODQ4IDE2Ni44NjAgMzkuNTczIDE2Mi41MDIgMTAyLjYzNCA5
+Ni4wMDQKICAgICAgICAgICAgQyAxMzQuMzEyIDYyLjYwMCAxNTAuODI2IDQ2LjQzNiAxNTguNjEyIDQxLjIxMwogICAgICAg
+ICAgICBDIDE2OC40MDIgMzQuNjQ2IDE4MC4zNDYgMjkuMDY3IDE5MC43OTIgMjYuMTgzCiAgICAgICAgICAgIEwgMjAwLjUw
+MCAyMy41MDMgTCAzODMuNTAwIDIzLjE5NQogICAgICAgICAgICBDIDUxMS4wNDMgMjIuOTgwIDU3MC4zOTkgMjMuMjIxIDU3
+OS4zNjcgMjMuOTkxCiAgICAgICAgICAgIEMgNTk0LjE4MiAyNS4yNjIgNjEwLjU2MSAyOS4xODIgNjIzLjAwMCAzNC40MzQK
+ICAgICAgICAgICAgQyA2NjMuNTkzIDUxLjU3MyA2OTYuMjQ3IDg3LjUyOCA3MDkuNzkzIDEzMC4wMDAKICAgICAgICAgICAg
+QyA3MTYuNjMwIDE1MS40MzkgNzE2LjE1OCAxNDIuMDYzIDcxNy4yNzggMjc4LjUwMAogICAgICAgICAgICBDIDcxOC4zNTIg
+NDA5LjI0MiA3MTguMTAyIDQyMS43NjcgNzE0LjA1NSA0NDAuMDAwCiAgICAgICAgICAgIEMgNzA1LjAyMSA0ODAuNjk2IDY3
+Ni4yNjcgNTE1LjExNyA2MzguNzcwIDUzMC4xMjIKICAgICAgICAgICAgQyA2MzUuODcyIDUzMS4yODIgNjI4LjYxOCA1MzMu
+NDQ1IDYyMi42NTIgNTM0LjkyOAogICAgICAgICAgICBMIDYxMS44MDQgNTM3LjYyNCBMIDYzOC4xNTIgNTY1LjA5OQogICAg
+ICAgICAgICBDIDcwOS42NjcgNjM5LjY3MSA3MzEuMDAwIDY2Mi41MTAgNzMxLjAwMCA2NjQuNDk5CiAgICAgICAgICAgIEMg
+NzMxLjAwMCA2NjcuNjI2IDcyOC45NTIgNjY5LjkxOSA3MjUuMjM4IDY3MC45NTEKICAgICAgICAgICAgQyA3MTkuOTc2IDY3
+Mi40MTIgNTkyLjg3MSA2NzIuMzcwIDU4Ny41OTUgNjcwLjkwNQogICAgICAgICAgICBDIDU4NS4yNTggNjcwLjI1NiA1ODEu
+NDg1IDY2Ny43NDkgNTc4LjE5NiA2NjQuNjYwCiAgICAgICAgICAgIEMgNTcxLjUzMyA2NTguNDAyIDQ4NS4zNzQgNTY3LjY4
+MyA0ODIuMjMwIDU2My42MTUKICAgICAgICAgICAgQyA0ODAuNjI1IDU2MS41MzkgNDgwLjAwMCA1NTkuMzY4IDQ4MC4wMDAg
+NTU1Ljg2OAogICAgICAgICAgICBDIDQ4MC4wMDAgNTUxLjY5MyA0ODAuNTA3IDU1MC40NDQgNDgzLjU4OSA1NDcuMDMzCiAg
+ICAgICAgICAgIEMgNDg1LjU2NCA1NDQuODQ3IDQ4OS43MjYgNTQxLjgwOSA0OTIuODM5IDU0MC4yODAKICAgICAgICAgICAg
+TCA0OTguNTAwIDUzNy41MDAgTCA1MjguMDAwIDUzNi44NjAKICAgICAgICAgICAgQyA1NjEuMTE5IDUzNi4xNDEgNTY1LjE5
+NSA1MzUuNTA4IDU3OC41MDAgNTI5LjAxMAogICAgICAgICAgICBDIDU5My41NzcgNTIxLjY0NyA2MDMuNzAxIDUxMS41MTUg
+NjEwLjk4NCA0OTYuNTAwCiAgICAgICAgICAgIEMgNjE3Ljk1NCA0ODIuMTI5IDYxOC4yNDYgNDgwLjE3NCA2MTguNzM0IDQ0
+NC42NTUKICAgICAgICAgICAgTCA2MTkuMTcxIDQxMi44MTEgTCA2MTYuODM2IDQxMy41MjEKICAgICAgICAgICAgQyA2MDQu
+MDkxIDQxNy4zOTkgNTkwLjQ4NiA0MjQuNDUwIDU3Ni44MjIgNDM0LjI2MAogICAgICAgICAgICBDIDU2Ny4wNjAgNDQxLjI2
+OSA1NTAuMjA3IDQ1Ni44NTggNTQyLjkzNiA0NjUuNjA0CiAgICAgICAgICAgIEMgNTI4Ljk5NiA0ODIuMzczIDQ5Ny4wODAg
+NTIwLjk4NyA0ODguODgzIDUzMS4wMDAKICAgICAgICAgICAgQyA0ODQuMTU1IDUzNi43NzUgNDcxLjExMCA1NTIuNTY3IDQ1
+OS44OTQgNTY2LjA5NAogICAgICAgICAgICBDIDQ0OC42NzcgNTc5LjYyMSA0MzAuNTc4IDYwMS41NDUgNDE5LjY3MyA2MTQu
+ODE0CiAgICAgICAgICAgIEMgMzg5LjQ1MyA2NTEuNTg4IDM3NS41NzkgNjYyLjE2MSAzNDguNTAwIDY2OS4wNTQKICAgICAg
+ICAgICAgQyAzMzkuNDAxIDY3MS4zNzAgMzE3LjMxMyA2NzIuNDM1IDMwNy41MDAgNjcxLjAzMgogICAgICAgICAgICBaCiAg
+ICAgICAgICAgIE0gMzc5Ljc5OCA0OTEuMjUwCiAgICAgICAgICAgIEMgMzk5LjAzNiA0NjcuMTg4IDQxNy42MzIgNDQ0LjYy
+MyA0MjEuMTIyIDQ0MS4xMDcKICAgICAgICAgICAgQyA0MzguNDY2IDQyMy42MzIgNDYxLjY0OSA0MTIuMDIwIDQ4OC4wMDAg
+NDA3LjYwOQogICAgICAgICAgICBDIDQ5NS45MjQgNDA2LjI4MiA1MDcuNTc2IDQwNi4wMDggNTU4LjI1MCA0MDUuOTU2CiAg
+ICAgICAgICAgIEwgNjE5LjAwMCA0MDUuODk0IEwgNjE5LjAwMCAzMDEuMDM1CiAgICAgICAgICAgIEMgNjE5LjAwMCAyMTQu
+OTc2IDYxOC43NDcgMTk0Ljg2MCA2MTcuNTkxIDE4OC44MzgKICAgICAgICAgICAgQyA2MTIuMzM3IDE2MS40NzMgNTkzLjIy
+NyAxMzYuODY4IDU2Ny42NTMgMTI0LjUzNwogICAgICAgICAgICBDIDU0OS4zODUgMTE1LjczMCA1NzIuNjE5IDExNi41Nzgg
+MzQwLjgwMSAxMTYuMjU3CiAgICAgICAgICAgIEwgMTM1LjEwMyAxMTUuOTcyIEwgMTk1Ljg5MSAyMzcuNzM2CiAgICAgICAg
+ICAgIEMgMjI5LjMyNCAzMDQuNzA2IDI3Ni4xOTggMzk4Ljk4NyAzMDAuMDU2IDQ0Ny4yNTAKICAgICAgICAgICAgQyAzMjMu
+OTEzIDQ5NS41MTMgMzQzLjc0NSA1MzUuMDAwIDM0NC4xMjcgNTM1LjAwMAogICAgICAgICAgICBDIDM0NC41MDkgNTM1LjAw
+MCAzNjAuNTYxIDUxNS4zMTIgMzc5Ljc5OCA0OTEuMjUwCiAgICAgICAgICAgIFoKICAgICAgICAiLz4KICAgIDwvZz4KPC9z
+dmc+Cg==" alt="" width="36" height="36">VeriQ</a>
     <div class="links">
-      <a href="#capabilities" data-en="Capabilities">核心能力</a>
-      <a href="#workflow" data-en="Workflow">工作流程</a>
+    <a href="#capabilities"
+      data-zh="核心能力">Capabilities</a>
+    <a href="#workflow"
+      data-zh="工作流程">Workflow</a>
+    <a href="#architecture"
+      data-zh="架构">Architecture</a>
+    <a href="#stack"
+      data-zh="技术栈">Tech stack</a>
     </div>
     <div class="actions">
-      <button type="button" id="language" lang="en" aria-label="Switch to English">EN</button>
-      <button type="button" id="theme">浅色</button>
+      <button type="button" id="language" lang="zh-CN" aria-label="切换到中文">中文</button>
+      <button type="button" id="theme" aria-label="Switch to light mode">Light mode</button>
     </div>
   </nav>
 </header>
@@ -27,99 +234,306 @@
   <section class="hero" aria-labelledby="hero-title">
     <div class="wrap hero-layout">
       <div>
-        <p class="status" data-en="In development">项目开发中</p>
+        <p class="status" data-zh="项目开发中">In development</p>
         <h1 id="hero-title">
-          <span data-en="Reproducible tests.">测试可复现，</span>
-          <span data-en="Traceable results.">结果可追溯</span>
+        <span
+          data-zh="测试可复现，">Reproducible tests.</span>
+        <span
+          data-zh="结果可追溯">Traceable results.</span>
         </h1>
-        <p class="lede" data-en="VeriQ automates smoke and regression testing for enterprise web applications.">
-          VeriQ 面向企业 Web 系统，支持自动化冒烟与回归测试。
+        <p class="lede"
+          data-zh="VeriQ 面向企业 Web 系统，支持自动化冒烟与回归测试。">
+          VeriQ automates smoke and regression testing for enterprise web applications.
         </p>
-        <a class="cta" href="#capabilities" data-en="Explore capabilities ↓">了解核心能力 ↓</a>
+        <a class="cta" href="#capabilities" data-zh="了解核心能力 ↓">Explore capabilities ↓</a>
       </div>
-      <div class="orbit"><img src="assets/branding/veriq-logo.svg" alt="VeriQ" width="176" height="176"></div>
+      <div class="orbit"><img src="data:image/svg+xml;base64,
+PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdC
+b3g9IjAgMCAxMDI0IDEwMjQiCiAgICByb2xlPSJpbWciIGFyaWEtbGFiZWxsZWRieT0idmVyaXEtbG9nby10aXRsZSB2ZXJp
+cS1sb2dvLWRlc2NyaXB0aW9uIj4KICAgIDx0aXRsZSBpZD0idmVyaXEtbG9nby10aXRsZSI+VmVyaVE8L3RpdGxlPgogICAg
+PGRlc2MgaWQ9InZlcmlxLWxvZ28tZGVzY3JpcHRpb24iPgogICAgICAgIOa3semdm+iTneWchuinkuaWueW9ouiDjOaZr+S4
+iueahOWGsOiTneiHs+mdkue7v+iJsiBWL1Eg5YWx56yU5qCH5b+X77yM55m96Imy55S75biD5bey5Y676Zmk77yM5aSW6YOo
+5L+d5oyB6YCP5piO44CCCiAgICA8L2Rlc2M+CiAgICA8ZGVmcz4KICAgICAgICA8bGluZWFyR3JhZGllbnQgaWQ9InZlcmlx
+LWJhY2tncm91bmQiIHgxPSIwIiB5MT0iMCIgeDI9IjEwMjQiIHkyPSIxMDI0IiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VP
+blVzZSI+CiAgICAgICAgICAgIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iIzI5M2M1OSIvPgogICAgICAgICAgICA8
+c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiM0OTU1NzgiLz4KICAgICAgICA8L2xpbmVhckdyYWRpZW50PgogICAgICAg
+IDxsaW5lYXJHcmFkaWVudCBpZD0idmVyaXEtZ2x5cGgiIHgxPSIyMTAiIHkxPSIyMyIgeDI9IjY4MCIgeTI9IjY3MiIgZ3Jh
+ZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogICAgICAgICAgICA8c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiNi
+NGRjZmEiLz4KICAgICAgICAgICAgPHN0b3Agb2Zmc2V0PSIwLjQ4IiBzdG9wLWNvbG9yPSIjNzliZGU4Ii8+CiAgICAgICAg
+ICAgIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzY4Y2ZjMyIvPgogICAgICAgIDwvbGluZWFyR3JhZGllbnQ+CiAg
+ICA8L2RlZnM+CiAgICA8cmVjdCB3aWR0aD0iMTAyNCIgaGVpZ2h0PSIxMDI0IiByeD0iMTc0IiBmaWxsPSJ1cmwoI3Zlcmlx
+LWJhY2tncm91bmQpIi8+CiAgICA8ZyB0cmFuc2Zvcm09InNjYWxlKDAuOTg1NTYzMDQyIDAuOTkwMzI4ODIwKSB0cmFuc2xh
+dGUoMTMyIDE1OSkiPgogICAgICAgIDxwYXRoIGZpbGw9InVybCgjdmVyaXEtZ2x5cGgpIiBmaWxsLXJ1bGU9ImV2ZW5vZGQi
+IGQ9IgogICAgICAgICAgICBNIDMwNy41MDAgNjcxLjAzMgogICAgICAgICAgICBDIDI4MC43MjEgNjY3LjIwMSAyNTYuNTg3
+IDY1NC40NzggMjQxLjM2NSA2MzYuMTY3CiAgICAgICAgICAgIEMgMjM2LjkzMyA2MzAuODM2IDIzMS44MDYgNjIxLjM4MiAy
+MTUuNzgzIDU4OS4wMDAKICAgICAgICAgICAgQyAyMDQuNzYxIDU2Ni43MjUgMTkyLjQ4NCA1NDEuNzUwIDE4OC40OTkgNTMz
+LjUwMAogICAgICAgICAgICBDIDE4NC41MTUgNTI1LjI1MCAxNzMuOTQ4IDUwMy42NTAgMTY1LjAxNyA0ODUuNTAwCiAgICAg
+ICAgICAgIEMgMTU2LjA4NiA0NjcuMzUwIDEzNy43OTcgNDMwLjA4NiAxMjQuMzczIDQwMi42OTEKICAgICAgICAgICAgQyAx
+MTAuOTUwIDM3NS4yOTcgODQuMjA3IDMyMS4zOTkgNjQuOTQ2IDI4Mi45MjAKICAgICAgICAgICAgQyAzOS4wNDQgMjMxLjE3
+NSAyOS42NDUgMjExLjQ2NSAyOC44NTEgMjA3LjIyOAogICAgICAgICAgICBDIDI3LjM4MiAxOTkuMzg5IDI4LjMzNyAxODYu
+NzAxIDMwLjkwNiAxNzkuOTE0CiAgICAgICAgICAgIEMgMzUuODQ4IDE2Ni44NjAgMzkuNTczIDE2Mi41MDIgMTAyLjYzNCA5
+Ni4wMDQKICAgICAgICAgICAgQyAxMzQuMzEyIDYyLjYwMCAxNTAuODI2IDQ2LjQzNiAxNTguNjEyIDQxLjIxMwogICAgICAg
+ICAgICBDIDE2OC40MDIgMzQuNjQ2IDE4MC4zNDYgMjkuMDY3IDE5MC43OTIgMjYuMTgzCiAgICAgICAgICAgIEwgMjAwLjUw
+MCAyMy41MDMgTCAzODMuNTAwIDIzLjE5NQogICAgICAgICAgICBDIDUxMS4wNDMgMjIuOTgwIDU3MC4zOTkgMjMuMjIxIDU3
+OS4zNjcgMjMuOTkxCiAgICAgICAgICAgIEMgNTk0LjE4MiAyNS4yNjIgNjEwLjU2MSAyOS4xODIgNjIzLjAwMCAzNC40MzQK
+ICAgICAgICAgICAgQyA2NjMuNTkzIDUxLjU3MyA2OTYuMjQ3IDg3LjUyOCA3MDkuNzkzIDEzMC4wMDAKICAgICAgICAgICAg
+QyA3MTYuNjMwIDE1MS40MzkgNzE2LjE1OCAxNDIuMDYzIDcxNy4yNzggMjc4LjUwMAogICAgICAgICAgICBDIDcxOC4zNTIg
+NDA5LjI0MiA3MTguMTAyIDQyMS43NjcgNzE0LjA1NSA0NDAuMDAwCiAgICAgICAgICAgIEMgNzA1LjAyMSA0ODAuNjk2IDY3
+Ni4yNjcgNTE1LjExNyA2MzguNzcwIDUzMC4xMjIKICAgICAgICAgICAgQyA2MzUuODcyIDUzMS4yODIgNjI4LjYxOCA1MzMu
+NDQ1IDYyMi42NTIgNTM0LjkyOAogICAgICAgICAgICBMIDYxMS44MDQgNTM3LjYyNCBMIDYzOC4xNTIgNTY1LjA5OQogICAg
+ICAgICAgICBDIDcwOS42NjcgNjM5LjY3MSA3MzEuMDAwIDY2Mi41MTAgNzMxLjAwMCA2NjQuNDk5CiAgICAgICAgICAgIEMg
+NzMxLjAwMCA2NjcuNjI2IDcyOC45NTIgNjY5LjkxOSA3MjUuMjM4IDY3MC45NTEKICAgICAgICAgICAgQyA3MTkuOTc2IDY3
+Mi40MTIgNTkyLjg3MSA2NzIuMzcwIDU4Ny41OTUgNjcwLjkwNQogICAgICAgICAgICBDIDU4NS4yNTggNjcwLjI1NiA1ODEu
+NDg1IDY2Ny43NDkgNTc4LjE5NiA2NjQuNjYwCiAgICAgICAgICAgIEMgNTcxLjUzMyA2NTguNDAyIDQ4NS4zNzQgNTY3LjY4
+MyA0ODIuMjMwIDU2My42MTUKICAgICAgICAgICAgQyA0ODAuNjI1IDU2MS41MzkgNDgwLjAwMCA1NTkuMzY4IDQ4MC4wMDAg
+NTU1Ljg2OAogICAgICAgICAgICBDIDQ4MC4wMDAgNTUxLjY5MyA0ODAuNTA3IDU1MC40NDQgNDgzLjU4OSA1NDcuMDMzCiAg
+ICAgICAgICAgIEMgNDg1LjU2NCA1NDQuODQ3IDQ4OS43MjYgNTQxLjgwOSA0OTIuODM5IDU0MC4yODAKICAgICAgICAgICAg
+TCA0OTguNTAwIDUzNy41MDAgTCA1MjguMDAwIDUzNi44NjAKICAgICAgICAgICAgQyA1NjEuMTE5IDUzNi4xNDEgNTY1LjE5
+NSA1MzUuNTA4IDU3OC41MDAgNTI5LjAxMAogICAgICAgICAgICBDIDU5My41NzcgNTIxLjY0NyA2MDMuNzAxIDUxMS41MTUg
+NjEwLjk4NCA0OTYuNTAwCiAgICAgICAgICAgIEMgNjE3Ljk1NCA0ODIuMTI5IDYxOC4yNDYgNDgwLjE3NCA2MTguNzM0IDQ0
+NC42NTUKICAgICAgICAgICAgTCA2MTkuMTcxIDQxMi44MTEgTCA2MTYuODM2IDQxMy41MjEKICAgICAgICAgICAgQyA2MDQu
+MDkxIDQxNy4zOTkgNTkwLjQ4NiA0MjQuNDUwIDU3Ni44MjIgNDM0LjI2MAogICAgICAgICAgICBDIDU2Ny4wNjAgNDQxLjI2
+OSA1NTAuMjA3IDQ1Ni44NTggNTQyLjkzNiA0NjUuNjA0CiAgICAgICAgICAgIEMgNTI4Ljk5NiA0ODIuMzczIDQ5Ny4wODAg
+NTIwLjk4NyA0ODguODgzIDUzMS4wMDAKICAgICAgICAgICAgQyA0ODQuMTU1IDUzNi43NzUgNDcxLjExMCA1NTIuNTY3IDQ1
+OS44OTQgNTY2LjA5NAogICAgICAgICAgICBDIDQ0OC42NzcgNTc5LjYyMSA0MzAuNTc4IDYwMS41NDUgNDE5LjY3MyA2MTQu
+ODE0CiAgICAgICAgICAgIEMgMzg5LjQ1MyA2NTEuNTg4IDM3NS41NzkgNjYyLjE2MSAzNDguNTAwIDY2OS4wNTQKICAgICAg
+ICAgICAgQyAzMzkuNDAxIDY3MS4zNzAgMzE3LjMxMyA2NzIuNDM1IDMwNy41MDAgNjcxLjAzMgogICAgICAgICAgICBaCiAg
+ICAgICAgICAgIE0gMzc5Ljc5OCA0OTEuMjUwCiAgICAgICAgICAgIEMgMzk5LjAzNiA0NjcuMTg4IDQxNy42MzIgNDQ0LjYy
+MyA0MjEuMTIyIDQ0MS4xMDcKICAgICAgICAgICAgQyA0MzguNDY2IDQyMy42MzIgNDYxLjY0OSA0MTIuMDIwIDQ4OC4wMDAg
+NDA3LjYwOQogICAgICAgICAgICBDIDQ5NS45MjQgNDA2LjI4MiA1MDcuNTc2IDQwNi4wMDggNTU4LjI1MCA0MDUuOTU2CiAg
+ICAgICAgICAgIEwgNjE5LjAwMCA0MDUuODk0IEwgNjE5LjAwMCAzMDEuMDM1CiAgICAgICAgICAgIEMgNjE5LjAwMCAyMTQu
+OTc2IDYxOC43NDcgMTk0Ljg2MCA2MTcuNTkxIDE4OC44MzgKICAgICAgICAgICAgQyA2MTIuMzM3IDE2MS40NzMgNTkzLjIy
+NyAxMzYuODY4IDU2Ny42NTMgMTI0LjUzNwogICAgICAgICAgICBDIDU0OS4zODUgMTE1LjczMCA1NzIuNjE5IDExNi41Nzgg
+MzQwLjgwMSAxMTYuMjU3CiAgICAgICAgICAgIEwgMTM1LjEwMyAxMTUuOTcyIEwgMTk1Ljg5MSAyMzcuNzM2CiAgICAgICAg
+ICAgIEMgMjI5LjMyNCAzMDQuNzA2IDI3Ni4xOTggMzk4Ljk4NyAzMDAuMDU2IDQ0Ny4yNTAKICAgICAgICAgICAgQyAzMjMu
+OTEzIDQ5NS41MTMgMzQzLjc0NSA1MzUuMDAwIDM0NC4xMjcgNTM1LjAwMAogICAgICAgICAgICBDIDM0NC41MDkgNTM1LjAw
+MCAzNjAuNTYxIDUxNS4zMTIgMzc5Ljc5OCA0OTEuMjUwCiAgICAgICAgICAgIFoKICAgICAgICAiLz4KICAgIDwvZz4KPC9z
+dmc+Cg==" alt="VeriQ" width="176" height="176"></div>
     </div>
   </section>
   <section class="wrap section" id="capabilities" aria-labelledby="capabilities-title">
-    <h2 id="capabilities-title" data-en="Core capabilities">核心能力</h2>
+    <h2 id="capabilities-title" data-zh="核心能力">Core capabilities</h2>
     <div class="cards">
       <article class="card">
-        <h3 data-en="Versioned test assets">测试资产版本化</h3>
-        <p data-en="Manage page elements, actions, assertions, and test data as reviewable, versioned assets.">
-          将页面元素、操作、断言和测试数据整理为可审阅、可发布的版本化资产。
-        </p>
+      <h3
+        data-zh="测试资产版本化">Versioned test assets</h3>
+      <p
+        data-zh="将页面元素、操作、断言和测试数据整理为可审阅、可发布的版本化资产。">
+        Manage page elements, actions, assertions, and test data as reviewable, versioned assets.
+      </p>
       </article>
       <article class="card">
-        <h3 data-en="Reproducible execution">可复现执行</h3>
-        <p data-en="Run tests with a fixed asset version, environment snapshot, and browser toolchain.">
-          执行时固定资产版本、环境快照和浏览器工具链，让团队知道每次运行使用了哪些输入。
-        </p>
+      <h3
+        data-zh="可复现执行">Reproducible execution</h3>
+      <p
+        data-zh="执行时固定资产版本、环境快照和浏览器工具链，让团队知道每次运行使用了哪些输入。">
+        Run tests with a fixed asset version, environment snapshot, and browser toolchain.
+      </p>
       </article>
       <article class="card">
-        <h3 data-en="Step-level evidence">步骤证据</h3>
-        <p data-en="Use step results and browser traces to investigate where a test failed.">
-          查看步骤结果和浏览器 Trace，定位失败发生在哪一步。
-        </p>
+      <h3
+        data-zh="步骤证据">Step-level evidence</h3>
+      <p
+        data-zh="查看步骤结果和浏览器 Trace，定位失败发生在哪一步。">
+        Use step results and browser traces to investigate where a test failed.
+      </p>
       </article>
     </div>
   </section>
   <section class="wrap section workflow" id="workflow" aria-labelledby="workflow-title">
-    <h2 id="workflow-title" data-en="From test assets to results">从测试资产到运行结果</h2>
+    <h2 id="workflow-title" data-zh="从测试资产到运行结果">From test assets to results</h2>
     <ol class="steps">
       <li>
-        <h3 data-en="Prepare test assets">准备测试资产</h3>
-        <p data-en="Define actions, assertions, and test data.">定义操作、断言与测试数据。</p>
+      <h3
+        data-zh="准备测试资产">Prepare test assets</h3>
+      <p
+        data-zh="定义操作、断言与测试数据。">
+        Define actions, assertions, and test data.
+      </p>
       </li>
       <li>
-        <h3 data-en="Publish a version">发布版本</h3>
-        <p data-en="Release the reviewed assets as a fixed version.">将审阅后的资产发布为固定版本。</p>
+      <h3
+        data-zh="发布版本">Publish a version</h3>
+      <p
+        data-zh="将审阅后的资产发布为固定版本。">
+        Release the reviewed assets as a fixed version.
+      </p>
       </li>
       <li>
-        <h3 data-en="Run the test">执行测试</h3>
-        <p data-en="Run that version against an environment snapshot.">使用指定版本和环境快照运行测试。</p>
+      <h3
+        data-zh="执行测试">Run the test</h3>
+      <p
+        data-zh="使用指定版本和环境快照运行测试。">
+        Run that version against an environment snapshot.
+      </p>
       </li>
       <li>
-        <h3 data-en="Review the report">查看报告</h3>
-        <p data-en="Inspect step results and trace evidence.">检查步骤结果并查看 Trace 证据。</p>
+      <h3
+        data-zh="查看报告">Review the report</h3>
+      <p
+        data-zh="检查步骤结果并查看 Trace 证据。">
+        Inspect step results and trace evidence.
+      </p>
       </li>
     </ol>
     <div class="report" aria-labelledby="example-title">
-      <h3 id="example-title" data-en="Example · Sign-in smoke test">示例 · 登录冒烟测试</h3>
-      <p data-en="Illustrative data · Test asset v12">示意数据 · 测试资产 v12</p>
+      <h3 id="example-title" data-zh="示例 · 登录冒烟测试">Example · Sign-in smoke test</h3>
+      <p data-zh="示意数据 · 测试资产 v12">Illustrative data · Test asset v12</p>
       <table aria-labelledby="example-title">
-        <thead>
-          <tr>
-            <th scope="col" data-en="Step">步骤</th>
-            <th scope="col" data-en="Result">结果</th>
-          </tr>
-        </thead>
+        <thead><tr><th scope="col" data-zh="步骤">Step</th><th scope="col" data-zh="结果">Result</th></tr></thead>
         <tbody>
           <tr>
-            <th scope="row" data-en="Open the sign-in page">打开登录页</th>
-            <td class="pass" data-en="Passed">通过</td>
+          <th scope="row"
+            data-zh="打开登录页">Open the sign-in page</th>
+          <td class="pass"
+            data-zh="通过">Passed</td>
           </tr>
+          <tr><th scope="row" data-zh="提交表单">Submit the form</th><td class="pass" data-zh="通过">Passed</td></tr>
           <tr>
-            <th scope="row" data-en="Submit the form">提交表单</th>
-            <td class="pass" data-en="Passed">通过</td>
-          </tr>
-          <tr>
-            <th scope="row" data-en="Assert that the dashboard is visible">断言工作台可见</th>
-            <td class="fail" data-en="Failed">失败</td>
+          <th scope="row"
+            data-zh="断言工作台可见">Assert that the dashboard is visible</th>
+          <td class="fail"
+            data-zh="失败">Failed</td>
           </tr>
         </tbody>
       </table>
-      <p data-en="The form submission passed. Inspect the browser trace for the failed assertion
-        to see which page was shown after submission.">
-        表单提交成功。查看失败断言对应的浏览器 Trace，可确认提交后实际显示了哪个页面。
+      <p
+        data-zh="表单提交成功。查看失败断言对应的浏览器 Trace，可确认提交后实际显示了哪个页面。">
+      The form submission passed. Inspect the browser trace for the failed assertion to see which page was
+        shown after submission.
       </p>
     </div>
   </section>
+<section class="wrap section workflow" id="architecture" aria-labelledby="architecture-title">
+  <h2 id="architecture-title" data-zh="系统架构">System architecture</h2>
+  <p class="section-intro"
+    data-zh="控制服务管理资产、任务和报告。独立运行时在云端或本地设备执行浏览器测试。">
+  The control service manages assets, jobs, and reports. Independent runtimes execute browser tests in the
+    cloud or on a local device.
+  </p>
+  <figure class="architecture">
+    <div class="topology">
+      <div class="diagram-group">
+      <strong
+        data-zh="网页管理台">Web console</strong>
+      <strong
+        data-zh="外部调度 / CI">External scheduler / CI</strong>
+      </div>
+      <span class="connector" aria-hidden="true">↓</span>
+      <div class="diagram-group control">
+      <strong
+        data-zh="Tornado 控制服务">Tornado control service</strong>
+      <span
+        data-zh="MySQL · 资产、任务与结果">MySQL · assets, jobs, and results</span>
+      </div>
+      <span class="connector" aria-hidden="true">↕</span>
+      <div class="diagram-group">
+      <strong
+        data-zh="编译 Worker">Compilation worker</strong>
+      <strong
+        data-zh="云端运行时">Cloud runtime</strong>
+      <strong
+        data-zh="桌面工作台 / 本地 Agent">Desktop companion / local agent</strong>
+      </div>
+      <span class="connector" aria-hidden="true">↓</span>
+      <div class="diagram-group execution">
+      <strong
+        data-zh="浏览器执行 · Node.js + Playwright">
+        Browser execution · Node.js + Playwright
+      </strong>
+      <span
+        data-zh="云端与本地运行时使用同一套测试工具链。">
+        Cloud and local runtimes use the same test toolchain.
+      </span>
+      </div>
+    </div>
+    <figcaption
+      data-zh="编译 Worker 校验测试资产。云端和本地 Agent 从控制服务领取任务并回传步骤结果。">
+    The compilation worker validates test assets. Cloud and local agents claim jobs from the control service
+      and return step results.
+    </figcaption>
+  </figure>
+</section>
+<section class="wrap section workflow" id="stack" aria-labelledby="stack-title">
+  <h2 id="stack-title" data-zh="技术栈">Technology stack</h2>
+  <dl class="stack-grid">
+    <div class="card">
+    <dt
+      data-zh="控制服务与存储">Control service and storage</dt>
+    <dd>
+      Python 3.12 · Tornado · SQLAlchemy · MySQL 8.4
+    </dd>
+    </div>
+    <div class="card"><dt data-zh="网页管理台">Web console</dt><dd>React · TypeScript · Vite · Tailwind CSS</dd></div>
+    <div class="card"><dt data-zh="浏览器执行">Browser execution</dt><dd>Node.js 24 · Playwright</dd></div>
+    <div class="card"><dt data-zh="桌面工作台">Desktop workbench</dt><dd>Electron · React · SQLite</dd></div>
+    <div class="card"><dt data-zh="共享契约">Shared contracts</dt><dd>OpenAPI · JSON Schema</dd></div>
+    <div class="card"><dt data-zh="构建与测试">Build and testing</dt><dd>pnpm · uv · pytest · Vitest</dd></div>
+  </dl>
+  <p class="release"
+    data-zh="项目状态：开发中。工作区管理、资产编译与发布、联网执行和报告已有实现。首个正式版本尚待发布。">
+  Project status: In development. Workspace management, asset compilation and publishing, connected test
+    execution, and reporting are implemented. The first formal release is pending.
+  </p>
+</section>
 </main>
 <footer>
   <div class="wrap footer">
-    <span data-en="VeriQ · AGPL-3.0 license">VeriQ · AGPL-3.0 许可证</span>
-    <a href="https://github.com/baofengbaofeng/VeriQ" data-en="Source on GitHub ↗">GitHub 源码 ↗</a>
+  <span
+    data-zh="VeriQ · AGPL-3.0 许可证">VeriQ · AGPL-3.0 license</span>
+  <a href="https://github.com/baofengbaofeng/VeriQ"
+    data-zh="GitHub 源码 ↗">Source on GitHub ↗</a>
   </div>
 </footer>
+<script>
+(() => {
+  const root = document.documentElement;
+  const languageButton = document.getElementById('language');
+  const themeButton = document.getElementById('theme');
+  const translations = Array.from(document.querySelectorAll('[data-zh]'), element => ({
+    element, zh: element.dataset.zh.replace(/\n\s*/g, ''),
+    en: element.textContent.trim().replace(/\s+/g, ' ')
+  }));
+  const navigation = document.querySelector('nav');
+  const description = document.querySelector('meta[name="description"]');
+  let language = 'en';
+  try {
+    if (localStorage.getItem('veriq-language') === 'zh') language = 'zh';
+  } catch {}
+
+  function renderTheme() {
+    const light = root.dataset.theme === 'light';
+    themeButton.textContent = language === 'en' ? (light ? 'Dark mode' : 'Light mode') : (light ? '深色' : '浅色');
+    themeButton.setAttribute('aria-label', language === 'en'
+      ? (light ? 'Switch to dark mode' : 'Switch to light mode')
+      : (light ? '切换到深色主题' : '切换到浅色主题'));
+  }
+
+  function renderLanguage() {
+    const english = language === 'en';
+    root.lang = english ? 'en' : 'zh-CN';
+    document.title = english ? 'VeriQ · Reproducible web testing' : 'VeriQ · 可复现的 Web 测试';
+    translations.forEach(({ element, zh, en }) => { element.textContent = english ? en : zh; });
+    navigation.setAttribute('aria-label', english ? navigation.dataset.enLabel : navigation.dataset.zhLabel);
+    description.content = document.querySelector('.lede').textContent;
+    languageButton.textContent = english ? '中文' : 'EN';
+    languageButton.lang = english ? 'zh-CN' : 'en';
+    languageButton.setAttribute('aria-label', english ? '切换到中文' : 'Switch to English');
+    renderTheme();
+  }
+
+  languageButton.addEventListener('click', () => {
+    language = language === 'en' ? 'zh' : 'en';
+    try { localStorage.setItem('veriq-language', language); } catch {}
+    renderLanguage();
+  });
+  themeButton.addEventListener('click', () => {
+    root.dataset.theme = root.dataset.theme === 'light' ? 'dark' : 'light';
+    try { localStorage.setItem('veriq-theme', root.dataset.theme); } catch {}
+    renderTheme();
+  });
+  renderLanguage();
+})();
+</script>
 </body>
 </html>
