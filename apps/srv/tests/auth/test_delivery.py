@@ -3,14 +3,18 @@
 import asyncio
 from email import policy
 from email.parser import BytesParser
+import json
 import re
+from unittest.mock import AsyncMock
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import event, select
+from sqlalchemy.orm import Session
 from tornado.httpserver import HTTPServer
 
 from veriq_server.app import make_app
-from veriq_server.db import UserToken
+from veriq_server.db import AuditLog, UserToken
+from veriq_server.delivery import ResetDispatcher
 from veriq_server.settings import Settings
 from test_auth import setup, login
 
@@ -117,6 +121,17 @@ async def test_local_smtp_delivery_and_private_failure(site, caplog):
             await dispatcher.close()
             async with db.sessions() as session:
                 assert not (await session.execute(select(UserToken))).scalars().all()
+                actions = (
+                    await session.scalars(
+                        select(AuditLog.action).where(AuditLog.action.like("reset.%"))
+                    )
+                ).all()
+                assert sorted(actions) == [
+                    "reset.delivered",
+                    "reset.delivery_failed",
+                    "reset.requested",
+                    "reset.requested",
+                ]
             assert "mail.delivery_failed" in caplog.text
             assert "SMTP-secret-error-marker" not in caplog.text and token not in caplog.text
     finally:
@@ -125,3 +140,53 @@ async def test_local_smtp_delivery_and_private_failure(site, caplog):
         await server.close_all_connections()
         smtp_listener.close()
         await smtp_listener.wait_closed()
+
+
+async def test_delivered_link_survives_audit_commit_failure(site, caplog):
+    """在投递成功后让审计提交失败，验证邮件中的链接仍能完成改密，运维可凭日志定位请求审计行。"""
+    client, db = site
+    await setup(client)
+    config = Settings(
+        database_url=db.engine.url.render_as_string(hide_password=False),
+        public_url=str(client.base_url).rstrip("/"),
+        master_key="a" * 64,
+        signing_key="b" * 64,
+        environment="development",
+    )
+    delivery = AsyncMock()
+    dispatcher = ResetDispatcher(db, config, delivery)
+
+    def fail_delivered_commit(session):
+        if any(
+            isinstance(row, AuditLog) and row.action == "reset.delivered" for row in session.new
+        ):
+            raise RuntimeError("private-database-error-marker")
+
+    event.listen(Session, "before_commit", fail_delivered_commit)
+    try:
+        dispatcher.submit("admin@example.com")
+        await dispatcher.close()
+    finally:
+        event.remove(Session, "before_commit", fail_delivered_commit)
+
+    delivery.send.assert_awaited_once()
+    body = delivery.send.await_args.args[2]
+    token = re.search(r"#token=(\S+)", body).group(1)
+    confirmed = await client.post(
+        "/api/v1/auth/password-reset/confirm",
+        json={"token": token, "newPassword": "Delivered password 123!"},
+    )
+    assert confirmed.status_code == 200
+    async with db.sessions() as session:
+        request = (
+            await session.scalars(select(AuditLog).where(AuditLog.action.like("reset.%")))
+        ).one()
+        assert request.action == "reset.requested"
+    events = [
+        json.loads(record.message) for record in caplog.records if record.name == "veriq.mail"
+    ]
+    assert events == [{"event": "mail.delivered_audit_failed", "requestAuditId": request.id}]
+    assert all(
+        private not in caplog.text
+        for private in ("private-database-error-marker", "admin@example.com", token)
+    )

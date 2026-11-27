@@ -7,6 +7,7 @@ validation 生成 ValidationReceipt。retry_is_safe 要求声明夹具且清理�
 """
 
 import json
+from datetime import datetime
 from hashlib import sha256
 from typing import Any
 from uuid import uuid4
@@ -22,7 +23,7 @@ from ..settings import Settings
 from .connected_datasets import protected_test, protected_event_context, protected_event
 from .capacity import CapacityService
 from .engines import ApprovedEngines
-from .jobs import require_requester, database_time
+from .jobs import require_requester, database_time, unactivated_lease
 from .lease import LeaseService
 from .results import reduce_test, aggregate
 from .runtime import RuntimeService
@@ -492,6 +493,30 @@ class CompletionService:
             "cleanup": manifest["cleanupStatus"],
             "evidence": "COMPLETE",
         }
+
+    async def expire_lease(self, job: Job, attempt: Attempt, current: datetime) -> bool:
+        """调用方在安装锁内核对数据库时限，领取重放与定时回收统一结算原预留和运行结果。"""
+        capacity = CapacityService(self.session, self.settings)
+        unactivated = unactivated_lease(job, attempt) and await capacity.reservations_match(
+            job, attempt, "HELD"
+        )
+        attempt.phase, attempt.outcome = "FINISHED", "ERROR"
+        if attempt.finished_at is None:
+            attempt.finished_at = current
+        attempt.facts = {
+            "business": "UNKNOWN",
+            "cleanup": "NOT_REQUIRED" if unactivated else "UNKNOWN",
+            "evidence": "INCOMPLETE",
+            "errorCode": "UNACTIVATED_CLAIM_CLOSED" if unactivated else "WORKER_LOST",
+        }
+        if unactivated:
+            await capacity.release(attempt)
+        else:
+            await capacity.quarantine(attempt)
+        if job.active_attempt_id == attempt.id and job.fence == attempt.fencing_token:
+            job.state, job.outcome = "FINISHED", "ERROR"
+            await self.aggregate_job(job, attempt)
+        return unactivated
 
     async def aggregate_job(self, job: Job, attempt: Attempt) -> None:
         """根据 Attempt 结果更新 Job 终态，必要时调度唯一一次重试，CompletionService.aggregate_job 遵守本文件边界。

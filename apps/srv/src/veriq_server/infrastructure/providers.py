@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Protocol, cast, AsyncIterator, Callable, Awaitable, Literal
 import json
 
@@ -30,6 +30,8 @@ SYSTEM = (
     "observed responses as truth, weaken assertions, publish, invoke tools or request credentials. "
     "Return CASE_DRAFT as a CASE resource document; other purposes as {suggestions:[string],basis:string}."
 )
+
+AGENT_ROUND_INPUT_LIMIT = 262144
 
 # 只为明确支持自适应思考和摘要显示的型号请求摘要，兼容适配器上未声明语义的推理扩展字段不属于公开会话内容。
 _CLAUDE_ADAPTIVE_MODELS = frozenset(
@@ -220,6 +222,34 @@ async def limit_response(response: httpx.Response) -> None:
     response.stream = LimitedStream(response.stream)  # type: ignore[arg-type]
 
 
+def _anthropic_tools(tools: list[dict[str, Any]]) -> list[ToolParam]:
+    """使用同一份 Claude 工具声明计算预留和发送请求。"""
+    return [
+        {"name": t["name"], "description": t["description"], "input_schema": t["parameters"]}
+        for t in tools
+    ]
+
+
+def _openai_tools(tools: list[dict[str, Any]]) -> list[ChatCompletionFunctionToolParam]:
+    """计入 Chat Completions 为每个函数添加的协议封装。"""
+    return [
+        {
+            "type": "function",
+            "function": {
+                "name": t["name"],
+                "description": t["description"],
+                "parameters": t["parameters"],
+            },
+        }
+        for t in tools
+    ]
+
+
+def _json_size(value: object) -> int:
+    """按 UTF-8 计算含转义后的 JSON 字节。"""
+    return len(json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode())
+
+
 class ProviderGateway:
     """按适配器类型调用 Anthropic 或 OpenAI 兼容接口，统一截断不完整输出与非法 JSON；ANTHROPIC 与 OpenAI 分支共享超时、
     禁重试与体积护栏。
@@ -377,6 +407,23 @@ class ProviderGateway:
             return ModelReply(None, usage_in, usage_out, "AI_INVALID_JSON")
         return ModelReply(output, usage_in, usage_out)
 
+    def agent_input_bound(self, context: DraftContext, tools: list[dict[str, Any]]) -> int:
+        """按所选协议计算固定提示和工具声明的字节数；原生视觉输入按图像尺寸计费，保留其消息封装。"""
+        prompt = replace(
+            context, images=tuple(replace(image, data_base64="") for image in context.images)
+        )
+        if self.config["adapter"] == "ANTHROPIC":
+            size = _json_size(
+                {
+                    "system": prompt.system,
+                    "messages": prompt.anthropic_messages(),
+                    "tools": _anthropic_tools(tools),
+                }
+            )
+        else:
+            size = _json_size({"messages": prompt.openai_messages(), "tools": _openai_tools(tools)})
+        return size + 8192 + sum(image.input_bound() for image in context.images)
+
     async def generate_agent_stream(
         self,
         context: DraftContext,
@@ -387,24 +434,44 @@ class ProviderGateway:
         max_rounds: int = 4,
         *,
         authorize_round: Callable[[], Awaitable[str | None]] | None = None,
+        input_token_budget: int | None = None,
     ) -> ModelReply:
         """流式回调正文及已请求的供应商摘要，工具由服务端执行并回填，结束后合并同一次调用各轮的用量及最终正文。"""
         usage_in = 0
         usage_out = 0
         usage_known = True
 
+        initial_bound = self.agent_input_bound(context, tools)
+        remaining_input = (
+            initial_bound * max_rounds if input_token_budget is None else input_token_budget
+        )
+        remaining_output = context.max_output_tokens * max_rounds
+        round_bound = initial_bound
+
+        def can_send(history: object) -> bool:
+            """续轮的消息包括全部模型块、工具参数和返回值；同时保留本轮允许的最大输出。"""
+            nonlocal round_bound
+            round_bound = initial_bound + (_json_size(history) if history else 0)
+            return (
+                round_bound <= min(AGENT_ROUND_INPUT_LIMIT, remaining_input)
+                and context.max_output_tokens <= remaining_output
+            )
+
         def record_usage(input_tokens: object, output_tokens: object) -> None:
             """仅累计本轮上游实际报告的非负整数；任意已发出轮次缺少用量时，整笔预留仍用于覆盖未知费用。"""
-            nonlocal usage_in, usage_out, usage_known
-            if (
-                type(input_tokens) is int
-                and type(output_tokens) is int
-                and min(input_tokens, output_tokens) >= 0
-            ):
+            nonlocal usage_in, usage_out, usage_known, remaining_input, remaining_output
+            if type(input_tokens) is int and input_tokens >= 0:
                 usage_in += input_tokens
-                usage_out += output_tokens
+                remaining_input -= input_tokens
             else:
                 usage_known = False
+                remaining_input -= round_bound
+            if type(output_tokens) is int and output_tokens >= 0:
+                usage_out += output_tokens
+                remaining_output -= output_tokens
+            else:
+                usage_known = False
+                remaining_output -= context.max_output_tokens
 
         def model_reply(output: str | None, error: str | None = None) -> ModelReply:
             """仅在每个已发送轮次都提供有效用量时结算累计值；首轮发送前的拒绝可确定为零次上游调用。"""
@@ -426,23 +493,19 @@ class ProviderGateway:
                     max_retries=0,
                     http_client=http,
                 )
-                anthropic_tools: list[ToolParam] = [
-                    {
-                        "name": t["name"],
-                        "description": t["description"],
-                        "input_schema": t["parameters"],
-                    }
-                    for t in tools
-                ]
+                anthropic_tools = _anthropic_tools(tools)
                 system = context.system
                 messages = context.anthropic_messages()
                 summary_enabled = (
                     on_thinking is not None and self.config["model"] in _CLAUDE_ADAPTIVE_MODELS
                 )
                 summary_params = {"type": "adaptive", "display": "summarized"}
+                initial_messages = len(messages)
                 for _ in range(max_rounds):
                     if authorize_round and (error := await authorize_round()):
                         return model_reply(None, error)
+                    if not can_send(messages[initial_messages:]):
+                        return model_reply(None, "AI_REQUEST_LIMIT")
                     final_output_tokens = None
                     async with sdk.messages.stream(
                         model=self.config["model"],
@@ -515,21 +578,14 @@ class ProviderGateway:
                     max_retries=0,
                     http_client=http,
                 )
-                openai_tools: list[ChatCompletionFunctionToolParam] = [
-                    {
-                        "type": "function",
-                        "function": {
-                            "name": t["name"],
-                            "description": t["description"],
-                            "parameters": t["parameters"],
-                        },
-                    }
-                    for t in tools
-                ]
+                openai_tools = _openai_tools(tools)
                 openai_messages = context.openai_messages()
+                initial_messages = len(openai_messages)
                 for _ in range(max_rounds):
                     if authorize_round and (error := await authorize_round()):
                         return model_reply(None, error)
+                    if not can_send(openai_messages[initial_messages:]):
+                        return model_reply(None, "AI_REQUEST_LIMIT")
                     openai_stream = await openai.chat.completions.create(
                         model=self.config["model"],
                         messages=openai_messages,

@@ -6742,7 +6742,7 @@
                         }
                     },
                     "409": {
-                        "description": "Stable JSON error; code is a machine-readable domain code.",
+                        "description": "UNACTIVATED_CLAIM_CLOSED confirms a committed closure for details.clientRequestId. Other conflicts require reconciliation.",
                         "content": {
                             "application/json": { "schema": { "$ref": "#/components/schemas/ErrorEnvelope" } }
                         }

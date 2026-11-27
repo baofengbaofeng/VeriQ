@@ -2,12 +2,14 @@
 
 import asyncio
 import json
-from datetime import timedelta
+from datetime import datetime, timedelta
 from uuid import uuid4
 
+import pytest
 from emulator import emulator
 from jsonschema import Draft202012Validator
 from sqlalchemy import select
+from test_agent_reasoning_gateway import _claude_events
 from test_agent_sessions import _agent, _create, _scope
 from test_generation import provider_config
 from test_lease_mysql import device
@@ -17,6 +19,7 @@ from test_workspace import client, new_member, workspace
 
 from veriq_server.db import AgentTurn, AiGeneration, Artifact, CaseExecution, ResourceVersion
 from veriq_server.service import now
+from veriq_server.services.jobs import database_time
 
 
 async def conversation(c, ws, provider_endpoint, **options):
@@ -229,27 +232,58 @@ async def test_agent_provider_call_is_private_and_charged(site):
         assert len(model.calls) == 1
 
 
-async def test_agent_running_replay_expiry_and_late_result_fencing(site):
+@pytest.mark.parametrize("stream", [False, True])
+async def test_agent_running_replay_expiry_and_late_result_fencing(site, monkeypatch, stream):
     """供应商阻塞期间重放可看到真实运行中轮次，超过调用期限后读取恢复失败，原调用迟到也不能写入提议。"""
     c, db = site
     ws = await _scope(c)
     async with emulator() as model:
-        path, _, _ = await conversation(c, ws, model)
+        path, _, _ = await conversation(c, ws, model, adapter="ANTHROPIC")
+        host_offset = timedelta(minutes=-15)
+
+        class SkewedClock(datetime):
+            """模拟发起、轮询和回调所在节点相反的主机时钟偏差，数据库 UTC 保持真实。"""
+
+            @classmethod
+            def now(cls, tz=None):
+                return super().now(tz) + host_offset
+
+        monkeypatch.setattr("veriq_server.service.datetime", SkewedClock)
+        async with db.sessions() as s:
+            before = await database_time(s)
+        model.stream_responses = [
+            list(
+                _claude_events(
+                    [
+                        (
+                            {"type": "text", "text": ""},
+                            [{"type": "text_delta", "text": "Late response"}],
+                        )
+                    ],
+                    stop_reason="end_turn",
+                )
+            )
+        ]
         model.output = {"reply": "Late response"}
         model.wait = True
         model.release.clear()
         rid = str(uuid4())
-        task = asyncio.create_task(c.post(path, json={"requestId": rid, "text": "Plan"}))
+        post_path = path + "/stream" if stream else path
+        task = asyncio.create_task(c.post(post_path, json={"requestId": rid, "text": "Plan"}))
         try:
             done, _ = await asyncio.wait(
                 [task, asyncio.create_task(model.started.wait())],
                 return_when=asyncio.FIRST_COMPLETED,
             )
             assert task not in done, task.result().text if task in done else ""
+            host_offset = timedelta(minutes=15)
             assert (await submit(c, path, "Plan", rid))["status"] == "RUNNING"
             async with db.sessions.begin() as s:
                 pending = (await s.scalars(select(AgentTurn))).one()
-                pending.created_at = now() - timedelta(minutes=5)
+                observed = await database_time(s)
+                assert before <= pending.created_at <= observed
+                pending.created_at = observed - timedelta(minutes=7)
+            host_offset = timedelta(minutes=-15)
             history = (await c.get(path)).json()["data"]["items"]
             assert history[0]["status"] == "FAILED"
         finally:

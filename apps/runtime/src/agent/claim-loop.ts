@@ -1,6 +1,7 @@
 /**
  * 本文件实现 Agent 认领循环：本地持久化 claim 请求、恢复后隔离未排空进程，并按租约预算串行执行每次 Attempt。
  */
+import { RuntimeError } from "../enrollment.ts";
 import { randomUUID } from "node:crypto";
 import { addAbortListener } from "node:events";
 import { mkdir } from "node:fs/promises";
@@ -114,7 +115,20 @@ export async function claimLoop(options: {
                 await publishPending(options.root, request);
             }
             const requestStarted = performance.now();
-            const claim = await client.request<Claim | undefined>("/internal/v1/jobs/claim", "POST", request, signal);
+            let claim: Claim | undefined;
+            try {
+                claim = await client.request<Claim | undefined>("/internal/v1/jobs/claim", "POST", request, signal);
+            } catch (error) {
+                if (
+                    !(error instanceof RuntimeError) ||
+                    error.status !== 409 ||
+                    error.code !== "UNACTIVATED_CLAIM_CLOSED" ||
+                    error.clientRequestId !== request.clientRequestId.toLowerCase()
+                )
+                    throw error;
+                await clearPending(options.root);
+                continue;
+            }
             const responseReceived = performance.now();
             if (claim) {
                 const result = await supervisor.runAttempt(

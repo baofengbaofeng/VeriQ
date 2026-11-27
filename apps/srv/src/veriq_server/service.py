@@ -98,13 +98,14 @@ def audit(
     *,
     workspace_id: str | None = None,
     source_version_id: str | None = None,
-) -> None:
-    """向当前事务追加一条审计行；可绑定 Workspace，失败不单独提交，随调用方事务一起回滚，audit 的失败路径返回稳定错误。
+) -> str:
+    """向当前事务追加一条审计行并返回其 ID，供提交后关联运维事件。审计行随调用方事务一起提交或回滚。
     audit 必须坚持 Workspace 归属与成员授权，嵌套资源引用不得跨空间隐式放行。
     """
+    audit_id = str(uuid4())
     s.add(
         AuditLog(
-            id=str(uuid4()),
+            id=audit_id,
             actor_id=actor,
             target_id=target,
             workspace_id=workspace_id,
@@ -113,6 +114,7 @@ def audit(
             created_at=now(),
         )
     )
+    return audit_id
 
 
 async def lock_installation(s: AsyncSession) -> Installation:

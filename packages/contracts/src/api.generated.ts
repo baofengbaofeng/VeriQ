@@ -15970,7 +15970,8 @@ export interface operations {
                 };
             };
             /**
-             * @description Stable JSON error; code is a machine-readable domain code.
+             * @description UNACTIVATED_CLAIM_CLOSED confirms a committed closure for details.clientRequestId. Other
+             * conflicts require reconciliation.
              */
             409: {
                 headers: {

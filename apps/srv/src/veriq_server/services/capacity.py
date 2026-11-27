@@ -2,7 +2,7 @@
 available 在安装护栏下 FOR UPDATE；超卖返回 None。过期进程 quarantine 至 release。
 """
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from ..db import Attempt, CapacityPool, Job, ResourceLease
 from ..settings import Settings
@@ -82,6 +82,34 @@ class CapacityService:
                     state="HELD",
                 )
             )
+
+    async def reservations_match(self, job: Job, attempt: Attempt, state: str) -> bool:
+        """对未激活关闭核对原 Job 所需容量键及每条预留的状态，异常账本交给已有的维护核对流程。"""
+        leases = await self.session.scalars(
+            select(ResourceLease).where(ResourceLease.attempt_id == attempt.id)
+        )
+        recorded = {row.pool_key: (row.workspace_id, row.state) for row in leases}
+        expected = {
+            key: (job.workspace_id, state) for key, _ in self.requirements(job, attempt.runtime_id)
+        }
+        if recorded != expected:
+            return False
+        if state == "RELEASED":
+            # 关闭后共享池可被其他 Attempt 占用，原请求只重放自己的释放记录。
+            return True
+        # 设备专用键之外的池可由多个 Workspace 共用；释放前用该池的全部未释放预留核对计数。
+        held = (
+            select(func.count())
+            .select_from(ResourceLease)
+            .where(ResourceLease.pool_key == CapacityPool.key, ResourceLease.state != "RELEASED")
+            .scalar_subquery()
+        )
+        inconsistent = await self.session.scalar(
+            select(CapacityPool.key)
+            .where(CapacityPool.key.in_(list(expected)), CapacityPool.used != held)
+            .limit(1)
+        )
+        return inconsistent is None
 
     async def quarantine(self, attempt: Attempt) -> None:
         """标记 QUARANTINED 不回退 used，剥夺过期权威，CapacityService.quarantine 路径必须遵守 Workspace 作用域。

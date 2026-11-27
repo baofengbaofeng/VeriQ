@@ -20,7 +20,9 @@ import time
 from collections.abc import AsyncIterator
 from typing import Any, Never
 
+import boto3
 import pytest
+from botocore.stub import Stubber
 from sqlalchemy import event
 
 import veriq_server
@@ -28,6 +30,7 @@ from veriq_server import db, readiness, recovery, settings, snapshot_io
 from veriq_server.handlers import static
 
 _DSN = "mysql+asyncmy://synthetic-recovery:synthetic-recovery-password@db.invalid/veriq_synthetic"
+_BUCKET = "synthetic-recovery-target"
 _ACTIVE = "13" * 32
 _HISTORY = "26" * 32
 _SIGNING = "39" * 32
@@ -154,7 +157,9 @@ def _replace_payload(case: _RecoveryCase, name: str, raw: bytes) -> _RecoveryCas
 
 
 @pytest.fixture(name="recovery_case")
-def _recovery_case(tmp_path: pathlib.Path, static_package: pathlib.Path) -> _RecoveryCase:
+def _recovery_case(
+    tmp_path: pathlib.Path, static_package: pathlib.Path, request: pytest.FixtureRequest
+) -> _RecoveryCase:
     """
     使用当前安装的迁移头和生产静态加载结果生成私有归档，源制品、目标制品及外置材料配置使用互不重叠的根。
 
@@ -167,6 +172,7 @@ def _recovery_case(tmp_path: pathlib.Path, static_package: pathlib.Path) -> _Rec
     target = settings.Settings.model_validate(
         {
             "database_url": _DSN,
+            **getattr(request, "param", {}),
             "public_url": "https://recovery.invalid",
             "master_key_id": "active",
             "master_key": _ACTIVE,
@@ -211,7 +217,7 @@ def _recovery_case(tmp_path: pathlib.Path, static_package: pathlib.Path) -> _Rec
             "historical": hashlib.sha256(bytes.fromhex(_HISTORY)).hexdigest(),
         },
         "signingKeyFingerprint": hashlib.sha256(bytes.fromhex(_SIGNING)).hexdigest(),
-        "artifactBackend": "FILE",
+        "artifactBackend": target.artifact_backend,
         "s3Objects": [],
         "s3Tombstones": [],
         "files": files,
@@ -237,27 +243,24 @@ def _tree_state(root: pathlib.Path) -> dict[str, tuple[int, str]]:
     return state
 
 
-async def _restore(
-    case: _RecoveryCase,
-    trap: _DatabaseTrap,
-    *,
-    services_stopped: bool = True,
-    allow_restore: bool = True,
-    confirm_empty_target: bool = True,
-) -> None:
+async def _restore(case: _RecoveryCase, trap: _DatabaseTrap, **flags: bool) -> None:
     """
-    在测试固定关闭对象存储授权的前提下调用公开恢复函数，让各场景只替换需要验证的归档或操作员确认。
+    调用公开恢复函数，让各场景单独指定所需的归档与操作员确认。
     """
+    confirmations = {
+        "services_stopped": True,
+        "allow_restore": True,
+        "confirm_empty_target": True,
+        "allow_s3_inventory": False,
+        **flags,
+    }
     await recovery.restore(
         trap.database,
         case.target,
         case.source,
         expected_digest=case.digest,
-        services_stopped=services_stopped,
-        allow_restore=allow_restore,
-        confirm_empty_target=confirm_empty_target,
-        allow_s3_inventory=False,
         configuration_path=case.configuration,
+        **confirmations,
     )
 
 
@@ -291,6 +294,78 @@ async def test_untouched_archive_reaches_database_trap(
         await _restore(recovery_case, database_trap)
     assert database_trap.attempts == 1
     assert _tree_state(root) == before
+
+
+@pytest.mark.parametrize(
+    "recovery_case", [{"artifact_backend": "S3", "artifact_s3_bucket": _BUCKET}], indirect=True
+)
+async def test_empty_s3_archive_requires_inventory_permission(
+    recovery_case: _RecoveryCase, database_trap: _DatabaseTrap
+) -> None:
+    """即使快照中没有 S3 对象或墓碑，也必须先获得清点目标桶的许可。"""
+    await _assert_restore_refused(
+        recovery_case, database_trap, "RESTORE_S3_LIST_PERMISSION_CONFIRMATION_REQUIRED"
+    )
+
+
+@pytest.mark.parametrize(
+    "recovery_case", [{"artifact_backend": "S3", "artifact_s3_bucket": _BUCKET}], indirect=True
+)
+@pytest.mark.parametrize("occupied", [True, False], ids=["occupied", "empty"])
+async def test_empty_s3_archive_checks_target_bucket_before_database(
+    recovery_case: _RecoveryCase,
+    database_trap: _DatabaseTrap,
+    monkeypatch: pytest.MonkeyPatch,
+    occupied: bool,
+) -> None:
+    """以受控 SDK 响应模拟有对象和无对象的桶，只有清点为空才可进入数据库校验。"""
+    client = boto3.Session().client(
+        "s3", region_name="us-east-1", aws_access_key_id="synthetic", aws_secret_access_key="test"
+    )
+    monkeypatch.setattr(recovery, "s3_client", lambda _: client)
+    with Stubber(client) as stubber:
+        stubber.add_response(
+            "list_objects_v2",
+            {
+                "IsTruncated": False,
+                "KeyCount": int(occupied),
+                "Contents": [{"Key": "unrelated-object"}] if occupied else [],
+            },
+            {"Bucket": _BUCKET, "MaxKeys": 1},
+        )
+        if occupied:
+            await _assert_restore_refused(
+                recovery_case, database_trap, "RESTORE_S3_TARGET_NOT_EMPTY", allow_s3_inventory=True
+            )
+        else:
+            before = _tree_state(recovery_case.source.parent)
+            with pytest.raises(_DatabaseAccessError):
+                await _restore(recovery_case, database_trap, allow_s3_inventory=True)
+            assert database_trap.attempts == 1
+            assert _tree_state(recovery_case.source.parent) == before
+        stubber.assert_no_pending_responses()
+
+
+@pytest.mark.parametrize("history", ["object", "tombstone"])
+async def test_file_restore_with_s3_history_still_requires_inventory(
+    recovery_case: _RecoveryCase, database_trap: _DatabaseTrap, history: str
+) -> None:
+    """默认写入 FILE 的部署也必须为历史 S3 对象或墓碑授权清点。"""
+    manifest = _archive_manifest(recovery_case)
+    key = "historical/object"
+    if history == "object":
+        path = "s3-artifacts/" + key
+        snapshot_io.private_file(recovery_case.source / path, _ARTIFACT_BYTES)
+        manifest["files"][path] = _identity(_ARTIFACT_BYTES)
+        manifest["s3Objects"] = [{"key": key, "file": path, **_identity(_ARTIFACT_BYTES)}]
+    else:
+        manifest["s3Tombstones"] = [key]
+    changed = dataclasses.replace(
+        recovery_case, digest=_write_manifest(recovery_case.source, manifest)
+    )
+    await _assert_restore_refused(
+        changed, database_trap, "RESTORE_S3_LIST_PERMISSION_CONFIRMATION_REQUIRED"
+    )
 
 
 @pytest.mark.parametrize(
