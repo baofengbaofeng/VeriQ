@@ -34,7 +34,7 @@ from apps.srv.tests.operations import readiness_support
 
 # 显式绑定两项公共夹具，让 pytest 在本模块发现同一守卫和启动器并正常解析它们的依赖关系。
 create_readiness_server = readiness_support.create_readiness_server
-site = readiness_support.site
+site = readiness_support.site_fixture
 
 if TYPE_CHECKING:
     import mypy_boto3_s3

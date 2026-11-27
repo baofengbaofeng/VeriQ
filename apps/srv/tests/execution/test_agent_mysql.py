@@ -18,8 +18,8 @@ from tornado.httpserver import HTTPServer
 from tornado.netutil import bind_sockets
 
 
-@pytest.fixture
-async def business():
+@pytest.fixture(name="business")
+async def business_service():
     facts = {
         "writes": 0,
         "reads": 0,

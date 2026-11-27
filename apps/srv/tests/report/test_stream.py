@@ -102,10 +102,12 @@ async def test_sse_replays_once_and_closes_after_membership_revocation(site):
             async with db.sessions.begin() as writer:
                 await lock_installation(writer)
 
-                def capture(conn, cursor, sql, args, context, many):
-                    statements.append(sql.lower())
+                def capture(*, statement, **_context):
+                    statements.append(statement.lower())
 
-                sql_event.listen(db.engine.sync_engine, "before_cursor_execute", capture)
+                sql_event.listen(
+                    db.engine.sync_engine, "before_cursor_execute", capture, named=True
+                )
                 try:
                     assert await asyncio.wait_for(anext(lines), 5) == ": keepalive"
                 finally:

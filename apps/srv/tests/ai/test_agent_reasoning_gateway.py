@@ -48,7 +48,7 @@ async def test_chat_completion_does_not_emit_raw_reasoning_content():
             _noop_tool,
         )
         assert text == ["Ready"] and reply.output == "Ready"
-        assert summaries == []
+        assert not summaries
 
 
 def _claude_events(blocks, *, stop_reason):

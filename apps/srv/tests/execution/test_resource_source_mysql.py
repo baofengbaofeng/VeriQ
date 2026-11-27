@@ -18,8 +18,8 @@ from test_engine_capabilities_mysql import _settings_with_inventory, _write_inve
 from veriq_server.db import Artifact
 from veriq_server.settings import Settings
 
-business = test_agent_mysql.business
-dataset_deployment = test_http_datasets.dataset_deployment
+business_service = test_agent_mysql.business_service
+shared_dataset_deployment = test_http_datasets.shared_dataset_deployment
 
 
 async def test_published_source_exact_bytes_integrity_scope_and_current_membership(site):
@@ -434,8 +434,8 @@ async def test_static_fetch_is_scoped_to_attempt_fence_and_version(site):
     assert (await c.post(path, json=selection, headers=headers)).status_code == 401
 
 
-@pytest.fixture
-async def dataset_wire(monkeypatch):
+@pytest.fixture(name="dataset_wire")
+async def _dataset_wire(monkeypatch):
     """真实回环服务器按线上的路径记录每一笔请求，测试只替换部署目标套接字，继续使用 HTTPX 完整收发响应。"""
     from veriq_server.datasets import request
 
@@ -464,9 +464,9 @@ async def dataset_wire(monkeypatch):
         port = server.sockets[0].getsockname()[1]
 
         class Loopback(httpx.AsyncHTTPTransport):
-            async def handle_async_request(self, req):
-                req.url = req.url.copy_with(scheme="http", host="127.0.0.1", port=port)
-                return await super().handle_async_request(req)
+            async def handle_async_request(self, request):
+                request.url = request.url.copy_with(scheme="http", host="127.0.0.1", port=port)
+                return await super().handle_async_request(request)
 
         monkeypatch.setattr(request, "open_transport", Loopback)
         yield calls, state
@@ -1410,9 +1410,9 @@ async def test_http_dataset_rechecks_access_before_delivery(dataset_deployment, 
         port = server.sockets[0].getsockname()[1]
 
         class Loopback(httpx.AsyncHTTPTransport):
-            async def handle_async_request(self, req):
-                req.url = req.url.copy_with(scheme="http", host="127.0.0.1", port=port)
-                return await super().handle_async_request(req)
+            async def handle_async_request(self, request):
+                request.url = request.url.copy_with(scheme="http", host="127.0.0.1", port=port)
+                return await super().handle_async_request(request)
 
         monkeypatch.setattr(request, "open_transport", Loopback)
 
@@ -1583,8 +1583,8 @@ async def test_old_http_projection_reuses_only_the_live_capable_revalidation():
     assert result == (migration, None)
 
 
-@pytest.fixture
-async def historical_http_case(site, dataset_deployment):
+@pytest.fixture(name="historical_http_case")
+async def _historical_http_case(site, dataset_deployment):
     """共用正常创建的环境、HTTP 数据版本、用例草稿和受信设备，旧回执与新投影分别由各测试场景单独生成。"""
     from test_http_datasets import REF, config, connection
     from test_publish import create

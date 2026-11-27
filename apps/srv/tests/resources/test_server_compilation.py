@@ -87,8 +87,8 @@ def test_compilation_output_binds_approved_files_and_frozen_source():
         verify_compiled_output(source, engine, canonical_bytes(foreign), files, connected=False)
 
 
-@pytest.fixture
-async def queued_validation(site, tmp_path):
+@pytest.fixture(name="queued_validation")
+async def _queued_validation(site, tmp_path):
     """在独立工作区授予编辑权限并通过正式资源服务创建草稿，首个校验作业与预览返回的源码摘要绑定。"""
     _, db = site
     actor = await initialize(

@@ -1,6 +1,9 @@
 import sys
 from uuid import uuid4
 from pathlib import Path
+import pytest
+
+from veriq_server.services.bundle import BundleService
 from test_auth import setup, login
 from test_workspace import workspace
 
@@ -60,7 +63,6 @@ async def test_published_selection_exports_secret_free_archive(
     )
     assert response.status_code == 201, response.text
     dto = response.json()["data"]
-    from veriq_server.services.bundle import BundleService
 
     def must_not_assemble(_prepared):
         raise AssertionError("Replay must not regenerate an archive")
@@ -168,7 +170,6 @@ async def test_published_selection_exports_secret_free_archive(
     import asyncio
     import threading
     from test_workspace import new_member, client
-    from veriq_server.services.bundle import BundleService
 
     editor_id = await new_member(c, ws, "export-editor@example.com", "EDITOR")
     started, release = threading.Event(), threading.Event()
@@ -365,6 +366,7 @@ async def test_no_runtime_debug_dsl_only_requires_explicit_status_and_editor(sit
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
     assert result.returncode == 0, result.stderr
     inspected = subprocess.run(
@@ -383,14 +385,14 @@ async def test_no_runtime_debug_dsl_only_requires_explicit_status_and_editor(sit
         ],
         capture_output=True,
         text=True,
+        check=False,
     )
     assert inspected.returncode == 0, inspected.stderr
     assert "Verified local resource adapter" in inspected.stdout
 
 
-async def test_bundle_selection_and_download_require_current_workspace_authority(
-    approved_metadata, site
-):
+@pytest.mark.usefixtures("approved_metadata")
+async def test_bundle_selection_and_download_require_current_workspace_authority(site):
     from test_workspace import new_member, client
     from test_publish import create, queue
 

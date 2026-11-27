@@ -1,3 +1,5 @@
+"""为公开分页接口准备超过单页上限的用户和会话记录，核对游标在筛选条件、账号范围及同一时间戳下的行为。"""
+
 from datetime import timedelta
 from uuid import uuid4
 
@@ -10,6 +12,7 @@ from test_auth import setup, login
 
 
 async def test_users_filtered_keyset_pages_and_caps(site):
+    """按状态筛选后逐页遍历管理员用户列表，比对插入顺序与结果标识，并验证原游标受到筛选与会话约束。"""
     c, db = site
     await setup(c)
     await login(c)
@@ -26,6 +29,7 @@ async def test_users_filtered_keyset_pages_and_caps(site):
                     password_hash=admin.password_hash,
                     disabled=index % 2 == 0,
                     system_admin=False,
+                    created_at=now(),
                 )
             )
             if index % 2 == 0:
@@ -74,6 +78,7 @@ async def test_users_filtered_keyset_pages_and_caps(site):
 
 
 async def test_own_sessions_stable_ties_scope_and_caps(site):
+    """为同一用户批量插入创建时间相同的会话，核对跨页时的标识次序和其他账号无法复用游标的限制。"""
     c, db = site
     await setup(c)
     await login(c)

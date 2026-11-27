@@ -185,7 +185,7 @@ async def test_expiry_membership_removal_and_client_trust_rejected(site):
 
 
 async def test_cross_workspace_grants_and_private_rollback_of_trust(site):
-    c, db, ws = await ready(site)
+    c, _, ws = await ready(site)
     other = await workspace(c, "other")
     outsider = await new_member(c, other, role="EXECUTOR")
     credential = await enroll(c, ws, private=False)
@@ -220,7 +220,7 @@ async def test_cross_workspace_grants_and_private_rollback_of_trust(site):
 
 
 async def test_service_account_bootstrap_current_scope_and_disable(site):
-    c, db, ws = await ready(site)
+    c, _, ws = await ready(site)
     base = f"/api/v1/workspaces/{ws}/service-accounts"
     created = await c.post(base, json={"name": "Deployment"})
     assert created.status_code == 201, created.text
@@ -330,7 +330,7 @@ async def test_service_bootstrap_expiry_revoke_and_cannot_cross_scope(site):
 
 
 async def test_inspection_csrf_token_scope_and_unsupported_methods(site):
-    c, db, ws = await ready(site)
+    c, _, ws = await ready(site)
     d = await begin(c)
     r = await c.post("/api/v1/runtime-enrollments/inspect", json={"userCode": d["userCode"]})
     assert r.status_code == 200 and r.json()["data"]["name"] == "Private laptop"

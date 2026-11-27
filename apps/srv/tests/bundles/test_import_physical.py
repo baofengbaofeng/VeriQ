@@ -28,8 +28,8 @@ from veriq_server.db import Attempt, OfflineAttempt, CaseExecution
 from veriq_server.handlers.base import MAX_HTTP_BODY_BYTES
 
 
-@pytest.fixture
-def control_server(monkeypatch):
+@pytest.fixture(name="control_server")
+def _control_server(monkeypatch):
     captured = []
     original = HTTPServer.add_sockets
 
@@ -42,8 +42,8 @@ def control_server(monkeypatch):
     return captured
 
 
-@pytest.fixture
-async def physical_site(control_server, site):
+@pytest.fixture(name="physical_site")
+async def _physical_site(control_server, site):
     yield (*site, control_server[0])
 
 

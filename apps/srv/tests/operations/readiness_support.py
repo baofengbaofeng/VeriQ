@@ -15,7 +15,9 @@ from tornado import httpserver, netutil, web
 from veriq_server import app, db, settings, validation
 
 # 复用唯一守卫夹具，避免另造清库算法或绕过专用库检查；新应用只借用该夹具已经迁移的数据库句柄。
-site = runpy.run_path(str(pathlib.Path(__file__).parents[1] / "auth" / "conftest.py"))["site"]
+site_fixture = runpy.run_path(str(pathlib.Path(__file__).parents[1] / "auth" / "conftest.py"))[
+    "site"
+]
 
 
 class ReadinessSite(TypedDict):

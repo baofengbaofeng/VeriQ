@@ -2,12 +2,20 @@
 运行结果仍由执行层负责而不在此伪造成功状态。
 """
 
+import asyncio
+import os
+from datetime import timedelta
 from uuid import uuid4
+
+import httpx
+from sqlalchemy import func, select
 
 from test_auth import setup, login
 from test_workspace import workspace
-from test_lease_mysql import device
+from test_lease_mysql import auth, claim_body, device
 from test_runs_mysql import published, environment
+from veriq_server.db import Attempt, Job, Run
+from veriq_server.service import now
 
 
 async def plan_assets(c, db, ws):
@@ -143,10 +151,6 @@ async def test_three_parallel_triggers_serialize_claims_and_freeze_revision(site
     """三个并发触发应产生三个稳定序号且只有最早运行可领取，修改计划后原始键重试仍指向旧快照；首运行未释放物理占用时即使
     逻辑取消，也不得让后继任务穿过重叠保护。
     """
-    import asyncio
-    from sqlalchemy import select
-    from veriq_server.db import Run, Job
-    from test_lease_mysql import claim_body, auth
 
     c, db, ws, runtime, plan = await plan_fixture(site)
     path = f"/api/v1/workspaces/{ws}/execution-plans/{plan['id']}"
@@ -200,8 +204,6 @@ async def test_skip_creates_terminal_run_without_jobs(site):
     """SKIP 的重叠触发必须留下独立终态记录且没有执行任务，避免调度方把 HTTP 成功误认为业务通过；
     相同键重放仍保留该跳过记录，安全 JUnit 与 CI 摘要必须继续呈现失败门禁。
     """
-    from sqlalchemy import select
-    from veriq_server.db import Job
 
     c, db, ws, _, plan = await plan_fixture(site, "SKIP")
     path = f"/api/v1/workspaces/{ws}/execution-plans/{plan['id']}/trigger"
@@ -224,7 +226,6 @@ async def test_skip_creates_terminal_run_without_jobs(site):
 
 async def test_plan_notifications_follow_runtime_claim_and_overlap_skip(site):
     """生产触发、设备领取和重叠终止入口必须生成对应通知，排队和重放不产生额外消息，跳过的执行只有结束通知。"""
-    from test_lease_mysql import auth, claim_body
 
     client, _, workspace_id, runtime, plan = await plan_fixture(site, "SKIP")
     trigger = f"/api/v1/workspaces/{workspace_id}/execution-plans/{plan['id']}/trigger"
@@ -257,7 +258,6 @@ async def test_service_scope_private_runtime_revoke_and_no_cookie_fallback(site)
     """执行令牌只能触发列入范围的计划且不能借管理员 Cookie 派发私人设备，明确共享后可执行；令牌吊销立即阻断状态读取和任
     务领取，错误 Bearer 即使附带有效 Cookie 也不会回退成功。
     """
-    from test_lease_mysql import claim_body, auth
 
     c, _, ws, runtime, plan = await plan_fixture(site)
     account, token = await service_token(c, ws, plan)
@@ -278,7 +278,6 @@ async def test_service_scope_private_runtime_revoke_and_no_cookie_fallback(site)
     assert (await c.get(run["statusUrl"] + "/report", headers=headers)).status_code == 401
     # 普通报告仍按当前 Cookie 读取；没有 Cookie 的自动化客户端不能借此读取原始报告内容，下面独立客户端验证该限制和非法令
     # 牌拒绝。
-    import httpx
 
     async with httpx.AsyncClient(base_url=str(c.base_url)) as external:
         assert (
@@ -343,7 +342,6 @@ async def test_scope_removal_cancels_active_lease_and_blocks_reads(site):
     """所有者撤销设备共享必须同时阻止计划状态读取、后续领取和现有租约续期，心跳仅返回取消而不能延长已失去授权的执行；
     重新共享不能恢复已经吊销的令牌或把旧 lease 变成新执行许可。
     """
-    from test_lease_mysql import claim_body, auth
 
     c, _, ws, runtime, plan = await plan_fixture(site)
     _, token = await service_token(c, ws, plan)
@@ -386,8 +384,6 @@ async def test_ci_timeout_is_nonzero_and_requests_real_run_cancellation(site, tm
     """外部 CI 在真实 HTTP 运行始终排队时必须按总预算超时并非零退出，同时尝试取消它已经获得的运行；
     测试检查持久化终态而不依赖脚本日志宣称取消成功，确保没有消费者时不会伪造通过。
     """
-    import asyncio
-    import os
 
     c, _, ws, runtime, plan = await plan_fixture(site)
     _, token = await service_token(c, ws, plan)
@@ -436,9 +432,6 @@ async def test_parallel_admission_never_exceeds_ten_unfinished_runs(site):
     """九个排队运行之后同时提交三个新触发只能再接受一个，另外两个必须返回容量上限；安装锁使计数与入队原子化，
     同键重试仍能读取已接受回执而不消耗第十一个运行名额。
     """
-    import asyncio
-    from sqlalchemy import select, func
-    from veriq_server.db import Run
 
     c, db, ws, _, plan = await plan_fixture(site)
     path = f"/api/v1/workspaces/{ws}/execution-plans/{plan['id']}/trigger"
@@ -463,10 +456,6 @@ async def test_terminal_prior_run_with_quarantined_process_blocks_another_runtim
     """前驱租约过期成为逻辑终态后，另一台空闲设备仍不可领取同计划后继运行；只有管理员记录物理停止并安全释放占用后才继续
     ，证明串行条件不只是 Run 状态或同设备容量碰巧不足。
     """
-    from datetime import timedelta
-    from test_lease_mysql import claim_body, auth
-    from veriq_server.db import Attempt
-    from veriq_server.service import now
 
     c, db, ws, first, plan = await plan_fixture(site)
     second = await device(c, ws)

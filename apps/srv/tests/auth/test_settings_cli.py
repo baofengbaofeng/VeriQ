@@ -1,16 +1,22 @@
+"""从配置文件、环境变量及命令参数分别提供设置，检查命令行初始化、重启及失败时的磁盘状态。"""
+
 import asyncio
 import json
 import os
+from argparse import Namespace
 from pathlib import Path
 
+import httpx
 import pytest
 from pydantic import ValidationError
 
 import veriq_server.settings
+from veriq_server import cli
 from veriq_server.settings import Settings, load_settings
 
 
 def test_settings_precedence_and_secret_validation(tmp_path, monkeypatch):
+    """从文件、环境变量及调用参数指定不同端口，核对覆盖顺序、生产地址要求和设置对象隐藏凭据的行为。"""
     path = tmp_path / "config.json"
     path.write_text(
         json.dumps(
@@ -38,16 +44,15 @@ def test_settings_precedence_and_secret_validation(tmp_path, monkeypatch):
 
 
 async def test_real_cli_init_migrate_create_admin_and_serve(site, tmp_path):
+    """使用独立子进程从初始化走到启动服务，验证密钥文件权限、中断后的恢复以及真实健康检查响应。"""
     # 命令行用例复用 HTTP 夹具负责清理的专用测试库，并用独立监听端口让两套服务在用例期间并存。
-    c, db = site
+    _, database = site
     env = os.environ.copy()
-    env["VERIQ_DATABASE_URL"] = json.loads(
-        Path(".superpowers/sdd/veriq-1/test-env.json").read_text()
-    )["mysql_dsn"]
+    env["VERIQ_DATABASE_URL"] = database.engine.url.render_as_string(hide_password=False)
     path = tmp_path / "veriq.json"
     binary = str(Path("apps/srv/.venv/bin/veriq_server").resolve())
 
-    async def command(*args, input=None):
+    async def command(*args, stdin_text=None):
         p = await asyncio.create_subprocess_exec(
             binary,
             "--config",
@@ -58,7 +63,7 @@ async def test_real_cli_init_migrate_create_admin_and_serve(site, tmp_path):
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        stdout, stderr = await p.communicate(input.encode() if input else None)
+        stdout, stderr = await p.communicate(stdin_text.encode() if stdin_text else None)
         assert p.returncode == 0, "Operator command failed (output withheld to protect secrets)"
         assert env["VERIQ_DATABASE_URL"].encode() not in stdout + stderr
         return stdout.decode()
@@ -78,7 +83,7 @@ async def test_real_cli_init_migrate_create_admin_and_serve(site, tmp_path):
         "cli@example.com",
         "--display-name",
         "CLI Admin",
-        input="CLI password 123!\nCLI password 123!\n",
+        stdin_text="CLI password 123!\nCLI password 123!\n",
     )
     assert not secret_path.exists()
     await command("doctor")
@@ -94,8 +99,6 @@ async def test_real_cli_init_migrate_create_admin_and_serve(site, tmp_path):
         stderr=asyncio.subprocess.PIPE,
     )
     try:
-        import httpx
-
         async with httpx.AsyncClient(base_url="http://127.0.0.1:18890") as other:
             for _ in range(100):
                 try:
@@ -210,11 +213,10 @@ def test_structured_environment_rejects_invalid_json(tmp_path, monkeypatch, fiel
 
 @pytest.mark.parametrize("resumed", [False, True])
 async def test_init_resolves_all_effective_settings(tmp_path, monkeypatch, resumed):
-    from argparse import Namespace
-    from veriq_server import cli
+    """分别执行全新和恢复初始化，在迁移入口捕获有效设置，核对显式参数、环境变量及磁盘密钥的优先级。"""
 
     class Captured(Exception):
-        pass
+        """迁移入口捕获到最终设置后用此异常中止命令，以便直接检查配置内容而无需更改数据库状态。"""
 
     config = tmp_path / "init.json"
     stored = {
@@ -284,9 +286,7 @@ async def test_init_resolves_all_effective_settings(tmp_path, monkeypatch, resum
 async def test_init_validates_environment_before_writes(
     tmp_path, monkeypatch, bad_field, bad_value
 ):
-    from argparse import Namespace
-    from veriq_server import cli
-
+    """分别从环境变量提供格式错误的密钥和不完整的邮件配置，核对初始化失败时配置文件尚未写入。"""
     config = tmp_path / "invalid.json"
     monkeypatch.setenv("VERIQ_DATABASE_URL", "mysql+asyncmy://u:p@localhost/veriq_test")
     monkeypatch.setenv(bad_field, bad_value)
@@ -305,6 +305,7 @@ async def test_init_validates_environment_before_writes(
 
 
 def test_keyring_file_environment_and_explicit_override_precedence(tmp_path, monkeypatch):
+    """依次由配置文件、环境变量与显式参数提供不同的历史密钥，核对每个来源生效时的标识和原始密钥值。"""
     path = tmp_path / "keyring.json"
     values = {
         "database_url": "mysql+asyncmy://u:p@localhost/veriq_test",
@@ -327,6 +328,7 @@ def test_keyring_file_environment_and_explicit_override_precedence(tmp_path, mon
 
 
 async def test_cli_keyring_roundtrip_and_resumed_init_preserves_key_id_pair(site, tmp_path):
+    """通过真实命令行重复初始化密钥环，核对主密钥与标识成对保留且无效的历史密钥不会改写现有文件。"""
     _, db = site
     path = tmp_path / "ring.json"
     env = os.environ.copy()

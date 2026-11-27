@@ -1,11 +1,34 @@
+import asyncio
+from hashlib import sha256
 from uuid import uuid4
 
-from veriq_server.validation import api_document
-
+import httpx
 import pytest
+from sqlalchemy import select, text
+from tornado.httpserver import HTTPServer
+from tornado.netutil import bind_sockets
 
 from test_auth import setup, login
 from test_workspace import workspace
+from veriq_server.app import make_app
+from veriq_server.auth.authorization import WorkspaceScope
+from veriq_server.contracts import canonical_bytes
+from veriq_server.db import (
+    Artifact,
+    Attempt,
+    AttemptUpload,
+    AuditLog,
+    CapacityPool,
+    CaseExecution,
+    Database,
+    Job,
+    ResourceLease,
+    Run,
+)
+from veriq_server.repositories.resource import ResourceRepository
+from veriq_server.service import lock_installation, now
+from veriq_server.settings import Settings
+from veriq_server.validation import api_document
 
 CAPABILITIES = {"engineVersion": "0.1.0", "os": "linux", "arch": "x64", "browsers": ["chromium"]}
 
@@ -35,7 +58,7 @@ async def device(c, ws):
 
 
 async def test_empty_claim_is_idempotent_and_requires_current_device(site):
-    c, db = site
+    c, _ = site
     await setup(c)
     await login(c)
     ws = await workspace(c)
@@ -63,11 +86,6 @@ async def test_empty_claim_is_idempotent_and_requires_current_device(site):
 
 
 async def queued_browser_jobs(c, db, ws, count):
-    from veriq_server.db import Job, Run, CaseExecution
-    from veriq_server.repositories.resource import ResourceRepository
-    from veriq_server.auth.authorization import WorkspaceScope
-    from veriq_server.contracts import canonical_bytes
-    from veriq_server.service import now, lock_installation
 
     actor = (await c.get("/api/v1/account")).json()["data"]["id"]
     result = []
@@ -140,9 +158,6 @@ def auth(credential):
 
 
 async def test_twenty_http_claimers_atomically_respect_global_and_workspace_capacity(site):
-    import asyncio
-    from sqlalchemy import select
-    from veriq_server.db import Attempt, CapacityPool
 
     c, db = site
     await setup(c)
@@ -172,8 +187,6 @@ async def test_twenty_http_claimers_atomically_respect_global_and_workspace_capa
 
 
 async def test_claim_recovery_rotates_fence_and_activation_cannot_be_repeated_as_new_work(site):
-    from sqlalchemy import text, select
-    from veriq_server.db import Attempt
 
     c, db = site
     await setup(c)
@@ -214,8 +227,6 @@ async def test_claim_recovery_rotates_fence_and_activation_cannot_be_repeated_as
 
 
 async def test_scoped_maintenance_quarantines_unknown_process_until_stop_confirmation(site):
-    from sqlalchemy import text, select
-    from veriq_server.db import Attempt, CapacityPool
 
     c, db = site
     await setup(c)
@@ -229,8 +240,6 @@ async def test_scoped_maintenance_quarantines_unknown_process_until_stop_confirm
     proof = {k: claim[k] for k in ["leaseToken", "fencingToken"]}
     base = f"/internal/v1/attempts/{claim['attemptId']}"
     assert (await c.post(base + "/activate", json=proof, headers=auth(d))).status_code == 200
-    from hashlib import sha256
-    from veriq_server.db import AttemptUpload
 
     partial = await c.post(
         base + "/artifact-uploads",
@@ -325,8 +334,6 @@ async def test_scoped_maintenance_quarantines_unknown_process_until_stop_confirm
 
 
 async def test_bounded_chunk_upload_retains_exact_large_bytes_and_rejects_wrong_offset(site):
-    from hashlib import sha256
-    from veriq_server.db import Artifact
 
     c, db = site
     await setup(c)
@@ -402,10 +409,6 @@ async def test_bounded_chunk_upload_retains_exact_large_bytes_and_rejects_wrong_
 
 
 async def test_actual_dropped_http_response_recovers_only_the_unactivated_attempt(site):
-    import asyncio
-    import httpx
-    from sqlalchemy import select
-    from veriq_server.db import Attempt
 
     c, db = site
     await setup(c)
@@ -439,7 +442,6 @@ async def test_actual_dropped_http_response_recovers_only_the_unactivated_attemp
             await writer.wait_closed()
 
     proxy = await asyncio.start_server(drop_response, "127.0.0.1", 0)
-    import pytest
 
     try:
         port = proxy.sockets[0].getsockname()[1]
@@ -462,9 +464,7 @@ async def test_actual_dropped_http_response_recovers_only_the_unactivated_attemp
 
 
 async def test_admin_audit_release_preserves_lost_outcome_and_requires_workspace_manager(site):
-    from sqlalchemy import text
     from test_workspace import new_member, client
-    from veriq_server.db import Attempt, AuditLog
 
     c, db = site
     await setup(c)
@@ -554,12 +554,6 @@ async def test_current_requester_revocation_blocks_content_while_device_owner_re
 
 
 async def test_unknown_process_revokes_live_authority_and_stop_aggregates_run(site):
-    from sqlalchemy import select
-    from tornado.httpserver import HTTPServer
-    from tornado.netutil import bind_sockets
-    from veriq_server.app import make_app
-    from veriq_server.db import Attempt, AuditLog, CapacityPool, Database, ResourceLease, Run
-    from veriq_server.settings import Settings
 
     c, db = site
     await setup(c)
@@ -592,6 +586,20 @@ async def test_unknown_process_revokes_live_authority_and_stop_aggregates_run(si
     assert (
         await c.post(base + "/reconcile", json={**facts, "processStopped": True}, headers=auth(d))
     ).status_code == 200
+    late = await reconcile_on_peer(c, db, base + "/reconcile", facts, auth(d))
+    assert late.status_code == 200 and late.json()["data"]["capacityReleased"], late.text
+    async with db.sessions() as session:
+        attempt = (await session.execute(select(Attempt))).scalar_one()
+        event = await session.get(AuditLog, late.json()["data"]["auditId"])
+        assert event.action == "attempt.stop_unknown_after_release"
+        assert attempt.facts["stopConfirmation"] == {**facts, "processStopped": True}
+        assert set(await session.scalars(select(ResourceLease.state))) == {"RELEASED"}
+        assert set(await session.scalars(select(CapacityPool.used))) == {0}
+        assert attempt.capacity_state == "RELEASED" and attempt.outcome == "ERROR"
+
+
+async def reconcile_on_peer(c, db, path, facts, headers):
+    """通过独立的应用实例和数据库连接池提交迟到的停止回执，以验证状态转换跨节点遵循同一份容量账本。"""
     settings = Settings(
         database_url=db.engine.url.render_as_string(hide_password=False),
         public_url=str(c.base_url).rstrip("/"),
@@ -606,21 +614,12 @@ async def test_unknown_process_revokes_live_authority_and_stop_aggregates_run(si
     server.add_sockets(sockets)
     try:
         peer_url = f"http://127.0.0.1:{sockets[0].getsockname()[1]}"
-        late = await c.post(peer_url + base + "/reconcile", json=facts, headers=auth(d))
-        assert late.status_code == 200 and late.json()["data"]["capacityReleased"], late.text
+        return await c.post(peer_url + path, json=facts, headers=headers)
     finally:
         server.stop()
         await server.close_all_connections()
         await peer_app.settings["notification_watcher"].close()
         await peer_db.close()
-    async with db.sessions() as session:
-        attempt = (await session.execute(select(Attempt))).scalar_one()
-        event = await session.get(AuditLog, late.json()["data"]["auditId"])
-        assert event.action == "attempt.stop_unknown_after_release"
-        assert attempt.facts["stopConfirmation"] == {**facts, "processStopped": True}
-        assert set(await session.scalars(select(ResourceLease.state))) == {"RELEASED"}
-        assert set(await session.scalars(select(CapacityPool.used))) == {0}
-        assert attempt.capacity_state == "RELEASED" and attempt.outcome == "ERROR"
 
 
 @pytest.mark.parametrize(
@@ -631,8 +630,6 @@ async def test_timeout_and_cancel_reduce_failed_retry_with_unclaimed_case(
     site, cancellation, retry
 ):
     """将已有失败历史的重试和首次排队的用例放入同一运行，通过两种取消入口核对各自的结果及运行原因。"""
-    from sqlalchemy import text, select
-    from veriq_server.db import Run, CaseExecution, Job, Attempt
 
     c, db = site
     await setup(c)
@@ -695,8 +692,6 @@ async def test_timeout_and_cancel_reduce_failed_retry_with_unclaimed_case(
 
 
 async def test_claim_scans_past_multiple_pages_of_ineligible_older_jobs(site):
-    from sqlalchemy import select
-    from veriq_server.db import Job, Attempt
 
     c, db = site
     await setup(c)

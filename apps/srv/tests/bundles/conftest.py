@@ -1,19 +1,27 @@
-# 打包测试从认证套件加载站点夹具，沿用重建专用 MySQL 测试库时的表检查和真实 HTTP 入口。
+"""离线协议夹具共用认证测试的专用数据库和 HTTP 验证，并仅为历史导出导入测试安装已经退役的处理器。"""
+
 import json
-import sys
+import runpy
 import shutil
-import pytest
+import sys
+from hashlib import sha256
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parents[1] / "auth"))
-import runpy
+import pytest
 
+from veriq_server.app import handler_for, make_app
+from veriq_server.bundles.issuer import Issuer
+from veriq_server.contracts import canonical_bytes
+from veriq_server.validation import api_document
+
+sys.path.insert(0, str(Path(__file__).parents[1] / "auth"))
 site = runpy.run_path(str(Path(__file__).parents[1] / "auth" / "conftest.py"))["site"]
 sys.path.insert(0, str(Path(__file__).parents[1] / "resources"))
 
 
 @pytest.fixture(autouse=True)
 def clean_task_archives(tmp_path):
+    """授权归档测试会留下只读的子目录，清理时先恢复目录的写权限，再移除本用例独占的临时文件。"""
     yield
     for path in tmp_path.rglob("*"):
         if path.is_dir():
@@ -21,12 +29,9 @@ def clean_task_archives(tmp_path):
     shutil.rmtree(tmp_path)
 
 
-@pytest.fixture(autouse=True)
-def bundle_issuer(monkeypatch, tmp_path):
-    from veriq_server.bundles.issuer import Issuer
-    from veriq_server.app import handler_for, make_app
-
-    from veriq_server.validation import api_document
+@pytest.fixture(name="bundle_issuer", autouse=True)
+def _bundle_issuer(monkeypatch, tmp_path):
+    """注册历史路由及对应的响应规范，并把同一个临时签发器传给使用额外编译库存的测试应用。"""
 
     # 历史 HTTP 夹具同时校验线上读响应和退役操作；共用路径上的 GET 与 POST 各保留原方法。
     live = api_document()
@@ -34,7 +39,7 @@ def bundle_issuer(monkeypatch, tmp_path):
         Path(__file__).resolve().parents[4] / "packages/contracts/openapi/offline-fixtures.json"
     )
     fixture_paths = dict(live["paths"])
-    for path, operations in json.loads(fixture_path.read_text())["paths"].items():
+    for path, operations in json.loads(fixture_path.read_text(encoding="utf-8"))["paths"].items():
         fixture_paths[path] = {**fixture_paths.get(path, {}), **operations}
     monkeypatch.setitem(
         site.__wrapped__.__globals__, "api_document", lambda: {**live, "paths": fixture_paths}
@@ -91,12 +96,12 @@ def bundle_issuer(monkeypatch, tmp_path):
         return app
 
     monkeypatch.setitem(site.__wrapped__.__globals__, "make_app", application)
+    return application
 
 
 @pytest.fixture
 def approved_metadata(monkeypatch, tmp_path, bundle_issuer):
-    from hashlib import sha256
-    from veriq_server.contracts import canonical_bytes
+    """创建独立的批准库存及其实际文件字节，并在历史路由应用启动之前注入本次用例专属的库存路径。"""
 
     bodies = {
         "package.json": b'{"name":"synthetic-release"}',
@@ -122,11 +127,10 @@ def approved_metadata(monkeypatch, tmp_path, bundle_issuer):
     }
     path = tmp_path / "inventory.json"
     path.write_bytes(canonical_bytes(inventory))
-    original = site.__wrapped__.__globals__["make_app"]
 
     def application(settings, db, *args, **kwargs):
         settings.approved_engine_inventory_path = str(path)
-        return original(settings, db, *args, **kwargs)
+        return bundle_issuer(settings, db, *args, **kwargs)
 
     monkeypatch.setitem(site.__wrapped__.__globals__, "make_app", application)
     return bodies
