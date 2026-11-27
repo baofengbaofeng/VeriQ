@@ -8,6 +8,7 @@ import { observeHeadedRun, assertHeadedStopped } from "./headed";
 import { observeExport } from "./export-observation";
 import { observeCrashFailure } from "./crash-observation";
 import { terminateRenderer } from "./renderer-fault";
+import type { RecordingEvent } from "../../apps/desktop/src/shared/recording";
 let engine: Awaited<ReturnType<typeof testEngine>>;
 test.beforeAll(async () => {
     engine = await testEngine(resolve("../.."));
@@ -174,7 +175,7 @@ test("bundled desktop opens offline with strict renderer and independent Node24"
  * 务站点，报告与回传必须来自实际签名包执行而非注入结果。
  */
 test("production candidate completes the real desktop offline workflow", async ({ request }) => {
-    test.setTimeout(300000);
+    test.setTimeout(420000);
     const root = resolve("../..");
     const evidence = resolve(root, process.env.VERIQ_DESKTOP_EVIDENCE ?? ".superpowers/sdd/veriq-1/evidence/t19");
     const profile = await mkdtemp("/tmp/veriq-t19-full-");
@@ -341,6 +342,193 @@ test("production candidate completes the real desktop offline workflow", async (
                     allowedIdentityIds: ["reader"],
                 },
             ],
+        });
+        const recording = await page.evaluate(
+            async ({ workspaceId, resourceId, versionId }) => {
+                const events: RecordingEvent[] = [];
+                Reflect.set(window, "__recordingObservation", events);
+                Reflect.set(
+                    window,
+                    "__stopRecordingObservation",
+                    window.veriq.recordingEvents((event) => events.push(event)),
+                );
+                const { sessionId } = await window.veriq.recordingOpen({
+                    workspaceId,
+                    resourceId,
+                    versionId,
+                    target: "/recording",
+                });
+                await window.veriq.recordingMode(sessionId, "record");
+                await window.veriq.recordingBounds(sessionId, { x: 20, y: 70, width: 500, height: 360 });
+                return sessionId;
+            },
+            { workspaceId: workspace.id, resourceId: environment.resource.id, versionId: environment.version.id },
+        );
+        try {
+            await expect
+                .poll(() =>
+                    electron!.evaluate(({ BrowserWindow }) => {
+                        const view = BrowserWindow.getAllWindows()[0]?.contentView.children[0];
+                        return view?.getVisible();
+                    }),
+                )
+                .toBe(true);
+            const inspect = await electron.evaluate(async ({ BrowserWindow, WebContentsView }) => {
+                const owner = BrowserWindow.getAllWindows()[0];
+                const view = owner?.contentView.children.find((child) => child instanceof WebContentsView);
+                if (!view || !owner) throw new Error("RECORDING_VIEW_MISSING");
+                const contents = view.webContents;
+                owner.focus();
+                contents.focus();
+                const preferences = contents.getLastWebPreferences();
+                const isolated = await contents.executeJavaScript(
+                    "[typeof window.veriq, typeof window.process, typeof window.require].join(':')",
+                );
+                return {
+                    isolated,
+                    distinctSession: owner.webContents.session !== contents.session,
+                    persistent: contents.session.isPersistent(),
+                    sandbox: preferences.sandbox,
+                    nodeIntegration: preferences.nodeIntegration,
+                };
+            });
+            expect(inspect).toEqual({
+                isolated: "undefined:undefined:undefined",
+                distinctSession: true,
+                persistent: false,
+                sandbox: true,
+                nodeIntegration: false,
+            });
+            const click = () =>
+                electron!.evaluate(({ BrowserWindow, WebContentsView }) => {
+                    const view = BrowserWindow.getAllWindows()[0]?.contentView.children.find(
+                        (child) => child instanceof WebContentsView,
+                    );
+                    if (!view) throw new Error("RECORDING_VIEW_MISSING");
+                    view.webContents.focus();
+                    for (const type of ["mouseDown", "mouseUp"] as const)
+                        view.webContents.sendInputEvent({ type, x: 20, y: 20, button: "left", clickCount: 1 });
+                });
+            const observed = () =>
+                page.evaluate(() => Reflect.get(window, "__recordingObservation") as RecordingEvent[]);
+            await click();
+            await expect
+                .poll(async () => (await observed()).filter((event) => event.type === "click"))
+                .toEqual([
+                    expect.objectContaining({
+                        candidates: expect.arrayContaining([
+                            { locator: { by: "veriqId", value: "apply" }, matches: 1 },
+                        ]),
+                    }),
+                ]);
+            await page.evaluate((id) => window.veriq.recordingMode(id, "annotate"), recording);
+            await expect
+                .poll(() =>
+                    electron!.evaluate(({ BrowserWindow }) =>
+                        BrowserWindow.getAllWindows()[0]?.contentView.children[0]?.getVisible(),
+                    ),
+                )
+                .toBe(true);
+            await click();
+            await expect.poll(async () => (await observed()).some((event) => event.type === "annotation")).toBe(true);
+            const activations = await electron.evaluate(({ BrowserWindow, WebContentsView }) => {
+                const view = BrowserWindow.getAllWindows()[0]?.contentView.children.find(
+                    (child) => child instanceof WebContentsView,
+                );
+                return view?.webContents.executeJavaScript("globalThis.recordingActivations || 0");
+            });
+            expect(activations).toBe(1);
+            expect(JSON.stringify(await observed())).not.toContain("private-form-marker");
+            await expect(
+                page.evaluate((id) => window.veriq.recordingNavigate(id, "https://outside.invalid/"), recording),
+            ).rejects.toThrow("RECORDING_TARGET_DENIED");
+        } finally {
+            await page.evaluate(async (id) => {
+                await window.veriq.recordingClose(id);
+                Reflect.get(window, "__stopRecordingObservation")?.();
+            }, recording);
+        }
+        await test.step("record inside Desktop, trial frozen rows, and launch the published plan", async () => {
+            const recordedCatalog = await publish("ELEMENT_CATALOG", "recorded-catalog", {
+                schemaVersion: "1.0",
+                elements: [{ key: "apply", locator: { by: "veriqId", value: "apply" } }],
+            });
+            const dataset = await publish("DATASET", "recorded-data", {
+                schemaVersion: "1.0",
+                columns: { query: "string" },
+                rows: [
+                    { key: "first", values: { query: "alpha" } },
+                    { key: "second", values: { query: "beta" } },
+                ],
+            });
+            const priorRuns = new Set<string>((await api(base + "/runs")).items.map(({ id }: { id: string }) => id));
+            await page.getByRole("button", { name: /浏览器测试设计|Browser test design/ }).click();
+            const editor = page.getByTestId("recording-workspace");
+            await editor.getByTestId("recording-title").fill("Recorded desktop workflow");
+            await editor.getByTestId("recording-environment").selectOption(environment.version.id);
+            await editor.getByTestId("recording-role").selectOption("reader");
+            await editor.getByTestId("recording-catalog").selectOption(recordedCatalog.version.id);
+            await editor.getByTestId("recording-dataset").selectOption(dataset.version.id);
+            await editor.getByTestId("recording-runtime").selectOption(device.id);
+            for (const key of ["first", "second"]) {
+                await editor.getByTestId("recording-data-rows").getByRole("checkbox", { name: key }).check();
+            }
+            await editor.getByTestId("recording-browser-open").click();
+            await editor.getByTestId("recording-mode-record").click();
+            await editor.getByLabel(/Target path/).fill("/recording");
+            await editor.getByRole("button", { name: "前往 / Go", exact: true }).click();
+            await expect(editor.getByTestId("recording-current-path")).toHaveText("/recording");
+            await electron!.evaluate(({ BrowserWindow, WebContentsView }) => {
+                const view = BrowserWindow.getAllWindows()[0]?.contentView.children.find(
+                    (child) => child instanceof WebContentsView,
+                );
+                if (!view) throw new Error("RECORDING_VIEW_MISSING");
+                view.webContents.focus();
+                for (const type of ["mouseDown", "mouseUp"] as const)
+                    view.webContents.sendInputEvent({ type, x: 20, y: 20, button: "left", clickCount: 1 });
+            });
+            await expect(editor.locator("summary").filter({ hasText: /\bclick\b/ })).toHaveCount(1);
+            await editor.getByTestId("recording-browser-close").click();
+            await editor.getByTestId("recording-save").click();
+            await expect(editor.getByTestId("recording-status")).toContainText("Draft saved");
+            await editor.getByTestId("recording-trial").click();
+            await expect(editor.getByText("2/2 first-pass cases")).toBeVisible({ timeout: 120000 });
+            const trial = (await api(base + "/runs")).items.find(
+                ({ id, triggerKind }: { id: string; triggerKind: string }) =>
+                    !priorRuns.has(id) && triggerKind === "DEBUG",
+            );
+            expect(trial).toBeDefined();
+            const trialReport = await api(base + "/runs/" + trial.id + "/report");
+            expect(
+                trialReport.cases.map((item: { provenance: { rowKey: string } }) => item.provenance.rowKey).sort(),
+            ).toEqual(["first", "second"]);
+            await editor.getByTestId("recording-publish").click();
+            await expect(editor.getByTestId("recording-suite-version")).toBeVisible({ timeout: 120000 });
+            const suiteLabel = await editor.getByTestId("recording-suite-version").innerText();
+            const suiteVersionId = suiteLabel.split(" · ").at(-1);
+            await editor.getByTestId("recording-launch").click();
+            await expect
+                .poll(
+                    async () => {
+                        const runs = await api(base + "/runs");
+                        return runs.items.find(
+                            ({ id, triggerKind }: { id: string; triggerKind: string }) =>
+                                !priorRuns.has(id) && triggerKind === "HTTP_TRIGGER",
+                        )?.outcome;
+                    },
+                    { timeout: 120000 },
+                )
+                .toBe("PASSED");
+            const plans = await api(base + "/execution-plans");
+            expect(plans.items).toEqual(
+                expect.arrayContaining([
+                    expect.objectContaining({
+                        suiteVersionId,
+                        environmentVersionId: environment.version.id,
+                    }),
+                ]),
+            );
+            await page.getByRole("button", { name: "工作台", exact: true }).click();
         });
         const catalog = await publish("ELEMENT_CATALOG", "desktop-catalog", {
             schemaVersion: "1.0",

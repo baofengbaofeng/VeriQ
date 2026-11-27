@@ -11,6 +11,7 @@ import sys
 from tornado.web import Application, RequestHandler
 from veriq_server.promote_engine import promote_engine
 from veriq_server.services.engines import ApprovedEngines
+from veriq_server.services.server_compilation import serve_compiler
 from pathlib import Path
 
 from sqlalchemy import text
@@ -18,7 +19,7 @@ from sqlalchemy.engine import make_url
 from tornado.httpserver import HTTPServer
 
 from veriq_server.app import make_app
-from veriq_server.db import Database
+from veriq_server.db import Base, Database
 from veriq_server.migrate import migrate
 from veriq_server.service import provision_setup_secret
 from veriq_server.settings import Settings
@@ -35,7 +36,9 @@ async def main():
     from veriq_server.bundles.issuer import Issuer
 
     issuer_path = evidence / "issuer.json"
-    issuer = Issuer(issuer_path) if issuer_path.exists() else Issuer.initialize(issuer_path)
+    issuer = (
+        Issuer(issuer_path) if issuer_path.exists() else Issuer.initialize(issuer_path)
+    )
     (evidence / "issuer-public.json").write_text(json.dumps(issuer.public()))
     inventory = evidence / "approved-inventory.json"
     resume = "--resume" in sys.argv
@@ -67,6 +70,16 @@ async def main():
             "1.0.0",
             "4ac7053892d4dbeb957fbda59d9b70dd13a1b5b4ea3ea7acce310b9bfc431bcd",
         )
+    compiler_tools = [
+        os.environ.get(name)
+        for name in (
+            "VERIQ_TEST_COMPILER_NODE",
+            "VERIQ_TEST_COMPILER_NPM",
+            "VERIQ_TEST_COMPILER_TSX",
+        )
+    ]
+    if any(compiler_tools) and not all(compiler_tools):
+        raise ValueError("INCOMPLETE_TEST_COMPILER")
     settings = Settings(
         database_url=env["mysql_dsn"],
         public_url="http://127.0.0.1:8888",
@@ -81,6 +94,10 @@ async def main():
         bundle_issuer_path=str(issuer_path),
         approved_engine_inventory_path=str(inventory),
         validation_engine_version=version,
+        server_compiler_release_dir=directory if all(compiler_tools) else None,
+        server_compiler_node_path=compiler_tools[0],
+        server_compiler_npm_cli_path=compiler_tools[1],
+        server_compiler_tsx_path=compiler_tools[2],
     )
     with (Path(directory) / "inventory.json").open("rb") as stream:
         selected_raw = stream.read(2 * 1024 * 1024 + 1)
@@ -142,6 +159,7 @@ async def main():
         "veriq_validation_receipts",
     }
     if not resume:
+        owned.update(Base.metadata.tables)
         async with db.engine.begin() as conn:
             tables = set((await conn.execute(text("SHOW TABLES"))).scalars().all())
             assert tables <= owned
@@ -183,8 +201,19 @@ async def main():
             if self.request.path == "/__state":
                 self.finish({"waiting": business_waiting})
                 return
+            if self.request.path == "/recording":
+                self.set_header("Content-Type", "text/html")
+                self.finish(
+                    '<body style="margin:0"><button veriq-id="apply" style="width:180px;height:70px" '
+                    'onclick="globalThis.recordingActivations=(globalThis.recordingActivations||0)+1">Apply</button>'
+                    '<input value="private-form-marker" style="display:block"></body>'
+                )
+                return
             if self.request.path == "/me":
-                if self.request.headers.get("Authorization") != "Bearer synthetic-desktop-secret":
+                if (
+                    self.request.headers.get("Authorization")
+                    != "Bearer synthetic-desktop-secret"
+                ):
                     self.set_status(401)
                     self.finish({"error": "unauthorized"})
                     return
@@ -196,11 +225,18 @@ async def main():
                 finally:
                     business_waiting -= 1
                 self.set_header("Content-Type", "text/html")
-                self.finish('<html><h1 data-testid="ready">Desktop business ready</h1></html>')
+                self.finish(
+                    '<html><h1 data-testid="ready">Desktop business ready</h1></html>'
+                )
 
     business = HTTPServer(Application([(r"/.*", Business)]))
     business.listen(18891, "127.0.0.1")
     ended = asyncio.Event()
+    compiler = (
+        asyncio.create_task(serve_compiler(db, settings, ended, once=False))
+        if all(compiler_tools)
+        else None
+    )
     loop = asyncio.get_running_loop()
 
     async def offline():
@@ -229,6 +265,8 @@ async def main():
         business.stop()
         await server.close_all_connections()
         await business.close_all_connections()
+        if compiler:
+            await compiler
         await db.close()
 
 

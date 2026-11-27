@@ -19,6 +19,7 @@ import {
     type ExecutionSnapshotV1,
     type FileEntry,
     type CompiledStep,
+    type CaseStepPhase,
 } from "@veriq/contracts";
 import { analyze, validate, type CompiledCase } from "./validate.js";
 import { sha256 } from "./dependency.js";
@@ -187,6 +188,14 @@ function distributionFiles(d: EngineDistribution | undefined, engine: string): R
 export function verifyDistribution(distribution: EngineDistribution, engineVersion: string): void {
     distributionFiles(distribution, engineVersion);
 }
+function casePhases(plan: CompiledCase): { steps: CompiledStep[]; phase?: CaseStepPhase }[] {
+    return [
+        ...(plan.prepare ? [{ steps: plan.prepare, phase: "PREPARE" as const }] : []),
+        { steps: plan.steps },
+        ...(plan.cleanup ?? []).map(({ on, steps }) => ({ steps, phase: `CLEANUP_${on}` as const })),
+    ];
+}
+
 /**
  * 使用 TypeScript printer 处理标识符与字符串转义；DSL 仅作为惰性 JSON 数据发射。
  */
@@ -284,12 +293,13 @@ export function compileFiles(
         );
     const expectedCases = analysis.cases.map((plan) => {
         let ordinal = 0;
-        const flatten = (steps: CompiledStep[], parentId?: string): Record<string, unknown>[] =>
+        const flatten = (steps: CompiledStep[], phase?: CaseStepPhase, parentId?: string): Record<string, unknown>[] =>
             steps.flatMap((step) => [
                 {
                     id: step.step.id,
                     order: ordinal++,
                     ...(parentId ? { parentId } : {}),
+                    ...(phase ? { phase } : {}),
                     failurePolicy: step.step.failurePolicy ?? "STOP",
                     assertions: [
                         ...step.before.map((a) => ({
@@ -313,7 +323,7 @@ export function compileFiles(
                     ],
                     observers: (step.step.observers ?? []).map((o) => o.id),
                 },
-                ...flatten(step.children ?? [], step.step.id),
+                ...flatten(step.children ?? [], phase, step.step.id),
             ]);
         const writes = (steps: CompiledStep[]): boolean =>
             steps.some(
@@ -329,9 +339,9 @@ export function compileFiles(
             );
         return {
             caseVersionId: plan.caseVersionId,
-            hasPotentialWrites: plan.document.kind === "WRITE" || writes(plan.steps),
+            hasPotentialWrites: plan.document.kind === "WRITE" || casePhases(plan).some(({ steps }) => writes(steps)),
             requiredEvidenceKinds: ["TRACE"],
-            steps: flatten(plan.steps),
+            steps: casePhases(plan).flatMap(({ steps, phase }) => flatten(steps, phase)),
             ...(plan.persistenceCheckpointStepId
                 ? { persistenceCheckpointStepId: plan.persistenceCheckpointStepId }
                 : {}),
@@ -343,7 +353,7 @@ export function compileFiles(
     });
     const displayCases = analysis.cases.map((plan) => {
         let order = 0;
-        const flatten = (steps: CompiledStep[], parentId?: string): Record<string, unknown>[] =>
+        const flatten = (steps: CompiledStep[], phase?: CaseStepPhase, parentId?: string): Record<string, unknown>[] =>
             steps.flatMap((step) => [
                 {
                     id: step.step.id,
@@ -352,6 +362,7 @@ export function compileFiles(
                     action: step.step.action,
                     order: order++,
                     ...(parentId ? { parentId } : {}),
+                    ...(phase ? { phase } : {}),
                     assertions: [...step.before, ...step.responseAssertions, ...step.after].map((a) => ({
                         id: a.assertion.id,
                         sourceId: a.sourceId!,
@@ -367,13 +378,13 @@ export function compileFiles(
                         ...("method" in o ? { method: o.method, path: o.path } : {}),
                     })),
                 },
-                ...flatten(step.children ?? [], step.step.id),
+                ...flatten(step.children ?? [], phase, step.step.id),
             ]);
         return {
             caseVersionId: plan.caseVersionId,
             caseKey: plan.document.caseKey,
             title: plan.document.title,
-            steps: flatten(plan.steps),
+            steps: casePhases(plan).flatMap(({ steps, phase }) => flatten(steps, phase)),
         };
     });
     files["metadata/report-display.json"] = canonicalBytes({

@@ -1451,3 +1451,23 @@ it("allows a same-observation key to select an independent expected dataset fiel
     expect(checked.issues).toEqual([]);
     expect(checked.cases[0]!.steps[0]!.after).toHaveLength(1);
 });
+
+it("expands case lifecycle with distinct paths and a shared step budget", () => {
+    const doc = snapshot([{ id: "main", action: "goto", path: "/" }], [], {
+        lifecycle: {
+            prepare: [{ id: "before", action: "goto", path: "/prepared" }],
+            cleanup: [{ on: "SUCCESS", steps: [{ id: "after", action: "goto", path: "/cleaned" }] }],
+        },
+    });
+    const analyzed = analyze(doc);
+    expect(analyzed.issues).toEqual([]);
+    const plan = analyzed.cases[0]!;
+    expect(plan.prepare?.[0]?.sourcePath).toMatch(/\/lifecycle\/prepare\/0$/);
+    expect(plan.cleanup?.[0]?.steps[0]?.sourcePath).toMatch(/\/lifecycle\/cleanup\/0\/steps\/0$/);
+    const limited = snapshot(
+        Array.from({ length: 500 }, (_, i) => ({ id: "main" + i, action: "goto", path: "/" })),
+        [],
+        { lifecycle: { prepare: [{ id: "before", action: "goto", path: "/" }] } },
+    );
+    expect(analyze(limited).issues.map((issue) => issue.code)).toContain("EXPANDED_STEP_LIMIT");
+});

@@ -54,6 +54,50 @@ async def queue(c, path):
     return p, r.json()["data"]
 
 
+def test_resource_create_accepts_client_draft_id():
+    data = {
+        "kind": "ELEMENT_CATALOG",
+        "key": "recorded",
+        "name": "Recorded",
+        "content": CATALOG,
+        "clientDraftId": str(uuid4()),
+    }
+    assert not validate_api("ResourceCreate", data)
+
+
+async def test_recorded_draft_create_retry_and_revision_conflict(site):
+    c, db = site
+    await setup(c)
+    await login(c)
+    ws = await workspace(c)
+    route = f"/api/v1/workspaces/{ws}/resources"
+    data = {
+        "kind": "ELEMENT_CATALOG",
+        "key": "recorded",
+        "name": "Recorded",
+        "content": CATALOG,
+        "clientDraftId": str(uuid4()),
+    }
+    first = await c.post(route, json=data)
+    assert first.status_code == 201, first.text
+    resource_id = first.json()["data"]["id"]
+    draft_path = f"{route}/{resource_id}/draft"
+    changed = copy.deepcopy(CATALOG)
+    changed["document"]["elements"][0]["key"] = "other"
+    update = await c.put(draft_path, json={"revision": 1, "content": changed})
+    assert update.status_code == 200, update.text
+    replay = await c.post(route, json=data)
+    assert replay.status_code == 201, replay.text
+    assert replay.json()["data"]["id"] == resource_id
+    conflict = await c.post(route, json={**data, "name": "Different"})
+    assert conflict.status_code == 409, conflict.text
+    assert conflict.json()["code"] == "IDEMPOTENCY_CONFLICT"
+    stale = await c.put(draft_path, json={"revision": 1, "content": CATALOG})
+    assert stale.status_code == 409, stale.text
+    final = (await c.get(draft_path)).json()["data"]
+    assert final["revision"] == 2 and final["content"] == changed
+
+
 @pytest.mark.parametrize(
     ("code", "retryable"),
     [

@@ -98,6 +98,9 @@
                 "OBSERVER_DISPOSED",
                 "OBSERVER_WINDOW_REQUIRED",
                 "ORIGIN_NOT_ALLOWED",
+                "PAGE_CLEANUP_FAILED",
+                "PAGE_CLEANUP_UNAVAILABLE",
+                "PAGE_PREPARE_FAILED",
                 "PERSISTENCE_CHECKPOINT_FAILED",
                 "READ_ONLY_QUERY_REQUIRED",
                 "REDACTION_PROVIDER_REQUIRED",
@@ -2977,6 +2980,35 @@
                 "persistenceCheckpointStepId": {
                     "$ref": "#/$defs/Key"
                 },
+                "lifecycle": {
+                    "type": "object",
+                    "properties": {
+                        "prepare": {
+                            "type": "array",
+                            "items": { "$ref": "#/$defs/StepV1" },
+                            "maxItems": 500
+                        },
+                        "cleanup": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "on": { "enum": ["SUCCESS", "FAILURE", "CANCELLED"] },
+                                    "steps": {
+                                        "type": "array",
+                                        "items": { "$ref": "#/$defs/StepV1" },
+                                        "minItems": 1,
+                                        "maxItems": 500
+                                    }
+                                },
+                                "required": ["on", "steps"],
+                                "additionalProperties": false
+                            },
+                            "maxItems": 3
+                        }
+                    },
+                    "additionalProperties": false
+                },
                 "steps": {
                     "type": "array",
                     "items": {
@@ -5588,6 +5620,10 @@
                 "cancelRequested": {
                     "type": "boolean"
                 },
+                "pageCleanupAllowed": {
+                    "type": "boolean",
+                    "description": "Cooperative page cleanup is authorized for this active, explicitly cancelled test within its existing lease."
+                },
                 "serverTime": {
                     "$ref": "#/$defs/Timestamp"
                 },
@@ -6503,6 +6539,14 @@
                                             "minimum": 0,
                                             "maximum": 499
                                         },
+                                        "phase": {
+                                            "enum": [
+                                                "PREPARE",
+                                                "CLEANUP_SUCCESS",
+                                                "CLEANUP_FAILURE",
+                                                "CLEANUP_CANCELLED"
+                                            ]
+                                        },
                                         "parentId": {
                                             "$ref": "#/$defs/Key"
                                         },
@@ -6993,6 +7037,14 @@
                                             "type": "integer",
                                             "minimum": 0,
                                             "maximum": 499
+                                        },
+                                        "phase": {
+                                            "enum": [
+                                                "PREPARE",
+                                                "CLEANUP_SUCCESS",
+                                                "CLEANUP_FAILURE",
+                                                "CLEANUP_CANCELLED"
+                                            ]
                                         },
                                         "parentId": {
                                             "$ref": "#/$defs/Key"

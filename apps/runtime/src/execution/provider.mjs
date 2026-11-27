@@ -153,13 +153,18 @@ export async function hydrateExecution(projected) {
  */
 export async function createExecutionContext() {
     const controller = new AbortController();
+    const cleanupAuthority = new AbortController();
     const timer = setInterval(
         () =>
             contact({ type: "status" })
                 .then((value) => {
+                    if (value.cleanupAllowed === false) cleanupAuthority.abort();
                     if (value.cancelled) controller.abort();
                 })
-                .catch(() => controller.abort()),
+                .catch(() => {
+                    cleanupAuthority.abort();
+                    controller.abort();
+                }),
         100,
     );
     timer.unref();
@@ -210,6 +215,7 @@ export async function createExecutionContext() {
             }
         },
         signal: controller.signal,
+        cleanupSignal: cleanupAuthority.signal,
         lifecycle: createHttpLifecycle(),
         credentials: {
             resolve: (reference) => {

@@ -61,6 +61,8 @@ export interface StepContextOptions {
     data?: JsonObject;
     vars?: JsonObject;
     signal?: AbortSignal;
+    /** Preserve the page for a distinct cleanup phase after interrupted work settles. */
+    preservePageOnAbort?: boolean;
     deadline?: number;
     downloads?: { directory: string; maxBytes: number };
     files?: (paths: string[]) => Promise<{ name: string; mimeType: string; buffer: Buffer }[]>;
@@ -76,6 +78,7 @@ export interface StepContext extends StepContextOptions {
     registry: ObserverRegistry;
     sources: Map<string, Exchange | ObserverHandle>;
     pages: Map<string, Promise<Page>>;
+    inFlight?: Set<Promise<unknown>>;
     dispose(): void;
 }
 /**
@@ -89,6 +92,7 @@ export function createStepContext(options: StepContextOptions): StepContext {
     const registry = new ObserverRegistry();
     const abort = () => {
         registry.dispose();
+        if (options.preservePageOnAbort) return;
         void options.page
             .context()
             .close()
@@ -97,6 +101,7 @@ export function createStepContext(options: StepContextOptions): StepContext {
     options.signal?.addEventListener("abort", abort, { once: true });
     return {
         ...options,
+        ...(options.preservePageOnAbort ? { inFlight: new Set<Promise<unknown>>() } : {}),
         originalPage: options.page,
         dialogObservers: new Map(),
         data: structuredClone(options.data ?? {}),
@@ -122,7 +127,10 @@ export class ExecutionCancelled extends Error {
 /**
  * 公开函数 interruptible 在 AbortSignal 触发时拒绝 Promise：包装可等待操作以支持取消。
  */
-export function interruptible<T>(ctx: Pick<StepContext, "signal">, operation: () => Promise<T>): Promise<T> {
+export function interruptible<T>(
+    ctx: Pick<StepContext, "signal" | "inFlight">,
+    operation: () => Promise<T>,
+): Promise<T> {
     if (ctx.signal?.aborted) return Promise.reject(new ExecutionCancelled());
     return new Promise<T>((resolve, reject) => {
         let settled = false;
@@ -136,9 +144,17 @@ export function interruptible<T>(ctx: Pick<StepContext, "signal">, operation: ()
         const abort = () => finish(undefined, new ExecutionCancelled());
         ctx.signal?.addEventListener("abort", abort, { once: true });
         try {
-            operation().then(
-                (value) => finish(value),
-                (error) => finish(undefined, error),
+            const pending = operation();
+            ctx.inFlight?.add(pending);
+            void pending.then(
+                (value) => {
+                    ctx.inFlight?.delete(pending);
+                    finish(value);
+                },
+                (error) => {
+                    ctx.inFlight?.delete(pending);
+                    finish(undefined, error);
+                },
             );
         } catch (error) {
             finish(undefined, error);

@@ -360,6 +360,43 @@
         "idempotency": false,
         "kind": "json"
     },
+    "listExecutionPlans": {
+        "path": "/api/v1/workspaces/{workspaceId}/execution-plans",
+        "method": "GET",
+        "ids": ["workspaceId"],
+        "queries": {
+            "cursor": {
+                "type": "string"
+            },
+            "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100,
+                "default": 30
+            }
+        },
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "createExecutionPlan": {
+        "path": "/api/v1/workspaces/{workspaceId}/execution-plans",
+        "method": "POST",
+        "ids": ["workspaceId"],
+        "queries": {},
+        "request": "ExecutionPlanWrite",
+        "idempotency": false,
+        "kind": "json"
+    },
+    "getExecutionPlan": {
+        "path": "/api/v1/workspaces/{workspaceId}/execution-plans/{planId}",
+        "method": "GET",
+        "ids": ["workspaceId", "planId"],
+        "queries": {},
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
     "listProviders": {
         "path": "/api/v1/workspaces/{workspaceId}/ai/providers",
         "method": "GET",
@@ -413,6 +450,15 @@
         "queries": {},
         "request": null,
         "idempotency": false,
+        "kind": "json"
+    },
+    "triggerExecutionPlan": {
+        "path": "/api/v1/workspaces/{workspaceId}/execution-plans/{planId}/trigger",
+        "method": "POST",
+        "ids": ["workspaceId", "planId"],
+        "queries": {},
+        "request": "TriggerRequest",
+        "idempotency": true,
         "kind": "json"
     },
     "listRuns": {

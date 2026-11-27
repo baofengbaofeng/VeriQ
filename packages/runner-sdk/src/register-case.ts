@@ -18,6 +18,7 @@ import {
     type AssetSnapshotV1,
     type ConnectedSourceSnapshotV2,
     type CompiledCase,
+    type CompiledStep,
     type ExecutionSnapshotV1,
     type JsonObject,
     type JsonValue,
@@ -89,6 +90,7 @@ export interface CaseResult {
     cleanupStatus: CleanupStatus;
     steps: StepResult[];
     errorCode?: string;
+    cleanupErrorCode?: string;
     authentication?: BrowserSsoResultV1;
 }
 /**
@@ -112,6 +114,8 @@ export interface ExecutionOptions {
     lifecycle?: LifecycleProvider;
     credentials?: CredentialProvider;
     signal?: AbortSignal;
+    /** Distinct runtime authority; lease loss aborts cleanup even during user cancellation grace. */
+    cleanupSignal?: AbortSignal;
     files?: StepContextOptions["files"];
     downloads?: StepContextOptions["downloads"];
     /**
@@ -121,13 +125,14 @@ export interface ExecutionOptions {
     onEvent?: (
         event:
             | import("./context.js").LiveStepEvent
-            | { type: "CLEANUP_RESULT"; cleanupStatus: CleanupStatus }
+            | { type: "CLEANUP_RESULT"; cleanupStatus: CleanupStatus; errorCode?: string }
             | { type: "CASE_FINISHED"; result: CaseResult },
     ) => Promise<void>;
     emit?: (event: SdkEvent) => Promise<void>;
     redact?: (value: JsonValue) => JsonValue;
 }
 async function bounded<T>(run: (signal: AbortSignal) => Promise<T>, ms: number, parent?: AbortSignal): Promise<T> {
+    if (parent?.aborted) throw new Error("CANCELLED");
     const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout> | undefined;
     let rejectWait: ((e: Error) => void) | undefined;
@@ -143,7 +148,6 @@ async function bounded<T>(run: (signal: AbortSignal) => Promise<T>, ms: number, 
         }, ms);
     });
     parent?.addEventListener("abort", abort, { once: true });
-    if (parent?.aborted) abort();
     try {
         return await Promise.race([run(controller.signal), failure]);
     } finally {
@@ -172,6 +176,7 @@ export async function executeCase(
         token: JsonValue | undefined,
         preparing = false;
     let retryObservation: RetryObservation | undefined;
+    let stepOptions: StepContextOptions | undefined;
     let fixtureInput: JsonObject = {};
     let originFailure = false;
     let ssoStage: BrowserSsoResultV1["stage"] = "ENTRY";
@@ -212,6 +217,62 @@ export async function executeCase(
                 options.redact(evidence.redactProtocol(event as unknown as JsonValue)) as unknown as SdkEvent,
             );
         }
+    }
+    async function collect(step: StepResult): Promise<void> {
+        for (const item of step.events)
+            if (item.kind === "download" && item.path)
+                await options.restrictedEvidence?.({
+                    kind: "DOWNLOAD",
+                    sensitivity: "CREDENTIAL_RESTRICTED",
+                    path: item.path,
+                });
+        for (const child of step.children) await collect(child);
+    }
+    async function runSteps(
+        steps: CompiledStep[],
+        context: StepContext,
+        onStep?: (step: StepResult) => void,
+        cleanupWindow?: AbortSignal,
+    ): Promise<StepResult | undefined> {
+        let failed: StepResult | undefined;
+        for (const [index, step] of steps.entries()) {
+            cleanupWindow?.throwIfAborted();
+            const r = await executeStep(step, context);
+            cleanupWindow?.throwIfAborted();
+            await collect(r);
+            cleanupWindow?.throwIfAborted();
+            result.steps.push(r);
+            await emit({ type: "STEP_FINISHED", step: r });
+            onStep?.(r);
+            if (r.status !== "PASSED") failed ??= r;
+            if (r.cancelled) break;
+            if (r.status !== "PASSED" && step.step.failurePolicy !== "CONTINUE") {
+                for (const remaining of steps.slice(index + 1)) await skipStep(remaining, context, step.step.id);
+                break;
+            }
+        }
+        return failed;
+    }
+    function recordBusiness(r: StepResult): void {
+        if (r.status === "ERROR") {
+            result.businessOutcome = "ERROR";
+            result.errorCode ??= r.errorCode ?? "DATASET_READ_ERROR";
+        } else if (r.status !== "PASSED" && result.businessOutcome !== "ERROR" && result.businessOutcome !== "FAILED") {
+            result.businessOutcome = r.status === "CANCELLED" ? "CANCELLED" : "FAILED";
+        }
+    }
+    function recordOriginFailure(): void {
+        if (originFailure && result.businessOutcome !== "ERROR") {
+            result.businessOutcome = "FAILED";
+            result.errorCode = "ORIGIN_NOT_ALLOWED";
+        }
+    }
+    function cleanupFailed(code: string): void {
+        result.cleanupStatus = "FAILED";
+        if (plan.prepare || plan.cleanup) {
+            result.cleanupErrorCode ??= code;
+            result.errorCode ??= code;
+        } else result.errorCode = code;
     }
     try {
         for (const pin of execution.secretVersions ?? []) {
@@ -288,7 +349,7 @@ export async function executeCase(
             variables = { ...variables, ...prepared.variables };
         }
         retryObservation = new RetryObservation(options.page.context(), plan.document.kind === "WRITE");
-        ctx = createStepContext({
+        stepOptions = {
             datasets: connectedDatasetResolver(
                 documents,
                 execution.datasetBindings ?? {},
@@ -310,43 +371,21 @@ export async function executeCase(
             catalog: catalog.document,
             data: execution.dataRow?.values ?? {},
             vars: variables,
-            deadline: Date.now() + 120000,
-            ...(options.signal ? { signal: options.signal } : {}),
             ...(options.files ? { files: options.files } : {}),
             ...(options.downloads ? { downloads: options.downloads } : {}),
+        };
+        ctx = createStepContext({
+            ...stepOptions,
+            deadline: Date.now() + 120000,
+            ...(options.signal ? { signal: options.signal } : {}),
+            ...(plan.cleanup?.some(({ on }) => on === "CANCELLED") ? { preservePageOnAbort: true } : {}),
         });
         result.businessOutcome = plan.steps.length ? "PASSED" : "INCOMPLETE";
-        for (const step of plan.steps) {
-            const r = await executeStep(step, ctx);
-            const collect = async (step: StepResult): Promise<void> => {
-                for (const item of step.events)
-                    if (item.kind === "download" && item.path)
-                        await options.restrictedEvidence?.({
-                            kind: "DOWNLOAD",
-                            sensitivity: "CREDENTIAL_RESTRICTED",
-                            path: item.path,
-                        });
-                for (const child of step.children) await collect(child);
-            };
-            await collect(r);
-            result.steps.push(r);
-            await emit({ type: "STEP_FINISHED", step: r });
-            if (r.status === "ERROR") {
-                result.businessOutcome = "ERROR";
-                result.errorCode ??= r.errorCode ?? "DATASET_READ_ERROR";
-            } else if (
-                r.status !== "PASSED" &&
-                result.businessOutcome !== "ERROR" &&
-                result.businessOutcome !== "FAILED"
-            ) {
-                result.businessOutcome = r.status === "CANCELLED" ? "CANCELLED" : "FAILED";
-            }
-            if (r.cancelled) break;
-            if (r.status !== "PASSED" && step.step.failurePolicy !== "CONTINUE") {
-                for (const remaining of plan.steps.slice(plan.steps.indexOf(step) + 1))
-                    await skipStep(remaining, ctx, step.step.id);
-                break;
-            }
+        const preparationFailure = await runSteps(plan.prepare ?? [], ctx, recordBusiness);
+        if (!preparationFailure) await runSteps(plan.steps, ctx, recordBusiness);
+        else if (!options.signal?.aborted) {
+            result.errorCode ??= "PAGE_PREPARE_FAILED";
+            for (const step of plan.steps) await skipStep(step, ctx, preparationFailure.id);
         }
         const allSteps = (steps: StepResult[]): StepResult[] => steps.flatMap((s) => [s, ...allSteps(s.children)]);
         if (plan.document.kind === "WRITE" && result.businessOutcome === "PASSED") {
@@ -360,10 +399,7 @@ export async function executeCase(
                 result.errorCode = "PERSISTENCE_CHECKPOINT_FAILED";
             }
         }
-        if (originFailure && result.businessOutcome !== "ERROR") {
-            result.businessOutcome = "FAILED";
-            result.errorCode = "ORIGIN_NOT_ALLOWED";
-        }
+        recordOriginFailure();
     } catch (e) {
         result.businessOutcome = options.signal?.aborted ? "CANCELLED" : "ERROR";
         result.errorCode = e instanceof Error && /^[A-Z_]+$/.test(e.message) ? e.message : "EXECUTION_ERROR";
@@ -380,24 +416,74 @@ export async function executeCase(
         }
     } finally {
         ctx?.dispose();
+        const condition =
+            result.businessOutcome === "CANCELLED"
+                ? "CANCELLED"
+                : ["PASSED", "UNSTABLE", "SKIPPED"].includes(result.businessOutcome)
+                  ? "SUCCESS"
+                  : "FAILURE";
+        const cleanup = plan.cleanup?.find(({ on }) => on === condition);
+        if (cleanup) {
+            const maximumCleanupMs = condition === "CANCELLED" ? 10000 : 30000;
+            const deadline = Date.now() + maximumCleanupMs;
+            try {
+                if (
+                    !stepOptions ||
+                    options.page.isClosed() ||
+                    options.cleanupSignal?.aborted ||
+                    (options.signal?.aborted && condition !== "CANCELLED")
+                )
+                    throw new Error("PAGE_CLEANUP_UNAVAILABLE");
+                originFailure = false;
+                const didFail = await bounded(
+                    async (signal) => {
+                        await Promise.allSettled(ctx?.inFlight ?? []);
+                        if (signal.aborted || options.page.isClosed()) throw new Error("PAGE_CLEANUP_UNAVAILABLE");
+                        const context = createStepContext({
+                            ...stepOptions!,
+                            signal,
+                            deadline,
+                            onEvent: async (event) => {
+                                if (!signal.aborted) await stepOptions?.onEvent?.(event);
+                            },
+                        });
+                        try {
+                            return await runSteps(cleanup.steps, context, undefined, signal);
+                        } finally {
+                            context.dispose();
+                        }
+                    },
+                    maximumCleanupMs,
+                    options.cleanupSignal,
+                );
+                if (didFail || originFailure) cleanupFailed("PAGE_CLEANUP_FAILED");
+                else result.cleanupStatus = "SUCCEEDED";
+            } catch {
+                cleanupFailed("PAGE_CLEANUP_UNAVAILABLE");
+            }
+        }
+        if (options.signal?.aborted && ctx?.preservePageOnAbort && (!cleanup || result.cleanupStatus === "FAILED")) {
+            void options.page
+                .context()
+                .close()
+                .catch(() => {});
+        }
         if (preparing) {
             try {
                 await bounded(
                     (signal) => options.lifecycle!.cleanup!(fixture!, token, lifecycleContext(signal)),
                     30000,
                 );
-                result.cleanupStatus = "SUCCEEDED";
+                if (!result.cleanupErrorCode) result.cleanupStatus = "SUCCEEDED";
             } catch {
-                result.cleanupStatus = "FAILED";
-                result.errorCode = "CLEANUP_FAILED";
+                cleanupFailed("CLEANUP_FAILED");
             }
         }
         if (options.lifecycle?.dispose) {
             try {
                 await bounded((signal) => options.lifecycle!.dispose!(lifecycleContext(signal)), 30000);
             } catch {
-                result.cleanupStatus = "FAILED";
-                result.errorCode = "AUTH_CLEANUP_FAILED";
+                cleanupFailed("AUTH_CLEANUP_FAILED");
             }
         }
         await options.page
@@ -418,7 +504,11 @@ export async function executeCase(
     result.retrySafety = retryObservation?.finish(finalized) ?? "UNKNOWN";
     result.outcome = result.cleanupStatus === "FAILED" ? "ERROR" : result.businessOutcome;
     try {
-        await options.onEvent?.({ type: "CLEANUP_RESULT", cleanupStatus: result.cleanupStatus });
+        await options.onEvent?.({
+            type: "CLEANUP_RESULT",
+            cleanupStatus: result.cleanupStatus,
+            ...(result.cleanupErrorCode ? { errorCode: result.cleanupErrorCode } : {}),
+        });
         await options.onEvent?.({
             type: "CASE_FINISHED",
             result: options.redact!(evidence.redactProtocol(result as unknown as JsonValue)) as unknown as CaseResult,

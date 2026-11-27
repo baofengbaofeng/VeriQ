@@ -333,6 +333,7 @@ class Resource(Base):
     name: Mapped[str] = mapped_column(String(160))
     status: Mapped[str] = mapped_column(String(16, collation="ascii_bin"))
     latest_version_id: Mapped[str | None] = mapped_column(uuid_type)
+    creation_request_hash: Mapped[str | None] = mapped_column(String(64, collation="ascii_bin"))
 
 
 class ResourceDraft(Base):

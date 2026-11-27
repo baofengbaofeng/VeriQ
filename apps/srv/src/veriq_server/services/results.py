@@ -9,6 +9,15 @@ from typing import Any
 
 PRIORITY = ["ERROR", "INCOMPLETE", "FAILED", "CANCELLED", "UNSTABLE", "SKIPPED", "PASSED"]
 STAGES = {"BEFORE": 0, "RESPONSE": 1, "AFTER": 2, "FINALIZE": 3}
+_PAGE_CLEANUP_ERRORS = {"PAGE_CLEANUP_FAILED", "PAGE_CLEANUP_UNAVAILABLE"}
+
+
+def _cleanup_phase(outcome: str) -> str:
+    if outcome == "CANCELLED":
+        return "CLEANUP_CANCELLED"
+    if outcome in {"PASSED", "UNSTABLE", "SKIPPED"}:
+        return "CLEANUP_SUCCESS"
+    return "CLEANUP_FAILURE"
 
 
 def aggregate(outcomes: list[str]) -> str:
@@ -31,7 +40,14 @@ def reduce_test(
     reduce_test 实现于 apps/srv/src/veriq_server/services/results.py：请按该符号的输入校验、错误码与调用方契约阅读，
     勿假设通用成功默认值。
     """
-    steps = {s["id"]: s for s in plan["steps"]}
+    business = manifest["businessOutcome"]
+    selected_cleanup = _cleanup_phase(business)
+    planned_steps = plan["steps"]
+    steps = {
+        s["id"]: s
+        for s in planned_steps
+        if not s.get("phase", "").startswith("CLEANUP_") or s["phase"] == selected_cleanup
+    }
     positions = {id(e): i for i, e in enumerate(events)}
     starts = {e.get("stepId"): e for e in events if e["type"] == "STEP_STARTED"}
     finished = {e.get("stepId"): e for e in events if e["type"] == "STEP_FINISHED"}
@@ -49,10 +65,14 @@ def reduce_test(
     attempt_ends = [i for i, e in enumerate(events) if e["type"] == "ATTEMPT_FINISHED"]
     cleanups = [i for i, e in enumerate(events) if e["type"] == "CLEANUP_RESULT"]
     cleanup = manifest["cleanupStatus"]
+    cleanup_error = "CLEANUP_FAILED"
     lifecycle = len(attempt_starts) == len(attempt_ends) == len(cleanups) == 1
     if lifecycle:
         begin, end, clean = attempt_starts[0], attempt_ends[0], cleanups[0]
         lifecycle &= begin < clean < end and events[clean]["payload"]["cleanupStatus"] == cleanup
+        reason = events[clean]["payload"].get("errorCode")
+        if lifecycle and reason in _PAGE_CLEANUP_ERRORS:
+            cleanup_error = reason
         # Attempt 起止之外只允许 ARTIFACT_CREATED 和 LOG，步骤、断言、观察器及变量提取须在区间内且先于清理。
         # 起止和清理记录各须唯一，清理须位于起止之间且与清单状态一致。时序无效会使证据不完整。
         lifecycle &= all(
@@ -73,11 +93,21 @@ def reduce_test(
             }
         )
     complete = bool(steps) and evidence_complete and lifecycle
-    valid = len(steps) == len(plan["steps"]) and len({s["order"] for s in steps.values()}) == len(
-        steps
+    valid = (
+        len({s["id"] for s in planned_steps})
+        == len(planned_steps)
+        == len({s["order"] for s in planned_steps})
     )
+    if any(step.get("phase") == selected_cleanup for step in steps.values()):
+        valid &= cleanup != "NOT_REQUIRED"
     outcomes: list[str] = []
+    business_outcomes = [business]
     blocked_observers: list[dict[str, str]] = []
+
+    def observe(outcome: str, step: dict[str, Any]) -> None:
+        outcomes.append(outcome)
+        if step.get("phase") != selected_cleanup:
+            business_outcomes.append(outcome)
 
     def before(a: dict[str, Any], b: dict[str, Any]) -> bool:
         return positions[id(a)] < positions[id(b)]
@@ -122,6 +152,9 @@ def reduce_test(
         blocker = steps.get(payload.get("blockedByStepId"))
         if not blocker or blocker["order"] > step["order"]:
             return False
+        prepare_blocks_main = blocker.get("phase") == "PREPARE" and not step.get("phase")
+        if blocker.get("phase") != step.get("phase") and not prepare_blocks_main:
+            return False
         if payload.get("blockedByAssertionId"):
             cause = block_assertion(fact)
             if not cause:
@@ -138,23 +171,31 @@ def reduce_test(
             blocker["order"] < step["order"]
             and not ancestor(blocker["id"], step["id"])
             and (scope is None or ancestor(scope, step["id"]))
-            and blocker["failurePolicy"] != "CONTINUE"
+            and (blocker["failurePolicy"] != "CONTINUE" or prepare_blocks_main)
             and actual
             and actual["payload"]["status"] in {"FAILED", "ERROR"}
             and before(actual, fact)
         )
 
     for sid, step in steps.items():
+        required = (
+            not (cancel_requested and business == "CANCELLED")
+            or step.get("phase") == selected_cleanup
+        )
         parent = steps.get(step.get("parentId"))
         if step.get("parentId"):
-            valid &= parent is not None and parent["order"] < step["order"]
+            valid &= (
+                parent is not None
+                and parent["order"] < step["order"]
+                and parent.get("phase") == step.get("phase")
+            )
         valid &= len({a["id"] for a in step["assertions"]}) == len(step["assertions"])
         fact = finished.get(sid)
         if not fact:
-            complete = False
+            complete &= not required
             continue
         status = fact["payload"]["status"]
-        outcomes.append(status)
+        observe(status, step)
         if status == "SKIPPED":
             valid &= skipped(step, fact)
             valid &= sid not in starts and not any(k[0] == sid for k in [*assertions, *observers])
@@ -174,7 +215,7 @@ def reduce_test(
         for assertion in step["assertions"]:
             actual = assertions.get((sid, assertion["id"]))
             if not actual:
-                complete = False
+                complete &= not required
                 continue
             valid &= actual["payload"]["severity"] == assertion["severity"]
             valid &= start is not None and before(start, actual) and before(actual, fact)
@@ -182,10 +223,10 @@ def reduce_test(
             if actual["payload"]["status"] == "SKIPPED":
                 valid &= skipped(step, actual, assertion)
             elif actual["payload"]["status"] == "ERROR":
-                outcomes.append("ERROR")
+                observe("ERROR", step)
                 valid &= assertion.get("datasetExpected") is True and status == "ERROR"
             elif actual["payload"]["status"] == "FAILED" and assertion["severity"] != "WARN":
-                outcomes.append("FAILED")
+                observe("FAILED", step)
             # 对实际执行的父断言，BEFORE 必须早于已开始的直接子步骤，AFTER 等其它阶段须等子步骤结束。
             # 需要子步骤结束事件时若缺失，时序即无效。
             if actual["payload"]["status"] != "SKIPPED":
@@ -233,7 +274,7 @@ def reduce_test(
                     }
                 )
             else:
-                complete = False
+                complete &= not required
 
     # 同一父步骤下的相邻步骤按计划顺序比较，顶层也适用。实际执行的子步骤首尾须严格落在父步骤内。
     # 比较相邻步骤时，以右侧开始为界，缺少开始事件时以其结束为界。
@@ -264,9 +305,9 @@ def reduce_test(
     ]
     for keys, kind, allowed in checks:
         valid &= len(keys) == sum(e["type"] == kind for e in events) and keys <= allowed
-    if cancel_requested and manifest["businessOutcome"] == "CANCELLED":
-        complete = bool(steps) and evidence_complete and lifecycle
-    outcomes.append(manifest["businessOutcome"])
+    if business != "CANCELLED" and any(step.get("phase") for step in planned_steps):
+        valid &= _cleanup_phase(aggregate(business_outcomes)) == selected_cleanup
+    outcomes.append(business)
     if cleanup == "FAILED":
         outcomes.append("ERROR")
     if cleanup == "PENDING":
@@ -281,10 +322,10 @@ def reduce_test(
         outcomes.append("INCOMPLETE")
     return {
         "outcome": aggregate(outcomes),
-        "business": manifest["businessOutcome"],
+        "business": business,
         "cleanup": cleanup,
         "evidence": "COMPLETE" if complete else "INCOMPLETE",
         "stepOutcomes": outcomes,
         **({"blockedObservers": blocked_observers} if blocked_observers else {}),
-        **({"errorCode": "CLEANUP_FAILED"} if cleanup == "FAILED" else {}),
+        **({"errorCode": cleanup_error} if cleanup == "FAILED" else {}),
     }

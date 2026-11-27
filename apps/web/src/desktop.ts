@@ -3,6 +3,7 @@
  * 不继承旧 Web 的类型兼容选项。
  */
 export { installHostTransport, type HostTransport, type Workspace } from "./api";
+export { canonicalBytes } from "@veriq/contracts";
 export { ResourceWorkspaceView } from "./features/resources/ResourcePage";
 export {
     CloudResourceAdapter,
@@ -35,3 +36,8 @@ import "./menu-focus";
  */
 export { AppLocaleProvider, LanguageControl } from "./locale-ui";
 export { appI18n, setAppLanguage } from "./locale";
+
+export { RecordingStepConfiguration } from "./features/cases/CaseEditor";
+export type { VersionOption as RecordingVersionOption } from "./features/resources/fields";
+
+export { validateCaseSchema as validateRecordingCase } from "@veriq/contracts";
