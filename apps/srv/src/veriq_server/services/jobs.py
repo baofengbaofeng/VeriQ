@@ -51,6 +51,39 @@ ClaimRequest = dict[str, Any]
 ClaimDTO = dict[str, Any]
 
 
+@dataclass(frozen=True)
+class ClosedClaim:
+    """安装锁内确认原领取已终止，HTTP 层在事务提交后将请求 UUID 回送设备。"""
+
+    client_request_id: str
+
+
+def has_execution_record(attempt: Attempt) -> bool:
+    """激活、执行事件或完成回执中的任意记录都排除未启动证明。"""
+    return (
+        attempt.activated_at is not None
+        or attempt.execution_provenance is not None
+        or attempt.last_sequence != 0
+        or attempt.finish_hash is not None
+        or attempt.finish_receipt is not None
+    )
+
+
+def unactivated_lease(job: Job, attempt: Attempt) -> bool:
+    """只有原 Job 仍持有同一围栏、容量且无任何执行记录时，过期回收才能证明未启动。"""
+    return (
+        job.active_attempt_id == attempt.id
+        and job.fence == attempt.fencing_token
+        and job.state in {"LEASED", "CANCEL_REQUESTED"}
+        and attempt.phase == "LEASED"
+        and attempt.capacity_state == "HELD"
+        and not has_execution_record(attempt)
+        and attempt.finished_at is None
+        and attempt.outcome is None
+        and not attempt.facts
+    )
+
+
 async def database_time(session: AsyncSession) -> datetime:
     """读取数据库 UTC 当前时间，作为租约与过期判断的权威时钟，避免节点时钟漂移，database_time 遵守本文件边界。
     database_time 实现于 apps/srv/src/veriq_server/services/jobs.py：请按该符号的输入校验、错误码与调用方契约阅读，
@@ -304,7 +337,57 @@ class JobService:
             }
         return True
 
-    async def claim(self, identity: RuntimeIdentity, req: ClaimRequest) -> ClaimDTO | None:
+    async def close_expired_claim(self, job: Job, attempt: Attempt, current: datetime) -> None:
+        """在原领取回执已核验且租约确已过期时，提交未激活关闭或验证已持久化的终态。"""
+        if unactivated_lease(job, attempt):
+            from .completion import CompletionService
+
+            closed = await CompletionService(self.session, self.settings).expire_lease(
+                job, attempt, current
+            )
+            if not closed:
+                raise Problem(
+                    409, "CAPACITY_INCONSISTENT", "Claim reservations require reconciliation"
+                )
+            return
+
+        closed = (
+            attempt.phase == "FINISHED"
+            and attempt.outcome == "ERROR"
+            and attempt.capacity_state == "RELEASED"
+            and not has_execution_record(attempt)
+            and attempt.finished_at is not None
+            and attempt.finished_at >= attempt.lease_expires_at
+            and job.active_attempt_id == attempt.id
+            and job.fence == attempt.fencing_token
+            and job.state == "FINISHED"
+            and job.outcome == "ERROR"
+        )
+        # 旧收割器只有这一种未激活终态记录。人工干预、进程回报或已裁剪的历史均不能用于升级关闭证明。
+        legacy_reaped = attempt.facts == {
+            "business": "UNKNOWN",
+            "cleanup": "UNKNOWN",
+            "evidence": "INCOMPLETE",
+            "errorCode": "WORKER_LOST",
+        }
+        if not closed or not (
+            legacy_reaped or attempt.facts.get("errorCode") == "UNACTIVATED_CLAIM_CLOSED"
+        ):
+            raise Problem(409, "LEASE_EXPIRED", "Claim lease cannot be recovered")
+        if not await CapacityService(self.session, self.settings).reservations_match(
+            job, attempt, "RELEASED"
+        ):
+            raise Problem(409, "CAPACITY_INCONSISTENT", "Claim reservations require reconciliation")
+        if legacy_reaped:
+            attempt.facts = {
+                **attempt.facts,
+                "errorCode": "UNACTIVATED_CLAIM_CLOSED",
+                "cleanup": "NOT_REQUIRED",
+            }
+
+    async def claim(
+        self, identity: RuntimeIdentity, req: ClaimRequest
+    ) -> ClaimDTO | ClosedClaim | None:
         """领取在安装锁和任务锁保护下预留容量、递增栅栏并建立租约，计划任务还必须等待前驱逻辑结束和物理占用释放；
         任何授权或容量条件不满足都不启动执行，未知进程不能凭时间超期重用容量。
         """
@@ -328,9 +411,15 @@ class JobService:
             if not old.attempt_id:
                 return None
             attempt = await self.session.get(Attempt, old.attempt_id)
-            assert attempt
+            if (
+                not attempt
+                or attempt.workspace_id != binding.workspace_id
+                or attempt.runtime_id != runtime.id
+            ):
+                raise Problem(409, "LEASE_EXPIRED", "Claim association cannot be verified")
             job = await self.session.get(Job, attempt.job_id)
-            assert job
+            if not job or job.workspace_id != binding.workspace_id:
+                raise Problem(409, "LEASE_EXPIRED", "Claim Job cannot be verified")
             await require_requester(self.session, job, runtime.id)
             if attempt.activated_at is not None:
                 raise Problem(
@@ -338,11 +427,10 @@ class JobService:
                     "ATTEMPT_ALREADY_ACTIVATED",
                     "Existing Attempt requires reconciliation; no new execution authority issued",
                 )
-            if (
-                attempt.lease_expires_at <= current
-                or attempt.phase == "FINISHED"
-                or job.active_attempt_id != attempt.id
-            ):
+            if attempt.lease_expires_at <= current:
+                await self.close_expired_claim(job, attempt, current)
+                return ClosedClaim(old.client_request_id)
+            if not unactivated_lease(job, attempt):
                 raise Problem(409, "LEASE_EXPIRED", "Claim lease cannot be recovered")
             secret = secrets.token_urlsafe(32)
             if job.fence >= 9007199254740991:

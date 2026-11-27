@@ -1,6 +1,7 @@
 /**
  * 本文件实现 Agent 认领循环：本地持久化 claim 请求、恢复后隔离未排空进程，并按租约预算串行执行每次 Attempt。
  */
+import { RuntimeError } from "../enrollment.ts";
 import { withDiagnosticContext } from "../diagnostics.ts";
 import { randomUUID } from "node:crypto";
 import { addAbortListener } from "node:events";
@@ -96,7 +97,7 @@ export async function claimLoop(options: {
                 await waitForPoll();
                 continue;
             }
-            const claimed = await withDiagnosticContext(async () => {
+            const result = await withDiagnosticContext(async () => {
                 let request = await readPending(options.root);
                 if (request && request.runnerId !== options.runnerId) {
                     await preserveForeignRequest(options.root, request);
@@ -118,12 +119,20 @@ export async function claimLoop(options: {
                     await publishPending(options.root, request);
                 }
                 const requestStarted = performance.now();
-                const claim = await client.request<Claim | undefined>(
-                    "/internal/v1/jobs/claim",
-                    "POST",
-                    request,
-                    signal,
-                );
+                let claim: Claim | undefined;
+                try {
+                    claim = await client.request<Claim | undefined>("/internal/v1/jobs/claim", "POST", request, signal);
+                } catch (error) {
+                    if (
+                        !(error instanceof RuntimeError) ||
+                        error.status !== 409 ||
+                        error.code !== "UNACTIVATED_CLAIM_CLOSED" ||
+                        error.clientRequestId !== request.clientRequestId.toLowerCase()
+                    )
+                        throw error;
+                    await clearPending(options.root);
+                    return "closed";
+                }
                 const responseReceived = performance.now();
                 if (claim) {
                     const result = await supervisor.runAttempt(
@@ -142,11 +151,12 @@ export async function claimLoop(options: {
                 }
                 await clearPending(options.root);
                 if (claim) await supervisor.archiveCompleted(claim);
-                return Boolean(claim);
+                return claim ? "claimed" : "empty";
             });
+            if (result === "closed") continue;
             if (options.once) return;
             // 循环在空认领后先等十秒，纯空轮询每二十四小时最多产生八千六百四十条空回执，低于一万条上限。
-            if (!claimed) await waitForPoll();
+            if (result === "empty") await waitForPoll();
         }
     } finally {
         publish(undefined);

@@ -20,8 +20,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..auth.authorization import Permission, WorkspaceScope
 from ..contracts import _schema, canonical_bytes
 from ..db import AgentSession, User, AgentTurn, AiGeneration
-from ..infrastructure.providers import ModelReply, DraftContext, ProviderGateway
-from ..service import Problem, audit, lock_installation, now
+from ..infrastructure.providers import (
+    AGENT_ROUND_INPUT_LIMIT,
+    ModelReply,
+    DraftContext,
+    ProviderGateway,
+)
+from ..service import Problem, audit, lock_installation
 from ..validation import validate_api
 from .agent_actions import apply_proposal, current_selection, proposal_preview
 from .agent_attachments import ATTACHMENT_PROMPT, read_attachments
@@ -48,6 +53,7 @@ from .agent_tools import (
     sanitize_proposal_output,
 )
 from .ai import AGENT_PURPOSE, micros, priced, sanitize
+from .jobs import database_time
 from .notification_events import record_agent_reply
 from .report import ReportService
 from .workspace import WorkspaceRepository
@@ -279,9 +285,11 @@ class ConversationalAgent(AgentSessionService):
         pending = await s.scalar(
             select(AgentTurn).where(AgentTurn.session_id == owned.id, AgentTurn.status == "RUNNING")
         )
-        observed_at = now()
+        if pending is None:
+            return None
+        observed_at = await database_time(s)
         grace = timedelta(seconds=_TURN_SETTLEMENT_GRACE_SECONDS)
-        if pending is None or observed_at - pending.created_at <= grace:
+        if observed_at - pending.created_at <= grace:
             return pending
         usage = await s.get(AiGeneration, pending.attempt_id) if pending.attempt_id else None
         # 流式预算以总输出上界记录在账本，读取历史时按相同的网络时限和结算余量检查，避免将活跃工具调用提前封存。
@@ -409,7 +417,7 @@ class ConversationalAgent(AgentSessionService):
                 session_id=owned.id,
                 request_id=req["requestId"].lower(),
                 text=req["text"],
-                created_at=now(),
+                created_at=await database_time(s),
                 status="RUNNING",
                 delegation_mode=None if actions else req.get("delegationMode", "AUTO"),
             )
@@ -530,7 +538,7 @@ class ConversationalAgent(AgentSessionService):
                 session_id=owned.id,
                 request_id=req["requestId"].lower(),
                 text=req["text"],
-                created_at=now(),
+                created_at=await database_time(s),
                 status="RUNNING",
                 delegation_mode=req.get("delegationMode", "AUTO"),
             )
@@ -556,10 +564,12 @@ class ConversationalAgent(AgentSessionService):
                 SYSTEM + ATTACHMENT_PROMPT if attachments.metadata else SYSTEM,
                 attachments.images,
             )
-            bound = draft.input_bound()
+            gateway = ProviderGateway(config, key)
+            tools = _agent_tools()
+            bound = gateway.agent_input_bound(draft, tools)
             total_bound = bound * max_rounds
             total_reserve = priced(total_bound, draft.max_output_tokens * max_rounds, config)
-            if bound > 262144 or total_reserve > micros(config["maxRequestUsd"]):
+            if bound > AGENT_ROUND_INPUT_LIMIT or total_reserve > micros(config["maxRequestUsd"]):
                 raise Problem(
                     422,
                     "AI_REQUEST_LIMIT",
@@ -689,14 +699,15 @@ class ConversationalAgent(AgentSessionService):
         reply = None
         try:
             reply = await asyncio.wait_for(
-                ProviderGateway(config, key).generate_agent_stream(
+                gateway.generate_agent_stream(
                     draft,
-                    _agent_tools(),
+                    tools,
                     on_text,
                     on_thinking,
                     execute,
                     max_rounds,
                     authorize_round=authorize_round,
+                    input_token_budget=total_bound,
                 ),
                 timeout=_STREAM_TIMEOUT_SECONDS,
             )

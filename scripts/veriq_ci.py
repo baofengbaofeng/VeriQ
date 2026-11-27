@@ -11,14 +11,15 @@ import os
 from pathlib import Path
 from queue import Empty, Queue
 import sys
+from tempfile import NamedTemporaryFile
 from threading import Thread
 import time
-from typing import IO, Literal, TypedDict, cast, overload
+from typing import IO, Literal, overload
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
 from urllib.request import Request, build_opener, HTTPRedirectHandler
 from uuid import UUID
-from xml.etree.ElementTree import fromstring, ParseError
+from xml.etree.ElementTree import Element, fromstring, ParseError, tostring
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -44,17 +45,14 @@ class NoRedirect(HTTPRedirectHandler):
         del req, fp, code, msg, headers, newurl
 
 
-class _CIData(TypedDict, total=False):
-    """
-    该字典仅投影触发回执、运行状态和安全报告中脚本读取的五个字段，保留不同端点各自提供的键。
-    JSON 只按服务协议作类型转换，取键、UUID 解析和真值判断仍由现有调用方负责。
-    """
+_OUTCOMES = {"PASSED", "FAILED", "ERROR", "UNSTABLE", "CANCELLED", "INCOMPLETE", "SKIPPED"}
 
-    runId: str
-    state: str
-    outcome: str
-    gatePassed: bool
-    cases: list[object]
+
+def _uuid(value: object) -> str:
+    """按公开契约接受有连字符的 UUID 字符串，比较前统一小写以识别不同大小写表示的重复用例。"""
+    if not isinstance(value, str) or str(UUID(value)) != value.lower():
+        raise ValueError("Invalid protocol UUID")
+    return value.lower()
 
 
 class Client:
@@ -101,7 +99,7 @@ class Client:
         key: str | None = None,
         *,
         binary: Literal[False] = False,
-    ) -> _CIData: ...
+    ) -> dict[str, object]: ...
 
     @overload
     def request(
@@ -123,7 +121,7 @@ class Client:
         key: str | None = None,
         *,
         binary: bool,
-    ) -> bytes | _CIData: ...
+    ) -> bytes | dict[str, object]: ...
 
     def request(
         self,
@@ -133,7 +131,7 @@ class Client:
         key: str | None = None,
         *,
         binary: bool = False,
-    ) -> bytes | _CIData:
+    ) -> bytes | dict[str, object]:
         """
         请求路径由本脚本根据已验证 UUID 构造，不接收响应中的任意远端地址作为下一次请求目标。
         JSON 请求与安全 XML 下载共享限定响应大小，超出界限立即失败而不尝试把部分结果解释成完整成功报告。
@@ -178,7 +176,14 @@ class Client:
         assert data is not None
         if len(data) > 4 * 1024 * 1024:
             raise ValueError("Response exceeds CI limit")
-        result = data if binary else cast(_CIData, json.loads(data)["data"])
+        if binary:
+            return data
+        try:
+            result: object = json.loads(data)["data"]
+        except RecursionError as error:
+            raise ValueError("Invalid JSON nesting") from error
+        if not isinstance(result, dict):
+            raise ValueError("Invalid response object")
         self.remaining()
         return result
 
@@ -208,38 +213,125 @@ def _arguments(argv: Sequence[str] | None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def _wait_for_gate(client: Client, run_path: str, interval: float, junit_path: Path) -> bool:
-    """
-    使用同一截止时间等待运行终态，并核对随后读取的报告和最后一次下载的 JUnit，任何失败断言都阻止通过。
-    """
-    while True:
-        status = client.request(run_path)
-        if status["state"] == "FINISHED":
-            break
+def _run_outcome(run: object, run_id: str) -> str | None:
+    """每轮轮询和报告摘要均须绑定触发回执的同一运行，只有已知的终态结果才可进入下载阶段。"""
+    if not isinstance(run, dict) or _uuid(run["id"]) != run_id:
+        raise ValueError("Unexpected run")
+    if run["state"] == "FINISHED":
+        outcome = run["outcome"]
+        if isinstance(outcome, str) and outcome in _OUTCOMES:
+            return outcome
+    elif run["state"] in {"QUEUED", "RUNNING", "CANCEL_REQUESTED"} and "outcome" not in run:
+        return None
+    raise ValueError("Invalid run state or outcome")
+
+
+def _case_outcomes(cases: object) -> dict[str, str]:
+    """将每个用例唯一绑定到摘要中的执行结果，缺失结果按服务端安全 JUnit 约定映射为 INCOMPLETE。"""
+    if not isinstance(cases, list) or len(cases) > 1000:
+        raise ValueError("Invalid case list")
+    outcomes: dict[str, str] = {}
+    for case in cases:
+        if not isinstance(case, dict):
+            raise ValueError("Invalid case")
+        case_id = _uuid(case["id"])
+        state, outcome = case["state"], case["outcome"]
+        if case_id in outcomes or state not in {"QUEUED", "RUNNING", "FINISHED"}:
+            raise ValueError("Duplicate case or invalid case state")
+        if outcome is not None and (outcome not in _OUTCOMES or state != "FINISHED"):
+            raise ValueError("Invalid case outcome")
+        outcomes[case_id] = outcome or "INCOMPLETE"
+    return outcomes
+
+
+def _check_testcase(node: Element, classname: str, failure: str | None) -> None:
+    """只接受服务端安全投影的用例及固定失败描述，额外跳过项、输出或嵌套节点均不属于该报告。"""
+    if (
+        node.tag != "testcase"
+        or node.get("classname") != classname
+        or set(node.attrib) != {"name", "classname"}
+        or len(node) != int(failure is not None)
+    ):
+        raise ValueError("Unexpected JUnit testcase")
+    if failure is not None:
+        message = "Run gate did not pass" if classname == "VeriQ.Gate" else "Execution did not pass"
+        child = node[0]
+        if (
+            child.tag != "failure"
+            or len(child)
+            or child.attrib != {"type": failure, "message": message}
+        ):
+            raise ValueError("Invalid JUnit failure")
+
+
+def _validate_junit(suite: Element, run_id: str, outcome: str, cases: dict[str, str]) -> bool:
+    """按运行与用例身份逐一验证最后下载的报告，额外门禁项只允许出现一次且必须明确记为失败。"""
+    if (
+        suite.tag != "testsuite"
+        or suite.get("name") != "VeriQ"
+        or _uuid(suite.get("id")) != run_id
+        or suite.get("errors", "0") != "0"
+        or suite.attrib.keys() - {"name", "id", "tests", "failures", "errors"}
+    ):
+        raise ValueError("Invalid JUnit suite")
+    if any((part or "").strip() for node in suite.iter() for part in (node.text, node.tail)):
+        raise ValueError("Unexpected text in JUnit")
+    remaining = cases.copy()
+    gate_failed = False
+    failures = 0
+    for node in suite:
+        if node.get("name") == "veriq-run-gate":
+            if gate_failed:
+                raise ValueError("Duplicate JUnit gate")
+            _check_testcase(node, "VeriQ.Gate", outcome)
+            gate_failed = True
+            failures += 1
+        else:
+            result = remaining.pop(_uuid(node.get("name")))
+            failed = result != "PASSED"
+            _check_testcase(node, "VeriQ", result if failed else None)
+            failures += int(failed)
+    if remaining or suite.get("tests") != str(len(suite)) or suite.get("failures") != str(failures):
+        raise ValueError("Inconsistent JUnit results")
+    if (outcome != "PASSED" or not cases) and not gate_failed:
+        raise ValueError("Missing failed run gate")
+    return failures == 0
+
+
+def _wait_for_gate(
+    client: Client, run_path: str, run_id: str, interval: float, junit_path: Path
+) -> bool:
+    """终态结果冻结后仍须现场核对可变化的授权门禁，只有通过协议校验的完整报告才可替换调用方产物。"""
+    while (outcome := _run_outcome(client.request(run_path), run_id)) is None:
         time.sleep(min(interval, client.remaining()))
     report = client.request(run_path + "/ci-report")
+    gate_passed = report["gatePassed"]
+    if _run_outcome(report["run"], run_id) != outcome or not isinstance(gate_passed, bool):
+        raise ValueError("Invalid CI summary")
+    cases = _case_outcomes(report["cases"])
     xml = client.request(run_path + "/junit", binary=True)
+    try:
+        suite = fromstring(xml)
+    except LookupError as error:
+        raise ValueError("Unknown JUnit encoding") from error
+    junit_passed = _validate_junit(suite, run_id, outcome, cases)
+    _publish_junit(client, junit_path, suite)
+    return outcome == "PASSED" and gate_passed and junit_passed
+
+
+def _publish_junit(client: Client, junit_path: Path, suite: Element) -> None:
+    """将已验证的 XML 树写到同目录的独占临时文件，检查剩余预算后原子替换以隔离并发作业。"""
+    # 重新序列化已验证的树，仅交付安全投影节点，避免原始字节中包含解析器已丢弃的文档类型或处理指令。
+    xml = tostring(suite, encoding="utf-8", xml_declaration=True)
     junit_path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = junit_path.with_suffix(junit_path.suffix + ".tmp")
-    temporary.write_bytes(xml)
-    temporary.replace(junit_path)
-    # 安全 JUnit 是最后一次授权读取，必须纳入门禁判断；摘要与下载之间若发生凭证投递撤销，不能忽略刚收到的失败事实而
-    # 使用更早的通过快照退出零。
-    junit = fromstring(xml)
-    passed = (
-        status.get("outcome") == "PASSED"
-        and report["gatePassed"]
-        and bool(report["cases"])
-        and junit.tag == "testsuite"
-        and junit.get("failures") == "0"
-        and junit.get("errors", "0") == "0"
-        and junit.get("tests") == str(len(report["cases"]))
-        and len(junit.findall("testcase")) == len(report["cases"])
-        and not junit.findall(".//failure")
-        and not junit.findall(".//error")
-    )
-    client.remaining()
-    return passed
+    temporary = NamedTemporaryFile(dir=junit_path.parent, delete=False)
+    try:
+        with temporary:
+            temporary.write(xml)
+        client.remaining()
+        os.replace(temporary.name, junit_path)
+    finally:
+        Path(temporary.name).unlink(missing_ok=True)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -269,10 +361,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 client.remaining()
                 if attempt == 2:
                     raise
-        run_id = str(UUID(receipt["runId"]))
+        run_id = _uuid(receipt["runId"])
         run_path = f"/api/v1/workspaces/{args.workspace}/runs/{run_id}"
         print("VeriQ Run " + run_id)
-        passed = _wait_for_gate(client, run_path, args.poll_interval, args.junit)
+        passed = _wait_for_gate(client, run_path, run_id, args.poll_interval, args.junit)
         print("VeriQ gate " + ("passed" if passed else "failed"))
         return 0 if passed else 1
     except (KeyboardInterrupt, TimeoutError):
@@ -282,14 +374,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                 cancellation.request(
                     run_path + "/cancel", "POST", {"reason": "CI interrupted or timed out"}
                 )
-            except (HTTPError, URLError, TimeoutError, ValueError, KeyError, TypeError, OSError):
+            except (OSError, http.client.HTTPException, ValueError, KeyError, TypeError):
                 print("Cancellation could not be confirmed", file=sys.stderr)
         print("CI interrupted or timed out; gate failed", file=sys.stderr)
         return 2
     except HTTPError as error:
         print(f"VeriQ HTTP request failed ({error.code}); gate failed", file=sys.stderr)
         return 2
-    except (URLError, OSError, ValueError, KeyError, TypeError, ParseError):
+    except (OSError, http.client.HTTPException, ValueError, KeyError, TypeError, ParseError):
         print("VeriQ transport or response failed; gate failed", file=sys.stderr)
         return 2
 

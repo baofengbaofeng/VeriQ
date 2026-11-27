@@ -118,9 +118,7 @@ class ResetDispatcher:
         task.add_done_callback(self.pending.discard)
 
     async def _run(self, email: str) -> None:
-        """执行单次重置：未知用户静默返回；投递失败吊销令牌并记录 reset.delivery_failed，ResetDispatcher._run
-        的失败路径返回稳定错误。
-        """
+        """投递失败时撤销本次令牌。投递成功后的审计故障按请求审计 ID 记录，供运维核对。"""
         token: str | None = None
         user_id: str | None = None
         smtp_in_progress = False
@@ -137,7 +135,7 @@ class ResetDispatcher:
                 user_id = user.id
                 recipient = user.email
                 token, expiry = await issue_reset(session, user, self.config.reset_minutes)
-                audit(session, "reset.requested", None, user.id)
+                request_audit_id = audit(session, "reset.requested", None, user.id)
             url = self.config.public_url + "/reset/confirm#token=" + token
             assert self.delivery is not None
             smtp_in_progress = isinstance(self.delivery, SMTPDelivery)
@@ -149,9 +147,6 @@ class ResetDispatcher:
                     f"{stamp(expiry)}. If you did not request it, ignore this email."
                 ),
             )
-            smtp_in_progress = False
-            async with self.db.sessions.begin() as session:
-                audit(session, "reset.delivered", None, user_id)
         except Exception:
             # 邮件失败日志仅记录固定事件，不附异常文本、收件人或重置链接，避免投递适配器错误将口令重置材料写入运维日志。
             if not smtp_in_progress:
@@ -165,6 +160,18 @@ class ResetDispatcher:
                         audit(session, "reset.delivery_failed", None, user_id)
                 except Exception:
                     log("_undef", "mail.revoke_failed", level=ERROR)
+            return
+
+        try:
+            async with self.db.sessions.begin() as session:
+                audit(session, "reset.delivered", None, user_id)
+        except Exception:
+            log(
+                "_undef",
+                "mail.delivered_audit_failed",
+                level=ERROR,
+                requestAuditId=request_audit_id,
+            )
 
     async def close(self) -> None:
         """等待全部进行中的投递任务结束后再返回，供 HTTPServer 优雅停机路径调用，ResetDispatcher.close
