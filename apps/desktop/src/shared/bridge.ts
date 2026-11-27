@@ -1,5 +1,6 @@
 import type { PlatformComponents } from "@veriq/contracts";
 import type { CredentialIssue } from "./credential-status";
+import type { RecordingBounds, RecordingEvent, RecordingMode, RecordingOpen } from "./recording";
 import type { CloudOperation } from "./operations.generated";
 type S = PlatformComponents["schemas"];
 
@@ -117,6 +118,13 @@ export type LocalOperation =
  * 不接触 Cookie、设备 token 或明文保险库内容。
  */
 export interface DesktopBridge {
+    /** 录制仅以工作区内已发布环境为网络授权，目标页面与可信编辑工作区通过独立进程和临时会话隔离。 */
+    recordingOpen(input: RecordingOpen): Promise<{ sessionId: string }>;
+    recordingMode(sessionId: string, mode: RecordingMode): Promise<{ path?: string }>;
+    recordingBounds(sessionId: string, bounds: RecordingBounds | null): Promise<void>;
+    recordingNavigate(sessionId: string, target: string): Promise<void>;
+    recordingClose(sessionId: string): Promise<void>;
+    recordingEvents(listener: (event: RecordingEvent) => void): () => void;
     /**
      * 读取主窗口会话与后台的无密钥状态投影，后台不可达可以作为独立诊断事实返回；这个接口不隐式启动业务执行，也不把缓存
      * Cookie 的存在等同于服务端仍认可登录。

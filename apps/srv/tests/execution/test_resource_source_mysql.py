@@ -1978,3 +1978,64 @@ async def test_historical_scheduler_redirect_keeps_only_its_original_lineage(
         expected_test,
         "TEST",
     )
+
+
+def test_lifecycle_dependencies_and_protected_occurrences_share_compiler_paths():
+    """准备和清理所依赖的资产一并冻结，受保护事件仅接受编译器生成的出现位置。"""
+    from veriq_server.services.connected_datasets import protected_occurrences
+    from veriq_server.services.resource import asset_references
+
+    case = {
+        "versionId": "case",
+        "kind": "CASE",
+        "document": {
+            "steps": [{"action": "goto"}],
+            "lifecycle": {
+                "prepare": [{"action": "callFlow", "versionId": "setup_flow"}],
+                "cleanup": [
+                    {
+                        "on": "FAILURE",
+                        "steps": [
+                            {
+                                "action": "goto",
+                                "afterAssertions": [
+                                    {"type": "template", "severity": "BLOCK", "versionId": "check"}
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            },
+        },
+    }
+    source = {
+        "assets": [
+            case,
+            {
+                "versionId": "setup_flow",
+                "kind": "FLOW",
+                "document": {"steps": [{"action": "goto"}]},
+            },
+            {
+                "versionId": "check",
+                "kind": "ASSERTION_TEMPLATE",
+                "document": {"assertions": [{"type": "url", "severity": "BLOCK", "expected": "/"}]},
+            },
+        ]
+    }
+
+    def wire(path):
+        return "v_" + sha256(("/assets/0/document/" + path).encode()).hexdigest()
+
+    assert asset_references(case) == [("check", "ASSERTION_TEMPLATE"), ("setup_flow", "FLOW")]
+    steps, assertions = protected_occurrences(source, "case", {})
+    cleanup = "lifecycle/cleanup/0/steps/0"
+    assert set(steps) == {
+        wire("steps/0"),
+        wire("lifecycle/prepare/0"),
+        wire("lifecycle/prepare/0/flow/0"),
+        wire(cleanup),
+    }
+    assert assertions == {
+        (wire(cleanup), wire(cleanup + "/afterAssertions/0/template/0")): ("CASE", "BLOCK")
+    }

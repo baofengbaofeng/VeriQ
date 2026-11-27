@@ -65,6 +65,7 @@ export class HostSession {
     constructor(
         private readonly session: Pick<Session, "fetch" | "clearStorageData">,
         origin: string,
+        private readonly onInvalidate?: () => void,
     ) {
         this.origin = controlOrigin(origin);
     }
@@ -418,5 +419,6 @@ export class HostSession {
             this.user = undefined;
             this.csrf = "";
         }
+        this.onInvalidate?.();
     }
 }

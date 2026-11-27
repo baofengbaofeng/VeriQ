@@ -15,7 +15,7 @@ from ..db import Attempt, CaseExecution, Job, Run, ValidationReceipt
 from ..repositories.resource import ResourceRepository
 from ..service import Problem, now
 from .compilation_provenance import validation_origin_filter, validation_origin_matches
-from .snapshots import execution_data_row
+from .snapshots import case_step_lists, execution_data_row
 
 
 async def frozen_object(
@@ -210,9 +210,9 @@ def protected_occurrences(
         document(subject["datasetVersionId"], "DATASET") if subject.get("datasetVersionId") else {}
     )
     fields = set(matrix.get("fields", matrix.get("columns", {})))
-    collect_steps(
-        document(case_id, "CASE")["steps"], f"/assets/{versions[case_id][0]}/document/steps", fields
-    )
+    case_path = f"/assets/{versions[case_id][0]}/document"
+    for path, items in case_step_lists(document(case_id, "CASE")):
+        collect_steps(items, f"{case_path}/{path}", fields)
     return steps, assertions
 
 

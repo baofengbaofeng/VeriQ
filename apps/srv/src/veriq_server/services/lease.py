@@ -194,30 +194,50 @@ class LeaseService:
             attempt.phase = phase
         current = await database_time(self.session)
         run = await self.session.get(Run, job.run_id) if job.run_id else None
+        run_deadline = run.created_at + timedelta(minutes=30) if run else None
+        user_cancelled = (
+            run is not None
+            and run.state == "CANCEL_REQUESTED"
+            and run.reason_code == "USER_CANCELLED"
+        )
         cancel = job.state == "CANCEL_REQUESTED" or bool(
             run
             and (
-                run.state == "CANCEL_REQUESTED" or run.created_at + timedelta(minutes=30) <= current
+                run.state == "CANCEL_REQUESTED"
+                or (run_deadline is not None and run_deadline <= current)
             )
         )
         if cancel and run:
             run.state = job.state = "CANCEL_REQUESTED"
+        requester_allowed = True
         try:
             await require_requester(self.session, job, runtime.id)
         except Problem:
+            requester_allowed = False
             cancel = True
             job.state = "CANCEL_REQUESTED"
         current = await database_time(self.session)
         if not cancel:
             runtime.last_seen_at = current
             attempt.lease_expires_at = (
-                min(current + timedelta(seconds=60), run.created_at + timedelta(minutes=30))
-                if run
+                min(current + timedelta(seconds=60), run_deadline)
+                if run_deadline is not None
                 else current + timedelta(seconds=60)
             )
+        # 明确取消只在原租约和授权仍有效时允许清理，不给租约续期或重新授权已失效的尝试。
+        page_cleanup_allowed = (
+            user_cancelled
+            and requester_allowed
+            and job.kind == "TEST"
+            and attempt.activated_at is not None
+            and attempt.phase in {"PREPARING", "RUNNING", "CLEANING"}
+            and run_deadline is not None
+            and current < min(run_deadline, attempt.lease_expires_at)
+        )
         return {
             "leaseExpiresAt": stamp(attempt.lease_expires_at),
             "cancelRequested": cancel,
+            **({"pageCleanupAllowed": True} if page_cleanup_allowed else {}),
             "serverTime": stamp(current),
             "leaseDurationMs": max(
                 0, int((attempt.lease_expires_at - current).total_seconds() * 1000)

@@ -561,3 +561,64 @@ def test_nested_query_error_cannot_skip_outside_a_continuing_flow(use_assertion)
         "ERROR",
     )
     assert result["evidence"] == "INCOMPLETE"
+
+
+def test_lifecycle_requires_only_matching_cleanup_and_keeps_business_failure():
+    """只计入业务结果匹配的清理分支，区分准备失败与清理失败，并拒绝其它分支的事件。"""
+    plan = {
+        "steps": [
+            expected_step("prepare", 0, phase="PREPARE"),
+            expected_step("main", 1),
+            expected_step("after_success", 2, phase="CLEANUP_SUCCESS"),
+            expected_step("after_failure", 3, phase="CLEANUP_FAILURE"),
+        ]
+    }
+    manifest = {"businessOutcome": "FAILED", "cleanupStatus": "FAILED"}
+    events = [
+        began(),
+        event("STEP_STARTED", {}, stepId="prepare"),
+        event("STEP_FINISHED", {"status": "FAILED"}, stepId="prepare"),
+        event("STEP_FINISHED", {"status": "SKIPPED", "blockedByStepId": "prepare"}, stepId="main"),
+        event("STEP_STARTED", {}, stepId="after_failure"),
+        event("STEP_FINISHED", {"status": "ERROR"}, stepId="after_failure"),
+        event("CLEANUP_RESULT", {"cleanupStatus": "FAILED", "errorCode": "PAGE_CLEANUP_FAILED"}),
+        event("ATTEMPT_FINISHED", {"outcome": "ERROR", "cleanupStatus": "FAILED"}),
+    ]
+    facts = reducer()(plan, events, manifest, evidence_complete=True)
+    assert (facts["business"], facts["cleanup"], facts["outcome"]) == ("FAILED", "FAILED", "ERROR")
+    assert facts["evidence"] == "COMPLETE"
+    assert facts["errorCode"] == "PAGE_CLEANUP_FAILED"
+
+    wrong_branch = events[:4] + [{**e, "stepId": "after_success"} for e in events[4:6]] + events[6:]
+    assert (
+        reducer()(plan, wrong_branch, manifest, evidence_complete=True)["evidence"] == "INCOMPLETE"
+    )
+
+
+def test_cooperative_cancellation_requires_declared_cleanup():
+    """从真实取消状态保留不完整业务步骤，但清理分支必须有独立执行证据。"""
+    plan = {
+        "steps": [
+            expected_step("main", 0),
+            expected_step("after_cancel", 1, phase="CLEANUP_CANCELLED"),
+        ]
+    }
+    manifest = {"businessOutcome": "CANCELLED", "cleanupStatus": "SUCCEEDED"}
+    events = [
+        began(),
+        event("STEP_STARTED", {}, stepId="after_cancel"),
+        event("STEP_FINISHED", {"status": "PASSED"}, stepId="after_cancel"),
+        event("CLEANUP_RESULT", {"cleanupStatus": "SUCCEEDED"}),
+        event("ATTEMPT_FINISHED", {"outcome": "CANCELLED", "cleanupStatus": "SUCCEEDED"}),
+    ]
+    reduce = reducer()
+    assert (
+        reduce(plan, events, manifest, evidence_complete=True, cancel_requested=True)["evidence"]
+        == "COMPLETE"
+    )
+    assert (
+        reduce(
+            plan, events[:1] + events[3:], manifest, evidence_complete=True, cancel_requested=True
+        )["evidence"]
+        == "INCOMPLETE"
+    )

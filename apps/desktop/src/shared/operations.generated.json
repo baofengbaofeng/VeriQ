@@ -503,6 +503,24 @@
         "idempotency": false,
         "kind": "json"
     },
+    "createExecutionPlan": {
+        "path": "/api/v1/workspaces/{workspaceId}/execution-plans",
+        "method": "POST",
+        "ids": ["workspaceId"],
+        "queries": {},
+        "request": "ExecutionPlanWrite",
+        "idempotency": false,
+        "kind": "json"
+    },
+    "getExecutionPlan": {
+        "path": "/api/v1/workspaces/{workspaceId}/execution-plans/{planId}",
+        "method": "GET",
+        "ids": ["workspaceId", "planId"],
+        "queries": {},
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
     "listProviders": {
         "path": "/api/v1/workspaces/{workspaceId}/ai/providers",
         "method": "GET",
@@ -588,6 +606,15 @@
         "request": "ServiceAccountCreate",
         "idempotency": false,
         "agentForm": true,
+        "kind": "json"
+    },
+    "triggerExecutionPlan": {
+        "path": "/api/v1/workspaces/{workspaceId}/execution-plans/{planId}/trigger",
+        "method": "POST",
+        "ids": ["workspaceId", "planId"],
+        "queries": {},
+        "request": "TriggerRequest",
+        "idempotency": true,
         "kind": "json"
     },
     "listRuns": {

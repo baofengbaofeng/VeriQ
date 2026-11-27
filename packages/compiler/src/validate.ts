@@ -618,7 +618,7 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
         scope = {
             ...scope,
             assertionBudget: scope.assertionBudget ?? { count: 0 },
-            pages: new Set(scope.pages ?? []),
+            pages: scope.pages ?? new Set(),
         };
         unique(
             list.map((s) => s.id),
@@ -690,7 +690,10 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
                     children = steps(
                         f.document.steps,
                         f.versionId,
-                        params(f.document.parameters, s.parameters, scope, path + "/parameters"),
+                        {
+                            ...params(f.document.parameters, s.parameters, scope, path + "/parameters"),
+                            pages: new Set(scope.pages),
+                        },
                         path + "/flow",
                         [...stack, s.versionId],
                         budget,
@@ -885,7 +888,38 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
                             }
                     }
                 }
-                const expanded = steps(d.steps, a.versionId, scope, p + "/steps", [], { count: 0 }, d.kind === "WRITE");
+                const budget = { count: 0 };
+                scope.assertionBudget = { count: 0 };
+                scope.pages = new Set();
+                const cleanupScope = { ...scope, vars: new Map(scope.vars), pages: new Set<string>() };
+                const write = d.kind === "WRITE";
+                const prepare = steps(
+                    d.lifecycle?.prepare ?? [],
+                    a.versionId,
+                    scope,
+                    p + "/lifecycle/prepare",
+                    [],
+                    budget,
+                    write,
+                );
+                const expanded = steps(d.steps, a.versionId, scope, p + "/steps", [], budget, write);
+                const conditions = d.lifecycle?.cleanup ?? [];
+                unique(
+                    conditions.map((branch) => branch.on),
+                    p + "/lifecycle/cleanup",
+                );
+                const cleanup = conditions.map(({ on, steps: list }, index) => ({
+                    on,
+                    steps: steps(
+                        list,
+                        a.versionId,
+                        { ...cleanupScope, vars: new Map(cleanupScope.vars), pages: new Set() },
+                        p + "/lifecycle/cleanup/" + index + "/steps",
+                        [],
+                        budget,
+                        write,
+                    ),
+                }));
                 /**
                  * 持久化检查点按顶层定位，嵌套关键写入归入包装步骤排序；检查点不得早于最后写入，同位置须含最终查询。
                  * 有效证明要求非警告断言：导航或重载后的界面检查、GET 请求的响应字段，或契约限定的最终一致性查询。
@@ -926,6 +960,8 @@ export function analyze(snapshot: AssetSnapshotV1): Analysis {
                     caseVersionId: a.versionId,
                     document: d,
                     steps: expanded,
+                    ...(prepare.length ? { prepare } : {}),
+                    ...(cleanup.length ? { cleanup } : {}),
                     ...(checkpoint ? { persistenceCheckpointStepId: checkpoint.step.id } : {}),
                 };
             }

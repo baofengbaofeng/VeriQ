@@ -38,10 +38,15 @@ export interface CompiledStep {
 /**
  * 公开接口 CompiledCase 绑定 caseVersionId、DSL 文档与编译步骤树：可选 persistenceCheckpointStepId。
  */
+export type CaseCleanupCondition = "SUCCESS" | "FAILURE" | "CANCELLED";
+export type CaseStepPhase = "PREPARE" | `CLEANUP_${CaseCleanupCondition}`;
+
 export interface CompiledCase {
     caseVersionId: string;
     document: CaseDslV1;
     steps: CompiledStep[];
+    prepare?: CompiledStep[];
+    cleanup?: { on: CaseCleanupCondition; steps: CompiledStep[] }[];
     persistenceCheckpointStepId?: string;
 }
 

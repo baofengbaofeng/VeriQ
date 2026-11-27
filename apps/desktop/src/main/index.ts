@@ -17,6 +17,8 @@ import { requireCookieProtection } from "./cookie-protection";
 import { prepareCookieStorage } from "./cookie-migration";
 import { object, parseSchema, resolveOperation } from "./policy";
 import { authorizeSender } from "./scope";
+import { RecordingView, type RecordingScope } from "./recording-view";
+import type { RecordingBounds } from "../shared/recording";
 import { openNativeTrace } from "./trace-window";
 import { openNativeImage } from "./image-window";
 import { withArtifactExport } from "./artifact-export";
@@ -47,6 +49,29 @@ import { privateDirectory, readPrivate, updatePrivate } from "../../../runtime/s
  * 任意读写文件或进程启动接口。
  */
 const directory = dirname(fileURLToPath(import.meta.url));
+const recording = new RecordingView(join(directory, "../preload"));
+let recordingRevision = 0;
+let recordingExpiry: NodeJS.Timeout | undefined;
+let mountedRecording: string | undefined;
+
+function closeRecording(): void {
+    recordingRevision++;
+    mountedRecording = undefined;
+    clearTimeout(recordingExpiry);
+    recording.close();
+}
+
+function watchRecording(id: string, expiresAt: number): void {
+    clearTimeout(recordingExpiry);
+    mountedRecording = id;
+    function check() {
+        if (mountedRecording !== id) return;
+        const remaining = expiresAt - Date.now();
+        if (remaining <= 0) closeRecording();
+        else recordingExpiry = setTimeout(check, Math.min(remaining, 0x7fffffff));
+    }
+    check();
+}
 app.setName("VeriQ");
 const profile = process.env.VERIQ_DESKTOP_PROFILE ?? join(app.getPath("userData"), "profile");
 if (process.env.VERIQ_DESKTOP_PROFILE) app.setPath("userData", join(profile, "electron"));
@@ -74,6 +99,76 @@ const runtime = {
     browserExecutable: process.env.VERIQ_DESKTOP_BROWSER ?? join(process.resourcesPath, "browser", "chrome"),
     ...(process.env.VERIQ_DESKTOP_HEADED_BROWSER ? { headedExecutable: process.env.VERIQ_DESKTOP_HEADED_BROWSER } : {}),
 };
+
+function recordingScope(): RecordingScope | undefined {
+    const user = host?.user;
+    const workspace = host?.workspace;
+    if (user && workspace && Date.parse(user.expiresAt) > Date.now())
+        return { origin: host.origin, userId: user.user.id, workspaceId: workspace.id };
+}
+
+function recordingId(value: unknown): string {
+    if (typeof value !== "string" || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(value))
+        throw new Error("IPC_PAYLOAD_INVALID");
+    return value;
+}
+
+function recordingBounds(value: unknown): RecordingBounds | null {
+    if (value === null) return null;
+    const rectangle = object(value, ["x", "y", "width", "height"]);
+    function coordinate(key: keyof RecordingBounds) {
+        const item = rectangle[key];
+        if (typeof item !== "number" || !Number.isFinite(item) || item < 0 || item > 16384)
+            throw new Error("IPC_PAYLOAD_INVALID");
+        return Math.round(item);
+    }
+    return { x: coordinate("x"), y: coordinate("y"), width: coordinate("width"), height: coordinate("height") };
+}
+
+/** 可信窗口只提交环境版本标识。宿主用自己的已认证会话核对发布版本，且在异步返回后再次核对用户和工作区。 */
+async function openRecording(input: unknown, owner: BrowserWindow): Promise<{ sessionId: string }> {
+    const scope = recordingScope();
+    if (!scope) throw new Error("RECORDING_SCOPE_REQUIRED");
+    const value = object(input, ["workspaceId", "resourceId", "versionId", "target"]);
+    if (recordingId(value.workspaceId) !== scope.workspaceId) throw new Error("RECORDING_SCOPE_REQUIRED");
+    const resourceId = recordingId(value.resourceId);
+    const versionId = recordingId(value.versionId);
+    if (value.target !== undefined && (typeof value.target !== "string" || value.target.length > 2048))
+        throw new Error("IPC_PAYLOAD_INVALID");
+    const revision = ++recordingRevision;
+    const environment = parseSchema(
+        "ResourceVersionDTO",
+        await host.cloud({
+            operation: "getVersion",
+            params: { workspaceId: scope.workspaceId, resourceId, versionId },
+        }),
+    );
+    const current = recordingScope();
+    if (
+        recordingRevision !== revision ||
+        owner.isDestroyed() ||
+        !current ||
+        current.userId !== scope.userId ||
+        current.workspaceId !== scope.workspaceId ||
+        current.origin !== scope.origin ||
+        environment.workspaceId !== scope.workspaceId ||
+        environment.resourceId !== resourceId ||
+        environment.id !== versionId ||
+        environment.content.kind !== "ENVIRONMENT"
+    )
+        throw new Error("RECORDING_SCOPE_REQUIRED");
+    const document = environment.content.document;
+    const sessionId = recording.open(
+        { window: owner, scope },
+        {
+            base: document.baseURL,
+            approved: document.allowedOrigins,
+            ...(typeof value.target === "string" ? { initial: value.target } : {}),
+        },
+    );
+    watchRecording(sessionId, Date.parse(host.user?.expiresAt ?? "") || Date.now());
+    return { sessionId };
+}
 
 /**
  * 连接已有后台优先于拉起新进程，只有明确的不可用或首次档案缺失才进入启动路径；已损坏的描述文件与未知错误必须原样失败，
@@ -527,6 +622,16 @@ async function artifact(input: unknown) {
  * 未知动作即使带有合法业务参数，也不会回退到某个默认处理器。
  */
 function installBridge() {
+    ipcMain.on("veriq:recording-arm-ack", (event, value: unknown) =>
+        recording.acknowledge(recordingScope(), event, value),
+    );
+    ipcMain.on("veriq:recording-event", (event, value: unknown) => {
+        try {
+            recording.accept(recordingScope(), event, value);
+        } finally {
+            event.returnValue = true;
+        }
+    });
     ipcMain.handle("veriq:desktop", async (event, operation: unknown, input: unknown) => {
         if (!window || !event.senderFrame) throw new Error("IPC_SENDER_DENIED");
         authorizeSender(
@@ -534,6 +639,35 @@ function installBridge() {
             { id: window.webContents.id, frame: window.webContents.mainFrame },
         );
         switch (operation) {
+            case "recordingOpen":
+                return openRecording(input, window);
+            case "recordingMode":
+            case "recordingBounds":
+            case "recordingNavigate":
+            case "recordingClose": {
+                const scope = recordingScope();
+                if (!scope) throw new Error("RECORDING_SCOPE_REQUIRED");
+                const fields = {
+                    recordingMode: ["sessionId", "mode"],
+                    recordingBounds: ["sessionId", "bounds"],
+                    recordingNavigate: ["sessionId", "target"],
+                    recordingClose: ["sessionId"],
+                };
+                const value = object(input, fields[operation]);
+                const id = recordingId(value.sessionId);
+                if (operation === "recordingMode") {
+                    if (value.mode !== "record" && value.mode !== "annotate" && value.mode !== "paused")
+                        throw new Error("IPC_PAYLOAD_INVALID");
+                    return recording.mode(scope, id, value.mode);
+                }
+                if (operation === "recordingBounds") return recording.bounds(scope, id, recordingBounds(value.bounds));
+                if (operation === "recordingNavigate") {
+                    if (typeof value.target !== "string") throw new Error("IPC_PAYLOAD_INVALID");
+                    return recording.navigate(scope, id, value.target);
+                }
+                recording.close(scope, id);
+                if (mountedRecording === id) closeRecording();
+            }
             case "state":
                 return state();
             case "configure": {
@@ -560,7 +694,7 @@ function installBridge() {
                 await session
                     .fromPartition("persist:veriq-host")
                     .setProxy(proxy ? { proxyRules: proxy } : { mode: "system" });
-                host = new HostSession(session.fromPartition("persist:veriq-host"), origin);
+                host = new HostSession(session.fromPartition("persist:veriq-host"), origin, closeRecording);
                 await updatePrivate(profile, "desktop-settings.json", () => ({ origin, proxy }));
                 try {
                     await client.call({ operation: "stop" });
@@ -568,6 +702,7 @@ function installBridge() {
                 return;
             }
             case "login":
+                closeRecording();
                 return host.login(parseSchema("LoginRequest", input));
             case "logout":
                 return host.logout();
@@ -719,7 +854,7 @@ async function main() {
     });
     const auth = session.fromPartition("persist:veriq-host");
     await auth.setProxy(proxy ? { proxyRules: proxy } : { mode: "system" });
-    host = new HostSession(auth, origin);
+    host = new HostSession(auth, origin, closeRecording);
     const renderer = session.fromPartition("veriq-renderer");
     renderer.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
     renderer.setPermissionCheckHandler(() => false);
@@ -764,6 +899,7 @@ async function main() {
         },
     });
     window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+    window.on("closed", closeRecording);
     window.webContents.on("will-navigate", (event) => event.preventDefault());
     window.webContents.on("render-process-gone", () => {
         host.invalidate();
