@@ -1,113 +1,176 @@
 /**
  * Chromium 通过正常对话取得表单卡，核对点击时的员工轮次请求和业务表单导航，再用归档证明旧的入口仍需授权。
  */
-import { createServer } from "node:http";
+import { randomUUID } from "node:crypto";
+import { conversationForm } from "./support/agent-conversation-form";
 import { expect, test } from "@playwright/test";
 import { editorScope } from "./editor-fixture";
 import { installed } from "./support/install-console";
 
-test("a saved form opens its authorized workspace and loses access when that workspace is archived", async ({
+test("an authorized inline form preserves the exact chat draft and repeated clicks recheck access", async ({
     page,
     baseURL,
 }) => {
-    const port = Number(process.env.VERIQ_TEST_MODEL_PORT ?? "18890");
-    let calls = 0;
-    const model = createServer(async (request, response) => {
-        const buffers: Buffer[] = [];
-        for await (const chunk of request) buffers.push(Buffer.from(chunk));
-        const body = JSON.parse(Buffer.concat(buffers).toString()) as {
-            stream?: boolean;
-            messages: { role: string }[];
-        };
-        calls++;
-        const first = !body.messages.some((message) => message.role === "tool");
-        const delta = first
-            ? {
-                  tool_calls: [
-                      {
-                          index: 0,
-                          id: "environment_form",
-                          type: "function",
-                          function: {
-                              name: "open_workspace_form_v1",
-                              arguments: JSON.stringify({ capability: "ENVIRONMENT" }),
-                          },
-                      },
-                  ],
-              }
-            : { content: "Review the environment form." };
-        if (!body.stream) {
-            response.writeHead(400).end();
-            return;
-        }
-        response.writeHead(200, { "Content-Type": "text/event-stream" });
-        const event = {
-            id: "form-test",
-            object: "chat.completion.chunk",
-            created: 0,
-            model: "form-model",
-            choices: [{ index: 0, delta, finish_reason: first ? "tool_calls" : "stop" }],
-            usage: { prompt_tokens: 50, completion_tokens: 25, total_tokens: 75 },
-        };
-        response.end(`data: ${JSON.stringify(event)}\n\ndata: [DONE]\n\n`);
-    });
-    await new Promise<void>((resolve, reject) => {
-        model.once("error", reject);
-        model.listen(port, "127.0.0.1", resolve);
-    });
-    try {
-        await installed(page, baseURL);
-        const { workspaceId, headers } = await editorScope(page, "workspace-form-cards", "/agent");
+    await conversationForm(page, baseURL, "ENVIRONMENT", async ({ workspaceId, headers }, calls) => {
         const base = `/api/v1/workspaces/${workspaceId}`;
-        const created = await page.request.post(`${base}/ai/providers`, {
-            headers,
-            data: {
-                name: "Form test",
-                adapter: "OPENAI_COMPATIBLE",
-                model: "form-model",
-                baseURL: `http://127.0.0.1:${port}/v1`,
-                apiKey: "local-form-test-key",
-                enabled: true,
-                monthlyBudgetUsd: 1,
-                inputUsdPerMillion: 1,
-                outputUsdPerMillion: 2,
-                maxOutputTokens: 1024,
-                maxRequestUsd: 1,
-            },
-        });
-        expect(created.status(), await created.text()).toBe(201);
-        const settings = await page.request.put(`${base}/agent/settings`, {
-            headers,
-            data: { defaultProviderId: (await created.json()).data.id, agentProviderId: null },
-        });
-        expect(settings.status(), await settings.text()).toBe(200);
-        await page.reload();
-        await page.getByRole("button", { name: "New conversation", exact: true }).click();
-        await page
-            .getByRole("textbox", { name: "Message", exact: true })
-            .fill("Open my workspace environment configuration form.");
-        await page.getByRole("button", { name: "Send", exact: true }).click();
         const card = page.getByRole("button", { name: "Configure execution environments", exact: true });
         await expect(card).toBeVisible();
+        const url = page.url();
+        const draft = page.getByRole("textbox", { name: "Message", exact: true });
+        await draft.fill("Keep my pending message.");
         const verified = page.waitForResponse((response) => response.url().endsWith("/workspace-form"));
         await card.click();
         const verification = await verified;
         expect(verification.request().method()).toBe("GET");
         expect(verification.status()).toBe(200);
-        await expect(page).toHaveURL(
-            new RegExp(`/resources/environments\\?workspaceId=${workspaceId}&fromAgentForm=1$`),
-        );
-        await expect(page.getByRole("heading", { name: "Execution environments", exact: true }).first()).toBeVisible();
-        await page.reload();
-        await expect(page.getByRole("heading", { name: "Execution environments", exact: true }).first()).toBeVisible();
+        const panel = page.getByRole("region", { name: "Configure execution environments", exact: true });
+        await expect(panel.getByRole("heading", { name: "Execution environments", exact: true }).first()).toBeVisible();
+        await expect(page).toHaveURL(url);
+        await panel.getByRole("button", { name: "Close form", exact: true }).click();
+        await expect(panel).toHaveCount(0);
+        await expect(draft).toHaveValue("Keep my pending message.");
+        await expect(card).toBeVisible();
+        await card.click();
+        await expect(panel).toBeVisible();
+        await page.getByRole("button", { name: "New conversation", exact: true }).click();
+        await expect(panel).toHaveCount(0);
+        await expect(page).toHaveURL(url);
         expect((await page.request.delete(base, { headers })).status()).toBe(200);
         const closed = await page.request.get(verification.url());
         expect(closed.status(), await closed.text()).toBe(409);
         expect((await closed.json()).code).toBe("WORKSPACE_ARCHIVED");
-        expect(calls).toBe(2);
-    } finally {
-        await new Promise<void>((resolve, reject) => model.close((error) => (error ? reject(error) : resolve())));
-    }
+        expect(calls()).toBe(2);
+    });
+});
+
+test("inline archive retains the outer URL and requires the original confirmation", async ({ page, baseURL }) => {
+    await conversationForm(page, baseURL, "WORKSPACE_ARCHIVE", async ({ workspaceId }, calls) => {
+        const entry = page.url();
+        const card = page.getByRole("button", { name: "Review workspace archive settings", exact: true });
+        await card.click();
+        const panel = page.getByRole("region", { name: "Review workspace archive settings", exact: true });
+        const archive = panel.getByRole("button", { name: "Archive Workspace", exact: true });
+        await archive.click();
+        const dialog = page.getByRole("dialog", { name: "Archive Workspace", exact: true });
+        await expect(dialog).toBeVisible();
+        await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+        await expect(dialog).toHaveCount(0);
+        const base = `/api/v1/workspaces/${workspaceId}`;
+        expect((await (await page.request.get(base)).json()).data.archived).toBe(false);
+        await expect(page).toHaveURL(entry);
+        await archive.click();
+        const result = page.waitForResponse(
+            (response) => response.url().endsWith(base) && response.request().method() === "DELETE",
+        );
+        await dialog.getByRole("button", { name: "Archive Workspace", exact: true }).click();
+        const confirmed = await result;
+        expect(confirmed.status()).toBe(200);
+        expect(await confirmed.request().headerValue("x-veriq-agent-form")).toMatch(/^[a-f\d-]{36}$/i);
+        expect((await (await page.request.get(base)).json()).data.archived).toBe(true);
+        await expect(page).toHaveURL(entry);
+        expect(calls()).toBe(2);
+    });
+});
+
+test("the sheet keeps its draft while an inline dataset opens its actual detail page and returns", async ({
+    page,
+    baseURL,
+}) => {
+    await conversationForm(
+        page,
+        baseURL,
+        "HTTP_DATASET",
+        async ({ workspaceId, headers }) => {
+            const entry = page.url();
+            const document = {
+                schemaVersion: "2.0",
+                shape: "TABLE",
+                fields: { title: { type: "string", required: true, nullable: false } },
+                source: { kind: "STATIC", rows: [{ key: "one", values: { title: "Pinned row" } }] },
+            };
+            const seeded = await page.request.post(`/api/v1/workspaces/${workspaceId}/resources`, {
+                headers,
+                data: {
+                    kind: "DATASET",
+                    name: "Inline dataset",
+                    key: "inline_dataset",
+                    content: { kind: "DATASET", document },
+                },
+            });
+            expect(seeded.status(), await seeded.text()).toBe(201);
+            const sheet = page.getByRole("dialog", { name: "Test Agent", exact: true });
+            const draft = sheet.getByRole("textbox", { name: "Message", exact: true });
+            await draft.fill("Draft in the active drawer");
+            await sheet.getByRole("button", { name: "Configure HTTP datasets", exact: true }).click();
+            const panel = sheet.getByRole("region", { name: "Configure HTTP datasets", exact: true });
+            const details = panel.getByRole("link", {
+                name: "Details for Inline dataset (inline_dataset)",
+                exact: true,
+            });
+            await details.click();
+            await expect(panel.getByRole("heading", { name: "Inline dataset", exact: true })).toBeVisible();
+            await expect(panel.getByRole("tablist", { name: "Dataset editor", exact: true })).toBeVisible();
+            await panel.getByRole("link", { name: "Datasets", exact: true }).click();
+            await expect(details).toBeVisible();
+            await panel.getByRole("button", { name: "Close form", exact: true }).click();
+            await expect(draft).toHaveValue("Draft in the active drawer");
+            await expect(page).toHaveURL(entry);
+        },
+        true,
+    );
+});
+
+test("an inline notification resolves its private detail without replacing the current chat", async ({
+    page,
+    baseURL,
+}) => {
+    await conversationForm(page, baseURL, "NOTIFICATION_INBOX", async ({ workspaceId, headers }) => {
+        const entry = page.url();
+        const draft = page.getByRole("textbox", { name: "Message", exact: true });
+        const card = page.getByRole("button", { name: "View my notifications", exact: true });
+        await expect(card).toBeVisible();
+        await draft.fill("Keep this pending reply");
+        // 未展示的第二个私有会话产生真实延迟投递。当前屏幕上可见的回复会按产品规则主动确认并取消投递。
+        const sessions = `/api/v1/workspaces/${workspaceId}/agent/sessions`;
+        const created = await page.request.post(sessions, { headers, data: { title: "Unopened notification target" } });
+        expect(created.status(), await created.text()).toBe(201);
+        const sessionId = (await created.json()).data.id;
+        const reply = await page.request.post(`${sessions}/${sessionId}/turns/stream`, {
+            headers,
+            data: { requestId: randomUUID(), text: "Prepare a private inbox notice" },
+        });
+        expect(reply.status(), await reply.text()).toBe(200);
+        async function inboxNotice() {
+            const list = await page.request.get("/api/v1/notifications");
+            expect(list.status()).toBe(200);
+            return (await list.json()).data.items.find(
+                (row: { sessionId?: string; kind: string }) =>
+                    row.kind === "AGENT_REPLY" && row.sessionId === sessionId,
+            );
+        }
+        await expect.poll(inboxNotice).toBeTruthy();
+        const notice = await inboxNotice();
+        await card.click();
+        const panel = page.getByRole("region", { name: "View my notifications", exact: true });
+        const read = page.waitForResponse(
+            (response) =>
+                response.request().method() === "POST" && response.url().endsWith(`/notifications/${notice.id}/read`),
+        );
+        await panel
+            .getByRole("row")
+            .filter({ hasText: notice.sessionTitle })
+            .getByRole("button", { name: "View", exact: true })
+            .click();
+        expect((await read).status()).toBe(200);
+        const detail = panel.getByRole("region", { name: "Notification details", exact: true });
+        await expect(detail).toContainText(notice.preview);
+        await expect(detail.getByRole("button", { name: "View", exact: true })).toHaveCount(0);
+        await detail.getByRole("link", { name: "Back to notifications", exact: true }).click();
+        await expect(detail).toHaveCount(0);
+        await panel.getByRole("button", { name: "Close form", exact: true }).click();
+        await expect(draft).toHaveValue("Keep this pending reply");
+        await expect(page).toHaveURL(entry);
+    });
 });
 
 test("a separate browser signs in at the verified form URL and continues in its own session", async ({

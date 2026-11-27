@@ -91,6 +91,7 @@
         "queries": {},
         "request": "ResourceCreate",
         "idempotency": false,
+        "agentForm": true,
         "kind": "json"
     },
     "listDatasetCopySources": {
@@ -123,6 +124,7 @@
         "queries": {},
         "request": "DatasetCopyRequest",
         "idempotency": false,
+        "agentForm": true,
         "kind": "json"
     },
     "getResource": {
@@ -141,6 +143,7 @@
         "queries": {},
         "request": "ResourceUpdate",
         "idempotency": false,
+        "agentForm": true,
         "kind": "json"
     },
     "getDraft": {
@@ -159,6 +162,7 @@
         "queries": {},
         "request": "DraftWrite",
         "idempotency": false,
+        "agentForm": true,
         "kind": "json"
     },
     "previewHttpDataset": {
@@ -177,6 +181,7 @@
         "queries": {},
         "request": "ValidationRequest",
         "idempotency": false,
+        "agentForm": true,
         "kind": "json"
     },
     "publishResource": {
@@ -186,6 +191,7 @@
         "queries": {},
         "request": "PublishRequest",
         "idempotency": false,
+        "agentForm": true,
         "kind": "json"
     },
     "listVersions": {

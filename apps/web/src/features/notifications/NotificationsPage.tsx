@@ -19,7 +19,7 @@ const identifier = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
  * 独立详情通过通知 ID 向服务端确认访问，只有取得最新快照时才展示正文；链接未包含接受邀请所需的私有材料。
  */
 function NotificationDetail({ id }: { id: string }) {
-    const { owner, signal } = useInbox();
+    const { owner, signal, opensDetail } = useInbox();
     const title = useRef<HTMLHeadingElement>(null);
     const details = useQuery({
         queryKey: [...inboxKey(owner), "detail", id],
@@ -46,7 +46,7 @@ function NotificationDetail({ id }: { id: string }) {
                 <>
                     <NoticeTime stamp={details.data.occurredAt} />
                     <NoticeSummary row={details.data} />
-                    <NoticeActions row={details.data} details={details.data.kind === "WORKSPACE_INVITED"} />
+                    <NoticeActions row={details.data} details={opensDetail(details.data)} />
                 </>
             )}
             <Link to="/notifications">{tx("Back to notifications")}</Link>

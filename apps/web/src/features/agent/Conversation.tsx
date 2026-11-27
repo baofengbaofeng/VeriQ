@@ -19,6 +19,7 @@ import { AgentError, agentOperationError, agentProblem } from "./feedback";
 import { useOperationFeedback } from "../../operation-feedback";
 import { Proposal, ActionReceipt } from "./Proposal";
 import { CapabilityCard } from "./CapabilityCard";
+import { FormReceipts } from "./FormReceipts";
 import { RunCard, type ReportNavigation, type RunReference } from "./RunCard";
 import { BackgroundTasks, useAgentTasks } from "./BackgroundTasks";
 import { Markdown } from "./Markdown";
@@ -148,6 +149,7 @@ function Thread({
     const [streamSteps, setStreamSteps] = useState(() => new Map<string, Step[]>());
     const [openThinking, setOpenThinking] = useState(() => new Map<string, boolean>());
     const [completedRuns, setCompletedRuns] = useState(() => new Set<string>());
+    const reconcileFormUntil = useRef(0);
     const retryKey = "veriq.agent.retry/" + JSON.stringify([owner, workspace.id, id]);
     const supersededTarget = supersededTargets.get(retryKey);
     const key = ["workspace", workspace.id, "agent", owner, "session", id];
@@ -176,6 +178,9 @@ function Thread({
         getNextPageParam: (page, _pages, _parameter, parameters) =>
             page.nextCursor && !parameters.includes(page.nextCursor) ? page.nextCursor : undefined,
         refetchInterval: (query) => {
+            // 关闭面板可能中止浏览器等待，但服务端已开始的事务仍可能在首次历史读取之后提交。
+            const remaining = reconcileFormUntil.current - Date.now();
+            if (remaining > 0) return Math.max(250, Math.min(1500, remaining));
             const loaded = query.state.data?.pages.flatMap((page) => page.items) ?? [];
             return mergeTurns(loaded, updates).some((turn) => turn.status === "RUNNING") ? 2_000 : false;
         },
@@ -850,8 +855,13 @@ function Thread({
                                     signal={signal}
                                     launcher={formLauncher}
                                     authorize={(current) => adapter.getAgentWorkspaceForm(id, turn.id, current)}
+                                    onClose={() => {
+                                        reconcileFormUntil.current = Date.now() + 4500;
+                                        void history.refetch();
+                                    }}
                                 />
                             )}
+                            {turn.workspaceFormReceipts && <FormReceipts items={turn.workspaceFormReceipts} />}
                             {turn.proposal && (
                                 <Proposal
                                     proposal={turn.proposal}

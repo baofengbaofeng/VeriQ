@@ -2421,6 +2421,7 @@ export interface ContractDefinitions {
   AgentDraftOperations?: AgentDraftOperations;
   AgentWorkspaceCapability?: AgentWorkspaceCapability;
   AgentWorkspaceForm?: AgentWorkspaceForm;
+  AgentWorkspaceFormReceipt?: AgentWorkspaceFormReceipt;
   AgentResourceBatchProposal?: AgentResourceBatchProposal;
   AgentResourceDraftReceipt?: AgentResourceDraftReceipt;
   AgentResourceBatchReceipt?: AgentResourceBatchReceipt;
@@ -4030,6 +4031,18 @@ export interface AgentWorkspaceForm {
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "AgentWorkspaceFormReceipt".
+ */
+export interface AgentWorkspaceFormReceipt {
+  id: Id;
+  action: string;
+  capability: AgentWorkspaceCapability;
+  targetId: Id;
+  revision?: number;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
  * via the `definition` "AgentResourceBatchProposal".
  */
 export interface AgentResourceBatchProposal {
@@ -4193,6 +4206,72 @@ export interface AgentTurnDTO {
   steps?: AgentTurnStepDTO[];
   delegationMode?: AgentDelegationMode;
   workspaceForm?: AgentWorkspaceForm;
+  /**
+   * @maxItems 10
+   */
+  workspaceFormReceipts?:
+    | []
+    | [AgentWorkspaceFormReceipt]
+    | [AgentWorkspaceFormReceipt, AgentWorkspaceFormReceipt]
+    | [AgentWorkspaceFormReceipt, AgentWorkspaceFormReceipt, AgentWorkspaceFormReceipt]
+    | [AgentWorkspaceFormReceipt, AgentWorkspaceFormReceipt, AgentWorkspaceFormReceipt, AgentWorkspaceFormReceipt]
+    | [
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt
+      ]
+    | [
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt
+      ]
+    | [
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt
+      ]
+    | [
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt
+      ]
+    | [
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt
+      ]
+    | [
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt
+      ];
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema

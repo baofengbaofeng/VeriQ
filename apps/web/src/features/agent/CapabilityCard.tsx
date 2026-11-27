@@ -22,6 +22,7 @@ export function CapabilityCard({
     signal,
     launcher,
     authorize,
+    onClose,
 }: {
     card: WorkspaceFormCard;
     workspaceId: string;
@@ -30,6 +31,7 @@ export function CapabilityCard({
     signal: AbortSignal;
     launcher: FormLauncher;
     authorize: (signal: AbortSignal) => Promise<WorkspaceFormCard>;
+    onClose?: () => void;
 }) {
     const { language } = useAppLocale();
     const pending = useRef<AbortController>();
@@ -71,8 +73,12 @@ export function CapabilityCard({
                 () => authorize(active),
             );
             if (!destination || active.aborted) return;
-            if (external) await external({ workspaceId, sessionId, turnId, capability: card.capability }, active);
-            else launcher.open(destination);
+            const ref = { workspaceId, sessionId, turnId, capability: card.capability };
+            if (external) await external(ref, active);
+            else
+                launcher.open(destination, ref, signal, () => {
+                    if (!signal.aborted) onClose?.();
+                });
         } catch {
             if (!active.aborted) setFailed(true);
         } finally {

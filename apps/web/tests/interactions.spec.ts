@@ -1513,3 +1513,94 @@ test("background following survives reopening and leaves the conversation and ru
     await expect(tasks).toHaveCount(0);
     await expect(report).toHaveCount(0);
 });
+
+/**
+ * 以普通工作区管理员身份打开成员页，只能管理本空间内可操作的成员，修改和移除均通过实际表单发起。
+ */
+test("workspace administrators edit roles and membership status and confirm removal without system access", async ({
+    page,
+}) => {
+    await page.addInitScript(() => localStorage.setItem("veriq.language", "en"));
+    const ws = "00000000-0000-4000-8000-000000000101";
+    const base = `/api/v1/workspaces/${ws}`;
+    const createdAt = "2026-01-01T00:00:00Z";
+    const user = {
+        id: "00000000-0000-4000-8000-000000000102",
+        email: "admin@example.test",
+        displayName: "Manager",
+        systemAdmin: false,
+        disabled: false,
+        createdAt,
+    };
+    const owner = {
+        userId: "00000000-0000-4000-8000-000000000103",
+        email: "owner@example.test",
+        displayName: "Owner",
+        role: "OWNER",
+        status: "ACTIVE",
+        userDisabled: false,
+    };
+    const member = {
+        ...owner,
+        userId: "00000000-0000-4000-8000-000000000104",
+        email: "worker@example.test",
+        role: "EDITOR",
+        displayName: "Worker",
+    };
+    const workspace = { id: ws, name: "Membership", key: "membership", role: "ADMIN", archived: false, createdAt };
+    const requests: string[] = [];
+    let removed = false;
+    const responses: Record<string, unknown> = {
+        "/api/v1/setup": { initialized: true },
+        "/api/v1/auth/session": { user, csrfToken: "fixture" },
+        "/api/v1/account": user,
+        "/api/v1/workspaces": { items: [workspace], nextCursor: null },
+        [base]: workspace,
+        [base + "/invitations"]: { items: [], nextCursor: null },
+        "/api/v1/notifications": { items: [], unreadCount: 0 },
+    };
+    await page.route("**/api/v1/**", async (route) => {
+        const req = route.request();
+        const path = new URL(req.url()).pathname;
+        const reply = (data: unknown) => route.fulfill({ json: { data } });
+        if (path === "/api/v1/admin/users") requests.push("system directory");
+        if (path === base + "/members") return reply({ items: removed ? [owner] : [owner, member], nextCursor: null });
+        if (path === base + "/members/" + member.userId) {
+            requests.push(req.method());
+            if (req.method() === "PUT") {
+                expect(req.postDataJSON()).toEqual({ role: "EXECUTOR", status: "DISABLED" });
+                Object.assign(member, req.postDataJSON());
+                return reply(member);
+            }
+            if (req.method() === "DELETE") {
+                removed = true;
+                return reply({});
+            }
+        }
+        return path in responses ? reply(responses[path]) : route.abort();
+    });
+    await page.goto("/workspaces?tab=members");
+    const table = page.getByRole("table", { name: "Members" });
+    const row = table.getByRole("row").filter({ hasText: member.email });
+    await expect(table.getByRole("row").filter({ hasText: owner.email }).getByRole("button")).toHaveCount(0);
+    await row.getByRole("button", { name: "Edit membership" }).click();
+    const dialog = page.getByRole("dialog", { name: "Edit membership" });
+    await dialog.getByRole("combobox", { name: "Role", exact: true }).click();
+    await expect(page.getByRole("option", { name: "Owner", exact: true })).toHaveCount(0);
+    await page.getByRole("option", { name: "Executor", exact: true }).click();
+    await dialog.getByRole("combobox", { name: "Membership status" }).click();
+    await page.getByRole("option", { name: "Disabled", exact: true }).click();
+    await dialog.getByRole("button", { name: "Save member" }).click();
+    await expect(page.getByText("Membership updated", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "OK", exact: true }).click();
+    await expect(row).toContainText("Executor");
+    await expect(row).toContainText("Disabled");
+    await row.getByRole("button", { name: "Remove member" }).click();
+    const removal = page.getByRole("dialog", { name: "Remove member" });
+    await expect(removal).toContainText(member.email);
+    expect(requests).toEqual(["PUT"]);
+    await removal.getByRole("button", { name: "Remove member" }).click();
+    await expect(page.getByText("Member removed", { exact: true })).toBeVisible();
+    expect(requests).toEqual(["PUT", "DELETE"]);
+    await expect(row).toHaveCount(0);
+});

@@ -77,8 +77,9 @@ SYSTEM = (
     "to review two to five related independent draft changes together. Use report tools for bounded "
     "failure evidence. Prepare cancellation or a supported rerun as an exact Run proposal. For "
     "sensitive inputs or administrator settings, offer the relevant workspace form. "
-    "Proposals need employee confirmation. Never claim an action "
-    "was performed. Never invent results, gates, evidence or expected values."
+    "Proposals need employee confirmation. A workspace form card is only an entry point. "
+    "The workspaceFormReceipts in history describe committed form operations; queued validation is not a result. "
+    "Never claim a mutation without a receipt or invent results, gates, evidence or expected values."
 )
 REPORT_TERMS = (
     "status",

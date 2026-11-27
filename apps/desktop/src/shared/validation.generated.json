@@ -8343,6 +8343,35 @@
                 }
             }
         },
+        "AgentWorkspaceFormReceipt": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "action", "capability", "targetId", "createdAt"],
+            "properties": {
+                "id": {
+                    "$ref": "#/$defs/Id"
+                },
+                "action": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z_]*(\\.[a-z_]+)+$",
+                    "maxLength": 64
+                },
+                "capability": {
+                    "$ref": "#/$defs/AgentWorkspaceCapability"
+                },
+                "targetId": {
+                    "$ref": "#/$defs/Id"
+                },
+                "revision": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
         "AgentResourceBatchProposal": {
             "type": "object",
             "properties": {
@@ -9012,6 +9041,13 @@
                 },
                 "workspaceForm": {
                     "$ref": "#/$defs/AgentWorkspaceForm"
+                },
+                "workspaceFormReceipts": {
+                    "type": "array",
+                    "maxItems": 10,
+                    "items": {
+                        "$ref": "#/$defs/AgentWorkspaceFormReceipt"
+                    }
                 }
             },
             "required": ["id", "text", "status", "createdAt"],
@@ -10106,6 +10142,9 @@
         },
         "api_AgentWorkspaceForm": {
             "$ref": "#/$defs/AgentWorkspaceForm"
+        },
+        "api_AgentWorkspaceFormReceipt": {
+            "$ref": "#/$defs/AgentWorkspaceFormReceipt"
         },
         "api_AgentWorkspaceCapability": {
             "$ref": "#/$defs/AgentWorkspaceCapability"

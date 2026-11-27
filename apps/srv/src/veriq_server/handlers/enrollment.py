@@ -5,6 +5,7 @@ from ..db import Runtime, RuntimeBinding, RuntimeGrant
 from ..auth.authorization import Permission, WorkspaceScope
 from ..pagination import Page
 from ..service import Problem, audit, lock_installation
+from ..services.agent_form_receipts import FORM_ORIGIN_HEADER, record_form_receipt
 from ..services.runtime import RuntimeService
 from ..services.workspace import WorkspaceRepository
 from .base import API
@@ -155,6 +156,15 @@ class EnrollmentAPI(API):
                     },
                     enrollment_id=enrollment_id,
                 )
+                await record_form_receipt(
+                    session,
+                    self.request.headers.get(FORM_ORIGIN_HEADER),
+                    user,
+                    data["workspaceId"],
+                    action="runtime.enrolled",
+                    target_id=result["id"],
+                    capability="DEVICE_ACCESS",
+                )
         self.respond(result)
 
 
@@ -266,6 +276,8 @@ class RuntimeAPI(API):
             runtime, binding = await service.require_access(
                 user, workspace_id, runtime_id, owner=self.action == "runtime-grants"
             )
+            origin = self.request.headers.get(FORM_ORIGIN_HEADER)
+            before = await service.dto(runtime, binding, user) if origin is not None else None
             if self.action == "runtime-grants":
                 await service.set_grants(user, binding, runtime, data)
             elif self.action == "runtime-delivery":
@@ -310,7 +322,31 @@ class RuntimeAPI(API):
                 audit(
                     session, "runtime.trust_changed", user.id, runtime.id, workspace_id=workspace_id
                 )
+            capability, action = {
+                "runtime-grants": ("DEVICE_ACCESS", "runtime.grants_changed"),
+                "runtime-trust": ("DEVICE_ACCESS", "runtime.trust_changed"),
+                "runtime-delivery": (
+                    "DEVICE_CREDENTIAL_DELIVERY",
+                    "runtime.credential_delivery_changed",
+                ),
+            }[self.action]
             result = await service.dto(runtime, binding, user)
+            changed_fields = (
+                "trustStatus",
+                "sharedWithWorkspace",
+                "sharedWithUserIds",
+                "allowCredentialDelivery",
+            )
+            if before is not None and any(before[key] != result[key] for key in changed_fields):
+                await record_form_receipt(
+                    session,
+                    origin,
+                    user,
+                    workspace_id,
+                    action=action,
+                    target_id=runtime.id,
+                    capability=capability,
+                )
         self.respond(result)
 
     async def post(self, workspace_id: str, runtime_id: str) -> None:
@@ -329,9 +365,23 @@ class RuntimeAPI(API):
             runtime, binding = await service.require_access(
                 user, workspace_id, runtime_id, owner=True
             )
-            runtime.trust_status = "REVOKED"
-            binding.active = False
-            binding.allow_credential_delivery = False
-            audit(session, "runtime.revoked", user.id, runtime.id, workspace_id=workspace_id)
+            if (
+                runtime.trust_status != "REVOKED"
+                or binding.active
+                or binding.allow_credential_delivery
+            ):
+                runtime.trust_status = "REVOKED"
+                binding.active = False
+                binding.allow_credential_delivery = False
+                audit(session, "runtime.revoked", user.id, runtime.id, workspace_id=workspace_id)
+                await record_form_receipt(
+                    session,
+                    self.request.headers.get(FORM_ORIGIN_HEADER),
+                    user,
+                    workspace_id,
+                    action="runtime.revoked",
+                    target_id=runtime.id,
+                    capability="DEVICE_ACCESS",
+                )
             result = await service.dto(runtime, binding, user)
         self.respond(result)

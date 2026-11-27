@@ -37,18 +37,21 @@ export type WorkspaceFormDestination =
     | { platform: "desktop"; workspaceId: string; tab: "reports" | "settings" };
 
 export type WorkspaceFormPlatform = WorkspaceFormDestination["platform"];
+export type WorkspaceFormReference = {
+    workspaceId: string;
+    sessionId: string;
+    turnId: string;
+    capability: WorkspaceCapability;
+};
 export type FormLauncher = {
     platform: WorkspaceFormPlatform;
-    open: (destination: WorkspaceFormDestination) => void;
-    openWebForm?: (
-        ref: {
-            workspaceId: string;
-            sessionId: string;
-            turnId: string;
-            capability: WorkspaceCapability;
-        },
+    open: (
+        destination: WorkspaceFormDestination,
+        ref: WorkspaceFormReference,
         signal: AbortSignal,
-    ) => Promise<void>;
+        onClose: () => void,
+    ) => void;
+    openWebForm?: (ref: WorkspaceFormReference, signal: AbortSignal) => Promise<void>;
 };
 
 const scopedPaths = new Set(

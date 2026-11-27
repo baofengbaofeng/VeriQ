@@ -118,7 +118,9 @@ class AgentAPI(API):
                 page = self._page(scope, user.id, archived=archived)
                 data = await service.list_sessions(session, scope, user, page, archived=archived)
             else:
-                owned = await service.require_owned_session(session, scope, user, session_id)
+                owned = await service.require_owned_session(
+                    session, scope, user, session_id, active=self.action == "agent-workspace-form"
+                )
                 if self.action == "agent-session":
                     data = session_dto(owned)
                 elif self.action == "agent-tasks":

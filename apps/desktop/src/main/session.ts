@@ -92,6 +92,7 @@ export class HostSession {
             headers: {
                 "Content-Type": "application/json",
                 ...(operation.method === "GET" ? {} : { Origin: this.origin, "X-CSRF-Token": this.csrf }),
+                ...(operation.agentFormTurnId ? { "X-VeriQ-Agent-Form": operation.agentFormTurnId } : {}),
                 ...(operation.idempotencyKey ? { "Idempotency-Key": operation.idempotencyKey } : {}),
             },
             ...(operation.data === undefined ? {} : { body: JSON.stringify(operation.data) }),

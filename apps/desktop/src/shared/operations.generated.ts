@@ -39,6 +39,7 @@ export type CloudOperation =
               workspaceId: string;
           };
           data: S["ResourceCreate"];
+          agentFormTurnId?: string;
       }
     | {
           operation: "listDatasetCopySources";
@@ -53,6 +54,7 @@ export type CloudOperation =
               workspaceId: string;
           };
           data: S["DatasetCopyRequest"];
+          agentFormTurnId?: string;
       }
     | {
           operation: "getResource";
@@ -68,6 +70,7 @@ export type CloudOperation =
               resourceId: string;
           };
           data: S["ResourceUpdate"];
+          agentFormTurnId?: string;
       }
     | {
           operation: "getDraft";
@@ -83,6 +86,7 @@ export type CloudOperation =
               resourceId: string;
           };
           data: S["DraftWrite"];
+          agentFormTurnId?: string;
       }
     | {
           operation: "previewHttpDataset";
@@ -99,6 +103,7 @@ export type CloudOperation =
               resourceId: string;
           };
           data: S["ValidationRequest"];
+          agentFormTurnId?: string;
       }
     | {
           operation: "publishResource";
@@ -107,6 +112,7 @@ export type CloudOperation =
               resourceId: string;
           };
           data: S["PublishRequest"];
+          agentFormTurnId?: string;
       }
     | {
           operation: "listVersions";

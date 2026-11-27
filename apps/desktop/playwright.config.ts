@@ -6,7 +6,7 @@ import { defineConfig } from "@playwright/test";
  */
 export default defineConfig({
     testDir: "../../tests/e2e",
-    testMatch: "desktop.spec.ts",
+    testMatch: ["desktop.spec.ts", "desktop-agent-panel.spec.ts"],
     workers: 1,
     retries: 0,
     timeout: 60000,

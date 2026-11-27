@@ -45,13 +45,16 @@ function operation(path: string, method: string, data?: unknown, headers?: Recor
                 ];
             }),
         );
-        if (headers && Object.keys(headers).some((key) => key !== "Idempotency-Key"))
+        const turn = headers?.["X-VeriQ-Agent-Form"];
+        if (turn !== undefined && !("agentForm" in rule && rule.agentForm)) throw new Error("HOST_HEADER_DENIED");
+        if (headers && Object.keys(headers).some((key) => key !== "Idempotency-Key" && key !== "X-VeriQ-Agent-Form"))
             throw new Error("HOST_HEADER_DENIED");
         return {
             operation: name,
             ...(names.length ? { params } : {}),
             ...(url.search ? { query } : {}),
             ...(data === undefined ? {} : { data }),
+            ...(turn === undefined ? {} : { agentFormTurnId: turn }),
             ...(headers?.["Idempotency-Key"] ? { idempotencyKey: headers["Idempotency-Key"] } : {}),
         } as CloudOperation;
     }

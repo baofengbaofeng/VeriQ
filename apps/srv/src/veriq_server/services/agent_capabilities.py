@@ -37,15 +37,24 @@ async def workspace_form_card(
     session: AsyncSession, scope: WorkspaceScope, user: User, capability: str
 ) -> dict[str, str]:
     """根据当前成员、归档状态和表单类型重新建立卡片；员工归属的会话及轮次由调用方从可信存储取出。"""
-    if not isinstance(capability, str) or capability not in _FORMS:
-        raise Problem(422, "AGENT_CAPABILITY_INVALID", "Select a supported workspace form")
-    permission, writable = _FORMS[capability]
-    await WorkspaceRepository(session, scope).authorize(user, permission, write=writable)
+    await authorize_workspace_form(session, scope, user, capability, opening=True)
     return {
         "type": "OPEN_WORKSPACE_FORM",
         "workspaceId": scope.workspace_id,
         "capability": capability,
     }
+
+
+async def authorize_workspace_form(
+    session: AsyncSession, scope: WorkspaceScope, user: User, capability: str, *, opening: bool
+) -> None:
+    """读取历史回执沿用表单权限，同时允许仍获授权的员工核对归档前已提交的事实。"""
+    if not isinstance(capability, str) or capability not in _FORMS:
+        raise Problem(422, "AGENT_CAPABILITY_INVALID", "Select a supported workspace form")
+    permission, writable = _FORMS[capability]
+    await WorkspaceRepository(session, scope).authorize(
+        user, permission, write=opening and writable
+    )
 
 
 async def _open_form(call: "ToolExecution", arguments: dict[str, Any]) -> dict[str, Any]:

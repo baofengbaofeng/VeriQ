@@ -8,7 +8,7 @@ import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { PlatformComponents } from "@veriq/contracts";
 import { Auth } from "../../auth-context";
-import { ApiError, request, runtimeApi, type Workspace } from "../../api";
+import { ApiError, inheritAgentFormSignal, request, runtimeApi, type Workspace } from "../../api";
 import { Button } from "../../components/Button";
 import { Field } from "../../components/Field";
 import { Select, SelectItem } from "../../components/Select";
@@ -181,9 +181,17 @@ function PlanWorkspace({ workspace, requestedPlanId }: { workspace: Workspace; r
     const base = `/workspaces/${workspace.id}`,
         cache = useQueryClient();
     const { busy, error, submit: act } = useAction();
+    const { signal: workspaceSignal } = useWorkspace();
     const controller = useMemo(() => new AbortController(), []);
     useEffect(() => () => controller.abort(), [controller]);
-    const signal = controller.signal;
+    const signal = useMemo(
+        () =>
+            inheritAgentFormSignal(
+                workspaceSignal ? AbortSignal.any([controller.signal, workspaceSignal]) : controller.signal,
+                workspaceSignal,
+            ),
+        [controller, workspaceSignal],
+    );
     const canEdit = !workspace.archived && ["OWNER", "ADMIN", "EDITOR"].includes(workspace.role);
     const canExecute = !workspace.archived && workspace.role !== "VIEWER";
     const [editing, setEditing] = useState<Plan | null>(null),

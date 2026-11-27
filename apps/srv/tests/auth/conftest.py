@@ -39,6 +39,7 @@ async def _clear_test_tables(db: Database) -> None:
             "veriq_ai_generations",
             "veriq_agent_settings",
             "veriq_agent_sessions",
+            "veriq_agent_form_receipts",
             "veriq_agent_turns",
             "veriq_agent_tasks",
             "veriq_notification_events",

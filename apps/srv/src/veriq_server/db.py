@@ -1282,6 +1282,19 @@ class AgentTurn(Base):
     workspace_capability: Mapped[str | None] = mapped_column(String(32, collation="ascii_bin"))
 
 
+class AgentFormReceipt(Base):
+    """领域事务的私有回执只保存操作类型、实体标识和可选修订号，不保存表单内容。"""
+
+    __tablename__ = "veriq_agent_form_receipts"
+    __table_args__ = (Index("ix_agent_form_history", "turn_id", "created_at", "id"),)
+    id: Mapped[str] = mapped_column(uuid_type, primary_key=True)
+    turn_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_agent_turns.id"))
+    action: Mapped[str] = mapped_column(String(64, collation="ascii_bin"))
+    target_id: Mapped[str] = mapped_column(uuid_type)
+    revision: Mapped[int | None] = mapped_column(BigInteger)
+    created_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
+
+
 class AgentTask(Base):
     """私有会话的后台任务独立于对话轮次及被跟踪的运行，通过稳定意图、下次检查时间和当前权限恢复进度。"""
 

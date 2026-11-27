@@ -11,6 +11,7 @@ from ..contracts import validate_schema
 from ..pagination import Page
 from ..repositories.resource import ResourceRepository
 from ..service import Problem, audit, lock_installation
+from ..services.agent_form_receipts import FORM_ORIGIN_HEADER
 from ..services.compilation_provenance import validation_origin_matches
 from ..services.workspace import WorkspaceRepository
 from ..services.resource import (
@@ -101,6 +102,7 @@ class ResourceAPI(API):
             self.application.settings.get("identity_reference_registry"),
             engine_version=self.config.validation_engine_version,
             settings=self.config,
+            form_origin=self.request.headers.get(FORM_ORIGIN_HEADER),
         )
 
     async def get(
@@ -456,7 +458,9 @@ class ResourceAPI(API):
             user, _ = await self.identity(s)
             await WorkspaceRepository(s, scope).authorize(user, Permission.EDIT, write=True)
             resource = await ResourceRepository(s, scope).resource(resource_id)
-            await self.service(s, user).authorize(scope, resource.kind)
+            service = self.service(s, user)
+            await service.authorize(scope, resource.kind)
+            previous = (resource.name, resource.status)
             resource.name = data["name"]
             if "archived" in data:
                 if data["archived"]:
@@ -464,5 +468,8 @@ class ResourceAPI(API):
                 else:
                     resource.status = "PUBLISHED" if resource.latest_version_id else "DRAFT"
             audit(s, "resource.updated", user.id, resource.id, workspace_id=workspace_id)
+            if service.form_origin is not None and previous != (resource.name, resource.status):
+                draft = await ResourceRepository(s, scope).draft(resource.id)
+                await service.record_draft_form(draft, "resource.updated")
             result = resource_dto(resource)
         self.respond(result)

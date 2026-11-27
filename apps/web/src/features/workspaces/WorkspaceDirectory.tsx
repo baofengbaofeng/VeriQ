@@ -194,3 +194,45 @@ export function WorkspaceStatus() {
     if (!workspace) return <p>{tx("No Workspaces yet.")}</p>;
     return null;
 }
+
+/**
+ * 卡片已经按私有轮次核验访问权；打开领域页前再读取当前成员详情。内嵌目录不会把工作区选择同步到会话或导航外壳。
+ */
+export function PinnedFormDirectory({
+    id,
+    signal,
+    children,
+}: {
+    id: string;
+    signal: AbortSignal;
+    children: ReactNode;
+}) {
+    const member = useQuery({
+        queryKey: ["agent-form-workspace", id],
+        queryFn: ({ signal: querySignal }) => api.workspace(id, AbortSignal.any([signal, querySignal])),
+        retry: false,
+    });
+    const workspace = member.isSuccess && member.data.id === id && !signal.aborted ? member.data : undefined;
+    return (
+        <DirectoryContext.Provider
+            value={{
+                workspace,
+                items: workspace ? [workspace] : [],
+                requested: id,
+                loading: member.isPending,
+                error: member.error,
+                loadingMore: false,
+                pagingError: false,
+                more: () => {},
+                choose: () => {},
+                created: () => {},
+                selectAuthorized: () => {},
+                retry: () => {
+                    void member.refetch();
+                },
+            }}
+        >
+            {workspace ? children : <WorkspaceStatus />}
+        </DirectoryContext.Provider>
+    );
+}

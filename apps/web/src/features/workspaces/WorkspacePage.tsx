@@ -23,6 +23,7 @@ import { WorkspaceAiProviders } from "../ai/ProviderControls";
 import { IdentityManager } from "../environments/IdentityManager";
 import { CloudIdentityAdapter } from "../environments/identity-adapter";
 import { SettingsPanel, SettingsTabs, settingsTabs, type SettingsTab } from "./SettingsTabs";
+import { MemberActions, MemberRoster } from "./MemberActions";
 import { WorkspaceTableFilters } from "./WorkspaceTableFilters";
 import { SampleWorkspaceWizard } from "../examples/SampleWorkspaceWizard";
 import "./workspace-management.css";
@@ -159,6 +160,10 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
         await client.invalidateQueries({ queryKey: ["workspaces", identity] });
         await client.invalidateQueries({ queryKey: ["directory-entry", identity, id] });
         await client.invalidateQueries({ queryKey: ["workspace-invites", id] });
+        await Promise.all([
+            client.invalidateQueries({ queryKey: ["workspace-members", id] }),
+            client.invalidateQueries({ queryKey: ["workspace-users", id] }),
+        ]);
     };
     const status = (
         <WorkspaceQueryFeedback
@@ -478,6 +483,7 @@ function WorkspaceMembers({
     const { signal } = useWorkspace(),
         a = useAction();
     const canManage = ["OWNER", "ADMIN"].includes(ws.role) && !ws.archived;
+    const globalDirectory = useContext(Auth).user?.systemAdmin === true;
     const [q, setQ] = useState("");
     const [roleFilter, setRoleFilter] = useState<string[]>([]);
     const [membership, setMembership] = useState("");
@@ -503,7 +509,7 @@ function WorkspaceMembers({
                 },
                 signal ? AbortSignal.any([signal, querySignal]) : querySignal,
             ),
-        enabled: active,
+        enabled: active && globalDirectory,
     });
     const nextCursor = users.data?.nextCursor;
     const invites = useQuery({
@@ -563,163 +569,187 @@ function WorkspaceMembers({
     const revokeWarning = tx("Revoking this invitation prevents it from being accepted.");
     return (
         <>
-            <DataTable
-                label={tx("Members")}
-                searchLabel={tx("Search users")}
-                searchMaxLength={254}
-                exportAllowed={canExportWorkspaceTable(ws.role)}
-                busy={users.isFetching || users.isError || !memberRows}
-                hasMore={!!nextCursor}
-                view={{
-                    rows: memberRows ?? [],
-                    search: q,
-                    setSearch: (value) => {
-                        setQ(value);
-                        setCursors([undefined]);
-                    },
-                    pageSize: memberPageSize,
-                    setPageSize: (size) => {
-                        setMemberPageSize(size);
-                        setCursors([undefined]);
-                    },
-                    page: pageIndex + 1,
-                    pageCount: cursors.length,
-                    filteredCount:
-                        memberRows && !nextCursor ? pageIndex * memberPageSize + memberRows.length : undefined,
-                    setPage: (page) => {
-                        if (page <= cursors.length) setCursors((current) => current.slice(0, page));
-                        else if (nextCursor) setCursors((current) => [...current, nextCursor]);
-                    },
-                }}
-                exportColumns={[
-                    { label: tx("ID"), value: (user) => user.id },
-                    { label: tx("Email"), value: (user) => user.email },
-                    { label: tx("Display name"), value: (user) => user.displayName },
-                    { label: tx("Account status"), value: (user) => tx(user.disabled ? "Disabled" : "Active") },
-                    { label: tx("System administrator"), value: (user) => tx(user.systemAdmin ? "Yes" : "No") },
-                    { label: tx("Created"), value: (user) => workspaceTimestamp(user.createdAt) },
-                    {
-                        label: tx("Membership"),
-                        value: (user) => tx(user.isMember && user.role ? user.role : "Non-member"),
-                    },
-                ]}
-                beforeDownload={
-                    <WorkspaceTableFilters
-                        filters={[
-                            {
-                                label: tx("Role"),
-                                multiple: true,
-                                value: roleFilter,
-                                choices: memberRoles.map((role) => [role, tx(role)] as const),
-                                onChange: (roles) => {
-                                    setRoleFilter(roles);
-                                    setCursors([undefined]);
-                                },
-                            },
-                            {
-                                label: tx("Membership"),
-                                value: membership,
-                                choices: [
-                                    ["", tx("All")],
-                                    ["member", tx("Member")],
-                                    ["non-member", tx("Non-member")],
-                                ],
-                                onChange: (value) => {
-                                    setMembership(value);
-                                    setCursors([undefined]);
-                                },
-                            },
-                            {
-                                label: tx("Account status"),
-                                value: disabled,
-                                choices: [
-                                    ["", tx("All")],
-                                    ["false", tx("Active")],
-                                    ["true", tx("Disabled")],
-                                ],
-                                onChange: (value) => {
-                                    setDisabled(value);
-                                    setCursors([undefined]);
-                                },
-                            },
-                            {
-                                label: tx("System administrator"),
-                                value: systemAdmin,
-                                choices: [
-                                    ["", tx("All")],
-                                    ["true", tx("Yes")],
-                                    ["false", tx("No")],
-                                ],
-                                onChange: (value) => {
-                                    setSystemAdmin(value);
-                                    setCursors([undefined]);
-                                },
-                            },
-                        ]}
-                        onReset={() => {
-                            setQ("");
-                            setRoleFilter([]);
-                            setMembership("");
-                            setDisabled("");
-                            setSystemAdmin("");
+            {!globalDirectory && active && <MemberRoster ws={ws} refresh={refresh} />}
+            {globalDirectory && (
+                <DataTable
+                    label={tx("Members")}
+                    searchLabel={tx("Search users")}
+                    searchMaxLength={254}
+                    exportAllowed={canExportWorkspaceTable(ws.role)}
+                    busy={users.isFetching || users.isError || !memberRows}
+                    hasMore={!!nextCursor}
+                    view={{
+                        rows: memberRows ?? [],
+                        search: q,
+                        setSearch: (value) => {
+                            setQ(value);
                             setCursors([undefined]);
-                        }}
+                        },
+                        pageSize: memberPageSize,
+                        setPageSize: (size) => {
+                            setMemberPageSize(size);
+                            setCursors([undefined]);
+                        },
+                        page: pageIndex + 1,
+                        pageCount: cursors.length,
+                        filteredCount:
+                            memberRows && !nextCursor ? pageIndex * memberPageSize + memberRows.length : undefined,
+                        setPage: (page) => {
+                            if (page <= cursors.length) setCursors((current) => current.slice(0, page));
+                            else if (nextCursor) setCursors((current) => [...current, nextCursor]);
+                        },
+                    }}
+                    exportColumns={[
+                        { label: tx("ID"), value: (user) => user.id },
+                        { label: tx("Email"), value: (user) => user.email },
+                        { label: tx("Display name"), value: (user) => user.displayName },
+                        { label: tx("Account status"), value: (user) => tx(user.disabled ? "Disabled" : "Active") },
+                        { label: tx("System administrator"), value: (user) => tx(user.systemAdmin ? "Yes" : "No") },
+                        { label: tx("Created"), value: (user) => workspaceTimestamp(user.createdAt) },
+                        {
+                            label: tx("Membership"),
+                            value: (user) => tx(user.isMember && user.role ? user.role : "Non-member"),
+                        },
+                    ]}
+                    beforeDownload={
+                        <WorkspaceTableFilters
+                            filters={[
+                                {
+                                    label: tx("Role"),
+                                    multiple: true,
+                                    value: roleFilter,
+                                    choices: memberRoles.map((role) => [role, tx(role)] as const),
+                                    onChange: (roles) => {
+                                        setRoleFilter(roles);
+                                        setCursors([undefined]);
+                                    },
+                                },
+                                {
+                                    label: tx("Membership"),
+                                    value: membership,
+                                    choices: [
+                                        ["", tx("All")],
+                                        ["member", tx("Member")],
+                                        ["non-member", tx("Non-member")],
+                                    ],
+                                    onChange: (value) => {
+                                        setMembership(value);
+                                        setCursors([undefined]);
+                                    },
+                                },
+                                {
+                                    label: tx("Account status"),
+                                    value: disabled,
+                                    choices: [
+                                        ["", tx("All")],
+                                        ["false", tx("Active")],
+                                        ["true", tx("Disabled")],
+                                    ],
+                                    onChange: (value) => {
+                                        setDisabled(value);
+                                        setCursors([undefined]);
+                                    },
+                                },
+                                {
+                                    label: tx("System administrator"),
+                                    value: systemAdmin,
+                                    choices: [
+                                        ["", tx("All")],
+                                        ["true", tx("Yes")],
+                                        ["false", tx("No")],
+                                    ],
+                                    onChange: (value) => {
+                                        setSystemAdmin(value);
+                                        setCursors([undefined]);
+                                    },
+                                },
+                            ]}
+                            onReset={() => {
+                                setQ("");
+                                setRoleFilter([]);
+                                setMembership("");
+                                setDisabled("");
+                                setSystemAdmin("");
+                                setCursors([undefined]);
+                            }}
+                        />
+                    }
+                >
+                    <WorkspaceQueryFeedback
+                        loading={users.isPending}
+                        error={users.error}
+                        loadingLabel="Loading users…"
+                        retryLabel="Retry members"
+                        retry={() => void users.refetch()}
                     />
-                }
-            >
-                <WorkspaceQueryFeedback
-                    loading={users.isPending}
-                    error={users.error}
-                    loadingLabel="Loading users…"
-                    retryLabel="Retry members"
-                    retry={() => void users.refetch()}
-                />
-                {memberRows && (
-                    <div className="table-scroll">
-                        <table className="vq-user-table vq-workspace-table">
-                            <caption className="vq-visually-hidden">{tx("Members")}</caption>
-                            <thead>
-                                <tr>
-                                    <th>{tx("ID")}</th>
-                                    <th>{tx("Email")}</th>
-                                    <th>{tx("Display name")}</th>
-                                    <th>{tx("Account status")}</th>
-                                    <th>{tx("System administrator")}</th>
-                                    <th>{tx("Created")}</th>
-                                    <th>{tx("Membership")}</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {memberRows.length === 0 && (
+                    {memberRows && (
+                        <div className="table-scroll">
+                            <table className="vq-user-table vq-workspace-table">
+                                <caption className="vq-visually-hidden">{tx("Members")}</caption>
+                                <thead>
                                     <tr>
-                                        <td className="vq-table-empty" colSpan={7}>
-                                            {tx(hasMemberFilters ? "No matching users." : "No users found.")}
-                                        </td>
+                                        <th>{tx("ID")}</th>
+                                        <th>{tx("Email")}</th>
+                                        <th>{tx("Display name")}</th>
+                                        <th>{tx("Account status")}</th>
+                                        <th>{tx("System administrator")}</th>
+                                        <th>{tx("Created")}</th>
+                                        <th>{tx("Membership")}</th>
+                                        {canManage && <th>{tx("Actions")}</th>}
                                     </tr>
-                                )}
-                                {memberRows.map((user) => (
-                                    <tr key={user.id}>
-                                        <td className="vq-user-id">{user.id}</td>
-                                        <td className="vq-user-email">{user.email}</td>
-                                        <td>{user.displayName}</td>
-                                        <td>
-                                            <span
-                                                className="vq-state vq-workspace-state"
-                                                data-tone={user.disabled ? "neutral" : "success"}
-                                            >
-                                                {user.disabled ? tx("Disabled") : tx("Active")}
-                                            </span>
-                                        </td>
-                                        <td>{user.systemAdmin ? tx("Yes") : tx("No")}</td>
-                                        <td>{workspaceTimestamp(user.createdAt)}</td>
-                                        <td>{user.isMember && user.role ? tx(user.role) : tx("Non-member")}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </DataTable>
+                                </thead>
+                                <tbody>
+                                    {memberRows.length === 0 && (
+                                        <tr>
+                                            <td className="vq-table-empty" colSpan={canManage ? 8 : 7}>
+                                                {tx(hasMemberFilters ? "No matching users." : "No users found.")}
+                                            </td>
+                                        </tr>
+                                    )}
+                                    {memberRows.map((user) => (
+                                        <tr key={user.id}>
+                                            <td className="vq-user-id">{user.id}</td>
+                                            <td className="vq-user-email">{user.email}</td>
+                                            <td>{user.displayName}</td>
+                                            <td>
+                                                <span
+                                                    className="vq-state vq-workspace-state"
+                                                    data-tone={user.disabled ? "neutral" : "success"}
+                                                >
+                                                    {user.disabled ? tx("Disabled") : tx("Active")}
+                                                </span>
+                                            </td>
+                                            <td>{user.systemAdmin ? tx("Yes") : tx("No")}</td>
+                                            <td>{workspaceTimestamp(user.createdAt)}</td>
+                                            <td>
+                                                {user.role ? tx(user.role) : tx("Non-member")}
+                                                {user.role && !user.isMember && <> · {tx("Disabled")}</>}
+                                            </td>
+                                            {canManage && (
+                                                <td>
+                                                    {user.role && (
+                                                        <MemberActions
+                                                            ws={ws}
+                                                            refresh={refresh}
+                                                            member={{
+                                                                userId: user.id,
+                                                                role: user.role,
+                                                                email: user.email,
+                                                                userDisabled: user.disabled,
+                                                                status: user.isMember ? "ACTIVE" : "DISABLED",
+                                                            }}
+                                                        />
+                                                    )}
+                                                </td>
+                                            )}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </DataTable>
+            )}
             {canManage && (
                 <>
                     <Dialog.Root

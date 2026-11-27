@@ -5,6 +5,8 @@
  */
 
 import type { PlatformComponents, PlatformPaths } from "@veriq/contracts";
+import { agentFormRequestHeader } from "./agent-form-origin";
+export { inheritAgentFormSignal, scopeAgentFormSignal } from "./agent-form-origin";
 type Schemas = PlatformComponents["schemas"];
 /**
  * 账户与导航使用的 AdminUserDTO 投影，含 systemAdmin 以决定管理入口是否可见。密码哈希永不出现在此类型。来自 /account
@@ -143,7 +145,8 @@ export async function request<T>(
     signal?: AbortSignal,
     headers?: Record<string, string>,
 ): Promise<T> {
-    if (hostTransport) return (await hostTransport.json(path, method, data, signal, headers)) as T;
+    const requestHeaders = { ...headers, ...agentFormRequestHeader(path, method, signal) };
+    if (hostTransport) return (await hostTransport.json(path, method, data, signal, requestHeaders)) as T;
     const changesCookie = method === "POST" && ["/auth/login", "/auth/logout"].includes(path);
     let authentication: AbortController | undefined;
     if (changesCookie) {
@@ -166,7 +169,7 @@ export async function request<T>(
             credentials: "same-origin",
             signal: active,
             headers: {
-                ...headers,
+                ...requestHeaders,
                 "Content-Type": "application/json",
                 ...(method !== "GET" ? { "X-CSRF-Token": csrfToken } : {}),
             },

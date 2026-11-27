@@ -15,7 +15,7 @@ import {
     type SetStateAction,
 } from "react";
 import { Navigate, useSearchParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Auth } from "../../auth-context";
 import { Button } from "../../components/Button";
@@ -45,7 +45,7 @@ const reportCode = (t: ReturnType<typeof useLabels>, group: string, value: unkno
 /**
  * 报告历史跟随顶栏空间，链接中的运行标识只交给已确认授权的目标；身份、空间或运行变化会重建视图。
  */
-export function ReportPage() {
+export function ReportPage({ initialAuditOpen = false }: { initialAuditOpen?: boolean } = {}) {
     useAppLocale();
     const { user } = useContext(Auth);
     const { workspace, requested } = useWorkspaceDirectory();
@@ -61,6 +61,7 @@ export function ReportPage() {
             {workspace && (
                 <ReportWorkspaceView
                     initialRunId={initialRunId}
+                    initialAuditOpen={initialAuditOpen}
                     key={`${user.id}/${selected}/${initialRunId}`}
                     adapter={adapter}
                     signal={signal}
@@ -76,12 +77,14 @@ export function ReportPage() {
  */
 export function ReportWorkspaceView({
     initialRunId = "",
+    initialAuditOpen = false,
     adapter,
     signal,
     rawEvidenceAllowed = false,
     allowTableExport = false,
 }: {
     initialRunId?: string;
+    initialAuditOpen?: boolean;
     adapter: ReportAdapter;
     signal?: AbortSignal;
     rawEvidenceAllowed?: boolean;
@@ -98,10 +101,9 @@ export function ReportWorkspaceView({
                 signal ? AbortSignal.any([querySignal, signal]) : querySignal,
             ),
     });
-    const audit = useQuery({
-        queryKey: ["workspace", "report-audit", adapter],
-        queryFn: ({ signal }) => adapter.audit(undefined, signal),
-    });
+    const auditPanel = !adapter.readOnly && (
+        <WorkspaceAudit adapter={adapter} signal={signal} initiallyOpen={initialAuditOpen} />
+    );
     const runView = useTableView(runs.data ?? [], {
         scope: adapter,
         // 运维可直接粘贴平台接口的原始标识，操作员也可使用界面中当前语言的来源、状态或结果文字查找。
@@ -119,6 +121,7 @@ export function ReportWorkspaceView({
     const formatDate = (value: string) => new Date(value).toLocaleString(language, { timeZone: "Asia/Shanghai" });
     return (
         <div className="veriq-reports">
+            {initialAuditOpen && auditPanel}
             <h2 className="report-history-heading">{t("history")}</h2>
             {runs.error && (
                 <div>
@@ -211,23 +214,79 @@ export function ReportWorkspaceView({
             ) : (
                 <p>{t("select")}</p>
             )}
-            <details>
-                <summary>{t("audit")}</summary>
-                {audit.error && <p role="alert">{audit.error.message}</p>}
-                <ul>
-                    {audit.data?.items.map((item) => (
-                        <li key={item.id}>
-                            {item.createdAt} · {item.action} · {item.actorId ?? tx("Service")} · {item.targetId}
-                        </li>
-                    ))}
-                </ul>
-            </details>
+            {!initialAuditOpen && auditPanel}
         </div>
     );
 }
 /**
- * 单个 Run 的报告主体：门禁、用例树、Attempt 事件、证据下载与审计片段。原始证据区按角色条件渲染；原始证据区仅对 Owner
- * 或 Admin 角色展开。
+ * 空间审计与单次运行证据使用独立入口；展开时才按服务端游标读取下一页，断开空间会话后立即停止请求。
+ */
+function WorkspaceAudit({
+    adapter,
+    signal,
+    initiallyOpen,
+}: {
+    adapter: ReportAdapter;
+    signal?: AbortSignal;
+    initiallyOpen: boolean;
+}) {
+    const t = useLabels();
+    const [open, setOpen] = useState(initiallyOpen);
+    const audit = useInfiniteQuery({
+        queryKey: ["workspace", "report-audit-pages", adapter],
+        enabled: open,
+        initialPageParam: undefined as string | undefined,
+        queryFn: ({ pageParam, signal: querySignal }) =>
+            adapter.audit(pageParam, signal ? AbortSignal.any([signal, querySignal]) : querySignal),
+        getNextPageParam: (page) => page.nextCursor ?? undefined,
+    });
+    // 后续页可能因成员资格变化而被拒绝；加载失败时停止显示此前缓存的空间审计，重新读取成功后再恢复。
+    const pages = audit.error ? undefined : audit.data?.pages;
+    return (
+        <details open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
+            <summary>{t("audit")}</summary>
+            {audit.error && (
+                <>
+                    <p role="alert">{audit.error.message}</p>
+                    <Button
+                        tone="secondary"
+                        size="compact"
+                        disabled={audit.isFetching}
+                        onClick={() => void audit.refetch()}
+                    >
+                        {t("reloadAudit")}
+                    </Button>
+                </>
+            )}
+            {audit.isLoading && <p role="status">{tx("正在加载 / Loading…")}</p>}
+            {pages?.[0]?.items.length === 0 && <p>{t("auditEmpty")}</p>}
+            {pages && (
+                <ul>
+                    {pages
+                        .flatMap((page) => page.items)
+                        .map((item) => (
+                            <li key={item.id}>
+                                {item.createdAt} · {item.action} · {item.actorId ?? tx("Service")} · {item.targetId}
+                            </li>
+                        ))}
+                </ul>
+            )}
+            {pages && audit.hasNextPage && (
+                <Button
+                    tone="secondary"
+                    size="compact"
+                    disabled={audit.isFetchingNextPage}
+                    onClick={() => void audit.fetchNextPage()}
+                >
+                    {t("moreAudit")}
+                </Button>
+            )}
+        </details>
+    );
+}
+
+/**
+ * 单个 Run 的报告主体展示其门禁、用例树和 Attempt 事件，证据元数据与当前角色可执行的下载操作分开呈现。
  * subscribe 更新 report 头；history 按 after 增量追加，不做 Playwright 重试展示。
  */
 export function ReportView({

@@ -17,6 +17,7 @@ from veriq_server.services.agent_capabilities import (
     workspace_form_card,
     workspace_form_tool,
 )
+from veriq_server.validation import validate_api
 
 
 def test_model_can_only_request_named_workspace_forms():
@@ -112,3 +113,35 @@ async def test_reopening_saved_form_requires_original_actor_session_and_workspac
         wrong_workspace = await c.get(verified.replace(ws, foreign))
         assert wrong_workspace.status_code == 404
         assert len(model.calls) == 1
+
+
+async def test_form_receipts_follow_only_the_committed_actor_scope(site):
+    """普通编辑、跨空间尝试和失败请求均不产生对话回执；真正归档后仍可在同一私有历史中核对结果。"""
+    c, _ = site
+    ws = await _scope(c)
+    other = await workspace(c, "another")
+    async with emulator() as model:
+        path, _, _ = await conversation(c, ws, model)
+        model.output = {
+            "reply": "Review the archive form.",
+            "workspaceForm": {"capability": "WORKSPACE_ARCHIVE"},
+        }
+        turn = await submit(c, path, "Show workspace archive settings")
+        header = {"X-VeriQ-Agent-Form": turn["id"]}
+
+        wrong = await c.delete(f"/api/v1/workspaces/{other}", headers=header)
+        assert wrong.status_code == 404 and wrong.json()["code"] == "AGENT_FORM_NOT_FOUND"
+        assert (await c.delete(f"/api/v1/workspaces/{other}")).is_success
+        history = (await c.get(path)).json()["data"]["items"]
+        assert "workspaceFormReceipts" not in history[-1]
+
+        changed = await c.delete(f"/api/v1/workspaces/{ws}", headers=header)
+        assert changed.is_success, changed.text
+        history = (await c.get(path)).json()["data"]["items"]
+        assert "workspaceForm" not in history[-1]
+        validate_api("AgentTurnDTO", history[-1])
+        (receipt,) = history[-1]["workspaceFormReceipts"]
+        assert receipt["action"] == "workspace.archived"
+        assert receipt["capability"] == "WORKSPACE_ARCHIVE"
+        assert receipt["targetId"] == ws
+        assert receipt["id"] and receipt["createdAt"]

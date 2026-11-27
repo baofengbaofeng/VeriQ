@@ -17,6 +17,7 @@ from ..service import Problem, audit, lock_installation, now, stamp
 from ..settings import Settings
 from .ai import AiService
 from .agent_capabilities import workspace_form_card
+from .agent_form_receipts import list_form_receipts
 from .workspace import WorkspaceRepository
 
 _DEFAULT_TITLE = "New conversation"
@@ -347,24 +348,33 @@ class AgentSessionService:
         history = rows.all()
         scope = WorkspaceScope(owned.workspace_id)
         projected = {
-            row.id: await self.visible_turn(session, scope, user, row)
+            row.id: await self.visible_turn(session, scope, user, row, archived=owned.archived)
             for row in history[: page.limit]
         }
         return _history_page(history, page, lambda row: projected[row.id])
 
     @staticmethod
     async def visible_turn(
-        session: AsyncSession, scope: WorkspaceScope, user: User, row: AgentTurn
+        session: AsyncSession,
+        scope: WorkspaceScope,
+        user: User,
+        row: AgentTurn,
+        *,
+        archived: bool = False,
     ) -> dict[str, Any]:
         """从当前角色仍可使用的工作区操作重建入口；历史正文与当时的回复记录由既有会话权限管理。"""
         result = turn_dto(row)
         if row.status == "COMPLETED" and row.workspace_capability:
-            try:
-                result["workspaceForm"] = await workspace_form_card(
-                    session, scope, user, row.workspace_capability
-                )
-            except Problem:
-                pass
+            if not archived:
+                try:
+                    result["workspaceForm"] = await workspace_form_card(
+                        session, scope, user, row.workspace_capability
+                    )
+                except Problem:
+                    pass
+            receipts = await list_form_receipts(session, scope, user, row)
+            if receipts:
+                result["workspaceFormReceipts"] = receipts
         return result
 
     async def recent_turns(self, session: AsyncSession, owned: AgentSession) -> list[AgentTurn]:

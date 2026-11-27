@@ -81,8 +81,14 @@ export function NoticeActions({
     details?: boolean;
     beforeOpen?: (movesFocus: boolean) => void;
 }) {
-    const { openItem, accept, busy } = useInbox();
-    const viewLabel = row.kind === "RUN_STARTED" ? "View run" : row.kind === "RUN_FINISHED" ? "View report" : "View";
+    const { openItem, opensDetail, accept, busy } = useInbox();
+    const viewLabel = opensDetail(row)
+        ? "View"
+        : row.kind === "RUN_STARTED"
+          ? "View run"
+          : row.kind === "RUN_FINISHED"
+            ? "View report"
+            : "View";
     return (
         <div className="vq-notice-actions">
             {!details && (

@@ -4711,6 +4711,17 @@ export interface components {
             workspaceId: components["schemas"]["Id"];
             capability: components["schemas"]["AgentWorkspaceCapability"];
         };
+        AgentWorkspaceFormReceipt: {
+            id: components["schemas"]["Id"];
+            action: string;
+            capability: components["schemas"]["AgentWorkspaceCapability"];
+            targetId: components["schemas"]["Id"];
+            revision?: number;
+            /**
+             * Format: date-time
+             */
+            createdAt: string;
+        };
         /**
          * @enum {string}
          */
@@ -4882,6 +4893,7 @@ export interface components {
             steps?: components["schemas"]["AgentTurnStepDTO"][];
             delegationMode?: components["schemas"]["AgentDelegationMode"];
             workspaceForm?: components["schemas"]["AgentWorkspaceForm"];
+            workspaceFormReceipts?: components["schemas"]["AgentWorkspaceFormReceipt"][];
         };
         AgentTurnStepDTO: {
             name: string;
@@ -6903,7 +6915,13 @@ export interface components {
         };
     };
     responses: never;
-    parameters: never;
+    parameters: {
+        /**
+         * @description Originating Test Agent form turn. An eligible mutation verifies the current employee, Workspace
+         * and saved capability before recording a private receipt.
+         */
+        AgentFormOrigin: components["schemas"]["Id"];
+    };
     requestBodies: never;
     headers: never;
     pathItems: never;
@@ -8182,7 +8200,13 @@ export interface operations {
     archiveWorkspace: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Originating Test Agent form turn. An eligible mutation verifies the current employee,
+                 * Workspace and saved capability before recording a private receipt.
+                 */
+                "X-VeriQ-Agent-Form"?: components["parameters"]["AgentFormOrigin"];
+            };
             path: {
                 workspaceId: components["schemas"]["Id"];
             };
@@ -8492,7 +8516,13 @@ export interface operations {
     updateMember: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Originating Test Agent form turn. An eligible mutation verifies the current employee,
+                 * Workspace and saved capability before recording a private receipt.
+                 */
+                "X-VeriQ-Agent-Form"?: components["parameters"]["AgentFormOrigin"];
+            };
             path: {
                 workspaceId: components["schemas"]["Id"];
                 userId: components["schemas"]["Id"];
@@ -8598,7 +8628,13 @@ export interface operations {
     removeMember: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Originating Test Agent form turn. An eligible mutation verifies the current employee,
+                 * Workspace and saved capability before recording a private receipt.
+                 */
+                "X-VeriQ-Agent-Form"?: components["parameters"]["AgentFormOrigin"];
+            };
             path: {
                 workspaceId: components["schemas"]["Id"];
                 userId: components["schemas"]["Id"];
@@ -8804,7 +8840,13 @@ export interface operations {
     inviteMember: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Originating Test Agent form turn. An eligible mutation verifies the current employee,
+                 * Workspace and saved capability before recording a private receipt.
+                 */
+                "X-VeriQ-Agent-Form"?: components["parameters"]["AgentFormOrigin"];
+            };
             path: {
                 workspaceId: components["schemas"]["Id"];
             };
@@ -9026,7 +9068,13 @@ export interface operations {
     createResource: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Originating Test Agent form turn. An eligible mutation verifies the current employee,
+                 * Workspace and saved capability before recording a private receipt.
+                 */
+                "X-VeriQ-Agent-Form"?: components["parameters"]["AgentFormOrigin"];
+            };
             path: {
                 workspaceId: components["schemas"]["Id"];
             };
@@ -9258,7 +9306,13 @@ export interface operations {
     copyDataset: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Originating Test Agent form turn. An eligible mutation verifies the current employee,
+                 * Workspace and saved capability before recording a private receipt.
+                 */
+                "X-VeriQ-Agent-Form"?: components["parameters"]["AgentFormOrigin"];
+            };
             path: {
                 workspaceId: components["schemas"]["Id"];
             };
@@ -9487,7 +9541,13 @@ export interface operations {
     updateResource: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Originating Test Agent form turn. An eligible mutation verifies the current employee,
+                 * Workspace and saved capability before recording a private receipt.
+                 */
+                "X-VeriQ-Agent-Form"?: components["parameters"]["AgentFormOrigin"];
+            };
             path: {
                 workspaceId: components["schemas"]["Id"];
                 resourceId: components["schemas"]["Id"];
@@ -9717,7 +9777,13 @@ export interface operations {
     updateDraft: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Originating Test Agent form turn. An eligible mutation verifies the current employee,
+                 * Workspace and saved capability before recording a private receipt.
+                 */
+                "X-VeriQ-Agent-Form"?: components["parameters"]["AgentFormOrigin"];
+            };
             path: {
                 workspaceId: components["schemas"]["Id"];
                 resourceId: components["schemas"]["Id"];
@@ -9973,7 +10039,13 @@ export interface operations {
     validateResource: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Originating Test Agent form turn. An eligible mutation verifies the current employee,
+                 * Workspace and saved capability before recording a private receipt.
+                 */
+                "X-VeriQ-Agent-Form"?: components["parameters"]["AgentFormOrigin"];
+            };
             path: {
                 workspaceId: components["schemas"]["Id"];
                 resourceId: components["schemas"]["Id"];
@@ -10090,7 +10162,13 @@ export interface operations {
     publishResource: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Originating Test Agent form turn. An eligible mutation verifies the current employee,
+                 * Workspace and saved capability before recording a private receipt.
+                 */
+                "X-VeriQ-Agent-Form"?: components["parameters"]["AgentFormOrigin"];
+            };
             path: {
                 workspaceId: components["schemas"]["Id"];
                 resourceId: components["schemas"]["Id"];
@@ -12289,7 +12367,13 @@ export interface operations {
     createProvider: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Originating Test Agent form turn. An eligible mutation verifies the current employee,
+                 * Workspace and saved capability before recording a private receipt.
+                 */
+                "X-VeriQ-Agent-Form"?: components["parameters"]["AgentFormOrigin"];
+            };
             path: {
                 workspaceId: components["schemas"]["Id"];
             };
@@ -12518,7 +12602,13 @@ export interface operations {
     updateProvider: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Originating Test Agent form turn. An eligible mutation verifies the current employee,
+                 * Workspace and saved capability before recording a private receipt.
+                 */
+                "X-VeriQ-Agent-Form"?: components["parameters"]["AgentFormOrigin"];
+            };
             path: {
                 workspaceId: components["schemas"]["Id"];
                 providerId: components["schemas"]["Id"];
@@ -12635,7 +12725,13 @@ export interface operations {
     deleteProvider: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Originating Test Agent form turn. An eligible mutation verifies the current employee,
+                 * Workspace and saved capability before recording a private receipt.
+                 */
+                "X-VeriQ-Agent-Form"?: components["parameters"]["AgentFormOrigin"];
+            };
             path: {
                 workspaceId: components["schemas"]["Id"];
                 providerId: components["schemas"]["Id"];
@@ -12852,7 +12948,13 @@ export interface operations {
     createServiceAccount: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Originating Test Agent form turn. An eligible mutation verifies the current employee,
+                 * Workspace and saved capability before recording a private receipt.
+                 */
+                "X-VeriQ-Agent-Form"?: components["parameters"]["AgentFormOrigin"];
+            };
             path: {
                 workspaceId: components["schemas"]["Id"];
             };
@@ -14015,7 +14117,13 @@ export interface operations {
     updateRuntimeGrants: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Originating Test Agent form turn. An eligible mutation verifies the current employee,
+                 * Workspace and saved capability before recording a private receipt.
+                 */
+                "X-VeriQ-Agent-Form"?: components["parameters"]["AgentFormOrigin"];
+            };
             path: {
                 workspaceId: components["schemas"]["Id"];
                 runtimeId: components["schemas"]["Id"];
@@ -14121,7 +14229,13 @@ export interface operations {
     updateRuntimeTrust: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Originating Test Agent form turn. An eligible mutation verifies the current employee,
+                 * Workspace and saved capability before recording a private receipt.
+                 */
+                "X-VeriQ-Agent-Form"?: components["parameters"]["AgentFormOrigin"];
+            };
             path: {
                 workspaceId: components["schemas"]["Id"];
                 runtimeId: components["schemas"]["Id"];
@@ -14227,7 +14341,13 @@ export interface operations {
     revokeRuntime: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Originating Test Agent form turn. An eligible mutation verifies the current employee,
+                 * Workspace and saved capability before recording a private receipt.
+                 */
+                "X-VeriQ-Agent-Form"?: components["parameters"]["AgentFormOrigin"];
+            };
             path: {
                 workspaceId: components["schemas"]["Id"];
                 runtimeId: components["schemas"]["Id"];
@@ -14432,7 +14552,13 @@ export interface operations {
     approveEnrollment: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Originating Test Agent form turn. An eligible mutation verifies the current employee,
+                 * Workspace and saved capability before recording a private receipt.
+                 */
+                "X-VeriQ-Agent-Form"?: components["parameters"]["AgentFormOrigin"];
+            };
             path: {
                 enrollmentId: components["schemas"]["Id"];
             };
@@ -15657,7 +15783,13 @@ export interface operations {
     issueServiceToken: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Originating Test Agent form turn. An eligible mutation verifies the current employee,
+                 * Workspace and saved capability before recording a private receipt.
+                 */
+                "X-VeriQ-Agent-Form"?: components["parameters"]["AgentFormOrigin"];
+            };
             path: {
                 workspaceId: components["schemas"]["Id"];
                 serviceAccountId: components["schemas"]["Id"];
@@ -18064,7 +18196,13 @@ export interface operations {
     markNotificationRead: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Originating Test Agent form turn. An eligible mutation verifies the current employee,
+                 * Workspace and saved capability before recording a private receipt.
+                 */
+                "X-VeriQ-Agent-Form"?: components["parameters"]["AgentFormOrigin"];
+            };
             path: {
                 notificationId: components["schemas"]["Id"];
             };
@@ -18169,7 +18307,13 @@ export interface operations {
     acceptNotificationInvitation: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Originating Test Agent form turn. An eligible mutation verifies the current employee,
+                 * Workspace and saved capability before recording a private receipt.
+                 */
+                "X-VeriQ-Agent-Form"?: components["parameters"]["AgentFormOrigin"];
+            };
             path: {
                 notificationId: components["schemas"]["Id"];
             };
@@ -19296,7 +19440,13 @@ export interface operations {
     revokeInvitation: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Originating Test Agent form turn. An eligible mutation verifies the current employee,
+                 * Workspace and saved capability before recording a private receipt.
+                 */
+                "X-VeriQ-Agent-Form"?: components["parameters"]["AgentFormOrigin"];
+            };
             path: {
                 workspaceId: components["schemas"]["Id"];
                 invitationId: components["schemas"]["Id"];
@@ -19593,7 +19743,13 @@ export interface operations {
     createCredential: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Originating Test Agent form turn. An eligible mutation verifies the current employee,
+                 * Workspace and saved capability before recording a private receipt.
+                 */
+                "X-VeriQ-Agent-Form"?: components["parameters"]["AgentFormOrigin"];
+            };
             path: {
                 workspaceId: string;
             };
@@ -19676,7 +19832,13 @@ export interface operations {
     rotateCredential: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Originating Test Agent form turn. An eligible mutation verifies the current employee,
+                 * Workspace and saved capability before recording a private receipt.
+                 */
+                "X-VeriQ-Agent-Form"?: components["parameters"]["AgentFormOrigin"];
+            };
             path: {
                 workspaceId: string;
                 secretRef: string;
@@ -19760,7 +19922,13 @@ export interface operations {
     revokeCredential: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Originating Test Agent form turn. An eligible mutation verifies the current employee,
+                 * Workspace and saved capability before recording a private receipt.
+                 */
+                "X-VeriQ-Agent-Form"?: components["parameters"]["AgentFormOrigin"];
+            };
             path: {
                 workspaceId: string;
                 secretRef: string;
@@ -19927,7 +20095,13 @@ export interface operations {
     createAuthAdapter: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Originating Test Agent form turn. An eligible mutation verifies the current employee,
+                 * Workspace and saved capability before recording a private receipt.
+                 */
+                "X-VeriQ-Agent-Form"?: components["parameters"]["AgentFormOrigin"];
+            };
             path: {
                 workspaceId: string;
             };
@@ -20010,7 +20184,13 @@ export interface operations {
     revokeAuthAdapter: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Originating Test Agent form turn. An eligible mutation verifies the current employee,
+                 * Workspace and saved capability before recording a private receipt.
+                 */
+                "X-VeriQ-Agent-Form"?: components["parameters"]["AgentFormOrigin"];
+            };
             path: {
                 workspaceId: string;
                 versionId: string;
@@ -20605,7 +20785,13 @@ export interface operations {
     disableServiceAccount: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Originating Test Agent form turn. An eligible mutation verifies the current employee,
+                 * Workspace and saved capability before recording a private receipt.
+                 */
+                "X-VeriQ-Agent-Form"?: components["parameters"]["AgentFormOrigin"];
+            };
             path: {
                 workspaceId: components["schemas"]["Id"];
                 serviceAccountId: components["schemas"]["Id"];
@@ -20711,7 +20897,13 @@ export interface operations {
     revokeServiceToken: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Originating Test Agent form turn. An eligible mutation verifies the current employee,
+                 * Workspace and saved capability before recording a private receipt.
+                 */
+                "X-VeriQ-Agent-Form"?: components["parameters"]["AgentFormOrigin"];
+            };
             path: {
                 workspaceId: components["schemas"]["Id"];
                 serviceAccountId: components["schemas"]["Id"];
@@ -20818,7 +21010,13 @@ export interface operations {
     updateRuntimeCredentialDelivery: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /**
+                 * @description Originating Test Agent form turn. An eligible mutation verifies the current employee,
+                 * Workspace and saved capability before recording a private receipt.
+                 */
+                "X-VeriQ-Agent-Form"?: components["parameters"]["AgentFormOrigin"];
+            };
             path: {
                 workspaceId: components["schemas"]["Id"];
                 runtimeId: components["schemas"]["Id"];

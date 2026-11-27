@@ -2,6 +2,7 @@
  * 用真实挂载效果管理会话请求所有权，React 严格模式重放后使用同一界面的新控制器，旧回调仍保留自己的取消信号。
  */
 import { useEffect, useState } from "react";
+import { inheritAgentFormSignal } from "./agent-form-origin";
 
 type Lifetime = { parent?: AbortSignal; signal: AbortSignal; generation: number };
 
@@ -12,7 +13,9 @@ export function useRequestLifetime(parent?: AbortSignal): Lifetime | undefined {
     const [lifetime, setLifetime] = useState<Lifetime>();
     useEffect(() => {
         const controller = new AbortController();
-        const signal = parent ? AbortSignal.any([parent, controller.signal]) : controller.signal;
+        const signal = parent
+            ? inheritAgentFormSignal(AbortSignal.any([parent, controller.signal]), parent)
+            : controller.signal;
         setLifetime((previous) => ({ parent, signal, generation: (previous?.generation ?? 0) + 1 }));
         return () => controller.abort();
     }, [parent]);

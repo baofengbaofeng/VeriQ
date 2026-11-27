@@ -9,6 +9,7 @@ import { Auth } from "../../auth-context";
 import { tx } from "../../locale";
 import { useOperationFeedback } from "../../operation-feedback";
 import { useRequestLifetime } from "../../request-lifetime";
+import { useWorkspace } from "../workspaces/WorkspaceContext";
 import { useWorkspaceDirectory } from "../workspaces/WorkspaceDirectory";
 import { invitationRefreshInterval } from "./model";
 import type { AgentNotificationTarget, InboxNotification, InboxPage, InvitationNotification } from "./model";
@@ -32,6 +33,7 @@ type InboxContext = {
     clearAgentTarget: () => void;
     markAll: (trigger: HTMLElement, current: InboxPage) => Promise<void>;
     accept: (row: InvitationNotification, trigger: HTMLElement) => Promise<void>;
+    opensDetail: (row: InboxNotification) => boolean;
     openItem: (row: InboxNotification, beforeOpen?: (movesFocus: boolean) => void) => Promise<void>;
 };
 const Inbox = createContext<InboxContext | null>(null);
@@ -66,10 +68,11 @@ function operationError(error: unknown) {
 /**
  * 每次请求都使用已提交的会话有效期，迟到响应不得继续跳转、推送结果或重建旧账户下的通知查询。
  */
-export function InboxProvider({ children }: { children: ReactNode }) {
+export function InboxProvider({ children, parentSignal }: { children: ReactNode; parentSignal?: AbortSignal }) {
     const { user } = useContext(Auth);
     const owner = user?.id;
-    const signal = useRequestLifetime()?.signal;
+    const { selected } = useWorkspace();
+    const signal = useRequestLifetime(parentSignal)?.signal;
     const cache = useQueryClient();
     const navigate = useNavigate();
     const { search } = useLocation();
@@ -127,12 +130,17 @@ export function InboxProvider({ children }: { children: ReactNode }) {
         }
     }
 
+    // 个人收件箱可同时显示多个工作区的通知，只有表单所属空间的单条操作才能继承会话轮次作为回执来源。
+    function itemSignal(row: InboxNotification, active: AbortSignal) {
+        return parentSignal && row.workspaceId !== selected ? AbortSignal.any([active]) : active;
+    }
+
     // 当前快照水位在点击时捕获，标记请求完成前到达的通知由下次快照加入，不会被这次写入意外覆盖。
     async function markAll(trigger: HTMLElement, current: InboxPage) {
         const through = current.readThrough;
         if (!through || !current.unreadCount) return;
         await mutate(trigger, "Marking notifications as read…", "Notifications marked as read.", async (active) => {
-            await notificationApi.readAll(through, active);
+            await notificationApi.readAll(through, parentSignal ? AbortSignal.any([active]) : active);
         });
     }
 
@@ -140,10 +148,17 @@ export function InboxProvider({ children }: { children: ReactNode }) {
     async function accept(row: InvitationNotification, trigger: HTMLElement) {
         if (row.invitationStatus !== "PENDING") return;
         await mutate(trigger, "Accepting invitation…", "Invitation accepted.", async (active) => {
-            await notificationApi.accept(row.id, active);
+            await notificationApi.accept(row.id, itemSignal(row, active));
             active.throwIfAborted();
             void cache.invalidateQueries({ queryKey: ["workspaces", owner] });
         });
+    }
+
+    function opensDetail(row: InboxNotification) {
+        return (
+            row.kind === "WORKSPACE_INVITED" ||
+            (!!parentSignal && (row.kind === "AGENT_REPLY" || row.workspaceId !== selected))
+        );
     }
 
     // 视图只根据读回执选择内部目标，Agent 先复核工作区成员目录，再切换选择并让抽屉读取精确轮次。
@@ -152,15 +167,14 @@ export function InboxProvider({ children }: { children: ReactNode }) {
         mutation.current = true;
         setBusy(true);
         try {
-            const current = await notificationApi.read(row.id, signal);
+            const current = await notificationApi.read(row.id, itemSignal(row, signal));
             signal.throwIfAborted();
+            if (opensDetail(current)) {
+                beforeOpen?.(!onNotificationsPage || new URLSearchParams(search).get("notificationId") !== current.id);
+                void navigate(`/notifications?${new URLSearchParams({ notificationId: current.id })}`);
+                return;
+            }
             switch (current.kind) {
-                case "WORKSPACE_INVITED":
-                    beforeOpen?.(
-                        !onNotificationsPage || new URLSearchParams(search).get("notificationId") !== current.id,
-                    );
-                    void navigate(`/notifications?${new URLSearchParams({ notificationId: current.id })}`);
-                    break;
                 case "AGENT_REPLY": {
                     const { workspaceId, sessionId, turnId } = current;
                     const workspace = await api.workspace(workspaceId, signal);
@@ -171,7 +185,8 @@ export function InboxProvider({ children }: { children: ReactNode }) {
                     setAgentTarget({ workspaceId, sessionId, turnId });
                     break;
                 }
-                default:
+                case "RUN_STARTED":
+                case "RUN_FINISHED":
                     // 报告页内只改变查询参数时没有路由标题聚焦，关闭后保留铃铛作为下一次键盘操作入口，并继续展示报告。
                     beforeOpen?.(!onReportsPage);
                     void navigate(
@@ -199,6 +214,7 @@ export function InboxProvider({ children }: { children: ReactNode }) {
                 bellOpen,
                 setBellOpen,
                 openItem,
+                opensDetail,
                 accept,
                 markAll,
                 snapshot,

@@ -21,6 +21,14 @@ listRuntimes getRuntime updateRuntimeGrants updateRuntimeTrust revokeRuntime upd
 inspectEnrollment approveEnrollment listCredentials createCredential rotateCredential revokeCredential
 listAuthAdapters createAuthAdapter revokeAuthAdapter`.split(/\s+/),
 );
+const formWrites = new Set([
+    "createResource",
+    "updateDraft",
+    "updateResource",
+    "validateResource",
+    "publishResource",
+    "copyDataset",
+]);
 const document = JSON.parse(
     await readFile(new URL("../../../packages/contracts/openapi/platform.yaml", import.meta.url)),
 );
@@ -50,6 +58,7 @@ for (const [path, item] of Object.entries(document.paths)) {
             queries,
             request: request ?? null,
             idempotency,
+            ...(formWrites.has(name) ? { agentForm: true } : {}),
             kind:
                 name === "streamRunReport" || name === "streamAgentTurn"
                     ? "stream"
@@ -68,6 +77,7 @@ for (const [path, item] of Object.entries(document.paths)) {
                     : []),
                 ...(Object.keys(queries).length ? ["        query?: Record<string, string | number | boolean>;"] : []),
                 ...(request ? [`        data: S[${JSON.stringify(request)}];`] : []),
+                ...(formWrites.has(name) ? ["        agentFormTurnId?: string;"] : []),
                 ...(idempotency ? ["        idempotencyKey: string;"] : []),
                 "    }",
             ].join("\n"),

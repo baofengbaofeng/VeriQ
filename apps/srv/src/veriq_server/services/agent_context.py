@@ -23,6 +23,7 @@ from ..db import (
 )
 from ..service import Problem, now
 from ..settings import Settings
+from .agent_form_receipts import list_form_receipts
 from .agent_sessions import receipt_dto
 from .report import ReportService
 from .runtime import RuntimeService
@@ -189,6 +190,10 @@ async def build_context(
         }
         for t in recent
     ]
+    for item, turn in zip(history, recent, strict=True):
+        receipts = await list_form_receipts(s, scope, user, turn, for_model=True)
+        if receipts:
+            item["workspaceFormReceipts"] = receipts
     # 配置草稿全文只在已授权的审阅卡片展示，后续模型上下文仅沿用资源回执和原有规划候选。
     plan_proposals = [
         (
