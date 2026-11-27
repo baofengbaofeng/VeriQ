@@ -28,7 +28,7 @@ from ..repositories.resource import ResourceRepository
 from ..server_compiler import ServerCompileError, compile_snapshot, local_release_available
 from ..service import Problem, audit, lock_installation
 from ..settings import Settings
-from .connected_datasets import project_source
+from .connected_datasets import http_capabilities, project_source, upgrade_queued
 from .engines import ApprovedEngines, supports_validation
 from .execution_principal import ServicePrincipal
 from .jobs import database_time
@@ -164,7 +164,7 @@ async def _authorize(session: AsyncSession, job: Job, settings: Settings) -> Non
 
 
 async def _source(repo: ResourceRepository, job: Job) -> tuple[dict[str, Any], bool]:
-    """读取有内容摘要保护的源和清单，确认冻结工作区、资源、修订、引擎及联网投影与作业一致。"""
+    """核对冻结源和清单的摘要、工作区、资源、修订及引擎，按原协议验证通过后补齐历史验证作业的联网投影。"""
     snapshot = json.loads((await repo.artifact(job.snapshot_hash)).content)
     manifest = json.loads((await repo.artifact(job.manifest_hash)).content)
     if validate_schema("AssetSnapshotV1", snapshot) or "validationTarget" not in snapshot:
@@ -193,7 +193,15 @@ async def _source(repo: ResourceRepository, job: Job) -> tuple[dict[str, Any], b
         await repo.artifact(expected["snapshotSha256"])
     ).content != canonical_bytes(projected):
         raise Problem(409, "INVALID_COMPILED_SOURCE", "Frozen validation manifest is inconsistent")
-    return snapshot, connected
+    # 清单须先与原协议的冻结输入完全吻合，才可升级尚未执行的历史验证，避免把损坏的来源改写成可信投影。
+    if (not connected and any(asset["kind"] == "DATASET" for asset in snapshot["assets"])) or (
+        connected
+        and not job.required_capabilities.get("httpDatasets")
+        and http_capabilities(snapshot)
+    ):
+        async with repo.session.begin_nested():
+            await upgrade_queued(repo, job)
+    return snapshot, bool(job.required_capabilities.get("connectedDatasets"))
 
 
 def _error_result(code: str, diagnostics: list[dict[str, Any]] | None = None) -> dict[str, Any]:
@@ -314,11 +322,15 @@ async def _claim(db: Database, settings: Settings) -> _Claim | None:
         try:
             await _authorize(session, job, settings)
             snapshot, connected = await _source(repo, job)
-        except Problem as error:
-            _finish_job(session, job, "ERROR", _error_result(error.code))
+        except (Problem, ValueError, KeyError, TypeError) as error:
+            code = error.code if isinstance(error, Problem) else "INVALID_COMPILED_SOURCE"
+            _finish_job(session, job, "ERROR", _error_result(code))
             return None
-        except (ValueError, KeyError, TypeError):
-            _finish_job(session, job, "ERROR", _error_result("INVALID_COMPILED_SOURCE"))
+        if not supports_validation(engine, job.required_capabilities):
+            # 旧清单可能未声明实际依赖的数据协议，保存升级后的要求并释放围栏，供拥有对应发行的节点继续领取。
+            job.state = "QUEUED"
+            job.server_compilation_id = None
+            job.server_compile_expires_at = None
             return None
         return _Claim(
             job.id,
