@@ -5,11 +5,11 @@ import { localRetentionDefaults } from "../src/shared/retention-policy.ts";
 import { DesktopAgent } from "../src/agent/service.ts";
 
 const uuid = "11111111-1111-4111-8111-111111111111";
-const run = { operation: "run", bundleId: uuid, headed: false, retry: false };
+const startOnline = { operation: "onlineStart" };
 
 /**
- * 启动阶段复用真实 DesktopAgent 与私有文件状态，只把第一次目录读取延迟到测试明确释放；目录内容仍由原方法取得，不伪造签
- * 名包、业务结果或浏览器回执，以确定覆盖首个 await 期间的竞争。
+ * 启动阶段复用真实 DesktopAgent 与私有文件状态，只延迟真实在线自检到测试明确释放。
+ * 缺少引擎时仍由原自检失败，测试借此检查等待期间的并发预留。
  */
 async function pendingStart() {
     const root = await mkdtemp("/tmp/veriq-startup-");
@@ -25,22 +25,33 @@ async function pendingStart() {
     const started = new Promise<void>((resolve) => {
         entered = resolve;
     });
-    const original = Reflect.get(agent, "catalog");
+    const original = Reflect.get(agent, "diagnose");
     assert.equal(typeof original, "function");
     let delayed = false;
-    Reflect.set(agent, "catalog", async () => {
+    Reflect.set(agent, "diagnose", async (headed: boolean) => {
         if (!delayed) {
             delayed = true;
             entered();
             await gate;
         }
-        return original.call(agent);
+        return original.call(agent, headed);
     });
-    const first = agent.dispatch(run).then(
+    const first = agent.dispatch(startOnline).then(
         (value) => ({ value }),
         (error) => ({ error }),
     );
-    await started;
+    try {
+        await Promise.race([
+            started,
+            first.then((result) => {
+                throw new Error("Online startup ended before reaching the diagnostic gate", { cause: result });
+            }),
+        ]);
+    } catch (error) {
+        release();
+        await rm(root, { recursive: true, force: true });
+        throw error;
+    }
     return {
         root,
         agent,
@@ -55,16 +66,15 @@ async function pendingStart() {
 }
 
 /**
- * 两个启动请求以及工作区、在线模式切换不能同时占有尚未完成的启动事务，读取状态却应继续返回；第一个真实目录读取失败之后
+ * 两个启动请求以及工作区、在线模式切换不能同时占有尚未完成的启动事务，读取状态却应继续返回；第一个真实在线自检失败之后
  * ，预留必须释放，后续请求不得永远停留在 BUSY。
  */
 test("pending startup rejects competing mutations and releases after failure", async () => {
     const fixture = await pendingStart();
     try {
         for (const command of [
-            run,
+            startOnline,
             { operation: "select", workspaceId: uuid },
-            { operation: "onlineStart" },
             { operation: "prepareMaintenance" },
             { operation: "pruneCache", workspaceId: uuid, ...localRetentionDefaults },
         ])
@@ -72,10 +82,10 @@ test("pending startup rejects competing mutations and releases after failure", a
         const status = (await fixture.agent.dispatch({ operation: "status" })) as {
             preparing?: { id: string; operation: string };
         };
-        assert.equal(status.preparing?.operation, "run");
+        assert.equal(status.preparing?.operation, "onlineStart");
         fixture.release();
-        assert.match(String(((await fixture.first) as { error: Error }).error), /BUNDLE_WORKSPACE_MISMATCH/);
-        await assert.rejects(fixture.agent.dispatch(run), /BUNDLE_WORKSPACE_MISMATCH/);
+        assert.match(String(((await fixture.first) as { error: Error }).error), /ENOENT/);
+        await assert.rejects(fixture.agent.dispatch(startOnline), /ENOENT/);
     } finally {
         await fixture.dispose();
     }
@@ -101,11 +111,11 @@ test("startup cancellation targets its operation and waits for release", async (
             });
         await new Promise<void>((resolve) => setImmediate(resolve));
         assert.equal(finished, false);
-        await assert.rejects(fixture.agent.dispatch(run), /AGENT_BUSY/);
+        await assert.rejects(fixture.agent.dispatch(startOnline), /AGENT_BUSY/);
         fixture.release();
         await cancelled;
         assert.match(String(((await fixture.first) as { error: Error }).error), /AGENT_START_CANCELLED/);
-        await assert.rejects(fixture.agent.dispatch(run), /BUNDLE_WORKSPACE_MISMATCH/);
+        await assert.rejects(fixture.agent.dispatch(startOnline), /ENOENT/);
         const { LocalStore } = await import("../../runtime/src/offline/store.ts");
         const { DatabaseSync } = await import("node:sqlite");
         const current = "22222222-2222-4222-8222-222222222222";
@@ -141,11 +151,11 @@ test("stop drains the reserved startup and prevents later work", async () => {
     try {
         const stopped = fixture.agent.dispatch({ operation: "stop" });
         await new Promise<void>((resolve) => setImmediate(resolve));
-        await assert.rejects(fixture.agent.dispatch(run), /AGENT_BUSY|AGENT_STOPPED/);
+        await assert.rejects(fixture.agent.dispatch(startOnline), /AGENT_BUSY|AGENT_STOPPED/);
         fixture.release();
         assert.deepEqual(await stopped, { stopped: true });
         assert.match(String(((await fixture.first) as { error: Error }).error), /AGENT_START_CANCELLED/);
-        await assert.rejects(fixture.agent.dispatch(run), /AGENT_STOPPED/);
+        await assert.rejects(fixture.agent.dispatch(startOnline), /AGENT_STOPPED/);
     } finally {
         await fixture.dispose();
     }
@@ -167,7 +177,7 @@ test("maintenance holds idle ownership until explicit stop and prevents a new ru
             ready: boolean;
         };
         assert.equal(receipt.ready, true);
-        await assert.rejects(agent.dispatch(run), /AGENT_STOPPED/);
+        await assert.rejects(agent.dispatch(startOnline), /AGENT_STOPPED/);
         assert.deepEqual(await agent.dispatch({ operation: "stop" }), { stopped: true });
     } finally {
         await agent.dispatch({ operation: "stop" });
