@@ -1,0 +1,82 @@
+[
+    {
+        "name": "request metadata retains insertion order",
+        "input": {
+            "level": "notice",
+            "timestamp": "2026-10-15T14:03:27.812+08:00",
+            "location": "middleware.ts:37",
+            "tag": "_com_request_in",
+            "fields": {
+                "traceid": "example",
+                "method": "GET",
+                "uri": "/api/releases",
+                "errno": 200,
+                "sampled": true
+            }
+        },
+        "expected": "[NOTICE][2026-10-15T06:03:27.812+0000][middleware.ts:37] _com_request_in||traceid=example||method=GET||uri=/api/releases||errno=200||sampled=true"
+    },
+    {
+        "name": "delimiters and newlines cannot inject fields or records",
+        "input": {
+            "level": "error",
+            "timestamp": "2026-10-15T06:03:27.812Z",
+            "location": "",
+            "tag": "_undef",
+            "fields": {
+                "_msg": "a\\b||c=d\r\ne",
+                "_stack": "a\n\r\nb",
+                "a=b": "c"
+            }
+        },
+        "expected": "[ERROR][2026-10-15T06:03:27.812+0000][] _undef||_msg=a\\\\b\\|\\|c\\=d\\r\\ne||_stack=a b||a\\=b=c"
+    },
+    {
+        "name": "credential fields and recognizable secrets are masked",
+        "input": {
+            "level": "ERROR",
+            "timestamp": "2026-10-15T06:03:27.812Z",
+            "location": "call.py:7",
+            "tag": "_com_http_failure",
+            "fields": {
+                "clientSecret": "value",
+                "Authorization": "legacy credentials",
+                "id_card": "value",
+                "token_count": 12,
+                "errmsg": "Bearer\u00a0abc.xyz Basic Zm9v token:\u00a0secret user@example.org eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.signature",
+                "url": "https://user:pass@example.org/path?api_key=secret&result=404",
+                "request": {
+                    "password": "value"
+                },
+                "headers": ["value"],
+                "result": null,
+                "payload_summary": "{\"accessToken\":\"abc\\\"def\",\"password\":\"another\"}"
+            }
+        },
+        "expected": "[ERROR][2026-10-15T06:03:27.812+0000][call.py:7] _com_http_failure||clientSecret=***||Authorization=***||id_card=***||token_count=12||errmsg=*** *** token:\u00a0*** *** ***||url=https://example.org/path?api_key\\=***&result\\=404||payload_summary={\"accessToken\":***,\"password\":***}"
+    },
+    {
+        "name": "unlabelled personal data and database connection strings are masked",
+        "input": {
+            "level": "WARN",
+            "timestamp": "2026-10-15T06:03:27.812Z",
+            "location": "",
+            "fields": {
+                "_msg": "联系电话 13800138000 证件 11010519491231002X database mysql+asyncmy://host:3306/db",
+                "databaseUrl": "mysql://host:3306/db",
+                "spanid": "1101051949123100"
+            }
+        },
+        "expected": "[WARNING][2026-10-15T06:03:27.812+0000][] _undef||_msg=联系电话 *** 证件 *** database ***||databaseUrl=***||spanid=1101051949123100"
+    },
+    {
+        "name": "invalid headers and tags fall back to safe fields",
+        "input": {
+            "level": "error]\n[notice",
+            "timestamp": "2026-10-15T06:03:27.812Z",
+            "location": "fake.py:1\n",
+            "tag": "_com_unsupported"
+        },
+        "expected": "[NOTICE][2026-10-15T06:03:27.812+0000][] _undef||"
+    }
+]

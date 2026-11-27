@@ -6,6 +6,7 @@
     "license": "AGPL-3.0-only",
     "exports": {
         ".": "./src/index.ts",
+        "./log-format": "./src/log-format.ts",
         "./openapi": "./src/api.generated.ts",
         "./schemas/*": "./schemas/*"
     },

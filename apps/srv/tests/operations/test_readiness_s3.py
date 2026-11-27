@@ -433,3 +433,27 @@ def test_sdk_ledger_records_delete_attempt_before_stubber_rejects(s3_probe: _S3P
     s3_probe.close.assert_called_once_with()
     s3_probe.factory.assert_not_called()
     s3_probe.transport.assert_not_called()
+
+
+def test_s3_probe_records_safe_service_failure(s3_probe, tmp_path, caplog):
+    configuration = readiness.Settings.model_construct(
+        artifact_directory=str(tmp_path), **_read_settings(b"probe")
+    )
+    monitor = readiness.ReadinessMonitor(configuration, mock.Mock(), None)
+    s3_probe.factory.side_effect = functools.partial(
+        s3_probe.open_client,
+        queue=lambda stubber: stubber.add_client_error(
+            "get_object",
+            service_message=_SERVICE_MARKER,
+            http_status_code=403,
+            expected_params=_OBJECT_PARAMS,
+        ),
+    )
+    with pytest.raises(exceptions.ClientError):
+        monitor._storage()
+    records = [r for r in caplog.records if getattr(r, "veriq_tag", "") == "_com_http_failure"]
+    assert len(records) == 1
+    fields = records[0].veriq_fields
+    assert fields["errno"] == 403
+    assert all(marker not in repr(fields) for marker in _PRIVATE)
+    s3_probe.assert_operation("GetObject", _OBJECT_PARAMS)

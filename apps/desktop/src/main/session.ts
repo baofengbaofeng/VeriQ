@@ -1,3 +1,4 @@
+import { diagnosticFetch } from "../../../runtime/src/diagnostics.ts";
 import type { Session } from "electron";
 import { createHash } from "node:crypto";
 import type { PlatformComponents } from "@veriq/contracts";
@@ -81,7 +82,7 @@ export class HostSession {
      */
     private async response(operation: ResolvedOperation): Promise<Response> {
         if (this.retired) throw new Error("HOST_SESSION_CHANGED");
-        return this.session.fetch(this.origin + operation.path, {
+        return diagnosticFetch(this.session.fetch.bind(this.session), "desktop.control", this.origin + operation.path, {
             method: operation.method,
             credentials: "include",
             redirect: "error",

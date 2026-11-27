@@ -17,8 +17,10 @@ from alembic.script import ScriptDirectory
 from sqlalchemy import select, text
 from sqlalchemy.exc import SQLAlchemyError
 
+from .logging_context import new_trace, use_trace
 from .db import Database, Installation
 from .file_volume import check_volume
+from .outbound import s3_operation
 from .service import Problem
 from .handlers.static import PublishedSite, load_published_site
 from .settings import Settings
@@ -107,7 +109,8 @@ class ReadinessMonitor:
         if self._result is not None and monotonic() - self._completed < 1:
             return dict(self._result)
         if self._flight is None or self._flight.done():
-            self._flight = asyncio.create_task(self._check())
+            with use_trace(new_trace()):
+                self._flight = asyncio.create_task(self._check())
         return dict(await asyncio.shield(self._flight))
 
     async def _database(self) -> dict[str, bool]:
@@ -174,22 +177,24 @@ class ReadinessMonitor:
         )
         try:
             if config.readiness_s3_strategy == "head-bucket":
-                client.head_bucket(Bucket=config.artifact_s3_bucket)
+                with s3_operation("storage.head_bucket"):
+                    client.head_bucket(Bucket=config.artifact_s3_bucket)
                 return True
             # 读对象策略校验要求对象键；若绕过校验且键为 None，跳过对象请求并通过下方清理关闭客户端。
             object_key = config.readiness_s3_object_key
             if object_key is None:
                 return False
-            response = client.get_object(Bucket=config.artifact_s3_bucket, Key=object_key)
-            body = response["Body"]
-            try:
-                payload = body.read(config.readiness_s3_object_size + 1)
-                return (
-                    len(payload) == config.readiness_s3_object_size
-                    and sha256(payload).hexdigest() == config.readiness_s3_object_sha256
-                )
-            finally:
-                body.close()
+            with s3_operation("storage.get"):
+                response = client.get_object(Bucket=config.artifact_s3_bucket, Key=object_key)
+                body = response["Body"]
+                try:
+                    payload = body.read(config.readiness_s3_object_size + 1)
+                    return (
+                        len(payload) == config.readiness_s3_object_size
+                        and sha256(payload).hexdigest() == config.readiness_s3_object_sha256
+                    )
+                finally:
+                    body.close()
         finally:
             client.close()
 

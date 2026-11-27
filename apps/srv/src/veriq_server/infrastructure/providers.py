@@ -1,3 +1,4 @@
+import asyncio
 from dataclasses import dataclass, field
 from typing import Any, Protocol, cast, AsyncIterator, Callable, Awaitable, Literal
 import json
@@ -21,6 +22,8 @@ from anthropic.types import (
     ThinkingBlockParam,
     RedactedThinkingBlockParam,
 )
+from ..logging_context import trace_headers, use_trace
+from ..outbound import OutboundCall
 
 from ..contracts import canonical_bytes
 
@@ -220,6 +223,64 @@ async def limit_response(response: httpx.Response) -> None:
     response.stream = LimitedStream(response.stream)  # type: ignore[arg-type]
 
 
+class _LoggedProviderStream(httpx.AsyncByteStream):
+    def __init__(self, stream: httpx.AsyncByteStream, call: OutboundCall):
+        self.stream, self.call = stream, call
+
+    async def __aiter__(self) -> AsyncIterator[bytes]:
+        iterator = aiter(self.stream)
+        try:
+            while True:
+                with use_trace(self.call.span):
+                    part = await anext(iterator)
+                yield part
+        except StopAsyncIteration:
+            return
+        except (Exception, asyncio.CancelledError) as error:
+            self.call.finish(error)
+            raise
+
+    async def aclose(self) -> None:
+        try:
+            with use_trace(self.call.span):
+                await self.stream.aclose()
+        except (Exception, asyncio.CancelledError) as error:
+            self.call.finish(error)
+            raise
+        else:
+            self.call.finish()
+
+
+class _ProviderClient(httpx.AsyncClient):
+    async def send(
+        self,
+        request: httpx.Request,
+        *,
+        stream: bool = False,
+        auth: Any = httpx.USE_CLIENT_DEFAULT,
+        follow_redirects: Any = httpx.USE_CLIENT_DEFAULT,
+    ) -> httpx.Response:
+        call = OutboundCall(
+            "http", "provider.request", {"uri": "provider.request", "method": request.method}
+        )
+        try:
+            with use_trace(call.span):
+                request.headers.update(trace_headers(call.span))
+                response = await super().send(
+                    request, stream=stream, auth=auth, follow_redirects=follow_redirects
+                )
+            call.status = response.status_code
+            if stream and response.is_success and not response.is_closed:
+                assert isinstance(response.stream, httpx.AsyncByteStream)
+                response.stream = _LoggedProviderStream(response.stream, call)
+            else:
+                call.finish()
+            return response
+        except (Exception, asyncio.CancelledError) as error:
+            call.finish(error)
+            raise
+
+
 class ProviderGateway:
     """按适配器类型调用 Anthropic 或 OpenAI 兼容接口，统一截断不完整输出与非法 JSON；ANTHROPIC 与 OpenAI 分支共享超时、
     禁重试与体积护栏。
@@ -242,7 +303,7 @@ class ProviderGateway:
         """
         usage_in: int | None
         usage_out: int | None
-        async with httpx.AsyncClient(
+        async with _ProviderClient(
             headers={"Accept-Encoding": "identity"},
             timeout=30,
             follow_redirects=False,
@@ -305,7 +366,7 @@ class ProviderGateway:
         usage_out: int | None = None
         finish_reason: str | None = None
         parts: list[str] = []
-        async with httpx.AsyncClient(
+        async with _ProviderClient(
             headers={"Accept-Encoding": "identity"},
             timeout=30,
             follow_redirects=False,
@@ -413,7 +474,7 @@ class ProviderGateway:
             )
 
         final_text: list[str] = []
-        async with httpx.AsyncClient(
+        async with _ProviderClient(
             headers={"Accept-Encoding": "identity"},
             timeout=30,
             follow_redirects=False,

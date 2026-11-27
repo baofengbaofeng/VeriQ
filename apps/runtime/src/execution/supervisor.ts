@@ -2,6 +2,7 @@
  * 本文件编排 Claimed Attempt 的激活、编译、派生子进程与证据收集：崩溃恢复后对账停机：租约耗尽时必须排空进程树。
  */
 
+import { diagnosticFetch } from "../diagnostics.ts";
 import {
     mkdtemp,
     mkdir,
@@ -1393,7 +1394,9 @@ export class ExecutionSupervisor {
         signal: AbortSignal,
     ) {
         return this.options.client.session.withCredential(async (config) => {
-            const response = await fetch(
+            const response = await diagnosticFetch(
+                fetch,
+                "runtime.credential_resolve",
                 `${config.server}/internal/v1/attempts/${claim.attemptId}/credentials/resolve`,
                 {
                     method: "POST",

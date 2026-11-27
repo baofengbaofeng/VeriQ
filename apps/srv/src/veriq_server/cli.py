@@ -9,7 +9,6 @@ import argparse
 import asyncio
 import getpass
 import json
-import logging
 import os
 from pathlib import Path
 import secrets
@@ -23,6 +22,8 @@ from .app import make_app
 from .handlers.base import MAX_HTTP_BODY_BYTES
 from .db import Database
 from .file_volume import check_volume
+from .log import configure_logging, log
+from .logging_context import new_trace, use_trace
 from .services.artifact import bind_volume
 from .migrate import migrate
 from .service import Problem, digest, initialize, lock_installation
@@ -222,7 +223,6 @@ async def run(args: argparse.Namespace) -> None:
         elif args.command == "compile-worker":
             from .services.server_compilation import serve_compiler
 
-            logging.basicConfig(level=logging.INFO, format="%(message)s")
             stop = asyncio.Event()
             loop = asyncio.get_running_loop()
             for sig in (signal.SIGINT, signal.SIGTERM):
@@ -238,7 +238,6 @@ async def run(args: argparse.Namespace) -> None:
         else:
             from .services.agent_tasks import serve_agent_tasks
 
-            logging.basicConfig(level=logging.INFO, format="%(message)s")
             application = make_app(settings, db)
             server = HTTPServer(application, max_body_size=MAX_HTTP_BODY_BYTES)
             agent_worker = asyncio.create_task(serve_agent_tasks(db, settings))
@@ -249,7 +248,7 @@ async def run(args: argparse.Namespace) -> None:
                 loop = asyncio.get_running_loop()
                 for sig in (signal.SIGINT, signal.SIGTERM):
                     loop.add_signal_handler(sig, stop.set)
-                print(f"VeriQ listening on port {settings.port}")
+                log("_undef", "server.listening", port=settings.port)
                 completed, _ = await asyncio.wait(
                     (shutdown, agent_worker), return_when=asyncio.FIRST_COMPLETED
                 )
@@ -270,6 +269,12 @@ async def run(args: argparse.Namespace) -> None:
                         await application.settings["readiness_monitor"].close()
     finally:
         await db.close()
+
+
+def _run_command(args: argparse.Namespace) -> None:
+    configure_logging()
+    with use_trace(new_trace()):
+        asyncio.run(run(args))
 
 
 def main() -> None:
@@ -340,7 +345,7 @@ def main() -> None:
 
             if ctypes.CDLL(None, use_errno=True).prctl(15, b"veriq", 0, 0, 0) != 0:
                 raise OSError("VeriQ process identity could not be set")
-        asyncio.run(run(parser.parse_args()))
+        _run_command(parser.parse_args())
     except (ValidationError, ValueError, Problem, OSError):
         # 校验异常可能携带密钥等原始输入，终端仅返回固定失败提示，禁止把异常转换成字符串后回显给操作者。
         parser.exit(

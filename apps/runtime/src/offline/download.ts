@@ -2,6 +2,7 @@
  * 本文件仅从精确 Origin 以 Bearer 拉取离线包：禁止重定向与 Cookie：并限制流式下载体积上限（download）。
  */
 
+import { diagnosticFetch } from "../diagnostics.ts";
 import { open, unlink, mkdir, lstat, type FileHandle } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -18,7 +19,9 @@ export async function downloadBundle(
 ): Promise<void> {
     if (!/^[0-9a-f-]{36}$/i.test(bundleId)) throw new Error("INVALID_BUNDLE_ID");
     const origin = controlOrigin(config.server),
-        response = await fetch(
+        response = await diagnosticFetch(
+            fetch,
+            "runtime.offline_download",
             `${origin}/internal/v1/workspaces/${encodeURIComponent(config.workspaceId)}/bundles/${bundleId}/download`,
             {
                 headers: { Authorization: `Bearer ${config.deviceToken}` },

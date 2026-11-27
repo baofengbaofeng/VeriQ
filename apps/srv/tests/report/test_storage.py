@@ -35,7 +35,7 @@ async def test_file_cas_exact_bytes_replay_scope_integrity_and_delete(tmp_path):
         await store.read(workspace, digest, len(data))
 
 
-async def test_s3_real_loopback_http_exact_bytes_conditional_replay_and_delete(monkeypatch):
+async def test_s3_real_loopback_http_exact_bytes_conditional_replay_and_delete(monkeypatch, caplog):
     from moto.server import ThreadedMotoServer
     from veriq_server.services.artifact import S3ArtifactStore
     import asyncio
@@ -70,6 +70,10 @@ async def test_s3_real_loopback_http_exact_bytes_conditional_replay_and_delete(m
         await store.delete(workspace, digest)
         with pytest.raises(ClientError):
             await store.read(workspace, digest, len(data))
+        records = [r for r in caplog.records if getattr(r, "veriq_tag", "") == "_com_http_failure"]
+        assert [record.veriq_fields["errno"] for record in records] == [412, 404, 404]
+        results = [r.veriq_fields for r in caplog.records if hasattr(r, "veriq_fields")]
+        assert all(digest not in repr(fields) for fields in results)
     finally:
         server.stop()
 

@@ -1,6 +1,7 @@
 /**
  * 本文件实现 Agent 认领循环：本地持久化 claim 请求、恢复后隔离未排空进程，并按租约预算串行执行每次 Attempt。
  */
+import { withDiagnosticContext } from "../diagnostics.ts";
 import { randomUUID } from "node:crypto";
 import { addAbortListener } from "node:events";
 import { mkdir } from "node:fs/promises";
@@ -77,9 +78,11 @@ export async function claimLoop(options: {
         timers.setTimeout(10000, undefined, { signal }).catch((error) => {
             if (!signal.aborted) throw error;
         });
-    const recovered = await supervisor.recover((value) => {
-        if (cleanupPending(value)) publish(undefined, true);
-    }, options.runnerId);
+    const recovered = await withDiagnosticContext(() =>
+        supervisor.recover((value) => {
+            if (cleanupPending(value)) publish(undefined, true);
+        }, options.runnerId),
+    );
     // 恢复收据仍报告未停止进程时隔离本机容量，拒绝继续认领，以免未知执行与新任务同时占用设备。
     if (recovered.some((r) => !r.processStopped)) throw new Error("PROCESS_QUARANTINED");
     let checkRecoveredRequest = true;
@@ -93,49 +96,57 @@ export async function claimLoop(options: {
                 await waitForPoll();
                 continue;
             }
-            let request = await readPending(options.root);
-            if (request && request.runnerId !== options.runnerId) {
-                await preserveForeignRequest(options.root, request);
-                request = undefined;
-            }
-            const pendingId = request?.clientRequestId;
-            if (pendingId && checkRecoveredRequest && recovered.some((r) => r.claimRequestId === pendingId)) {
-                await clearPending(options.root);
-                request = undefined;
-            }
-            checkRecoveredRequest = false;
-            if (!request) {
-                request = {
-                    runnerId: options.runnerId,
-                    clientRequestId: randomUUID(),
-                    capabilities: options.capabilities,
-                    availableSlots: 1,
-                };
-                await publishPending(options.root, request);
-            }
-            const requestStarted = performance.now();
-            const claim = await client.request<Claim | undefined>("/internal/v1/jobs/claim", "POST", request, signal);
-            const responseReceived = performance.now();
-            if (claim) {
-                const result = await supervisor.runAttempt(
-                    {
-                        claim,
+            const claimed = await withDiagnosticContext(async () => {
+                let request = await readPending(options.root);
+                if (request && request.runnerId !== options.runnerId) {
+                    await preserveForeignRequest(options.root, request);
+                    request = undefined;
+                }
+                const pendingId = request?.clientRequestId;
+                if (pendingId && checkRecoveredRequest && recovered.some((r) => r.claimRequestId === pendingId)) {
+                    await clearPending(options.root);
+                    request = undefined;
+                }
+                checkRecoveredRequest = false;
+                if (!request) {
+                    request = {
                         runnerId: options.runnerId,
-                        requestStarted,
-                        responseReceived,
-                        claimRequestId: request.clientRequestId,
-                    },
+                        clientRequestId: randomUUID(),
+                        capabilities: options.capabilities,
+                        availableSlots: 1,
+                    };
+                    await publishPending(options.root, request);
+                }
+                const requestStarted = performance.now();
+                const claim = await client.request<Claim | undefined>(
+                    "/internal/v1/jobs/claim",
+                    "POST",
+                    request,
                     signal,
                 );
-                if (cleanupPending(result.dataCleanup)) publish(undefined, true);
-                if (!result.stop.processStopped) throw new Error("PROCESS_QUARANTINED");
-                if (!result.completion) throw new Error(result.stop.reason);
-            }
-            await clearPending(options.root);
-            if (claim) await supervisor.archiveCompleted(claim);
+                const responseReceived = performance.now();
+                if (claim) {
+                    const result = await supervisor.runAttempt(
+                        {
+                            claim,
+                            runnerId: options.runnerId,
+                            requestStarted,
+                            responseReceived,
+                            claimRequestId: request.clientRequestId,
+                        },
+                        signal,
+                    );
+                    if (cleanupPending(result.dataCleanup)) publish(undefined, true);
+                    if (!result.stop.processStopped) throw new Error("PROCESS_QUARANTINED");
+                    if (!result.completion) throw new Error(result.stop.reason);
+                }
+                await clearPending(options.root);
+                if (claim) await supervisor.archiveCompleted(claim);
+                return Boolean(claim);
+            });
             if (options.once) return;
             // 循环在空认领后先等十秒，纯空轮询每二十四小时最多产生八千六百四十条空回执，低于一万条上限。
-            if (!claim) await waitForPoll();
+            if (!claimed) await waitForPoll();
         }
     } finally {
         publish(undefined);
