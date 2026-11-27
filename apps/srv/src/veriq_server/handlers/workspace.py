@@ -10,6 +10,7 @@ from ..auth.authorization import Authorization, Permission, WorkspaceScope
 from ..db import User, Workspace, WorkspaceMember, WorkspaceInvite
 from ..pagination import Page, boolean_filter
 from ..service import Problem, audit, create_user, digest, lock_installation, now, stamp, user_dto
+from ..services.agent_form_receipts import FORM_ORIGIN_HEADER, record_form_receipt
 from ..services.notification_events import (
     invalidate_inbox,
     invalidate_invitation_inbox,
@@ -239,6 +240,15 @@ class WorkspaceAPI(API):
                 )
                 s.add(invitation)
                 audit(s, "workspace.invited", user.id, invitation.id, workspace_id=workspace_id)
+                await record_form_receipt(
+                    s,
+                    self.request.headers.get(FORM_ORIGIN_HEADER),
+                    user,
+                    workspace_id,
+                    action="workspace.invited",
+                    target_id=invitation.id,
+                    capability="WORKSPACE_MEMBERS",
+                )
                 await record_invitation(s, invitation, user)
                 result = {
                     "id": invitation.id,
@@ -351,6 +361,16 @@ class WorkspaceAPI(API):
                 and (target.disabled or data["status"] != "ACTIVE")
             ):
                 raise Problem(409, "OWNER_DISABLED", "OWNER must be an enabled active member")
+            if (member.role, member.status) != (data["role"], data["status"]):
+                await record_form_receipt(
+                    s,
+                    self.request.headers.get(FORM_ORIGIN_HEADER),
+                    user,
+                    workspace_id,
+                    action="workspace.member_updated",
+                    target_id=member.user_id,
+                    capability="WORKSPACE_MEMBERS",
+                )
             member.role, member.status = data["role"], data["status"]
             audit(s, "workspace.member_updated", user.id, user_id, workspace_id=workspace_id)
             await invalidate_inbox(s, user_id)
@@ -373,6 +393,15 @@ class WorkspaceAPI(API):
             )
             workspace, actor = await repo.authorize(user, permission, write=True)
             if self.action == "workspace":
+                await record_form_receipt(
+                    s,
+                    self.request.headers.get(FORM_ORIGIN_HEADER),
+                    user,
+                    workspace_id,
+                    action="workspace.archived",
+                    target_id=workspace.id,
+                    capability="WORKSPACE_ARCHIVE",
+                )
                 workspace.archived = True
                 audit(s, "workspace.archived", user.id, workspace_id, workspace_id=workspace_id)
                 await invalidate_workspace_inboxes(s, workspace_id)
@@ -384,12 +413,31 @@ class WorkspaceAPI(API):
                 if member.role == "OWNER":
                     Authorization.require(actor, scope, Permission.OWNERSHIP)
                 await repo.protect_owner(identifier)
+                await record_form_receipt(
+                    s,
+                    self.request.headers.get(FORM_ORIGIN_HEADER),
+                    user,
+                    workspace_id,
+                    action="workspace.member_removed",
+                    target_id=member.user_id,
+                    capability="WORKSPACE_MEMBERS",
+                )
                 await s.delete(member)
                 audit(s, "workspace.member_removed", user.id, identifier, workspace_id=workspace_id)
                 await invalidate_inbox(s, identifier)
             else:
                 assert identifier is not None
                 invitation = await repo.invite(identifier)
+                if not invitation.revoked:
+                    await record_form_receipt(
+                        s,
+                        self.request.headers.get(FORM_ORIGIN_HEADER),
+                        user,
+                        workspace_id,
+                        action="workspace.invitation_revoked",
+                        target_id=invitation.id,
+                        capability="WORKSPACE_MEMBERS",
+                    )
                 invitation.revoked = True
                 await invalidate_invitation_inbox(s, invitation)
                 audit(

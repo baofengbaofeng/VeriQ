@@ -152,8 +152,6 @@ async def find_configuration(
     items = []
     for row in (await s.execute(query)).mappings():
         item = {field: value for field, value in row.items() if value is not None}
-        if row["kind"] not in CONFIGURABLE_KINDS:
-            item.pop("revision", None)
         items.append(item)
     filtered = sanitize({"items": items}, protected)
     if not isinstance(filtered, dict):
@@ -168,7 +166,12 @@ async def find_configuration(
     catalog = context.setdefault("configurationCatalog", {})
     for item in result["items"]:
         catalog[item["resourceId"]] = item
-    if "resourceId" in arguments and result["items"] and "revision" in result["items"][0]:
+    if (
+        "resourceId" in arguments
+        and result["items"]
+        and "revision" in result["items"][0]
+        and result["items"][0]["kind"] in CONFIGURABLE_KINDS
+    ):
         result["draft"] = await _exact_draft_projection(
             s, scope, result["items"][0]["resourceId"], context, protected
         )

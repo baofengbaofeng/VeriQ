@@ -1,9 +1,20 @@
+"""服务账号与令牌治理仅接受工作区管理员会话，对话表单的行为与目标编号随领域变更提交，一次性令牌只在签发响应中返回。"""
+
 from sqlalchemy import select
 from ..db import ServiceAccount, ServiceToken
 from ..pagination import Page
 from ..service import Problem, audit, lock_installation, now, stamp
+from ..services.agent_form_receipts import FORM_ORIGIN_HEADER, record_form_receipt
 from ..services.service_account import ServiceAccountService, account_dto
 from .base import API
+
+
+def _require_form_token_purpose(origin: str | None, purpose: str) -> None:
+    """计划令牌卡只关联执行令牌的签发和吊销，普通服务账号接口仍支持全部契约用途。"""
+    if origin is not None and purpose != "EXECUTION":
+        raise Problem(
+            422, "PLAN_TOKEN_PURPOSE_REQUIRED", "The plan token form only manages execution tokens"
+        )
 
 
 class ServiceAccountAPI(API):
@@ -127,44 +138,66 @@ class ServiceAccountAPI(API):
                 "service-token-revoke": "EmptyObject",
             }[self.action]
         )
+        origin = self.request.headers.get(FORM_ORIGIN_HEADER)
         async with self.db.sessions.begin() as session:
             await lock_installation(session)
             user, _ = await self.identity(session)
             service = ServiceAccountService(session)
             await service.authorize(user, workspace_id, write=True)
+            changed = True
             if self.action == "service-accounts":
                 result = account_dto(await service.create(user, workspace_id, data["name"]))
+                action, target_id = "service_account.created", result["id"]
             else:
                 assert account_id
                 account = await service.get(workspace_id, account_id)
                 if self.action == "service-token-issue":
+                    _require_form_token_purpose(origin, data["purpose"])
                     result = await service.issue(
                         user, account, data["purpose"], data.get("operations"), data.get("planIds")
                     )
+                    action, target_id = "service_token.issued", result["id"]
                 elif self.action == "service-account-disable":
-                    account.disabled = True
-                    audit(
-                        session,
-                        "service_account.disabled",
-                        user.id,
-                        account.id,
-                        workspace_id=workspace_id,
-                    )
+                    changed = not account.disabled
+                    if changed:
+                        account.disabled = True
+                        audit(
+                            session,
+                            "service_account.disabled",
+                            user.id,
+                            account.id,
+                            workspace_id=workspace_id,
+                        )
                     result = account_dto(account)
+                    action, target_id = "service_account.disabled", account.id
                 else:
                     token = await session.get(ServiceToken, token_id)
                     # 待撤销令牌须归属当前服务账号，未匹配时统一返回不存在，防止同一空间的管理操作跨账号吊销令牌。
                     if not token or token.service_account_id != account.id:
                         raise Problem(404, "SERVICE_TOKEN_NOT_FOUND", "Service token not found")
-                    token.revoked_at = now()
-                    audit(
-                        session,
-                        "service_token.revoked",
-                        user.id,
-                        token.id,
-                        workspace_id=workspace_id,
-                    )
+                    _require_form_token_purpose(origin, token.purpose)
+                    changed = token.revoked_at is None
+                    if changed:
+                        token.revoked_at = now()
+                        audit(
+                            session,
+                            "service_token.revoked",
+                            user.id,
+                            token.id,
+                            workspace_id=workspace_id,
+                        )
                     result = {}
+                    action, target_id = "service_token.revoked", token.id
+            if changed:
+                await record_form_receipt(
+                    session,
+                    origin,
+                    user,
+                    workspace_id,
+                    action=action,
+                    target_id=target_id,
+                    capability="CI_PLAN_TOKENS",
+                )
         self.respond(
             result, 201 if self.action in {"service-accounts", "service-token-issue"} else 200
         )

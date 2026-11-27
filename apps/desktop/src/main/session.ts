@@ -11,6 +11,15 @@ type S = PlatformComponents["schemas"];
  */
 export type PublicSession = Pick<S["SessionDTO"], "user" | "expiresAt">;
 
+export class HostHttpError extends Error {
+    constructor(
+        readonly status: number,
+        readonly code: string,
+    ) {
+        super(code);
+    }
+}
+
 /**
  * 控制地址配置仅接受完整 HTTPS Origin 或本机开发 HTTP Origin，拒绝路径、用户信息和查询字符串；包中的签发者标签不能替代
  * 这个明确配置的认证目的地。
@@ -39,6 +48,8 @@ export function controlOrigin(value: string): string {
 export class HostSession {
     private csrf = "";
     private lifetime = new AbortController();
+    private authentication: Promise<unknown> = Promise.resolve();
+    private retired = false;
     private streams = new Map<string, ReadableStreamDefaultReader<Uint8Array>>();
     private pendingStreams = new Set<string>();
     workspace: S["WorkspaceDTO"] | undefined;
@@ -68,6 +79,7 @@ export class HostSession {
      * JSON undefined 数据。Cookie 和响应 CSRF 均不加入 renderer 返回值。
      */
     private async response(operation: ResolvedOperation): Promise<Response> {
+        if (this.retired) throw new Error("HOST_SESSION_CHANGED");
         return this.session.fetch(this.origin + operation.path, {
             method: operation.method,
             credentials: "include",
@@ -76,6 +88,7 @@ export class HostSession {
             headers: {
                 "Content-Type": "application/json",
                 ...(operation.method === "GET" ? {} : { Origin: this.origin, "X-CSRF-Token": this.csrf }),
+                ...(operation.agentFormTurnId ? { "X-VeriQ-Agent-Form": operation.agentFormTurnId } : {}),
                 ...(operation.idempotencyKey ? { "Idempotency-Key": operation.idempotencyKey } : {}),
             },
             ...(operation.data === undefined ? {} : { body: JSON.stringify(operation.data) }),
@@ -92,7 +105,12 @@ export class HostSession {
      * 有 csrfToken 时只更新宿主私有字段。公开登录方法会另行构造无凭证的返回对象。
      */
     private async json(operation: ResolvedOperation): Promise<unknown> {
+        const lifetime = this.lifetime.signal;
         const response = await this.response(operation);
+        if (lifetime.aborted) {
+            await response.body?.cancel();
+            throw new Error("HOST_SESSION_CHANGED");
+        }
         const reader = response.body?.getReader();
         const parts: Uint8Array[] = [];
         let length = 0;
@@ -108,10 +126,12 @@ export class HostSession {
             } finally {
                 await reader.cancel();
             }
+        if (lifetime.aborted) throw new Error("HOST_SESSION_CHANGED");
         const envelope = object(JSON.parse(Buffer.concat(parts).toString("utf8")));
         if (!response.ok) {
             if (response.status === 401 && envelope.code !== "ENROLLMENT_INVALID") this.invalidate();
-            throw new Error(
+            throw new HostHttpError(
+                response.status,
                 typeof envelope.code === "string" && /^[A-Z_]{1,80}$/.test(envelope.code)
                     ? envelope.code
                     : "CLOUD_REQUEST_FAILED",
@@ -124,20 +144,36 @@ export class HostSession {
         return data;
     }
 
+    private serializeAuthentication<T>(work: () => Promise<T>): Promise<T> {
+        // 同一 Cookie 分区按请求顺序完成认证及清理，旧登出不能在新登录后删除 Cookie。
+        const next = this.authentication.then(() => {
+            if (this.retired) throw new Error("HOST_SESSION_CHANGED");
+            return work();
+        });
+        this.authentication = next.catch(() => {});
+        return next;
+    }
+
     /**
      * 登录先获取服务端当前 CSRF 再提交用户输入，密码只在本次请求中使用而不持久化；成功后按实际模式校验资料，再明确构造
      * 不包含 CSRF 的公开会话。先请求 getSetup，以取得当前匿名会话的 CSRF。登录请求复用同一
      * Cookie 分区。密码只作为本次请求正文传递。SessionDTO 经过共享模式验证。显式复制 user 与 expiresAt，避免以类型断言
      * 掩盖字段删除。
      */
-    async login(data: S["LoginRequest"]): Promise<PublicSession> {
-        await this.json(resolveOperation({ operation: "getSetup" }, undefined));
-        const value = parseSchema(
-            "SessionDTO",
-            await this.json(resolveOperation({ operation: "login", data }, undefined)),
-        );
-        this.user = { user: value.user, expiresAt: value.expiresAt };
-        return this.user;
+    login(data: S["LoginRequest"]): Promise<PublicSession> {
+        return this.serializeAuthentication(async () => {
+            const lifetime = this.lifetime.signal;
+            await this.json(resolveOperation({ operation: "getSetup" }, undefined));
+            if (lifetime.aborted) throw new Error("HOST_SESSION_CHANGED");
+            const value = parseSchema(
+                "SessionDTO",
+                await this.json(resolveOperation({ operation: "login", data }, undefined)),
+            );
+            if (lifetime.aborted) throw new Error("HOST_SESSION_CHANGED");
+            this.invalidate(false);
+            this.user = { user: value.user, expiresAt: value.expiresAt };
+            return this.user;
+        });
     }
 
     /**
@@ -145,10 +181,18 @@ export class HostSession {
      * 是含 masked CSRF 的原始响应。恢复不会仅因磁盘上仍有 Cookie 就宣称在线。服务端
      * session 端点决定该会话是否仍有效。返回形状与交互登录保持一致。
      */
-    async restore(): Promise<PublicSession> {
-        const value = parseSchema("SessionDTO", await this.json(resolveOperation({ operation: "session" }, undefined)));
-        this.user = { user: value.user, expiresAt: value.expiresAt };
-        return this.user;
+    restore(): Promise<PublicSession> {
+        return this.serializeAuthentication(async () => {
+            const lifetime = this.lifetime.signal;
+            const value = parseSchema(
+                "SessionDTO",
+                await this.json(resolveOperation({ operation: "session" }, undefined)),
+            );
+            if (lifetime.aborted) throw new Error("HOST_SESSION_CHANGED");
+            if (this.user && this.user.user.id !== value.user.id) this.invalidate(false);
+            this.user = { user: value.user, expiresAt: value.expiresAt };
+            return this.user;
+        });
     }
 
     /**
@@ -160,14 +204,23 @@ export class HostSession {
     async cloud(operation: CloudOperation): Promise<unknown> {
         if (["login", "session", "logout", "getSetup"].includes(operation.operation))
             throw new Error("IPC_OPERATION_DENIED");
-        const resolved = resolveOperation(operation, this.workspace?.id);
+        const workspace = this.workspace;
+        const lifetime = this.lifetime.signal;
+        const resolved = resolveOperation(operation, workspace?.id);
         if (resolved.kind !== "json" && resolved.kind !== "source") throw new Error("IPC_OPERATION_DENIED");
         if (resolved.kind === "source" && "query" in operation && operation.query?.path) {
             const response = await this.response(resolved);
             if (!response.ok) throw new Error("SOURCE_DOWNLOAD_FAILED");
-            return this.bytes(response, 1024 * 1024);
+            const data = await this.bytes(response, 1024 * 1024);
+            if (lifetime.aborted) throw new Error("HOST_SESSION_CHANGED");
+            return data;
         }
-        return this.json(resolved);
+        const data = await this.json(resolved);
+        if (lifetime.aborted) throw new Error("HOST_SESSION_CHANGED");
+        if (operation.operation === "archiveWorkspace" && workspace === this.workspace && workspace) {
+            this.workspace = { ...workspace, archived: true };
+        }
+        return data;
     }
 
     /**
@@ -177,10 +230,12 @@ export class HostSession {
      * 赋值。
      */
     async select(workspaceId: string): Promise<S["WorkspaceDTO"]> {
+        const lifetime = this.lifetime.signal;
         const value = parseSchema(
             "WorkspaceDTO",
             await this.json(resolveOperation({ operation: "getWorkspace", params: { workspaceId } }, workspaceId)),
         );
+        if (lifetime.aborted) throw new Error("HOST_SESSION_CHANGED");
         this.invalidate(false);
         this.workspace = value;
         return value;
@@ -191,13 +246,24 @@ export class HostSession {
      * 因员工登出被隐式混同或替换。服务端注销失败也必须清理本机 Cookie。finally 保证旧流和 UI
      * 摘要先失效。Cookie 清理仅作用于独立普通登录分区。设备执行身份不会在这里被误删。
      */
-    async logout(): Promise<void> {
-        try {
-            await this.json(resolveOperation({ operation: "logout", data: {} }, this.workspace?.id));
-        } finally {
-            this.invalidate();
-            await this.session.clearStorageData({ storages: ["cookies"] });
-        }
+    logout(): Promise<void> {
+        return this.serializeAuthentication(async () => {
+            try {
+                await this.json(resolveOperation({ operation: "logout", data: {} }, this.workspace?.id));
+            } finally {
+                this.invalidate();
+                await this.session.clearStorageData({ storages: ["cookies"] });
+            }
+        });
+    }
+
+    /**
+     * 替换平台连接前停止接收旧请求并等候已开始的认证收尾，避免旧登出在新 Host 登录后清空共享分区。
+     */
+    async retire(): Promise<void> {
+        this.retired = true;
+        this.invalidate();
+        await this.authentication;
     }
 
     /**

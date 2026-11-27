@@ -105,3 +105,48 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         </QueryClientProvider>
     );
 }
+
+/**
+ * 内嵌领域页仅持有已核验工作区的取消信号。独立查询缓存与受此信号约束的订阅随表单销毁，保留外层会话的数据和选择。
+ */
+export function PinnedFormWorkspace({
+    selected,
+    signal,
+    children,
+}: {
+    selected: string;
+    signal: AbortSignal;
+    children: ReactNode;
+}) {
+    const [client] = useState(
+        () => new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } }),
+    );
+    useEffect(
+        () => () => {
+            client.clear();
+        },
+        [client],
+    );
+    const subscribe = useCallback(
+        (dispose: () => void) => {
+            let disposed = false;
+            function release() {
+                if (disposed) return;
+                disposed = true;
+                signal.removeEventListener("abort", release);
+                dispose();
+            }
+            if (signal.aborted) release();
+            else signal.addEventListener("abort", release, { once: true });
+            return release;
+        },
+        [signal],
+    );
+    return (
+        <QueryClientProvider client={client}>
+            <WorkspaceContext.Provider value={{ selected, signal, subscribe, select: () => {} }}>
+                {children}
+            </WorkspaceContext.Provider>
+        </QueryClientProvider>
+    );
+}

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { Session } from "electron";
-import { HostSession } from "../src/main/session.ts";
+import { HostHttpError, HostSession } from "../src/main/session.ts";
 
 const workspaceId = "11111111-1111-4111-8111-111111111111";
 const runId = "22222222-2222-4222-8222-222222222222";
@@ -69,6 +69,108 @@ test("a late stream response cannot survive session invalidation", async () => {
     assert.equal(cancelled, true);
 });
 
+test("a late JSON authentication failure cannot invalidate the newly signed-in workspace", async () => {
+    const { host, pending } = fixture();
+    const old = host.cloud({ operation: "getAccount" });
+    const rejected = assert.rejects(old, /HOST_SESSION_CHANGED/);
+    const workspace = host.workspace;
+    host.invalidate();
+    const newUser = {
+        user: { id: runId, email: "next@example.com", displayName: "Next", disabled: false },
+        expiresAt: "2030-01-01T00:00:00Z",
+    };
+    host.user = newUser;
+    host.workspace = workspace;
+    pending[0]!(Response.json({ code: "AUTHENTICATION_REQUIRED" }, { status: 401 }));
+    await rejected;
+    assert.equal(host.user, newUser);
+    assert.equal(host.workspace, workspace);
+});
+
+test("a late successful JSON response is withheld after a workspace change", async () => {
+    const { host, pending } = fixture();
+    const list = host.cloud({ operation: "listProviders", params: { workspaceId } });
+    const rejected = assert.rejects(list, /HOST_SESSION_CHANGED/);
+    host.invalidate(false);
+    pending[0]!(Response.json({ data: { items: [{ id: runId }] } }));
+    await rejected;
+});
+
+test("successful account replacement retires outstanding workspace requests", async () => {
+    const { host, pending } = fixture();
+    const previous = {
+        user: { id: workspaceId, email: "old@example.com", displayName: "Old", disabled: false },
+        expiresAt: "2030-01-01T00:00:00Z",
+    };
+    host.user = previous;
+    const old = host.cloud({ operation: "listProviders", params: { workspaceId } });
+    const rejected = assert.rejects(old, /HOST_SESSION_CHANGED/);
+    const next = host.login({ email: "next@example.com", password: "Valid test password 123!" });
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    pending[1]!(Response.json({ data: { csrfToken: "setup" } }));
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    pending[2]!(
+        Response.json({
+            data: {
+                user: { id: runId, email: "next@example.com", displayName: "Next", disabled: false },
+                expiresAt: previous.expiresAt,
+                csrfToken: "new-session",
+            },
+        }),
+    );
+    assert.equal((await next).user.id, runId);
+    pending[0]!(Response.json({ data: { items: [] } }));
+    await rejected;
+    assert.equal(host.workspace, undefined);
+});
+
+test("a signed-in replacement starts only after the older logout has cleared cookies", async () => {
+    const { host, pending } = fixture();
+    const logout = host.logout();
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    const login = host.login({ email: "next@example.com", password: "Valid test password 123!" });
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(pending.length, 1);
+    pending[0]!(Response.json({ data: {} }));
+    await logout;
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    pending[1]!(Response.json({ data: { csrfToken: "setup" } }));
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    pending[2]!(
+        Response.json({
+            data: {
+                user: { id: runId, email: "next@example.com", displayName: "Next", disabled: false },
+                expiresAt: "2030-01-01T00:00:00Z",
+                csrfToken: "new-session",
+            },
+        }),
+    );
+    assert.equal((await login).user.id, runId);
+    assert.equal(host.user?.user.id, runId);
+});
+
+test("archive keeps the workspace selected and publishes its committed read-only state", async () => {
+    const { host, pending } = fixture();
+    const before = host.workspace;
+    const archive = host.cloud({ operation: "archiveWorkspace", params: { workspaceId } });
+    assert.equal(host.workspace?.archived, false);
+    pending[0]!(Response.json({ data: {} }));
+    assert.deepEqual(await archive, {});
+    assert.deepEqual(host.workspace, { ...before, archived: true });
+});
+
+test("replacing the control origin drains old authentication and refuses new requests on the old host", async () => {
+    const { host, pending } = fixture();
+    const logout = assert.rejects(host.logout(), /HOST_SESSION_CHANGED/);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    const retired = host.retire();
+    const lateLogout = assert.rejects(host.logout(), /HOST_SESSION_CHANGED/);
+    pending[0]!(Response.json({ data: {} }));
+    await Promise.all([logout, retired, lateLogout]);
+    assert.equal(pending.length, 1);
+    assert.equal(host.workspace, undefined);
+});
+
 /**
  * 设备码无效并不能撤销员工的普通 Cookie 会话，只有普通鉴权失效才清除宿主用户与工作区；这里把两种真实 HTTP 状态相同而领
  * 域错误不同的响应分别送入统一 JSON 处理路径。
@@ -82,7 +184,12 @@ test("enrollment rejection preserves ordinary authentication but session rejecti
     const original = host.user;
     const first = host.cloud({ operation: "getAccount" });
     pending[0]!(Response.json({ code: "ENROLLMENT_INVALID" }, { status: 401 }));
-    await assert.rejects(first, /ENROLLMENT_INVALID/);
+    await assert.rejects(first, (error) => {
+        assert.ok(error instanceof HostHttpError);
+        assert.equal(error.status, 401);
+        assert.equal(error.code, "ENROLLMENT_INVALID");
+        return true;
+    });
     assert.equal(host.user, original);
     assert.equal(host.workspace?.id, workspaceId);
     const second = host.cloud({ operation: "getAccount" });

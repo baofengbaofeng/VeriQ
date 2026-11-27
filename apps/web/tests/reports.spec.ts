@@ -259,3 +259,60 @@ for (const initialResponse of ["stale report", "authentication error"]) {
         await expect(evidence).toBeHidden();
     });
 }
+
+test("workspace audit reads on demand and follows its own cursor", async ({ page }) => {
+    const headers = await reportSession(page);
+    const created = await page.request.post("/api/v1/workspaces", {
+        headers,
+        data: { key: `reports-${randomUUID()}`, name: "Audit pagination" },
+    });
+    expect(created.status()).toBe(201);
+    const workspace = (await created.json()).data.id;
+    const first = randomUUID(),
+        last = randomUUID();
+    const requests: (string | null)[] = [];
+    await page.route(`**/api/v1/workspaces/${workspace}/audit*`, async (route) => {
+        const after = new URL(route.request().url()).searchParams.get("after");
+        requests.push(after);
+        if (after === last) {
+            await route.fulfill({
+                status: 403,
+                json: { code: "WORKSPACE_FORBIDDEN", message: "Workspace access revoked", requestId: randomUUID() },
+            });
+            return;
+        }
+        const id = after ? last : first;
+        await route.fulfill({
+            json: {
+                requestId: randomUUID(),
+                data: {
+                    items: [
+                        {
+                            id,
+                            actorId: null,
+                            targetId: id,
+                            action: after ? "service_account.disabled" : "service_account.created",
+                            createdAt: "2026-01-02T00:00:00Z",
+                        },
+                    ],
+                    nextCursor: id,
+                },
+            },
+        });
+    });
+    await page.goto(`/reports?workspaceId=${workspace}`);
+    await chooseLanguage(page, "en");
+    await expect(page.getByText("No runs in this Workspace.", { exact: true })).toBeVisible();
+    expect(requests).toEqual([]);
+    await page.getByText("Workspace audit", { exact: true }).click();
+    await expect(page.getByText(/service_account\.created/)).toBeVisible();
+    await page.getByRole("button", { name: "More audit entries" }).click();
+    await expect(page.getByText(/service_account\.disabled/)).toBeVisible();
+    await expect(page.getByText(/service_account\.created/)).toBeVisible();
+    await page.getByRole("button", { name: "More audit entries" }).click();
+    await expect(page.getByRole("alert").filter({ hasText: "Workspace access revoked" })).toBeVisible();
+    await expect(page.getByText(/service_account\.created/)).toHaveCount(0);
+    await expect(page.getByText(/service_account\.disabled/)).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "More audit entries" })).toHaveCount(0);
+    expect(requests).toEqual([null, first, last]);
+});

@@ -19,13 +19,22 @@ import { Field, Notice, Panel, useAction, values } from "../../ui";
 import { useOperationFeedback } from "../../operation-feedback";
 import { useWorkspaceDirectory, WorkspaceStatus } from "./WorkspaceDirectory";
 import { useWorkspace } from "./WorkspaceContext";
+import type { WorkspaceCapability } from "../agent/workspace-forms";
 import { WorkspaceAiProviders } from "../ai/ProviderControls";
 import { IdentityManager } from "../environments/IdentityManager";
 import { CloudIdentityAdapter } from "../environments/identity-adapter";
 import { SettingsPanel, SettingsTabs, settingsTabs, type SettingsTab } from "./SettingsTabs";
+import { MemberActions, MemberRoster } from "./MemberActions";
 import { WorkspaceTableFilters } from "./WorkspaceTableFilters";
 import { SampleWorkspaceWizard } from "../examples/SampleWorkspaceWizard";
 import "./workspace-management.css";
+
+const workspaceFormTabs: Partial<Record<WorkspaceCapability, SettingsTab>> = {
+    WORKSPACE_ARCHIVE: "basic",
+    WORKSPACE_MEMBERS: "members",
+    AUTH_CREDENTIALS: "auth-credentials",
+    AI_PROVIDERS: "ai-providers",
+};
 
 const message = (error: Error | null) =>
     error instanceof ApiError ? error.message : error ? "Unable to load Workspace data. Please retry." : "";
@@ -75,7 +84,7 @@ function WorkspaceQueryFeedback({
 /**
  * 管理顶栏选择的空间及其成员与邀请；样例向导创建空间后通知目录，保留分页操作和成员权限判断。
  */
-export function WorkspacePage() {
+export function WorkspacePage({ capability }: { capability?: WorkspaceCapability } = {}) {
     useAppLocale();
     const { user } = useContext(Auth),
         { workspace, choose } = useWorkspaceDirectory(),
@@ -86,6 +95,15 @@ export function WorkspacePage() {
         if (sampleOpen) document.getElementById("sample-wizard-title")?.focus();
     }, [sampleOpen]);
     if (!user) return <Navigate to="/login" />;
+    if (capability) {
+        const tab = workspaceFormTabs[capability];
+        if (!tab) return null;
+        return workspace ? (
+            <WorkspaceDetail key={user.id + workspace.id} id={workspace.id} identity={user.id} pinned={tab} />
+        ) : (
+            <WorkspaceStatus />
+        );
+    }
     return (
         <Panel title={workspace ? `${tx("Workspaces")}: ${workspace.name}` : tx("Workspaces")}>
             <p>{tx("One project is one Workspace. Membership controls access to its resources.")}</p>
@@ -114,7 +132,7 @@ export function WorkspacePage() {
     );
 }
 
-function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
+function WorkspaceDetail({ id, identity, pinned }: { id: string; identity: string; pinned?: SettingsTab }) {
     useAppLocale();
     const client = useQueryClient(),
         { signal } = useWorkspace();
@@ -122,10 +140,10 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
     const navigate = useNavigate();
     const prefix = useId();
     const params = new URLSearchParams(location.search);
-    const tab = settingsTabs.find((entry) => entry.id === params.get("tab"))?.id ?? "basic";
+    const tab = pinned ?? settingsTabs.find((entry) => entry.id === params.get("tab"))?.id ?? "basic";
     function activate(next: SettingsTab) {
         if (next === tab) return;
-        if (tab === "auth-credentials") params.delete("workspaceId");
+        if (!params.has("fromAgentForm") && tab === "auth-credentials") params.delete("workspaceId");
         if (next === "basic") params.delete("tab");
         else params.set("tab", next);
         void navigate({ pathname: location.pathname, search: params.toString(), hash: location.hash });
@@ -159,6 +177,10 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
         await client.invalidateQueries({ queryKey: ["workspaces", identity] });
         await client.invalidateQueries({ queryKey: ["directory-entry", identity, id] });
         await client.invalidateQueries({ queryKey: ["workspace-invites", id] });
+        await Promise.all([
+            client.invalidateQueries({ queryKey: ["workspace-members", id] }),
+            client.invalidateQueries({ queryKey: ["workspace-users", id] }),
+        ]);
     };
     const status = (
         <WorkspaceQueryFeedback
@@ -171,30 +193,40 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
     );
     const ws = detail.data;
     if (!ws || accessFailure) return status;
+    const panels: Record<SettingsTab, React.ReactNode> = {
+        basic: <WorkspaceBasics ws={ws} refresh={refresh} archiveOnly={!!pinned} />,
+        members: (
+            <WorkspaceMembers
+                key={`${ws.role}-${ws.archived}`}
+                ws={ws}
+                active={tab === "members"}
+                refresh={refresh}
+                link={invitation}
+                onIssued={issued}
+                onClearIssued={clearInvitation}
+                membersOnly={!!pinned}
+            />
+        ),
+        "auth-credentials": tab === "auth-credentials" && <WorkspaceAuthentication workspace={ws} />,
+        "ai-providers": tab === "ai-providers" && (
+            <WorkspaceAiProviders key={`${ws.role}-${ws.archived}`} workspace={ws} />
+        ),
+    };
     return (
         <article className="vq-workspace-settings">
             {status}
-            <SettingsTabs selected={tab} prefix={prefix} activate={activate} />
-            <SettingsPanel tab="basic" prefix={prefix} selected={tab}>
-                <WorkspaceBasics ws={ws} refresh={refresh} />
-            </SettingsPanel>
-            <SettingsPanel tab="members" prefix={prefix} selected={tab}>
-                <WorkspaceMembers
-                    key={`${ws.role}-${ws.archived}`}
-                    ws={ws}
-                    active={tab === "members"}
-                    refresh={refresh}
-                    link={invitation}
-                    onIssued={issued}
-                    onClearIssued={clearInvitation}
-                />
-            </SettingsPanel>
-            <SettingsPanel tab="auth-credentials" prefix={prefix} selected={tab}>
-                {tab === "auth-credentials" && <WorkspaceAuthentication workspace={ws} />}
-            </SettingsPanel>
-            <SettingsPanel tab="ai-providers" prefix={prefix} selected={tab}>
-                {tab === "ai-providers" && <WorkspaceAiProviders key={`${ws.role}-${ws.archived}`} workspace={ws} />}
-            </SettingsPanel>
+            {pinned ? (
+                panels[pinned]
+            ) : (
+                <>
+                    <SettingsTabs selected={tab} prefix={prefix} activate={activate} />
+                    {settingsTabs.map(({ id: tabId }) => (
+                        <SettingsPanel key={tabId} tab={tabId} prefix={prefix} selected={tab}>
+                            {panels[tabId]}
+                        </SettingsPanel>
+                    ))}
+                </>
+            )}
         </article>
     );
 }
@@ -225,7 +257,7 @@ type SettingsProps = { ws: Workspace; refresh: () => Promise<void> };
 /**
  * 概览集中展示所选工作区的标识和状态，归档单独提供给所有者，名称更新和权限状态仍以服务端回读为准。
  */
-function WorkspaceBasics({ ws, refresh }: SettingsProps) {
+function WorkspaceBasics({ ws, refresh, archiveOnly = false }: SettingsProps & { archiveOnly?: boolean }) {
     const { signal } = useWorkspace(),
         a = useAction();
     const { language } = useAppLocale();
@@ -266,7 +298,7 @@ function WorkspaceBasics({ ws, refresh }: SettingsProps) {
                                 {tx(ws.archived ? "Workspace state: archived" : "Workspace state: active")}
                             </span>
                         </div>
-                        {canManage && (
+                        {canManage && !archiveOnly && (
                             <Dialog.Trigger asChild>
                                 <Button
                                     size="regular"
@@ -467,6 +499,7 @@ function WorkspaceMembers({
     link,
     onIssued,
     onClearIssued,
+    membersOnly,
 }: {
     ws: Workspace;
     active: boolean;
@@ -474,10 +507,13 @@ function WorkspaceMembers({
     link: string;
     onIssued: (link: string) => void;
     onClearIssued: () => void;
+    membersOnly: boolean;
 }) {
     const { signal } = useWorkspace(),
         a = useAction();
     const canManage = ["OWNER", "ADMIN"].includes(ws.role) && !ws.archived;
+    const globalAdmin = useContext(Auth).user?.systemAdmin === true;
+    const globalDirectory = globalAdmin && !membersOnly;
     const [q, setQ] = useState("");
     const [roleFilter, setRoleFilter] = useState<string[]>([]);
     const [membership, setMembership] = useState("");
@@ -503,7 +539,7 @@ function WorkspaceMembers({
                 },
                 signal ? AbortSignal.any([signal, querySignal]) : querySignal,
             ),
-        enabled: active,
+        enabled: active && globalDirectory,
     });
     const nextCursor = users.data?.nextCursor;
     const invites = useQuery({
@@ -563,163 +599,187 @@ function WorkspaceMembers({
     const revokeWarning = tx("Revoking this invitation prevents it from being accepted.");
     return (
         <>
-            <DataTable
-                label={tx("Members")}
-                searchLabel={tx("Search users")}
-                searchMaxLength={254}
-                exportAllowed={canExportWorkspaceTable(ws.role)}
-                busy={users.isFetching || users.isError || !memberRows}
-                hasMore={!!nextCursor}
-                view={{
-                    rows: memberRows ?? [],
-                    search: q,
-                    setSearch: (value) => {
-                        setQ(value);
-                        setCursors([undefined]);
-                    },
-                    pageSize: memberPageSize,
-                    setPageSize: (size) => {
-                        setMemberPageSize(size);
-                        setCursors([undefined]);
-                    },
-                    page: pageIndex + 1,
-                    pageCount: cursors.length,
-                    filteredCount:
-                        memberRows && !nextCursor ? pageIndex * memberPageSize + memberRows.length : undefined,
-                    setPage: (page) => {
-                        if (page <= cursors.length) setCursors((current) => current.slice(0, page));
-                        else if (nextCursor) setCursors((current) => [...current, nextCursor]);
-                    },
-                }}
-                exportColumns={[
-                    { label: tx("ID"), value: (user) => user.id },
-                    { label: tx("Email"), value: (user) => user.email },
-                    { label: tx("Display name"), value: (user) => user.displayName },
-                    { label: tx("Account status"), value: (user) => tx(user.disabled ? "Disabled" : "Active") },
-                    { label: tx("System administrator"), value: (user) => tx(user.systemAdmin ? "Yes" : "No") },
-                    { label: tx("Created"), value: (user) => workspaceTimestamp(user.createdAt) },
-                    {
-                        label: tx("Membership"),
-                        value: (user) => tx(user.isMember && user.role ? user.role : "Non-member"),
-                    },
-                ]}
-                beforeDownload={
-                    <WorkspaceTableFilters
-                        filters={[
-                            {
-                                label: tx("Role"),
-                                multiple: true,
-                                value: roleFilter,
-                                choices: memberRoles.map((role) => [role, tx(role)] as const),
-                                onChange: (roles) => {
-                                    setRoleFilter(roles);
-                                    setCursors([undefined]);
-                                },
-                            },
-                            {
-                                label: tx("Membership"),
-                                value: membership,
-                                choices: [
-                                    ["", tx("All")],
-                                    ["member", tx("Member")],
-                                    ["non-member", tx("Non-member")],
-                                ],
-                                onChange: (value) => {
-                                    setMembership(value);
-                                    setCursors([undefined]);
-                                },
-                            },
-                            {
-                                label: tx("Account status"),
-                                value: disabled,
-                                choices: [
-                                    ["", tx("All")],
-                                    ["false", tx("Active")],
-                                    ["true", tx("Disabled")],
-                                ],
-                                onChange: (value) => {
-                                    setDisabled(value);
-                                    setCursors([undefined]);
-                                },
-                            },
-                            {
-                                label: tx("System administrator"),
-                                value: systemAdmin,
-                                choices: [
-                                    ["", tx("All")],
-                                    ["true", tx("Yes")],
-                                    ["false", tx("No")],
-                                ],
-                                onChange: (value) => {
-                                    setSystemAdmin(value);
-                                    setCursors([undefined]);
-                                },
-                            },
-                        ]}
-                        onReset={() => {
-                            setQ("");
-                            setRoleFilter([]);
-                            setMembership("");
-                            setDisabled("");
-                            setSystemAdmin("");
+            {!globalDirectory && active && <MemberRoster ws={ws} refresh={refresh} />}
+            {globalDirectory && (
+                <DataTable
+                    label={tx("Members")}
+                    searchLabel={tx("Search users")}
+                    searchMaxLength={254}
+                    exportAllowed={canExportWorkspaceTable(ws.role)}
+                    busy={users.isFetching || users.isError || !memberRows}
+                    hasMore={!!nextCursor}
+                    view={{
+                        rows: memberRows ?? [],
+                        search: q,
+                        setSearch: (value) => {
+                            setQ(value);
                             setCursors([undefined]);
-                        }}
+                        },
+                        pageSize: memberPageSize,
+                        setPageSize: (size) => {
+                            setMemberPageSize(size);
+                            setCursors([undefined]);
+                        },
+                        page: pageIndex + 1,
+                        pageCount: cursors.length,
+                        filteredCount:
+                            memberRows && !nextCursor ? pageIndex * memberPageSize + memberRows.length : undefined,
+                        setPage: (page) => {
+                            if (page <= cursors.length) setCursors((current) => current.slice(0, page));
+                            else if (nextCursor) setCursors((current) => [...current, nextCursor]);
+                        },
+                    }}
+                    exportColumns={[
+                        { label: tx("ID"), value: (user) => user.id },
+                        { label: tx("Email"), value: (user) => user.email },
+                        { label: tx("Display name"), value: (user) => user.displayName },
+                        { label: tx("Account status"), value: (user) => tx(user.disabled ? "Disabled" : "Active") },
+                        { label: tx("System administrator"), value: (user) => tx(user.systemAdmin ? "Yes" : "No") },
+                        { label: tx("Created"), value: (user) => workspaceTimestamp(user.createdAt) },
+                        {
+                            label: tx("Membership"),
+                            value: (user) => tx(user.isMember && user.role ? user.role : "Non-member"),
+                        },
+                    ]}
+                    beforeDownload={
+                        <WorkspaceTableFilters
+                            filters={[
+                                {
+                                    label: tx("Role"),
+                                    multiple: true,
+                                    value: roleFilter,
+                                    choices: memberRoles.map((role) => [role, tx(role)] as const),
+                                    onChange: (roles) => {
+                                        setRoleFilter(roles);
+                                        setCursors([undefined]);
+                                    },
+                                },
+                                {
+                                    label: tx("Membership"),
+                                    value: membership,
+                                    choices: [
+                                        ["", tx("All")],
+                                        ["member", tx("Member")],
+                                        ["non-member", tx("Non-member")],
+                                    ],
+                                    onChange: (value) => {
+                                        setMembership(value);
+                                        setCursors([undefined]);
+                                    },
+                                },
+                                {
+                                    label: tx("Account status"),
+                                    value: disabled,
+                                    choices: [
+                                        ["", tx("All")],
+                                        ["false", tx("Active")],
+                                        ["true", tx("Disabled")],
+                                    ],
+                                    onChange: (value) => {
+                                        setDisabled(value);
+                                        setCursors([undefined]);
+                                    },
+                                },
+                                {
+                                    label: tx("System administrator"),
+                                    value: systemAdmin,
+                                    choices: [
+                                        ["", tx("All")],
+                                        ["true", tx("Yes")],
+                                        ["false", tx("No")],
+                                    ],
+                                    onChange: (value) => {
+                                        setSystemAdmin(value);
+                                        setCursors([undefined]);
+                                    },
+                                },
+                            ]}
+                            onReset={() => {
+                                setQ("");
+                                setRoleFilter([]);
+                                setMembership("");
+                                setDisabled("");
+                                setSystemAdmin("");
+                                setCursors([undefined]);
+                            }}
+                        />
+                    }
+                >
+                    <WorkspaceQueryFeedback
+                        loading={users.isPending}
+                        error={users.error}
+                        loadingLabel="Loading users…"
+                        retryLabel="Retry members"
+                        retry={() => void users.refetch()}
                     />
-                }
-            >
-                <WorkspaceQueryFeedback
-                    loading={users.isPending}
-                    error={users.error}
-                    loadingLabel="Loading users…"
-                    retryLabel="Retry members"
-                    retry={() => void users.refetch()}
-                />
-                {memberRows && (
-                    <div className="table-scroll">
-                        <table className="vq-user-table vq-workspace-table">
-                            <caption className="vq-visually-hidden">{tx("Members")}</caption>
-                            <thead>
-                                <tr>
-                                    <th>{tx("ID")}</th>
-                                    <th>{tx("Email")}</th>
-                                    <th>{tx("Display name")}</th>
-                                    <th>{tx("Account status")}</th>
-                                    <th>{tx("System administrator")}</th>
-                                    <th>{tx("Created")}</th>
-                                    <th>{tx("Membership")}</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {memberRows.length === 0 && (
+                    {memberRows && (
+                        <div className="table-scroll">
+                            <table className="vq-user-table vq-workspace-table">
+                                <caption className="vq-visually-hidden">{tx("Members")}</caption>
+                                <thead>
                                     <tr>
-                                        <td className="vq-table-empty" colSpan={7}>
-                                            {tx(hasMemberFilters ? "No matching users." : "No users found.")}
-                                        </td>
+                                        <th>{tx("ID")}</th>
+                                        <th>{tx("Email")}</th>
+                                        <th>{tx("Display name")}</th>
+                                        <th>{tx("Account status")}</th>
+                                        <th>{tx("System administrator")}</th>
+                                        <th>{tx("Created")}</th>
+                                        <th>{tx("Membership")}</th>
+                                        {canManage && <th>{tx("Actions")}</th>}
                                     </tr>
-                                )}
-                                {memberRows.map((user) => (
-                                    <tr key={user.id}>
-                                        <td className="vq-user-id">{user.id}</td>
-                                        <td className="vq-user-email">{user.email}</td>
-                                        <td>{user.displayName}</td>
-                                        <td>
-                                            <span
-                                                className="vq-state vq-workspace-state"
-                                                data-tone={user.disabled ? "neutral" : "success"}
-                                            >
-                                                {user.disabled ? tx("Disabled") : tx("Active")}
-                                            </span>
-                                        </td>
-                                        <td>{user.systemAdmin ? tx("Yes") : tx("No")}</td>
-                                        <td>{workspaceTimestamp(user.createdAt)}</td>
-                                        <td>{user.isMember && user.role ? tx(user.role) : tx("Non-member")}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </DataTable>
+                                </thead>
+                                <tbody>
+                                    {memberRows.length === 0 && (
+                                        <tr>
+                                            <td className="vq-table-empty" colSpan={canManage ? 8 : 7}>
+                                                {tx(hasMemberFilters ? "No matching users." : "No users found.")}
+                                            </td>
+                                        </tr>
+                                    )}
+                                    {memberRows.map((user) => (
+                                        <tr key={user.id}>
+                                            <td className="vq-user-id">{user.id}</td>
+                                            <td className="vq-user-email">{user.email}</td>
+                                            <td>{user.displayName}</td>
+                                            <td>
+                                                <span
+                                                    className="vq-state vq-workspace-state"
+                                                    data-tone={user.disabled ? "neutral" : "success"}
+                                                >
+                                                    {user.disabled ? tx("Disabled") : tx("Active")}
+                                                </span>
+                                            </td>
+                                            <td>{user.systemAdmin ? tx("Yes") : tx("No")}</td>
+                                            <td>{workspaceTimestamp(user.createdAt)}</td>
+                                            <td>
+                                                {user.role ? tx(user.role) : tx("Non-member")}
+                                                {user.role && !user.isMember && <> · {tx("Disabled")}</>}
+                                            </td>
+                                            {canManage && (
+                                                <td>
+                                                    {user.role && (
+                                                        <MemberActions
+                                                            ws={ws}
+                                                            refresh={refresh}
+                                                            member={{
+                                                                userId: user.id,
+                                                                role: user.role,
+                                                                email: user.email,
+                                                                userDisabled: user.disabled,
+                                                                status: user.isMember ? "ACTIVE" : "DISABLED",
+                                                            }}
+                                                        />
+                                                    )}
+                                                </td>
+                                            )}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </DataTable>
+            )}
             {canManage && (
                 <>
                     <Dialog.Root

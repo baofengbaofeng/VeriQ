@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.authorization import Permission, WorkspaceScope
+from ..services.agent_form_receipts import record_form_receipt
 from ..db import SecretRef, SecretVersion, User
 from ..service import Problem, audit, now, stamp
 from ..services.workspace import WorkspaceRepository
@@ -107,7 +108,14 @@ class CredentialService:
         await self.session.flush()
         return version_dto(row)
 
-    async def revoke(self, scope: WorkspaceScope, secret_ref: str, version: str) -> dict[str, Any]:
+    async def revoke(
+        self,
+        scope: WorkspaceScope,
+        secret_ref: str,
+        version: str,
+        *,
+        form_origin: str | None = None,
+    ) -> dict[str, Any]:
         """逻辑撤销指定密钥版本：行级加锁后标记 revoked，后续 Attempt 解析将映射 409；行级 for_update，
         防止并发撤销与解析竞态。revoke 触及凭证材料：管理面不得回传明文，
 
@@ -127,6 +135,16 @@ class CredentialService:
         ).scalar_one_or_none()
         if row is None:
             raise Problem(404, "CREDENTIAL_NOT_FOUND", "Credential version not found")
+        if not row.revoked:
+            await record_form_receipt(
+                self.session,
+                form_origin,
+                self.user,
+                scope.workspace_id,
+                capability="AUTH_CREDENTIALS",
+                action="credential.version.revoked",
+                target_id=row.id,
+            )
         row.revoked = True
         audit(
             self.session,

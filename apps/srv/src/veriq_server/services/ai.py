@@ -25,6 +25,7 @@ from ..pagination import Page
 from ..repositories.resource import ResourceRepository
 from ..service import Problem, lock_installation, now, stamp, audit
 from ..settings import Settings
+from .agent_form_receipts import record_form_receipt
 from .ai_endpoints import endpoint_allowed, public_provider_config, require_endpoint
 from .workspace import WorkspaceRepository
 from .resource import ResourceService, asset_references
@@ -273,7 +274,12 @@ class AiService:
             return result
 
     async def write_provider(
-        self, scope: WorkspaceScope, data: dict[str, Any], pid: str | None = None
+        self,
+        scope: WorkspaceScope,
+        data: dict[str, Any],
+        pid: str | None = None,
+        *,
+        form_origin: str | None = None,
     ) -> dict[str, Any]:
         """配置变更须使用当前获准的端点；撤销授权后管理员仍可停用原配置，或改用获准的地址修复配置。
         write_provider 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
@@ -353,10 +359,26 @@ class AiService:
                     sealed.ciphertext,
                 )
             await s.flush()
+            await record_form_receipt(
+                s,
+                form_origin,
+                user,
+                scope.workspace_id,
+                action="ai.provider_configured",
+                target_id=row.id,
+                capability="AI_PROVIDERS",
+                revision=row.revision,
+            )
             audit(s, "ai.provider_configured", user.id, row.id, workspace_id=scope.workspace_id)
             return await self.provider_dto(s, row)
 
-    async def delete_provider(self, scope: WorkspaceScope, pid: str) -> dict[str, Any]:
+    async def delete_provider(
+        self,
+        scope: WorkspaceScope,
+        pid: str,
+        *,
+        form_origin: str | None = None,
+    ) -> dict[str, Any]:
         """删除提供方配置，不影响既有生成历史行，AiService.delete_provider 遵守本文件边界，失败返回稳定 Problem。
         delete_provider 实现于 apps/srv/src/veriq_server/services/ai.py：请按该符号的输入校验、错误码与调用方契约阅读，
         勿假设通用成功默认值。
@@ -366,6 +388,16 @@ class AiService:
             row.enabled = False
             row.deleted = True
             row.revision += 1
+            await record_form_receipt(
+                s,
+                form_origin,
+                user,
+                scope.workspace_id,
+                action="ai.provider_deleted",
+                target_id=row.id,
+                capability="AI_PROVIDERS",
+                revision=row.revision,
+            )
             audit(s, "ai.provider_deleted", user.id, pid, workspace_id=scope.workspace_id)
             return {}
 

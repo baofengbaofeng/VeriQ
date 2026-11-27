@@ -28,7 +28,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { validateSchema, type DatasetV2, type ResourceDocumentV1, type ResourceKind } from "@veriq/contracts";
 import { Section } from "@veriq/ui";
 import { ConfirmDialog } from "../../locale-ui";
-import { api, ApiError, type Workspace } from "../../api";
+import { api, ApiError, inheritAgentFormSignal, type Workspace } from "../../api";
 import { Auth } from "../../auth-context";
 import { Panel } from "../../ui";
 import { Button, Field, Select, SelectItem, Sheet, Tooltip } from "../../components";
@@ -2044,7 +2044,7 @@ function ScopedResourceEditor({
                   onClose: () => controller.abort(),
               })
             : undefined;
-        const request = AbortSignal.any([signal, controller.signal]);
+        const request = inheritAgentFormSignal(AbortSignal.any([signal, controller.signal]), signal);
         run(async () => {
             try {
                 guard(true);
