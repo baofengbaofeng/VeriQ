@@ -3,6 +3,7 @@
  * contracts、compiler 和离线依赖闭包，HTTP 响应仅代表本地 Node
  * 控制夹具而非 Python/MySQL 服务验收。
  */
+import { chromiumForTest } from "../support/chromium.ts";
 import assert from "node:assert/strict";
 import { generateKeyPairSync, sign, createHash, randomUUID } from "node:crypto";
 import {
@@ -802,7 +803,7 @@ export async function onlineBusiness(
             root: join(root, "agent"),
             client,
             releaseDirectory: release,
-            browserExecutable: options.browserExecutable ?? "/usr/bin/chromium",
+            browserExecutable: options.browserExecutable ?? chromiumForTest(),
             ...(options.darwinSource ? { darwinSource: options.darwinSource } : {}),
         });
         const results = [];

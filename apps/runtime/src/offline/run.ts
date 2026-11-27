@@ -20,6 +20,7 @@ import {
     type OfflineResultV1,
     type OfflineAttemptV1,
     type CompiledAssetBundle,
+    type ConnectedSourceSnapshotV2,
     type Browser,
     type Outcome,
 } from "@veriq/contracts";
@@ -29,6 +30,7 @@ import { ProcessSupervisor, type StopReceipt, type OwnedProcess } from "../execu
 import { AttemptBroker, createDarwinBrokerDirectory } from "../execution/broker.ts";
 import { requireDarwinSource, type DarwinSourceCapability } from "../execution/darwin-source.ts";
 import { executionEvent, sdkFact, type Fact, type SdkEvent } from "../execution/events.ts";
+import { signedLegacyDatasetReader } from "./legacy-datasets.ts";
 import { loadRelease, sha256 } from "../execution/release.ts";
 import { monitorStorage } from "../execution/storage.ts";
 import { type SecretStore, SecretResolver } from "../credentials/store.ts";
@@ -112,6 +114,17 @@ function selectedSuite(checked: Checked): string | undefined {
 function compilationRoot(checked: Checked, caseVersionId: string): string {
     return selectedSuite(checked) ?? caseVersionId;
 }
+function bundleJson<T>(checked: Checked, path: string): T {
+    const bytes = checked.contents.get(path);
+    if (!bytes) throw new Error("BUNDLE_PROVENANCE_MISMATCH");
+    return JSON.parse(bytes.toString()) as T;
+}
+function compilationSource(checked: Checked, caseVersionId: string): AssetSnapshotV1 {
+    const path = checked.dslOnly
+        ? "draft/source.json"
+        : `provenance/${compilationRoot(checked, caseVersionId)}/source.json`;
+    return bundleJson<AssetSnapshotV1>(checked, path);
+}
 function variants(checked: Checked, runId: string, config: OfflineConfig): ExecutionSnapshotV1[] {
     const source = checked.snapshot;
     const selection = JSON.parse(checked.contents.get("selection.json")!.toString()) as {
@@ -168,13 +181,7 @@ function variants(checked: Checked, runId: string, config: OfflineConfig): Execu
         if (datasetDocument && datasetDocument.schemaVersion !== "1.0")
             throw new Error("OFFLINE_DATASET_VERSION_UNSUPPORTED");
         const rows = datasetDocument?.rows ?? [undefined];
-        const original = checked.dslOnly
-            ? (JSON.parse(checked.contents.get("draft/source.json")!.toString()) as AssetSnapshotV1)
-            : (JSON.parse(
-                  checked.contents
-                      .get(`provenance/${compilationRoot(checked, entry.versionId)}/source.json`)!
-                      .toString(),
-              ) as AssetSnapshotV1);
+        const original = compilationSource(checked, entry.versionId);
         for (const roleKey of entry.roleKeys ?? [document.roleKey])
             for (const browser of entry.browsers ?? config.browsers ?? ["chromium"])
                 for (const dataRow of rows) {
@@ -346,21 +353,25 @@ async function attempt(
             await mkdir(dirname(join(work, path)), { recursive: true, mode: 0o700 });
             await writeFile(join(work, path), bytes, { mode: 0o600, flag: "wx" });
         };
+        let readDataset: ReturnType<typeof signedLegacyDatasetReader> | undefined;
         if (checked.dslOnly) {
             for (const [path, bytes] of Object.entries(release.files)) await write(path, bytes);
             await write("source/asset-snapshot.json", checked.contents.get("draft/source.json")!);
         } else {
-            const descriptor = JSON.parse(
-                checked.contents
-                    .get(`provenance/${compilationRoot(checked, execution.caseVersionId)}/descriptor.json`)!
-                    .toString(),
-            ) as CompiledAssetBundle;
+            const compilation = compilationRoot(checked, execution.caseVersionId);
+            const descriptor = bundleJson<CompiledAssetBundle>(checked, `provenance/${compilation}/descriptor.json`);
+            const projected = bundleJson<AssetSnapshotV1 | ConnectedSourceSnapshotV2>(
+                checked,
+                `compiled/${compilation}/source/asset-snapshot.json`,
+            );
+            if (projected.schemaVersion === "2.0") {
+                if (validateSchema("ConnectedSourceSnapshotV2", projected).length)
+                    throw new Error("BUNDLE_PROVENANCE_MISMATCH");
+                readDataset = signedLegacyDatasetReader(compilationSource(checked, execution.caseVersionId), projected);
+            }
             await write("bundle.json", canonicalBytes(descriptor));
             for (const file of descriptor.files)
-                await write(
-                    file.path,
-                    checked.contents.get(`compiled/${compilationRoot(checked, execution.caseVersionId)}/${file.path}`)!,
-                );
+                await write(file.path, checked.contents.get(`compiled/${compilation}/${file.path}`)!);
             for (const [path, bytes] of Object.entries(release.files)) {
                 if (path === "engine/compiler.tgz") await write(path, bytes);
                 else if (sha256(await readFile(join(work, path))) !== sha256(bytes))
@@ -371,6 +382,10 @@ async function attempt(
         await write("release.json", canonicalBytes(release.entry));
         broker = new AttemptBroker(join(brokerDirectory?.path ?? tmp, "control.sock"), async (message) => {
             if (message.type === "status") return { cancelled: controller.signal.aborted || store.cancelled(runId) };
+            if (message.type === "dataset" && readDataset) {
+                if (controller.signal.aborted || store.cancelled(runId)) throw new Error("ATTEMPT_STOPPING");
+                return readDataset(message);
+            }
             if (message.type === "credential") {
                 if (controller.signal.aborted || store.cancelled(runId)) throw new Error("ATTEMPT_STOPPING");
                 return resolver.resolve(

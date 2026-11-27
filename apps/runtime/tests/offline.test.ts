@@ -1,3 +1,4 @@
+import { chromiumForTest } from "./support/chromium.ts";
 import { test, mock } from "node:test";
 import { updatePrivate } from "../src/offline/config.ts";
 import { RuntimeClient, type DeviceConfig } from "../src/enrollment.ts";
@@ -547,7 +548,7 @@ test(
                 root: join(f.dir, "local"),
                 secrets,
                 releaseDirectory: release,
-                browserExecutable: process.env.VERIQ_TEST_CHROMIUM ?? "/usr/bin/chromium",
+                browserExecutable: chromiumForTest(),
                 deviceId: id(90),
             });
             assert.equal(
@@ -626,7 +627,7 @@ test(
                 root: join(f.dir, "local"),
                 secrets,
                 releaseDirectory: release,
-                browserExecutable: process.env.VERIQ_TEST_CHROMIUM ?? "/usr/bin/chromium",
+                browserExecutable: chromiumForTest(),
                 deviceId: id(90),
                 debug: true,
             });
@@ -652,7 +653,7 @@ test(
                 root: join(f.dir, "local"),
                 secrets,
                 releaseDirectory: release,
-                browserExecutable: process.env.VERIQ_TEST_CHROMIUM ?? "/usr/bin/chromium",
+                browserExecutable: chromiumForTest(),
                 deviceId: id(90),
                 debug: true,
             });
@@ -665,7 +666,7 @@ test(
                 root: join(f.dir, "local"),
                 secrets,
                 releaseDirectory: release,
-                browserExecutable: process.env.VERIQ_TEST_CHROMIUM ?? "/usr/bin/chromium",
+                browserExecutable: chromiumForTest(),
                 deviceId: id(90),
                 retry: true,
             });
@@ -713,7 +714,7 @@ test(
                     root: faultRoot,
                     secrets,
                     releaseDirectory: release,
-                    browserExecutable: process.env.VERIQ_TEST_CHROMIUM ?? "/usr/bin/chromium",
+                    browserExecutable: chromiumForTest(),
                     deviceId: id(90),
                     retry: true,
                 });
@@ -741,7 +742,7 @@ test(
                 root: join(f.dir, "local"),
                 secrets,
                 releaseDirectory: release,
-                browserExecutable: process.env.VERIQ_TEST_CHROMIUM ?? "/usr/bin/chromium",
+                browserExecutable: chromiumForTest(),
                 deviceId: id(90),
             });
             await reached;
@@ -775,7 +776,7 @@ test(
                     join(f.dir, "trust"),
                     join(f.dir, "local"),
                     release,
-                    process.env.VERIQ_TEST_CHROMIUM ?? "/usr/bin/chromium",
+                    chromiumForTest(),
                     id(90),
                 ],
                 { stdio: ["ignore", "pipe", "pipe"] },

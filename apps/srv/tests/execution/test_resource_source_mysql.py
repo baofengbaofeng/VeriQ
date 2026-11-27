@@ -785,6 +785,8 @@ async def test_legacy_published_dataset_revalidation_uses_frozen_original(
         scratch_parent = profile / "scratch"
         scratch_parent.mkdir(mode=0o700)
 
+        browser_executable = await test_agent_mysql.runtime_browser_executable()
+
         async def launch(*args):
             return await asyncio.create_subprocess_exec(
                 "node",
@@ -793,7 +795,7 @@ async def test_legacy_published_dataset_revalidation_uses_frozen_original(
                 "tests/support/run-connected-attempt.ts",
                 str(profile),
                 str(release),
-                "/usr/bin/chromium",
+                browser_executable,
                 *args,
                 env={**os.environ, "TMPDIR": str(scratch_parent)},
                 cwd="apps/runtime",
@@ -908,16 +910,13 @@ async def test_legacy_published_dataset_revalidation_uses_frozen_original(
                 await session.execute(select(Job).where(Job.run_id == rerun.json()["data"]["id"]))
             ).scalar_one()
             assert queued.required_capabilities["validationJobId"] == migration_id
-        workdirs = list((profile / "agent/work").iterdir())
-        assert len(workdirs) == 2
-        for directory in workdirs:
-            assert (directory / "completion.json").exists()
+        work_root = profile / "agent/work"
+        assert {entry.name for entry in work_root.iterdir()} == {attempt.id}
+        testdir = work_root / attempt.id
+        assert (testdir / "completion.json").is_file()
         for file in profile.rglob("*"):
             if file.is_file() and not file.is_symlink():
                 assert marker.encode() not in file.read_bytes(), file
-        testdir = next(
-            directory for directory in workdirs if (directory / "execution.json").exists()
-        )
         selected = json.loads((testdir / "execution.json").read_bytes())["selectedRow"]
         assert selected["rowSha256"] == sha256(canonical_bytes(expected_row)).hexdigest()
 
@@ -1057,13 +1056,32 @@ async def test_legacy_published_dataset_revalidation_uses_frozen_original(
                     ).all()
                 )
                 assert marker not in json.dumps(retained)
-            journal = json.loads((profile / "agent/attempts" / (attempt.id + ".json")).read_bytes())
+            name = attempt.id + ".json"
+            active_path = profile / "agent/attempts" / name
+            settled_path = profile / "agent/settled-attempts" / name
+            pending_path = profile / "agent/claim-request.json"
+            if end == "cancel":
+                journal = json.loads(settled_path.read_bytes())
+                assert not active_path.exists() and not pending_path.exists()
+            else:
+                journal = json.loads(active_path.read_bytes())
+                assert not settled_path.exists()
+                assert (
+                    json.loads(pending_path.read_bytes())["clientRequestId"]
+                    == journal["claimRequestId"]
+                )
+            assert journal["claim"]["attemptId"] == attempt.id
             assert journal["stop"]["processStopScope"] == "FULL_DESCENDANT_TREE"
-            tombstone = scratch_parent / journal["allocation"]["temporaryName"]
-            modules = Path(journal["work"]) / "node_modules"
-            await asyncio.to_thread(inspect_files, tombstone)
-            assert (tombstone / ".veriq-retirement-inventory").is_file()
-            assert (modules / ".veriq-retired").is_file()
+            scratch = scratch_parent / journal["allocation"]["temporaryName"]
+            work = Path(journal["work"])
+            for allocated in (scratch, work):
+                assert (allocated / ".veriq-owner").read_text(encoding="utf-8") == journal[
+                    "allocation"
+                ]["owner"]
+            await asyncio.to_thread(inspect_files, scratch)
+            assert (work / "node_modules").is_dir()
+            assert not (scratch / ".veriq-retirement-inventory").exists()
+            assert not (work / "node_modules/.veriq-retired").exists()
             assert journal["dataCleanup"] == "OWNERSHIP_UNCONFIRMED"
         for file in profile.rglob("*"):
             if file.is_file() and not file.is_symlink():
@@ -1782,7 +1800,7 @@ async def test_previously_projected_http_job_revalidates_its_immutable_bundle(
 
 @pytest.mark.parametrize("ready", [False, True], ids=["pending", "ready"])
 async def test_historical_scheduler_redirect_keeps_only_its_original_lineage(
-    site, historical_http_case, dataset_deployment, monkeypatch, ready
+    site, historical_http_case, dataset_deployment, monkeypatch, ready, tmp_path
 ):
     """使用旧代调度器的真实重定向写入与撤权发布方，只有原清单所派生的验证可恢复执行，其它同源验证不能借用。"""
     from uuid import uuid4
@@ -1943,7 +1961,16 @@ async def test_historical_scheduler_redirect_keeps_only_its_original_lineage(
             assert fresh.required_capabilities["publishedValidationJobId"] == original
             assert replacement_id not in (original, redirected, sibling.id)
     else:
+        from test_runs_mysql import historical_compiler_settings
+        from veriq_server.services.server_compilation import _claim
+
         replacement_id = redirected
+        static_worker = historical_compiler_settings(tmp_path, connected=True)
+        assert await _claim(db, static_worker) is None
+        async with db.sessions() as session:
+            waiting = await session.get(Job, redirected)
+            assert waiting.required_capabilities["httpDatasets"] == "1.0"
+            assert (waiting.state, waiting.server_compilation_id) == ("QUEUED", None)
     await completed(db, replacement_id, connected=True)
     result = await claim(live=True)
     assert result.status_code == 200, result.text

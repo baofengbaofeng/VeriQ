@@ -94,6 +94,7 @@ else
                 supplied,
                 JSON.parse(await readFile(join(root, "execution.json"), "utf8")),
                 files,
+                connected ? source : undefined,
             );
             result = { kind: "READY" };
         }

@@ -21,11 +21,54 @@ from tornado.web import Application, RequestHandler
 sys.path.insert(0, str(Path(__file__).parents[1] / "execution"))
 from test_auth import setup, login
 from test_workspace import workspace
-from test_lease_mysql import device
+from test_lease_mysql import auth, claim_body, device
 from test_agent_mysql import server_compile_once
 from veriq_server.bundles.issuer import Issuer
-from veriq_server.db import Attempt, OfflineAttempt, CaseExecution
+from veriq_server.db import Attempt, CaseExecution, Job, OfflineAttempt, ValidationReceipt
 from veriq_server.handlers.base import MAX_HTTP_BODY_BYTES
+
+
+async def _online_authority(db, attempt_id, published_receipts):
+    """记录实际在线认领及每份已发布资源的服务端编译作业和回执，离线导入结束后逐项核对这些持久记录。"""
+    async with db.sessions() as session:
+        attempts = (
+            (await session.execute(select(*Attempt.__table__.columns).order_by(Attempt.id)))
+            .mappings()
+            .all()
+        )
+        assert [row["id"] for row in attempts] == [attempt_id]
+        jobs = (
+            (
+                await session.execute(
+                    select(*Job.__table__.columns)
+                    .where(Job.server_compilation_id.is_not(None))
+                    .order_by(Job.id)
+                )
+            )
+            .mappings()
+            .all()
+        )
+        assert {row["id"] for row in jobs} == set(published_receipts)
+        assert all(row["state"] == "FINISHED" and row["outcome"] == "PASSED" for row in jobs)
+        receipts = (
+            (
+                await session.execute(
+                    select(*ValidationReceipt.__table__.columns).order_by(ValidationReceipt.id)
+                )
+            )
+            .mappings()
+            .all()
+        )
+        assert {row["job_id"]: row["id"] for row in receipts} == published_receipts
+        compilation_ids = {row["id"]: row["server_compilation_id"] for row in jobs}
+        assert all(
+            row["server_compilation_id"] == compilation_ids[row["job_id"]]
+            and row["runtime_id"] is None
+            and row["attempt_id"] is None
+            for row in receipts
+        )
+        records = [dict(row) for row in [*attempts, *jobs, *receipts]]
+        return sha256(json.dumps(records, default=str, sort_keys=True).encode()).hexdigest()
 
 
 @pytest.fixture(name="control_server")
@@ -125,6 +168,8 @@ async def test_actual_offline_browser_result_uploads_to_enrolled_mysql_import(
         )
         os.chmod(profile / "device.json", 0o600)
 
+        published_receipts = {}
+
         async def publish(kind, key, document, draft=False):
             response = await c.post(
                 base + "/resources",
@@ -150,6 +195,7 @@ async def test_actual_offline_browser_result_uploads_to_enrolled_mysql_import(
             status = (await c.get(job)).json()["data"]
             assert status["outcome"] == "PASSED", status
             receipt = (await c.get(job + "/validation-receipt")).json()["data"]
+            published_receipts[queued.json()["data"]["id"]] = receipt["id"]
             published = await c.post(
                 resource + "/publish",
                 json={"revision": preview["revision"], "validationReceiptId": receipt["id"]},
@@ -344,21 +390,31 @@ async def test_actual_offline_browser_result_uploads_to_enrolled_mysql_import(
             assert process.returncode == 0, stderr.decode()
             assert not stdout, "Driver must not print credentials or raw evidence"
 
-        async def online_authority():
-            async with db.sessions() as session:
-                rows = (
-                    (await session.execute(select(*Attempt.__table__.columns).order_by(Attempt.id)))
-                    .mappings()
-                    .all()
-                )
-                assert len(rows) == (
-                    5 if scenario == "matrix" else 4 if scenario == "draft_suite" else 3
-                )
-                return sha256(
-                    json.dumps([dict(row) for row in rows], default=str, sort_keys=True).encode()
-                ).hexdigest()
-
-        before = await online_authority()
+        assert len(published_receipts) == {"matrix": 5, "draft_suite": 4}.get(scenario, 3)
+        online = await c.post(
+            base + "/runs",
+            headers={"Idempotency-Key": str(uuid4())},
+            json={
+                "caseVersionIds": [case],
+                "environmentVersionId": environment,
+                "roleKeys": ["reader"],
+                "browsers": ["chromium"],
+                "runtimeIds": [credential["runnerId"]],
+                "maxRetries": 0,
+            },
+        )
+        assert online.status_code == 202, online.text
+        claimed = await c.post(
+            "/internal/v1/jobs/claim", headers=auth(credential), json=claim_body(credential)
+        )
+        assert claimed.status_code == 200, claimed.text
+        attempt_id = claimed.json()["data"]["attemptId"]
+        cancelled = await c.post(
+            base + "/runs/" + online.json()["data"]["id"] + "/cancel",
+            json={"reason": "Preserve online authority for offline import comparison"},
+        )
+        assert cancelled.status_code == 200, cancelled.text
+        before = await _online_authority(db, attempt_id, published_receipts)
         await host("prepare")
         archive_bytes = (profile / "bundle.zip").read_bytes()
         print(
@@ -474,7 +530,7 @@ async def test_actual_offline_browser_result_uploads_to_enrolled_mysql_import(
             assert complete_report["run"]["outcome"] == "PASSED", complete_report
             assert complete_report["statistics"]["caseCount"] == 2
             assert all(case["attempts"] for case in complete_report["cases"])
-        assert await online_authority() == before, "Offline import changed online Attempt authority"
+        assert await _online_authority(db, attempt_id, published_receipts) == before
         print(
             json.dumps(
                 {

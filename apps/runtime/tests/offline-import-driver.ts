@@ -1,6 +1,7 @@
 /**
  * 集成测试桥接器用真实宿主接口分阶段下载、验包、离线执行和回传，以便外层在执行阶段关闭控制服务。
  */
+import { chromiumForTest } from "./support/chromium.ts";
 import assert from "node:assert/strict";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -76,7 +77,7 @@ if (phase === "prepare") {
                 trust,
                 secrets,
                 releaseDirectory: release,
-                browserExecutable: process.env.VERIQ_TEST_CHROMIUM ?? "/usr/bin/chromium",
+                browserExecutable: chromiumForTest(),
                 deviceId: config.runnerId,
                 debug: input.scenario === "draft_suite",
                 ...(["draft_suite", "matrix"].includes(input.scenario ?? "") ? { browsers: ["firefox" as const] } : {}),

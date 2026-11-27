@@ -23,7 +23,7 @@ test(
         await once(server, "listening");
         const port = (server.address() as { port: number }).port;
         const browser = await chromium.launch({
-            executablePath: process.env.VERIQ_TEST_CHROMIUM ?? "/usr/bin/chromium",
+            executablePath: process.env.VERIQ_TEST_CHROMIUM || chromium.executablePath(),
             headless: true,
             args: ["--no-sandbox"],
         });
