@@ -2,6 +2,7 @@
 GitHub-hosted job 留证，模拟命令只用于证明部分失败时不会扩大清理目标或吞错。
 """
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -149,7 +150,6 @@ class CiUsernsBoundaryTests(unittest.TestCase):
         """Cookie 策略只接收固定构建目录中经证据绑定的独立副本，并继续核对共享源字节未变；测试用自有小文件模拟身份而不执
         行 Electron，篡改副本、硬链接和任意外部路径都必须在策略加载前拒绝。
         """
-        import hashlib
 
         with tempfile.TemporaryDirectory(prefix="veriq-cookie-copy-") as directory:
             root = Path(directory)
@@ -191,6 +191,12 @@ class CiUsernsBoundaryTests(unittest.TestCase):
         """受控状态表示第一份策略已加载、第二份只有文件、第三份未安装，清理必须仅对实际加载者发卸载命令并收回两份自有文
         件；卸载失败时继续其它条目但最终返回失败，不能强删仍加载的策略后假称已完成。
         """
+        for fail in (False, True):
+            with self.subTest(fail=fail):
+                self._check_partial_cleanup(fail)
+
+    def _check_partial_cleanup(self, fail):
+        """每次演练都创建独立的策略目录和已加载集合，记录该次命令实际选中的目标并核对卸载后的内核视图。"""
         stem = "veriq-t19-99999999999999-1"
         baseline = {
             "limits": {"restriction": "1"},
@@ -198,66 +204,62 @@ class CiUsernsBoundaryTests(unittest.TestCase):
             "label": "unconfined",
             "profiles": ["unrelated (enforce)"],
         }
-        for fail in [False, True]:
-            with (
-                self.subTest(fail=fail),
-                tempfile.TemporaryDirectory(prefix="veriq-policy-cleanup-") as directory,
-            ):
-                evidence = Path(directory)
-                loaded = {f"{stem}-electron"}
-                files = {f"{stem}-electron", f"{stem}-shell"}
-                commands = []
-                state = {
-                    "stem": stem,
-                    "before": baseline,
-                    "parser": "/usr/sbin/apparmor_parser",
-                    "binaries": {kind: {"realpath": f"/job/{kind}"} for kind in ci_userns.KINDS},
+        with tempfile.TemporaryDirectory(prefix="veriq-policy-cleanup-") as directory:
+            evidence = Path(directory)
+            loaded = {f"{stem}-electron"}
+            files = {f"{stem}-electron", f"{stem}-shell"}
+            commands = []
+            state = {
+                "stem": stem,
+                "before": baseline,
+                "parser": "/usr/sbin/apparmor_parser",
+                "binaries": {kind: {"realpath": f"/job/{kind}"} for kind in ci_userns.KINDS},
+            }
+            (evidence / "userns-state.json").write_text(json.dumps(state))
+
+            def observe(_evidence):
+                """该替身只报告当前受控集合及不变的限制值，不伪造真正内核状态；实际卸载命令是否触及无关名字由下面的
+                命令记录和固定参数断言决定，最终失败仍由生产清理逻辑抛出。
+                """
+                return {
+                    **baseline,
+                    "profiles": baseline["profiles"]
+                    + [name + " (unconfined)" for name in sorted(loaded)],
                 }
-                (evidence / "userns-state.json").write_text(json.dumps(state))
 
-                def observe(_evidence):
-                    """该替身只报告当前受控集合及不变的限制值，不伪造真正内核状态；实际卸载命令是否触及无关名字由下面的
-                    命令记录和固定参数断言决定，最终失败仍由生产清理逻辑抛出。
-                    """
-                    return {
-                        **baseline,
-                        "profiles": baseline["profiles"]
-                        + [name + " (unconfined)" for name in sorted(loaded)],
-                    }
-
-                def command(_evidence, arguments):
-                    """命令边界记录生产逻辑选择的精确目标，并只更新本测试拥有的集合以表示成功或受控卸载失败；
-                    这里绝不执行 sudo，也不会向真实系统安装、卸载或删除任何 AppArmor 策略。
-                    """
-                    commands.append(arguments)
-                    name = Path(arguments[-1]).name
-                    self.assertIn(name, {f"{stem}-{kind}" for kind in ci_userns.KINDS})
-                    self.assertEqual(Path(arguments[-1]).parent, Path("/etc/apparmor.d"))
-                    if arguments[2] == "/usr/sbin/apparmor_parser":
-                        self.assertEqual(arguments[3:5], ["--skip-cache", "-R"])
-                        if fail:
-                            raise RuntimeError("CONTROLLED_UNLOAD_FAILURE")
-                        loaded.remove(name)
-                    else:
-                        self.assertEqual(arguments[2:4], ["rm", "--"])
-                        files.remove(name)
-
-                with (
-                    patch.object(ci_userns, "snapshot", observe),
-                    patch.object(ci_userns, "invoke", command),
-                    patch.object(ci_userns, "owned_file", lambda path, _text: path.name in files),
-                ):
+            def command(_evidence, arguments):
+                """命令边界记录生产逻辑选择的精确目标，并只更新本测试拥有的集合以表示成功或受控卸载失败；
+                这里绝不执行 sudo，也不会向真实系统安装、卸载或删除任何 AppArmor 策略。
+                """
+                commands.append(arguments)
+                name = Path(arguments[-1]).name
+                self.assertIn(name, {f"{stem}-{kind}" for kind in ci_userns.KINDS})
+                self.assertEqual(Path(arguments[-1]).parent, Path("/etc/apparmor.d"))
+                if arguments[2] == "/usr/sbin/apparmor_parser":
+                    self.assertEqual(arguments[3:5], ["--skip-cache", "-R"])
                     if fail:
-                        with self.assertRaisesRegex(ValueError, "CI_PROFILE_CLEANUP_FAILED"):
-                            ci_userns.cleanup(evidence, stem)
-                    else:
+                        raise RuntimeError("CONTROLLED_UNLOAD_FAILURE")
+                    loaded.remove(name)
+                else:
+                    self.assertEqual(arguments[2:4], ["rm", "--"])
+                    files.remove(name)
+
+            with (
+                patch.object(ci_userns, "snapshot", observe),
+                patch.object(ci_userns, "invoke", command),
+                patch.object(ci_userns, "owned_file", lambda path, _text: path.name in files),
+            ):
+                if fail:
+                    with self.assertRaisesRegex(ValueError, "CI_PROFILE_CLEANUP_FAILED"):
                         ci_userns.cleanup(evidence, stem)
-                result = json.loads((evidence / "userns-cleanup.json").read_bytes())
-                self.assertEqual(result["globalRestrictionsUnchanged"], True)
-                self.assertEqual(result["status"], "FAILED" if fail else "REMOVED")
-                self.assertNotIn(f"{stem}-shell", files)
-                self.assertEqual(loaded, {f"{stem}-electron"} if fail else set())
-                self.assertEqual(len(commands), 2 if fail else 3)
+                else:
+                    ci_userns.cleanup(evidence, stem)
+            result = json.loads((evidence / "userns-cleanup.json").read_bytes())
+            self.assertEqual(result["globalRestrictionsUnchanged"], True)
+            self.assertEqual(result["status"], "FAILED" if fail else "REMOVED")
+            self.assertNotIn(f"{stem}-shell", files)
+            self.assertEqual(loaded, {f"{stem}-electron"} if fail else set())
+            self.assertEqual(len(commands), 2 if fail else 3)
 
 
 if __name__ == "__main__":

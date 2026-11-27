@@ -44,8 +44,8 @@ def test_display_width_uses_editor_columns(text: str, columns: int) -> None:
     assert _checker().display_width(text) == columns
 
 
-@pytest.fixture
-def repository(tmp_path: Path) -> Path:
+@pytest.fixture(name="repository")
+def repository_fixture(tmp_path: Path) -> Path:
     """每次验收创建独立临时仓库并通过真实 Git 命令枚举文件，确保忽略规则和已跟踪文件不会被模拟调用提前过滤。"""
     subprocess.run(["git", "init", "-q", "--template=", str(tmp_path)], check=True)
     return tmp_path
@@ -64,6 +64,7 @@ def _run(root: Path) -> subprocess.CompletedProcess[str]:
         [sys.executable, str(SCRIPT), "--root", str(root)],
         capture_output=True,
         text=True,
+        check=False,
     )
 
 

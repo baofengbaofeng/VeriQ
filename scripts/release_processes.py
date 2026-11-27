@@ -7,6 +7,7 @@
 
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
 import json
 from pathlib import Path
 import signal
@@ -28,6 +29,35 @@ class BuildCancelled(RuntimeError):
     """
 
 
+@dataclass
+class _ReleaseStage:
+    """绑定本阶段监督进程、对应的退出证明和实际命令状态，使清理与持久记录只读取同一次启动的证据。"""
+
+    proof: Path
+    supervisor: subprocess.Popen[Any]
+    command_exit: int | None = None
+
+    @classmethod
+    def start(
+        cls, proof: Path, lock_fd: int, argv: list[str], options: dict[str, Any]
+    ) -> "_ReleaseStage":
+        """监督者继承构建锁并进入独立会话，实际阶段命令交由监督者启动，避免它的后代直接继承锁描述符。"""
+        return cls(
+            proof,
+            subprocess.Popen(
+                [
+                    sys.executable,
+                    str(Path(__file__).with_name("release_child.py")),
+                    str(proof),
+                    *argv,
+                ],
+                start_new_session=True,
+                pass_fds=(lock_fd,),
+                **options,
+            ),
+        )
+
+
 class ReleaseProcesses:
     """记录构建创建的每个进程组并提供与当前发行辅助函数兼容的运行入口，避免只保护顶层命令而遗漏安装、库存导出或 SBOM
     子进程；调用方必须在持有构建锁时进入信号作用域。
@@ -44,15 +74,13 @@ class ReleaseProcesses:
         """
         self.evidence = evidence
         self.lock_fd = lock_fd
-        self.state: Path | None = None
-        self.command_exit: int | None = None
         self.records: list[dict[str, Any]] = []
-        self.active: subprocess.Popen[Any] | None = None
+        self.active: _ReleaseStage | None = None
         self.cancel_signal: int | None = None
         self.spawning = False
         self.cleaning = False
 
-    def cancel(self, number: int, frame: Any) -> None:
+    def cancel(self, number: int, _frame: Any) -> None:
         """TERM 与 INT 在整个持锁区间使用同一个取消路径，启动或清理的不可分割窗口只记录信号；其它时候立即抛出取消异常，
         使同步文件处理和正在等待的子进程都停止后续发行步骤。
 
@@ -71,18 +99,19 @@ class ReleaseProcesses:
         监督者本身的退出码另行保留。
         """
         self.cleaning = True
-        process = self.active
-        if process is None:
+        stage = self.active
+        if stage is None:
             return
+        process = stage.supervisor
         if process.poll() is None:
             process.send_signal(signal.SIGTERM)
         process.wait()
         self.active = None
         try:
-            proof = json.loads(self.state.read_bytes()) if self.state else {}
+            proof = json.loads(stage.proof.read_bytes())
             if proof.get("treeStopped") is not True:
                 raise ValueError("Missing descendant completion proof")
-            self.command_exit = proof["leaderExitCode"]
+            stage.command_exit = proof["leaderExitCode"]
             if self.cancel_signal is None and proof.get("cancelSignal") is not None:
                 self.cancel_signal = proof["cancelSignal"]
         except (OSError, ValueError, KeyError, TypeError):
@@ -110,34 +139,27 @@ class ReleaseProcesses:
             kwargs["stdout"] = subprocess.PIPE
             kwargs["stderr"] = subprocess.PIPE
         started = time.time()
-        process = None
+        stage = None
         failed = False
-        self.command_exit = None
-        self.state = self.evidence / f"child-{len(self.records)}.json"
+        proof = self.evidence / f"child-{len(self.records)}.json"
         try:
             self.spawning = True
             try:
-                process = subprocess.Popen(
-                    [
-                        sys.executable,
-                        str(Path(__file__).with_name("release_child.py")),
-                        str(self.state),
-                        *argv,
-                    ],
-                    start_new_session=True,
-                    pass_fds=(self.lock_fd,),
-                    **kwargs,
-                )
-                self.active = process
+                stage = _ReleaseStage.start(proof, self.lock_fd, argv, kwargs)
+                self.active = stage
             finally:
                 self.spawning = False
             if self.cancel_signal is not None:
                 raise BuildCancelled(f"Build cancelled by signal {self.cancel_signal}")
-            stdout, stderr = process.communicate()
+            stdout, stderr = stage.supervisor.communicate()
             self.stop()
             result = subprocess.CompletedProcess(
                 argv,
-                self.command_exit if self.command_exit is not None else process.returncode,
+                (
+                    stage.command_exit
+                    if stage.command_exit is not None
+                    else stage.supervisor.returncode
+                ),
                 stdout,
                 stderr,
             )
@@ -152,7 +174,9 @@ class ReleaseProcesses:
             raise
         finally:
             self.cleaning = True
-            for stream in (process.stdout, process.stderr, process.stdin) if process else ():
+            process = stage.supervisor if stage else None
+            streams = (process.stdout, process.stderr, process.stdin) if process else ()
+            for stream in streams:
                 if stream is not None:
                     stream.close()
             self.records.append(
@@ -162,7 +186,7 @@ class ReleaseProcesses:
                     "cwd": str(kwargs.get("cwd", Path.cwd())),
                     "started": started,
                     "finished": time.time(),
-                    "exitCode": self.command_exit,
+                    "exitCode": stage.command_exit if stage else None,
                     "supervisorExitCode": process.returncode if process else None,
                     "failed": failed
                     or (process is not None and process.returncode not in {None, 0}),

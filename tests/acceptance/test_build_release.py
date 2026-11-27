@@ -5,17 +5,24 @@
 """
 
 import collections.abc
+import fcntl
 import importlib.util
 from hashlib import sha256
 import json
 import os
 from pathlib import Path
 import shutil
+import signal
 import subprocess
 import sys
+import textwrap
+import time
 import typing
 
 import pytest
+
+from scripts.build_release import BuildOptions, build_release
+from scripts.release_processes import process_scope
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -32,6 +39,7 @@ def test_skip_tests_requires_an_auditable_reason() -> None:
         cwd=ROOT,
         capture_output=True,
         text=True,
+        check=False,
     )
     assert result.returncode == 2
     assert "--reason" in result.stderr
@@ -92,10 +100,6 @@ def test_build_cancellation_holds_lock_until_stage_descendants_stop(
     覆盖仅 wait 父进程的漏洞。
 
     """
-    import fcntl
-    import signal
-    import time
-
     sandbox = tmp_path / "checkout"
     sandbox.mkdir()
     subprocess.run(["git", "init", "-q", str(sandbox)], check=True)
@@ -167,7 +171,6 @@ def test_build_cancellation_holds_lock_until_stage_descendants_stop(
             "    with process_scope(run,lock.fileno()) as managed:\n"
             f"        {calls[phase]}\n"
         )
-    import textwrap
 
     program = (
         "import subprocess,sys\nfrom pathlib import Path\n"
@@ -177,7 +180,7 @@ def test_build_cancellation_holds_lock_until_stage_descendants_stop(
         + textwrap.indent(program, "    ")
         + "finally:\n    unrelated.terminate(); unrelated.wait()\n"
     )
-    error_log = (tmp_path / "parent.log").open("w")
+    error_log = (tmp_path / "parent.log").open("w", encoding="utf-8")
     parent = subprocess.Popen(
         [sys.executable, "-c", program],
         env={**os.environ, "PATH": str(tools) + os.pathsep + os.environ["PATH"]},
@@ -241,12 +244,9 @@ def test_process_scope_restores_handlers_and_preserves_command_results(tmp_path)
     两个短命令均由真实 Python 子进程执行，不替换 Popen 或信号函数。
 
     """
-    import signal
-    from release_processes import process_scope
-
     before = {number: signal.getsignal(number) for number in (signal.SIGTERM, signal.SIGINT)}
     with (
-        (tmp_path / "build.lock").open("w") as lock,
+        (tmp_path / "build.lock").open("w", encoding="utf-8") as lock,
         process_scope(tmp_path, lock.fileno()) as managed,
     ):
         result = managed.run(
@@ -270,10 +270,6 @@ def test_supervisor_loss_quarantines_build_before_another_tool_starts(tmp_path):
     录。
 
     """
-    import signal
-    from build_release import BuildOptions, build_release
-    from release_processes import process_scope
-
     run = tmp_path / "work/release-test"
     run.mkdir(parents=True)
     pid_file = tmp_path / "orphan.pid"
@@ -283,7 +279,7 @@ def test_supervisor_loss_quarantines_build_before_another_tool_starts(tmp_path):
         "os.kill(os.getppid(),signal.SIGKILL); signal.pause()"
     )
     try:
-        with (tmp_path / "work/build.lock").open("w") as lock:
+        with (tmp_path / "work/build.lock").open("w", encoding="utf-8") as lock:
             with process_scope(run, lock.fileno()) as managed:
                 with pytest.raises(RuntimeError, match="quarantined"):
                     managed.run(
@@ -312,9 +308,6 @@ def test_sync_tail_cancellation_keeps_previous_output_pointer(tmp_path):
     测试替身。
 
     """
-    import signal
-    import time
-
     output = tmp_path / "output"
     previous = output / "old"
     previous.mkdir(parents=True)
