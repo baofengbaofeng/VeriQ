@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="VeriQ 面向企业 Web 系统，支持可复现的自动化冒烟与回归测试。">
+<meta name="color-scheme" content="dark light">
+<title>VeriQ · 可复现的 Web 测试</title>
+<script>
+try {
+  const theme = localStorage.getItem('veriq-theme');
+  if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
+} catch {}
+</script>
+<style>
+:root {
+  color-scheme: dark;
+  --bg:#0b1325; --surface:#111d33; --text:#f5f8ff; --muted:#b0c0d8;
+  --line:#2a3a55; --accent:#91caff; --button-text:#0b1325; --grid:#8cb8ef16;
+  --glow:#376cc36b; --pass:#95e5c2; --fail:#ffb1bc;
+}
+:root[data-theme="light"] {
+  color-scheme:light;
+  --bg:#f5f8ff; --surface:#fff; --text:#172741; --muted:#465974;
+  --line:#cad8ea; --accent:#2159ad; --button-text:#fff; --grid:#3d6bb31b;
+  --glow:#78acfa69; --pass:#006544; --fail:#a02240;
+}
+* { box-sizing:border-box }
+html { scroll-behavior:smooth }
+body { margin:0; background:var(--bg); color:var(--text); font:16px/1.65 system-ui,sans-serif }
+a { color:inherit; text-decoration:none }
+a:hover { color:var(--accent) }
+button { font:inherit; cursor:pointer }
+:focus-visible { outline:3px solid var(--accent); outline-offset:4px }
+.wrap { width:min(100% - 64px, 1160px); margin-inline:auto }
+header { border-bottom:1px solid var(--line) }
+.navigation,.brand,.actions,.links,.footer { display:flex; align-items:center; gap:24px }
+.navigation { min-height:74px; justify-content:space-between }
+.brand { gap:10px; font-size:20px; font-weight:750 }
+.brand img { width:36px; height:36px }
+.links,.actions { color:var(--muted); font-size:14px }
+.actions { gap:8px }
+.actions button { color:var(--text); background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:6px 11px }
+.actions button:hover { border-color:var(--accent) }
+.hero {
+  background:linear-gradient(0deg,var(--bg),transparent 76%),
+    linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:auto,32px 32px,32px 32px;
+}
+.hero-layout { display:grid; grid-template-columns:1.25fr .75fr; align-items:center; gap:62px; min-height:480px; padding-block:54px }
+.status { display:inline-flex; align-items:center; gap:8px; color:var(--accent); font-size:14px; font-weight:650 }
+.status::before { content:""; width:7px; height:7px; border-radius:50%; background:currentColor }
+h1,h2,h3,p { margin:0 }
+h1 { font-size:clamp(42px,5.4vw,76px); line-height:1.09; letter-spacing:-.055em; margin-block:18px 22px }
+h1 span { display:block }
+h1 span + span { color:var(--accent) }
+.lede { color:var(--muted); font-size:19px; max-width:48ch }
+.cta { display:inline-block; margin-top:25px; padding:11px 18px; border-radius:9px; background:var(--accent); color:var(--button-text); font-weight:750 }
+.cta:hover { color:var(--button-text); text-decoration:underline }
+.orbit { display:grid; place-items:center; justify-self:center; width:min(100%,284px); aspect-ratio:1; border:1px solid var(--line); border-radius:50%; background:radial-gradient(circle,var(--glow),transparent 72%); box-shadow:0 0 0 18px var(--grid),0 0 0 37px var(--grid) }
+.orbit img { width:62%; height:auto }
+.section { padding-block:30px 54px; scroll-margin-top:20px }
+h2 { font-size:clamp(28px,3vw,42px); letter-spacing:-.035em; line-height:1.2; margin-bottom:22px }
+h3 { font-size:20px; margin-bottom:8px }
+.cards,.steps { display:grid; gap:15px }
+.cards { grid-template-columns:repeat(3,1fr) }
+.card,.report,.steps li { border:1px solid var(--line); background:var(--surface); border-radius:12px }
+.card { padding:22px }
+.card p,.steps li p,.report p,.footer { color:var(--muted) }
+.workflow { border-top:1px solid var(--line); padding-top:45px }
+.steps { grid-template-columns:repeat(4,1fr); list-style:none; margin:0; padding:0; counter-reset:step }
+.steps li { counter-increment:step; padding:16px }
+.steps li::before { content:counter(step,decimal-leading-zero); color:var(--accent); font:700 14px ui-monospace,monospace }
+.steps h3 { margin:7px 0 4px; font-size:16px }
+.steps p { font-size:14px }
+.report { margin-top:20px; padding:23px }
+.report table { border-collapse:collapse; width:100%; margin-block:12px; text-align:left }
+.report th,.report td { padding:8px 5px; border-bottom:1px solid var(--line) }
+.report th[scope="col"] { color:var(--muted); font-size:14px }
+.pass { color:var(--pass); font-weight:700 }
+.fail { color:var(--fail); font-weight:700 }
+footer { border-top:1px solid var(--line); padding-block:23px }
+.footer { justify-content:space-between; flex-wrap:wrap }
+.footer a { color:var(--accent) }
+@media(max-width:820px) {
+  .wrap { width:calc(100% - 40px) }
+  .hero-layout { gap:30px; min-height:400px }
+  .steps { grid-template-columns:repeat(2,1fr) }
+}
+@media(max-width:590px) {
+  .navigation { flex-wrap:wrap; gap:12px; padding-block:12px }
+  .links { order:3; width:100% }
+  .hero-layout,.cards { grid-template-columns:1fr }
+  .hero-layout { padding-block:36px; gap:36px }
+  .orbit { width:148px; }
+  .card,.report { padding:16px }
+}
+@media(prefers-reduced-motion:reduce) { html { scroll-behavior:auto } }
+</style>
+</head>
+<body id="top">
+<header>
+  <nav class="wrap navigation" aria-label="主要导航" data-en-label="Main navigation" data-zh-label="主要导航">
+    <a class="brand" href="#top"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMDI0IDEwMjQiCiAgICByb2xlPSJpbWciIGFyaWEtbGFiZWxsZWRieT0idmVyaXEtbG9nby10aXRsZSB2ZXJpcS1sb2dvLWRlc2NyaXB0aW9uIj4KICAgIDx0aXRsZSBpZD0idmVyaXEtbG9nby10aXRsZSI+VmVyaVE8L3RpdGxlPgogICAgPGRlc2MgaWQ9InZlcmlxLWxvZ28tZGVzY3JpcHRpb24iPgogICAgICAgIOa3semdm+iTneWchuinkuaWueW9ouiDjOaZr+S4iueahOWGsOiTneiHs+mdkue7v+iJsiBWL1Eg5YWx56yU5qCH5b+X77yM55m96Imy55S75biD5bey5Y676Zmk77yM5aSW6YOo5L+d5oyB6YCP5piO44CCCiAgICA8L2Rlc2M+CiAgICA8ZGVmcz4KICAgICAgICA8bGluZWFyR3JhZGllbnQgaWQ9InZlcmlxLWJhY2tncm91bmQiIHgxPSIwIiB5MT0iMCIgeDI9IjEwMjQiIHkyPSIxMDI0IiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgICAgICAgICAgIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iIzI5M2M1OSIvPgogICAgICAgICAgICA8c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiM0OTU1NzgiLz4KICAgICAgICA8L2xpbmVhckdyYWRpZW50PgogICAgICAgIDxsaW5lYXJHcmFkaWVudCBpZD0idmVyaXEtZ2x5cGgiIHgxPSIyMTAiIHkxPSIyMyIgeDI9IjY4MCIgeTI9IjY3MiIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogICAgICAgICAgICA8c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiNiNGRjZmEiLz4KICAgICAgICAgICAgPHN0b3Agb2Zmc2V0PSIwLjQ4IiBzdG9wLWNvbG9yPSIjNzliZGU4Ii8+CiAgICAgICAgICAgIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzY4Y2ZjMyIvPgogICAgICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgICA8L2RlZnM+CiAgICA8cmVjdCB3aWR0aD0iMTAyNCIgaGVpZ2h0PSIxMDI0IiByeD0iMTc0IiBmaWxsPSJ1cmwoI3ZlcmlxLWJhY2tncm91bmQpIi8+CiAgICA8ZyB0cmFuc2Zvcm09InNjYWxlKDAuOTg1NTYzMDQyIDAuOTkwMzI4ODIwKSB0cmFuc2xhdGUoMTMyIDE1OSkiPgogICAgICAgIDxwYXRoIGZpbGw9InVybCgjdmVyaXEtZ2x5cGgpIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiIGQ9IgogICAgICAgICAgICBNIDMwNy41MDAgNjcxLjAzMgogICAgICAgICAgICBDIDI4MC43MjEgNjY3LjIwMSAyNTYuNTg3IDY1NC40NzggMjQxLjM2NSA2MzYuMTY3CiAgICAgICAgICAgIEMgMjM2LjkzMyA2MzAuODM2IDIzMS44MDYgNjIxLjM4MiAyMTUuNzgzIDU4OS4wMDAKICAgICAgICAgICAgQyAyMDQuNzYxIDU2Ni43MjUgMTkyLjQ4NCA1NDEuNzUwIDE4OC40OTkgNTMzLjUwMAogICAgICAgICAgICBDIDE4NC41MTUgNTI1LjI1MCAxNzMuOTQ4IDUwMy42NTAgMTY1LjAxNyA0ODUuNTAwCiAgICAgICAgICAgIEMgMTU2LjA4NiA0NjcuMzUwIDEzNy43OTcgNDMwLjA4NiAxMjQuMzczIDQwMi42OTEKICAgICAgICAgICAgQyAxMTAuOTUwIDM3NS4yOTcgODQuMjA3IDMyMS4zOTkgNjQuOTQ2IDI4Mi45MjAKICAgICAgICAgICAgQyAzOS4wNDQgMjMxLjE3NSAyOS42NDUgMjExLjQ2NSAyOC44NTEgMjA3LjIyOAogICAgICAgICAgICBDIDI3LjM4MiAxOTkuMzg5IDI4LjMzNyAxODYuNzAxIDMwLjkwNiAxNzkuOTE0CiAgICAgICAgICAgIEMgMzUuODQ4IDE2Ni44NjAgMzkuNTczIDE2Mi41MDIgMTAyLjYzNCA5Ni4wMDQKICAgICAgICAgICAgQyAxMzQuMzEyIDYyLjYwMCAxNTAuODI2IDQ2LjQzNiAxNTguNjEyIDQxLjIxMwogICAgICAgICAgICBDIDE2OC40MDIgMzQuNjQ2IDE4MC4zNDYgMjkuMDY3IDE5MC43OTIgMjYuMTgzCiAgICAgICAgICAgIEwgMjAwLjUwMCAyMy41MDMgTCAzODMuNTAwIDIzLjE5NQogICAgICAgICAgICBDIDUxMS4wNDMgMjIuOTgwIDU3MC4zOTkgMjMuMjIxIDU3OS4zNjcgMjMuOTkxCiAgICAgICAgICAgIEMgNTk0LjE4MiAyNS4yNjIgNjEwLjU2MSAyOS4xODIgNjIzLjAwMCAzNC40MzQKICAgICAgICAgICAgQyA2NjMuNTkzIDUxLjU3MyA2OTYuMjQ3IDg3LjUyOCA3MDkuNzkzIDEzMC4wMDAKICAgICAgICAgICAgQyA3MTYuNjMwIDE1MS40MzkgNzE2LjE1OCAxNDIuMDYzIDcxNy4yNzggMjc4LjUwMAogICAgICAgICAgICBDIDcxOC4zNTIgNDA5LjI0MiA3MTguMTAyIDQyMS43NjcgNzE0LjA1NSA0NDAuMDAwCiAgICAgICAgICAgIEMgNzA1LjAyMSA0ODAuNjk2IDY3Ni4yNjcgNTE1LjExNyA2MzguNzcwIDUzMC4xMjIKICAgICAgICAgICAgQyA2MzUuODcyIDUzMS4yODIgNjI4LjYxOCA1MzMuNDQ1IDYyMi42NTIgNTM0LjkyOAogICAgICAgICAgICBMIDYxMS44MDQgNTM3LjYyNCBMIDYzOC4xNTIgNTY1LjA5OQogICAgICAgICAgICBDIDcwOS42NjcgNjM5LjY3MSA3MzEuMDAwIDY2Mi41MTAgNzMxLjAwMCA2NjQuNDk5CiAgICAgICAgICAgIEMgNzMxLjAwMCA2NjcuNjI2IDcyOC45NTIgNjY5LjkxOSA3MjUuMjM4IDY3MC45NTEKICAgICAgICAgICAgQyA3MTkuOTc2IDY3Mi40MTIgNTkyLjg3MSA2NzIuMzcwIDU4Ny41OTUgNjcwLjkwNQogICAgICAgICAgICBDIDU4NS4yNTggNjcwLjI1NiA1ODEuNDg1IDY2Ny43NDkgNTc4LjE5NiA2NjQuNjYwCiAgICAgICAgICAgIEMgNTcxLjUzMyA2NTguNDAyIDQ4NS4zNzQgNTY3LjY4MyA0ODIuMjMwIDU2My42MTUKICAgICAgICAgICAgQyA0ODAuNjI1IDU2MS41MzkgNDgwLjAwMCA1NTkuMzY4IDQ4MC4wMDAgNTU1Ljg2OAogICAgICAgICAgICBDIDQ4MC4wMDAgNTUxLjY5MyA0ODAuNTA3IDU1MC40NDQgNDgzLjU4OSA1NDcuMDMzCiAgICAgICAgICAgIEMgNDg1LjU2NCA1NDQuODQ3IDQ4OS43MjYgNTQxLjgwOSA0OTIuODM5IDU0MC4yODAKICAgICAgICAgICAgTCA0OTguNTAwIDUzNy41MDAgTCA1MjguMDAwIDUzNi44NjAKICAgICAgICAgICAgQyA1NjEuMTE5IDUzNi4xNDEgNTY1LjE5NSA1MzUuNTA4IDU3OC41MDAgNTI5LjAxMAogICAgICAgICAgICBDIDU5My41NzcgNTIxLjY0NyA2MDMuNzAxIDUxMS41MTUgNjEwLjk4NCA0OTYuNTAwCiAgICAgICAgICAgIEMgNjE3Ljk1NCA0ODIuMTI5IDYxOC4yNDYgNDgwLjE3NCA2MTguNzM0IDQ0NC42NTUKICAgICAgICAgICAgTCA2MTkuMTcxIDQxMi44MTEgTCA2MTYuODM2IDQxMy41MjEKICAgICAgICAgICAgQyA2MDQuMDkxIDQxNy4zOTkgNTkwLjQ4NiA0MjQuNDUwIDU3Ni44MjIgNDM0LjI2MAogICAgICAgICAgICBDIDU2Ny4wNjAgNDQxLjI2OSA1NTAuMjA3IDQ1Ni44NTggNTQyLjkzNiA0NjUuNjA0CiAgICAgICAgICAgIEMgNTI4Ljk5NiA0ODIuMzczIDQ5Ny4wODAgNTIwLjk4NyA0ODguODgzIDUzMS4wMDAKICAgICAgICAgICAgQyA0ODQuMTU1IDUzNi43NzUgNDcxLjExMCA1NTIuNTY3IDQ1OS44OTQgNTY2LjA5NAogICAgICAgICAgICBDIDQ0OC42NzcgNTc5LjYyMSA0MzAuNTc4IDYwMS41NDUgNDE5LjY3MyA2MTQuODE0CiAgICAgICAgICAgIEMgMzg5LjQ1MyA2NTEuNTg4IDM3NS41NzkgNjYyLjE2MSAzNDguNTAwIDY2OS4wNTQKICAgICAgICAgICAgQyAzMzkuNDAxIDY3MS4zNzAgMzE3LjMxMyA2NzIuNDM1IDMwNy41MDAgNjcxLjAzMgogICAgICAgICAgICBaCiAgICAgICAgICAgIE0gMzc5Ljc5OCA0OTEuMjUwCiAgICAgICAgICAgIEMgMzk5LjAzNiA0NjcuMTg4IDQxNy42MzIgNDQ0LjYyMyA0MjEuMTIyIDQ0MS4xMDcKICAgICAgICAgICAgQyA0MzguNDY2IDQyMy42MzIgNDYxLjY0OSA0MTIuMDIwIDQ4OC4wMDAgNDA3LjYwOQogICAgICAgICAgICBDIDQ5NS45MjQgNDA2LjI4MiA1MDcuNTc2IDQwNi4wMDggNTU4LjI1MCA0MDUuOTU2CiAgICAgICAgICAgIEwgNjE5LjAwMCA0MDUuODk0IEwgNjE5LjAwMCAzMDEuMDM1CiAgICAgICAgICAgIEMgNjE5LjAwMCAyMTQuOTc2IDYxOC43NDcgMTk0Ljg2MCA2MTcuNTkxIDE4OC44MzgKICAgICAgICAgICAgQyA2MTIuMzM3IDE2MS40NzMgNTkzLjIyNyAxMzYuODY4IDU2Ny42NTMgMTI0LjUzNwogICAgICAgICAgICBDIDU0OS4zODUgMTE1LjczMCA1NzIuNjE5IDExNi41NzggMzQwLjgwMSAxMTYuMjU3CiAgICAgICAgICAgIEwgMTM1LjEwMyAxMTUuOTcyIEwgMTk1Ljg5MSAyMzcuNzM2CiAgICAgICAgICAgIEMgMjI5LjMyNCAzMDQuNzA2IDI3Ni4xOTggMzk4Ljk4NyAzMDAuMDU2IDQ0Ny4yNTAKICAgICAgICAgICAgQyAzMjMuOTEzIDQ5NS41MTMgMzQzLjc0NSA1MzUuMDAwIDM0NC4xMjcgNTM1LjAwMAogICAgICAgICAgICBDIDM0NC41MDkgNTM1LjAwMCAzNjAuNTYxIDUxNS4zMTIgMzc5Ljc5OCA0OTEuMjUwCiAgICAgICAgICAgIFoKICAgICAgICAiLz4KICAgIDwvZz4KPC9zdmc+Cg==" alt="" width="36" height="36">VeriQ</a>
+    <div class="links"><a href="#capabilities" data-en="Capabilities">核心能力</a><a href="#workflow" data-en="Workflow">工作流程</a></div>
+    <div class="actions">
+      <button type="button" id="language" lang="en" aria-label="Switch to English">EN</button>
+      <button type="button" id="theme">浅色</button>
+    </div>
+  </nav>
+</header>
+<main>
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="wrap hero-layout">
+      <div>
+        <p class="status" data-en="In development">项目开发中</p>
+        <h1 id="hero-title"><span data-en="Reproducible tests.">测试可复现，</span><span data-en="Traceable results.">结果可追溯</span></h1>
+        <p class="lede" data-en="VeriQ automates smoke and regression testing for enterprise web applications.">VeriQ 面向企业 Web 系统，支持自动化冒烟与回归测试。</p>
+        <a class="cta" href="#capabilities" data-en="Explore capabilities ↓">了解核心能力 ↓</a>
+      </div>
+      <div class="orbit"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDI0IiBoZWlnaHQ9IjEwMjQiIHZpZXdCb3g9IjAgMCAxMDI0IDEwMjQiCiAgICByb2xlPSJpbWciIGFyaWEtbGFiZWxsZWRieT0idmVyaXEtbG9nby10aXRsZSB2ZXJpcS1sb2dvLWRlc2NyaXB0aW9uIj4KICAgIDx0aXRsZSBpZD0idmVyaXEtbG9nby10aXRsZSI+VmVyaVE8L3RpdGxlPgogICAgPGRlc2MgaWQ9InZlcmlxLWxvZ28tZGVzY3JpcHRpb24iPgogICAgICAgIOa3semdm+iTneWchuinkuaWueW9ouiDjOaZr+S4iueahOWGsOiTneiHs+mdkue7v+iJsiBWL1Eg5YWx56yU5qCH5b+X77yM55m96Imy55S75biD5bey5Y676Zmk77yM5aSW6YOo5L+d5oyB6YCP5piO44CCCiAgICA8L2Rlc2M+CiAgICA8ZGVmcz4KICAgICAgICA8bGluZWFyR3JhZGllbnQgaWQ9InZlcmlxLWJhY2tncm91bmQiIHgxPSIwIiB5MT0iMCIgeDI9IjEwMjQiIHkyPSIxMDI0IiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgICAgICAgICAgIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iIzI5M2M1OSIvPgogICAgICAgICAgICA8c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiM0OTU1NzgiLz4KICAgICAgICA8L2xpbmVhckdyYWRpZW50PgogICAgICAgIDxsaW5lYXJHcmFkaWVudCBpZD0idmVyaXEtZ2x5cGgiIHgxPSIyMTAiIHkxPSIyMyIgeDI9IjY4MCIgeTI9IjY3MiIgZ3JhZGllbnRVbml0cz0idXNlclNwYWNlT25Vc2UiPgogICAgICAgICAgICA8c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiNiNGRjZmEiLz4KICAgICAgICAgICAgPHN0b3Agb2Zmc2V0PSIwLjQ4IiBzdG9wLWNvbG9yPSIjNzliZGU4Ii8+CiAgICAgICAgICAgIDxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzY4Y2ZjMyIvPgogICAgICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgICA8L2RlZnM+CiAgICA8cmVjdCB3aWR0aD0iMTAyNCIgaGVpZ2h0PSIxMDI0IiByeD0iMTc0IiBmaWxsPSJ1cmwoI3ZlcmlxLWJhY2tncm91bmQpIi8+CiAgICA8ZyB0cmFuc2Zvcm09InNjYWxlKDAuOTg1NTYzMDQyIDAuOTkwMzI4ODIwKSB0cmFuc2xhdGUoMTMyIDE1OSkiPgogICAgICAgIDxwYXRoIGZpbGw9InVybCgjdmVyaXEtZ2x5cGgpIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiIGQ9IgogICAgICAgICAgICBNIDMwNy41MDAgNjcxLjAzMgogICAgICAgICAgICBDIDI4MC43MjEgNjY3LjIwMSAyNTYuNTg3IDY1NC40NzggMjQxLjM2NSA2MzYuMTY3CiAgICAgICAgICAgIEMgMjM2LjkzMyA2MzAuODM2IDIzMS44MDYgNjIxLjM4MiAyMTUuNzgzIDU4OS4wMDAKICAgICAgICAgICAgQyAyMDQuNzYxIDU2Ni43MjUgMTkyLjQ4NCA1NDEuNzUwIDE4OC40OTkgNTMzLjUwMAogICAgICAgICAgICBDIDE4NC41MTUgNTI1LjI1MCAxNzMuOTQ4IDUwMy42NTAgMTY1LjAxNyA0ODUuNTAwCiAgICAgICAgICAgIEMgMTU2LjA4NiA0NjcuMzUwIDEzNy43OTcgNDMwLjA4NiAxMjQuMzczIDQwMi42OTEKICAgICAgICAgICAgQyAxMTAuOTUwIDM3NS4yOTcgODQuMjA3IDMyMS4zOTkgNjQuOTQ2IDI4Mi45MjAKICAgICAgICAgICAgQyAzOS4wNDQgMjMxLjE3NSAyOS42NDUgMjExLjQ2NSAyOC44NTEgMjA3LjIyOAogICAgICAgICAgICBDIDI3LjM4MiAxOTkuMzg5IDI4LjMzNyAxODYuNzAxIDMwLjkwNiAxNzkuOTE0CiAgICAgICAgICAgIEMgMzUuODQ4IDE2Ni44NjAgMzkuNTczIDE2Mi41MDIgMTAyLjYzNCA5Ni4wMDQKICAgICAgICAgICAgQyAxMzQuMzEyIDYyLjYwMCAxNTAuODI2IDQ2LjQzNiAxNTguNjEyIDQxLjIxMwogICAgICAgICAgICBDIDE2OC40MDIgMzQuNjQ2IDE4MC4zNDYgMjkuMDY3IDE5MC43OTIgMjYuMTgzCiAgICAgICAgICAgIEwgMjAwLjUwMCAyMy41MDMgTCAzODMuNTAwIDIzLjE5NQogICAgICAgICAgICBDIDUxMS4wNDMgMjIuOTgwIDU3MC4zOTkgMjMuMjIxIDU3OS4zNjcgMjMuOTkxCiAgICAgICAgICAgIEMgNTk0LjE4MiAyNS4yNjIgNjEwLjU2MSAyOS4xODIgNjIzLjAwMCAzNC40MzQKICAgICAgICAgICAgQyA2NjMuNTkzIDUxLjU3MyA2OTYuMjQ3IDg3LjUyOCA3MDkuNzkzIDEzMC4wMDAKICAgICAgICAgICAgQyA3MTYuNjMwIDE1MS40MzkgNzE2LjE1OCAxNDIuMDYzIDcxNy4yNzggMjc4LjUwMAogICAgICAgICAgICBDIDcxOC4zNTIgNDA5LjI0MiA3MTguMTAyIDQyMS43NjcgNzE0LjA1NSA0NDAuMDAwCiAgICAgICAgICAgIEMgNzA1LjAyMSA0ODAuNjk2IDY3Ni4yNjcgNTE1LjExNyA2MzguNzcwIDUzMC4xMjIKICAgICAgICAgICAgQyA2MzUuODcyIDUzMS4yODIgNjI4LjYxOCA1MzMuNDQ1IDYyMi42NTIgNTM0LjkyOAogICAgICAgICAgICBMIDYxMS44MDQgNTM3LjYyNCBMIDYzOC4xNTIgNTY1LjA5OQogICAgICAgICAgICBDIDcwOS42NjcgNjM5LjY3MSA3MzEuMDAwIDY2Mi41MTAgNzMxLjAwMCA2NjQuNDk5CiAgICAgICAgICAgIEMgNzMxLjAwMCA2NjcuNjI2IDcyOC45NTIgNjY5LjkxOSA3MjUuMjM4IDY3MC45NTEKICAgICAgICAgICAgQyA3MTkuOTc2IDY3Mi40MTIgNTkyLjg3MSA2NzIuMzcwIDU4Ny41OTUgNjcwLjkwNQogICAgICAgICAgICBDIDU4NS4yNTggNjcwLjI1NiA1ODEuNDg1IDY2Ny43NDkgNTc4LjE5NiA2NjQuNjYwCiAgICAgICAgICAgIEMgNTcxLjUzMyA2NTguNDAyIDQ4NS4zNzQgNTY3LjY4MyA0ODIuMjMwIDU2My42MTUKICAgICAgICAgICAgQyA0ODAuNjI1IDU2MS41MzkgNDgwLjAwMCA1NTkuMzY4IDQ4MC4wMDAgNTU1Ljg2OAogICAgICAgICAgICBDIDQ4MC4wMDAgNTUxLjY5MyA0ODAuNTA3IDU1MC40NDQgNDgzLjU4OSA1NDcuMDMzCiAgICAgICAgICAgIEMgNDg1LjU2NCA1NDQuODQ3IDQ4OS43MjYgNTQxLjgwOSA0OTIuODM5IDU0MC4yODAKICAgICAgICAgICAgTCA0OTguNTAwIDUzNy41MDAgTCA1MjguMDAwIDUzNi44NjAKICAgICAgICAgICAgQyA1NjEuMTE5IDUzNi4xNDEgNTY1LjE5NSA1MzUuNTA4IDU3OC41MDAgNTI5LjAxMAogICAgICAgICAgICBDIDU5My41NzcgNTIxLjY0NyA2MDMuNzAxIDUxMS41MTUgNjEwLjk4NCA0OTYuNTAwCiAgICAgICAgICAgIEMgNjE3Ljk1NCA0ODIuMTI5IDYxOC4yNDYgNDgwLjE3NCA2MTguNzM0IDQ0NC42NTUKICAgICAgICAgICAgTCA2MTkuMTcxIDQxMi44MTEgTCA2MTYuODM2IDQxMy41MjEKICAgICAgICAgICAgQyA2MDQuMDkxIDQxNy4zOTkgNTkwLjQ4NiA0MjQuNDUwIDU3Ni44MjIgNDM0LjI2MAogICAgICAgICAgICBDIDU2Ny4wNjAgNDQxLjI2OSA1NTAuMjA3IDQ1Ni44NTggNTQyLjkzNiA0NjUuNjA0CiAgICAgICAgICAgIEMgNTI4Ljk5NiA0ODIuMzczIDQ5Ny4wODAgNTIwLjk4NyA0ODguODgzIDUzMS4wMDAKICAgICAgICAgICAgQyA0ODQuMTU1IDUzNi43NzUgNDcxLjExMCA1NTIuNTY3IDQ1OS44OTQgNTY2LjA5NAogICAgICAgICAgICBDIDQ0OC42NzcgNTc5LjYyMSA0MzAuNTc4IDYwMS41NDUgNDE5LjY3MyA2MTQuODE0CiAgICAgICAgICAgIEMgMzg5LjQ1MyA2NTEuNTg4IDM3NS41NzkgNjYyLjE2MSAzNDguNTAwIDY2OS4wNTQKICAgICAgICAgICAgQyAzMzkuNDAxIDY3MS4zNzAgMzE3LjMxMyA2NzIuNDM1IDMwNy41MDAgNjcxLjAzMgogICAgICAgICAgICBaCiAgICAgICAgICAgIE0gMzc5Ljc5OCA0OTEuMjUwCiAgICAgICAgICAgIEMgMzk5LjAzNiA0NjcuMTg4IDQxNy42MzIgNDQ0LjYyMyA0MjEuMTIyIDQ0MS4xMDcKICAgICAgICAgICAgQyA0MzguNDY2IDQyMy42MzIgNDYxLjY0OSA0MTIuMDIwIDQ4OC4wMDAgNDA3LjYwOQogICAgICAgICAgICBDIDQ5NS45MjQgNDA2LjI4MiA1MDcuNTc2IDQwNi4wMDggNTU4LjI1MCA0MDUuOTU2CiAgICAgICAgICAgIEwgNjE5LjAwMCA0MDUuODk0IEwgNjE5LjAwMCAzMDEuMDM1CiAgICAgICAgICAgIEMgNjE5LjAwMCAyMTQuOTc2IDYxOC43NDcgMTk0Ljg2MCA2MTcuNTkxIDE4OC44MzgKICAgICAgICAgICAgQyA2MTIuMzM3IDE2MS40NzMgNTkzLjIyNyAxMzYuODY4IDU2Ny42NTMgMTI0LjUzNwogICAgICAgICAgICBDIDU0OS4zODUgMTE1LjczMCA1NzIuNjE5IDExNi41NzggMzQwLjgwMSAxMTYuMjU3CiAgICAgICAgICAgIEwgMTM1LjEwMyAxMTUuOTcyIEwgMTk1Ljg5MSAyMzcuNzM2CiAgICAgICAgICAgIEMgMjI5LjMyNCAzMDQuNzA2IDI3Ni4xOTggMzk4Ljk4NyAzMDAuMDU2IDQ0Ny4yNTAKICAgICAgICAgICAgQyAzMjMuOTEzIDQ5NS41MTMgMzQzLjc0NSA1MzUuMDAwIDM0NC4xMjcgNTM1LjAwMAogICAgICAgICAgICBDIDM0NC41MDkgNTM1LjAwMCAzNjAuNTYxIDUxNS4zMTIgMzc5Ljc5OCA0OTEuMjUwCiAgICAgICAgICAgIFoKICAgICAgICAiLz4KICAgIDwvZz4KPC9zdmc+Cg==" alt="VeriQ" width="176" height="176"></div>
+    </div>
+  </section>
+  <section class="wrap section" id="capabilities" aria-labelledby="capabilities-title">
+    <h2 id="capabilities-title" data-en="Core capabilities">核心能力</h2>
+    <div class="cards">
+      <article class="card"><h3 data-en="Versioned test assets">测试资产版本化</h3><p data-en="Manage page elements, actions, assertions, and test data as reviewable, versioned assets.">将页面元素、操作、断言和测试数据整理为可审阅、可发布的版本化资产。</p></article>
+      <article class="card"><h3 data-en="Reproducible execution">可复现执行</h3><p data-en="Run tests with a fixed asset version, environment snapshot, and browser toolchain.">执行时固定资产版本、环境快照和浏览器工具链，让团队知道每次运行使用了哪些输入。</p></article>
+      <article class="card"><h3 data-en="Step-level evidence">步骤证据</h3><p data-en="Use step results and browser traces to investigate where a test failed.">查看步骤结果和浏览器 Trace，定位失败发生在哪一步。</p></article>
+    </div>
+  </section>
+  <section class="wrap section workflow" id="workflow" aria-labelledby="workflow-title">
+    <h2 id="workflow-title" data-en="From test assets to results">从测试资产到运行结果</h2>
+    <ol class="steps">
+      <li><h3 data-en="Prepare test assets">准备测试资产</h3><p data-en="Define actions, assertions, and test data.">定义操作、断言与测试数据。</p></li>
+      <li><h3 data-en="Publish a version">发布版本</h3><p data-en="Release the reviewed assets as a fixed version.">将审阅后的资产发布为固定版本。</p></li>
+      <li><h3 data-en="Run the test">执行测试</h3><p data-en="Run that version against an environment snapshot.">使用指定版本和环境快照运行测试。</p></li>
+      <li><h3 data-en="Review the report">查看报告</h3><p data-en="Inspect step results and trace evidence.">检查步骤结果并查看 Trace 证据。</p></li>
+    </ol>
+    <div class="report" aria-labelledby="example-title">
+      <h3 id="example-title" data-en="Example · Sign-in smoke test">示例 · 登录冒烟测试</h3>
+      <p data-en="Illustrative data · Test asset v12">示意数据 · 测试资产 v12</p>
+      <table aria-labelledby="example-title">
+        <thead><tr><th scope="col" data-en="Step">步骤</th><th scope="col" data-en="Result">结果</th></tr></thead>
+        <tbody>
+          <tr><th scope="row" data-en="Open the sign-in page">打开登录页</th><td class="pass" data-en="Passed">通过</td></tr>
+          <tr><th scope="row" data-en="Submit the form">提交表单</th><td class="pass" data-en="Passed">通过</td></tr>
+          <tr><th scope="row" data-en="Assert that the dashboard is visible">断言工作台可见</th><td class="fail" data-en="Failed">失败</td></tr>
+        </tbody>
+      </table>
+      <p data-en="The form submission passed. Inspect the browser trace for the failed assertion to see which page was shown after submission.">表单提交成功。查看失败断言对应的浏览器 Trace，可确认提交后实际显示了哪个页面。</p>
+    </div>
+  </section>
+</main>
+<footer>
+  <div class="wrap footer"><span data-en="VeriQ · AGPL-3.0 license">VeriQ · AGPL-3.0 许可证</span><a href="https://github.com/baofengbaofeng/VeriQ" data-en="Source on GitHub ↗">GitHub 源码 ↗</a></div>
+</footer>
+<script>
+(() => {
+  const root = document.documentElement;
+  const languageButton = document.getElementById('language');
+  const themeButton = document.getElementById('theme');
+  const translations = Array.from(document.querySelectorAll('[data-en]'), element => ({
+    element, zh: element.textContent, en: element.dataset.en
+  }));
+  const navigation = document.querySelector('nav');
+  const description = document.querySelector('meta[name="description"]');
+  let language = 'zh';
+  try {
+    if (localStorage.getItem('veriq-language') === 'en') language = 'en';
+  } catch {}
+
+  function renderTheme() {
+    const light = root.dataset.theme === 'light';
+    themeButton.textContent = language === 'en' ? (light ? 'Dark mode' : 'Light mode') : (light ? '深色' : '浅色');
+    themeButton.setAttribute('aria-label', language === 'en'
+      ? (light ? 'Switch to dark mode' : 'Switch to light mode')
+      : (light ? '切换到深色主题' : '切换到浅色主题'));
+  }
+
+  function renderLanguage() {
+    const english = language === 'en';
+    root.lang = english ? 'en' : 'zh-CN';
+    document.title = english ? 'VeriQ · Reproducible web testing' : 'VeriQ · 可复现的 Web 测试';
+    translations.forEach(({ element, zh, en }) => { element.textContent = english ? en : zh; });
+    navigation.setAttribute('aria-label', english ? navigation.dataset.enLabel : navigation.dataset.zhLabel);
+    description.content = document.querySelector('.lede').textContent;
+    languageButton.textContent = english ? '中文' : 'EN';
+    languageButton.lang = english ? 'zh-CN' : 'en';
+    languageButton.setAttribute('aria-label', english ? '切换到中文' : 'Switch to English');
+    renderTheme();
+  }
+
+  languageButton.addEventListener('click', () => {
+    language = language === 'en' ? 'zh' : 'en';
+    try { localStorage.setItem('veriq-language', language); } catch {}
+    renderLanguage();
+  });
+  themeButton.addEventListener('click', () => {
+    root.dataset.theme = root.dataset.theme === 'light' ? 'dark' : 'light';
+    try { localStorage.setItem('veriq-theme', root.dataset.theme); } catch {}
+    renderTheme();
+  });
+  renderLanguage();
+})();
+</script>
+</body>
+</html>
