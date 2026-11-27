@@ -37,7 +37,7 @@ macOS 双架构已有部分专项证据，涵盖官方资产处理、生产依�
 - **桌面工作台**使用 Electron 与 React，提供登录、设备绑定、执行进度、报告与诊断。界面通过受限 IPC 与宿主交互，测试引擎独立于 Electron 内置的 Node.js 和 Chromium。[桌面工作台指南](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/%E6%A1%8C%E9%9D%A2%E5%B7%A5%E4%BD%9C%E5%8F%B0%E6%8C%87%E5%8D%97.md)
 - **外部调度和持续集成**通过受限服务令牌调用幂等 HTTP 接口，触发执行计划、检查门禁并运行有界维护。计划计时由外部调度器负责。[外部调度接入](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/integration/%E5%A4%96%E9%83%A8%E8%B0%83%E5%BA%A6%E6%8E%A5%E5%85%A5.md)
 
-服务端目标为 Linux x64。桌面与 Runtime 优先交付 macOS 15 及以上的 Intel x64 和 Apple Silicon arm64，也保留 Windows 11 x64 和 Ubuntu 24.04 x64。各平台分别构建并验收。[运行时发行与原生边界](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/decisions/0021-%E8%BF%90%E8%A1%8C%E6%97%B6%E5%8F%91%E8%A1%8C%E4%B8%8E%E5%8E%9F%E7%94%9F%E8%BE%B9%E7%95%8C.md) · [服务端发行指南](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/%E6%9C%8D%E5%8A%A1%E7%AB%AF%E5%8F%91%E8%A1%8C%E6%8C%87%E5%8D%97.md)
+服务端目标为 Linux x64。桌面与 Runtime 优先交付 macOS 15 及以上的 Intel x64 和 Apple Silicon arm64，也保留 Windows 11 x64 和 Ubuntu 24.04 x64。各平台分别构建并验收。[运行时发行与原生边界](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/decisions/ADR-021-%E8%BF%90%E8%A1%8C%E6%97%B6%E5%8F%91%E8%A1%8C%E4%B8%8E%E5%8E%9F%E7%94%9F%E8%BE%B9%E7%95%8C.md) · [服务端发行指南](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/%E6%9C%8D%E5%8A%A1%E7%AB%AF%E5%8F%91%E8%A1%8C%E6%8C%87%E5%8D%97.md)
 
 ## 3. 技术栈及选型
 
@@ -52,7 +52,7 @@ macOS 双架构已有部分专项证据，涵盖官方资产处理、生产依�
 | 模型辅助 | OpenAI 与 Anthropic SDK，经服务端适配器调用 | 按工作区控制模型服务的授权、预算、上下文与审核。确定性执行可独立运行。 |
 | 构建与测试 | pnpm、uv、Hatchling、pytest、Vitest、Playwright | 冻结依赖，按契约、应用和平台场景验证，再组装 Python wheel 与目标发行候选。 |
 
-工程约束、原生运行边界与组件选型分别见 [ADR 0003](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/decisions/0003-%E5%B7%A5%E7%A8%8B%E5%9F%BA%E7%BA%BF.md)、[ADR 0021](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/decisions/0021-%E8%BF%90%E8%A1%8C%E6%97%B6%E5%8F%91%E8%A1%8C%E4%B8%8E%E5%8E%9F%E7%94%9F%E8%BE%B9%E7%95%8C.md) 和 [ADR 0024](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/decisions/0024-%E7%BD%91%E9%A1%B5%E7%95%8C%E9%9D%A2%E4%BE%9D%E8%B5%96.md)。精确版本与分发物摘要见 [pnpm 锁文件](pnpm-lock.yaml)和 [Python 锁文件](apps/srv/uv.lock)。
+工程约束、原生运行边界与组件选型分别见 [ADR-003](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/decisions/ADR-003-%E5%B7%A5%E7%A8%8B%E5%9F%BA%E7%BA%BF.md)、[ADR-021](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/decisions/ADR-021-%E8%BF%90%E8%A1%8C%E6%97%B6%E5%8F%91%E8%A1%8C%E4%B8%8E%E5%8E%9F%E7%94%9F%E8%BE%B9%E7%95%8C.md) 和 [ADR-024](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/decisions/ADR-024-%E7%BD%91%E9%A1%B5%E7%95%8C%E9%9D%A2%E4%BE%9D%E8%B5%96.md)。精确版本与分发物摘要见 [pnpm 锁文件](pnpm-lock.yaml)和 [Python 锁文件](apps/srv/uv.lock)。
 
 ## 4. 仓库结构
 
@@ -76,7 +76,7 @@ VeriQ/
 └── build.sh              # 服务端构建与发行检查入口
 ```
 
-本地开发按开发指南准备工具链、数据库和锁定依赖。贡献者按仓库约定提交代码与实际验证证据。[开发指南](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/%E5%BC%80%E5%8F%91%E6%8C%87%E5%8D%97.md) · [工程基线](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/decisions/0003-%E5%B7%A5%E7%A8%8B%E5%9F%BA%E7%BA%BF.md)
+本地开发按开发指南准备工具链、数据库和锁定依赖。贡献者按仓库约定提交代码与实际验证证据。[开发指南](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/%E5%BC%80%E5%8F%91%E6%8C%87%E5%8D%97.md) · [工程基线](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/decisions/ADR-003-%E5%B7%A5%E7%A8%8B%E5%9F%BA%E7%BA%BF.md)
 
 ## 5. 许可证说明
 
