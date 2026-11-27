@@ -2,12 +2,23 @@
 JsonObject 契约检查，再按声明构造 schema 验证值类型。
 """
 
+from collections.abc import Iterator
 from typing import Any
 
 from jsonschema import Draft202012Validator
 
 from ..contracts import validate_schema
 from ..service import Problem
+
+
+def case_step_lists(document: dict[str, Any]) -> Iterator[tuple[str, list[dict[str, Any]]]]:
+    """复用编译器的 CASE 步骤路径，包含可选准备与各个清理分支的列表。"""
+    lifecycle = document.get("lifecycle", {})
+    if "prepare" in lifecycle:
+        yield "lifecycle/prepare", lifecycle["prepare"]
+    yield "steps", document["steps"]
+    for index, branch in enumerate(lifecycle.get("cleanup", [])):
+        yield f"lifecycle/cleanup/{index}/steps", branch["steps"]
 
 
 def validate_initial_variables(declarations: dict[str, str], values: dict[str, Any]) -> None:
@@ -38,6 +49,15 @@ def dataset_matrix_rows(document: dict[str, Any]) -> list[dict[str, Any]]:
     )
     if not rows:
         raise Problem(422, "DATASET_EMPTY_MATRIX", "A matrix dataset requires at least one row")
+    return rows
+
+
+def selected_dataset_rows(document: dict[str, Any], keys: list[str]) -> list[dict[str, Any]]:
+    """只接受冻结静态矩阵中存在的唯一行键，并保留矩阵原有顺序。"""
+    key_set = set(keys)
+    rows = [row for row in dataset_matrix_rows(document) if row["key"] in key_set]
+    if not 1 <= len(keys) <= 1000 or len(key_set) != len(keys) or len(rows) != len(keys):
+        raise Problem(422, "INVALID_DATA_ROW_SELECTION", "Row keys must identify frozen rows")
     return rows
 
 

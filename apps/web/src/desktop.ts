@@ -2,7 +2,9 @@
  * VeriQ 桌面共享入口只导出已经实现的业务视图和适配器，使用 Web 自身配置生成独立声明与静态资源；桌面严格工程消费产物而
  * 不继承旧 Web 的类型兼容选项。
  */
+export { installBrowserDiagnostics } from "./browser-logging";
 export { ApiError, installHostTransport, scopeAgentFormSignal, type HostTransport, type Workspace } from "./api";
+export { canonicalBytes } from "@veriq/contracts";
 export { ResourceWorkspaceView } from "./features/resources/ResourcePage";
 export {
     CloudResourceAdapter,
@@ -42,3 +44,8 @@ import "./menu-focus";
  */
 export { AppLocaleProvider, LanguageControl } from "./locale-ui";
 export { appI18n, setAppLanguage } from "./locale";
+
+export { RecordingStepConfiguration } from "./features/cases/CaseEditor";
+export type { VersionOption as RecordingVersionOption } from "./features/resources/fields";
+
+export { validateCaseSchema as validateRecordingCase } from "@veriq/contracts";

@@ -21,7 +21,12 @@ from .compilation_provenance import validation_origin_matches
 from .connected_datasets import http_capabilities, project_execution, revalidate_bundle
 from .runtime import RuntimeService
 from .workspace import WorkspaceRepository
-from .snapshots import dataset_matrix_rows, execution_data_row, validate_initial_variables
+from .snapshots import (
+    dataset_matrix_rows,
+    execution_data_row,
+    selected_dataset_rows,
+    validate_initial_variables,
+)
 from .results import aggregate
 from .execution_principal import ServicePrincipal
 from .notification_events import record_run_transition
@@ -154,6 +159,9 @@ class RunService:
                 "INVALID_SELECTION",
                 "Select CASE versions, one SUITE or one immutable draft validation job",
             )
+        data_row_keys = data.get("dataRowKeys")
+        if data_row_keys is not None and "draftValidationJobId" not in data:
+            raise Problem(422, "INVALID_DATA_ROW_SELECTION", "Rows require a frozen draft CASE")
         runtimes = [
             (
                 await self.actor.runtime(self.session, workspace_id, self.plan_id or "", rid)
@@ -181,6 +189,7 @@ class RunService:
             raise Problem(422, "ENVIRONMENT_REQUIRED", "Selected published Environment is required")
         environment = environment_version.document_json["document"]
         selections: list[tuple[dict[str, Any], dict[str, Any], Job, str | None]] = []
+        selected_rows: list[dict[str, Any]] | None = None
         if "draftValidationJobId" in data:
             validation = await repo.job(data["draftValidationJobId"])
             if validation.kind != "VALIDATE":
@@ -192,6 +201,27 @@ class RunService:
             root = next(a for a in source["assets"] if a["versionId"] == target)
             if root["kind"] not in {"CASE", "SUITE"}:
                 raise Problem(422, "INVALID_DRAFT_CANDIDATE", "Candidate must select CASE or SUITE")
+            if data_row_keys is not None:
+                dataset_id = root["document"].get("datasetVersionId")
+                if root["kind"] != "CASE" or not dataset_id:
+                    raise Problem(
+                        422,
+                        "INVALID_DATA_ROW_SELECTION",
+                        "Rows require a draft CASE with a dataset",
+                    )
+                dataset_asset = next(
+                    (
+                        asset
+                        for asset in source["assets"]
+                        if asset["versionId"] == dataset_id and asset["kind"] == "DATASET"
+                    ),
+                    None,
+                )
+                if dataset_asset is None:
+                    raise Problem(
+                        422, "INVALID_DATA_ROW_SELECTION", "Draft matrix dataset is not frozen"
+                    )
+                selected_rows = selected_dataset_rows(dataset_asset["document"], data_row_keys)
             selections.append((root, source, validation, None))
         else:
             ids = [data["suiteVersionId"]] if "suiteVersionId" in data else data["caseVersionIds"]
@@ -267,7 +297,12 @@ class RunService:
             for variant in variants:
                 document = assets[variant["versionId"]]["document"]
                 dataset = variant.get("datasetVersionId", document.get("datasetVersionId"))
-                row_count = len(dataset_matrix_rows(assets[dataset]["document"])) if dataset else 1
+                if selected_rows is not None:
+                    row_count = len(selected_rows)
+                else:
+                    row_count = (
+                        len(dataset_matrix_rows(assets[dataset]["document"])) if dataset else 1
+                    )
                 roles, browsers = selected_axes(variant, document["roleKey"], data)
                 cardinality += row_count * len(roles) * len(browsers)
                 if cardinality > 1000:
@@ -301,7 +336,9 @@ class RunService:
                 validate_initial_variables(document.get("initialVariables", {}), variables)
                 dataset_id = variant.get("datasetVersionId", document.get("datasetVersionId"))
                 rows: Sequence[dict[str, Any] | None]
-                if dataset_id:
+                if selected_rows is not None:
+                    rows = selected_rows
+                elif dataset_id:
                     rows = dataset_matrix_rows(assets[dataset_id]["document"])
                 else:
                     rows = (None,)

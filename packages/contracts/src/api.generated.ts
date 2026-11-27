@@ -3307,6 +3307,16 @@ export interface components {
             fixtureVersionId?: components["schemas"]["Id"];
             datasetVersionId?: components["schemas"]["Id"];
             persistenceCheckpointStepId?: components["schemas"]["Key"];
+            lifecycle?: {
+                prepare?: components["schemas"]["StepV1"][];
+                cleanup?: {
+                    /**
+                     * @enum {unknown}
+                     */
+                    on: "SUCCESS" | "FAILURE" | "CANCELLED";
+                    steps: components["schemas"]["StepV1"][];
+                }[];
+            };
             steps: components["schemas"]["StepV1"][];
             fixtureInput?: components["schemas"]["BindingJsonObject"];
             initialVariables?: components["schemas"]["ParameterTypes"];
@@ -4269,6 +4279,11 @@ export interface components {
         HeartbeatDTO: {
             leaseExpiresAt: components["schemas"]["Timestamp"];
             cancelRequested: boolean;
+            /**
+             * @description Cooperative page cleanup is authorized for this active, explicitly cancelled test within its
+             * existing lease.
+             */
+            pageCleanupAllowed?: boolean;
             serverTime: components["schemas"]["Timestamp"];
             leaseDurationMs: number;
         };
@@ -4478,6 +4493,10 @@ export interface components {
             key: components["schemas"]["Key"];
             name: string;
             content: components["schemas"]["ResourceDocumentV1"];
+            /**
+             * @description Optional creation identity scoped to the current employee and Workspace.
+             */
+            clientDraftId?: components["schemas"]["Id"];
         };
         ResourceUpdate: {
             name: string;
@@ -4981,6 +5000,10 @@ export interface components {
             executionLocation?: "MANAGED_CLOUD" | "CONNECTED_LOCAL";
             maxRetries?: number;
             draftValidationJobId?: components["schemas"]["Id"];
+            /**
+             * @description Static matrix row keys for one frozen draft CASE; rows retain frozen order.
+             */
+            dataRowKeys?: components["schemas"]["Key"][];
         };
         RunDTO: {
             id: components["schemas"]["Id"];
@@ -6704,8 +6727,9 @@ export interface components {
             | "FIXTURE_PROVIDER_REQUIRED" | "FIXTURE_REQUEST_FAILED" | "FIXTURE_REQUIRED" | "FIXTURE_RESPONSE_INVALID"
             | "IDENTITY_NOT_ALLOWED" | "INVALID_EXECUTION_CONTEXT" | "INVALID_OBSERVER" | "INVALID_PATH"
             | "INVALID_REDIRECT" | "LOCAL_CREDENTIAL_REQUIRED" | "NETWORK_TIMEOUT" | "OBSERVER_DISPOSED"
-            | "OBSERVER_WINDOW_REQUIRED" | "ORIGIN_NOT_ALLOWED" | "PERSISTENCE_CHECKPOINT_FAILED"
-            | "READ_ONLY_QUERY_REQUIRED" | "REDACTION_PROVIDER_REQUIRED" | "REDIRECT_LIMIT" | "REQUEST_COUNT_MISMATCH"
+            | "OBSERVER_WINDOW_REQUIRED" | "ORIGIN_NOT_ALLOWED" | "PAGE_CLEANUP_FAILED" | "PAGE_CLEANUP_UNAVAILABLE"
+            | "PAGE_PREPARE_FAILED" | "PERSISTENCE_CHECKPOINT_FAILED" | "READ_ONLY_QUERY_REQUIRED"
+            | "REDACTION_PROVIDER_REQUIRED" | "REDIRECT_LIMIT" | "REQUEST_COUNT_MISMATCH"
             | "RESPONSE_ASSERTION_FAILED" | "ROLE_NOT_FOUND" | "SECRET_VERSION_MISMATCH" | "SSO_AUTHENTICATION_FAILED"
             | "SSO_CHALLENGE_REQUIRED" | "SSO_FLOW_INVALID" | "SSO_ORIGIN_NOT_ALLOWED" | "SSO_SCOPE_UNAVAILABLE"
             | "SOURCE_UNAVAILABLE" | "TARGET_NOT_FOUND" | "UNEXPECTED_DIALOG" | "UNKNOWN_DATASET_ALIAS"

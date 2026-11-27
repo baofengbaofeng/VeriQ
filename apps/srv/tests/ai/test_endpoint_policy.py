@@ -16,6 +16,7 @@ from tornado.web import Application, RequestHandler
 from veriq_server.app import make_app
 from veriq_server.db import AiGeneration, AiProvider
 from veriq_server.infrastructure.providers import DraftContext, ProviderGateway
+from veriq_server.logging_context import inbound_trace, use_trace
 from veriq_server.services.ai_endpoints import endpoint_allowed
 from veriq_server.settings import Settings
 
@@ -145,9 +146,12 @@ async def test_endpoint_revoked_during_generation_settles_without_exposing_outpu
 
 
 @pytest.mark.parametrize("adapter", ["OPENAI_COMPATIBLE", "ANTHROPIC"])
-async def test_vendor_sdk_refuses_redirect_before_second_request(adapter):
+async def test_vendor_sdk_refuses_redirect_before_second_request(adapter, caplog):
     """本机监听器返回指向另一条本机路径的跳转，确认两种真实供应商客户端都只提交一次请求并报告跳转状态。"""
     calls = []
+    outbound_ids = []
+    trace_id, span_id = "a" * 32, "b" * 16
+    trace = inbound_trace({"x-trace-id": trace_id, "x-cspanid": span_id}, "provider-request")
 
     class Redirect(RequestHandler):
         """接收两种协议在回环地址上的初次请求，用路径计数记录客户端是否再次访问本机重定向目的地。"""
@@ -155,6 +159,9 @@ async def test_vendor_sdk_refuses_redirect_before_second_request(adapter):
         def post(self):
             """在初始请求中指定本机跳转目标，目标处理程序只记录回调，以便测试区分首个响应和自动跳转。"""
             calls.append(self.request.path)
+            outbound_ids.append(
+                (self.request.headers.get("x-trace-id"), self.request.headers.get("x-cspanid"))
+            )
             if self.request.path != "/redirected":
                 self.set_status(307)
                 self.set_header("Location", "/redirected")
@@ -166,10 +173,21 @@ async def test_vendor_sdk_refuses_redirect_before_second_request(adapter):
     try:
         endpoint = f"http://127.0.0.1:{sockets[0].getsockname()[1]}/v1"
         gateway = ProviderGateway(provider_config(endpoint, adapter=adapter), "synthetic-test-key")
-        with pytest.raises((openai.APIStatusError, anthropic.APIStatusError)) as failure:
+        with (
+            use_trace(trace),
+            pytest.raises((openai.APIStatusError, anthropic.APIStatusError)) as failure,
+        ):
             await gateway.generate(DraftContext({}, {}, 64))
         assert failure.value.status_code == 307
         assert len(calls) == 1 and "/redirected" not in calls
+        records = [r for r in caplog.records if getattr(r, "veriq_tag", "") == "_com_http_failure"]
+        assert len(records) == 1
+        fields = records[0].veriq_fields
+        assert outbound_ids == [(trace_id, fields["cspanid"])]
+        assert fields["traceid"] == trace_id
+        assert fields["spanid"] == span_id and fields["cspanid"] != span_id
+        assert fields["errno"] == 307
+        assert "synthetic-test-key" not in repr(fields)
     finally:
         server.stop()
         await server.close_all_connections()
@@ -221,3 +239,23 @@ async def test_malformed_legacy_config_and_price_receipt_remain_safe_to_read_and
         assert (await client.put(route, json=disabled)).is_success
         assert (await client.put(route, json={**disabled, "baseURL": model.base_url})).is_success
         assert len(model.calls) == 1
+
+
+async def test_provider_stream_read_failure_emits_one_http_failure(caplog):
+    from veriq_server.infrastructure.providers import _ProviderClient
+
+    class Interrupted(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            yield b"private streamed text"
+            raise httpx.ReadError("private transport detail")
+
+    transport = httpx.MockTransport(lambda _: httpx.Response(200, stream=Interrupted()))
+    caplog.set_level(20)
+    async with _ProviderClient(transport=transport) as client:
+        with pytest.raises(httpx.ReadError):
+            async with client.stream("POST", "https://example.test/private-path") as response:
+                await response.aread()
+    records = [r for r in caplog.records if getattr(r, "veriq_tag", "").startswith("_com_http")]
+    assert [r.veriq_tag for r in records] == ["_com_http_failure"]
+    assert records[0].veriq_fields["errno"] == "ReadError"
+    assert "private" not in repr(records[0].veriq_fields)

@@ -3,7 +3,6 @@
 import asyncio
 from email import policy
 from email.parser import BytesParser
-import json
 import re
 from unittest.mock import AsyncMock
 
@@ -183,10 +182,12 @@ async def test_delivered_link_survives_audit_commit_failure(site, caplog):
         ).one()
         assert request.action == "reset.requested"
     events = [
-        json.loads(record.message) for record in caplog.records if record.name == "veriq.mail"
+        record.veriq_fields
+        for record in caplog.records
+        if record.name == "veriq" and record.getMessage() == "mail.delivered_audit_failed"
     ]
-    assert events == [{"event": "mail.delivered_audit_failed", "requestAuditId": request.id}]
+    assert len(events) == 1 and events[0]["requestAuditId"] == request.id
     assert all(
-        private not in caplog.text
+        private not in caplog.text and private not in str(events)
         for private in ("private-database-error-marker", "admin@example.com", token)
     )

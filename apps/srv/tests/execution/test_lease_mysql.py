@@ -1,4 +1,5 @@
 import asyncio
+from datetime import timedelta
 from hashlib import sha256
 from uuid import uuid4
 
@@ -508,6 +509,53 @@ async def test_admin_audit_release_preserves_lost_outcome_and_requires_workspace
         assert record and record.workspace_id == ws and record.target_id == attempt.id
 
 
+async def test_page_cleanup_authority_requires_explicit_cancel_and_live_lease(site):
+    """明确取消仅向已激活且尚在租约和 Run 期限内的执行保留清理许可。"""
+    c, db = site
+    await setup(c)
+    await login(c)
+    ws = await workspace(c)
+    runtime = await device(c, ws)
+    await queued_browser_jobs(c, db, ws, 1)
+    claim = (
+        await c.post("/internal/v1/jobs/claim", json=claim_body(runtime), headers=auth(runtime))
+    ).json()["data"]
+    proof = {k: claim[k] for k in ["leaseToken", "fencingToken"]}
+    endpoint = f"/internal/v1/attempts/{claim['attemptId']}"
+    async with db.sessions() as session:
+        run_id = (await session.scalars(select(Run.id))).one()
+    assert (
+        await c.post(endpoint + "/activate", json=proof, headers=auth(runtime))
+    ).status_code == 200
+
+    async def heartbeat():
+        response = await c.post(
+            endpoint + "/heartbeat",
+            json={**proof, "progress": {"phase": "RUNNING"}},
+            headers=auth(runtime),
+        )
+        assert response.status_code == 200, response.text
+        return response.json()["data"]
+
+    active = await heartbeat()
+    assert active["cancelRequested"] is False and "pageCleanupAllowed" not in active
+    cancelled = await c.post(
+        f"/api/v1/workspaces/{ws}/runs/{run_id}/cancel", json={"reason": "Stop this Run"}
+    )
+    assert cancelled.status_code == 200, cancelled.text
+    explicit = await heartbeat()
+    assert explicit["cancelRequested"] is True
+    assert explicit["pageCleanupAllowed"] is True
+    assert explicit["leaseExpiresAt"] == active["leaseExpiresAt"]
+
+    # 人工制造 Run 预算刚耗尽而尝试记录仍留有租约的时序，禁止把原来的用户取消当成执行授权。
+    async with db.sessions.begin() as session:
+        run = await session.get(Run, run_id)
+        run.created_at = now() - timedelta(minutes=31)
+    expired = await heartbeat()
+    assert expired["cancelRequested"] is True and "pageCleanupAllowed" not in expired
+
+
 async def test_current_requester_revocation_blocks_content_while_device_owner_remains_authorized(
     site,
 ):
@@ -560,6 +608,7 @@ async def test_current_requester_revocation_blocks_content_while_device_owner_re
             headers=auth(d),
         )
         assert heartbeat.status_code == 200 and heartbeat.json()["data"]["cancelRequested"] is True
+        assert "pageCleanupAllowed" not in heartbeat.json()["data"]
         assert (
             await c.post("/internal/v1/jobs/claim", json=claim_body(d), headers=auth(d))
         ).status_code == 204

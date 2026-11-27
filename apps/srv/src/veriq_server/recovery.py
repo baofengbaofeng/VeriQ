@@ -21,6 +21,7 @@ from .db import Base, Database, Installation
 from .file_volume import check_volume
 from .handlers.static import load_published_site
 from .migrate import _migration_lock_name
+from .outbound import s3_operation
 from .readiness import packaged_heads
 from .settings import Settings, operator_config_values
 from .snapshot_io import (
@@ -254,18 +255,19 @@ async def backup(
                 if client is None:
                     client = await asyncio.to_thread(s3_client, settings)
                 object_key = key(row["workspace_id"], row["sha256"], row["storage_incarnation"])
-                response = await asyncio.to_thread(
-                    client.get_object,
-                    Bucket=cast(str, settings.artifact_s3_bucket),
-                    Key=object_key,
-                )
-                try:
-                    raw = await asyncio.to_thread(
-                        response["Body"].read, min(row["size_bytes"], MAX_FILE) + 1
+                with s3_operation("storage.get"):
+                    response = await asyncio.to_thread(
+                        client.get_object,
+                        Bucket=cast(str, settings.artifact_s3_bucket),
+                        Key=object_key,
                     )
-                    verify(raw, row["sha256"], row["size_bytes"])
-                finally:
-                    response["Body"].close()
+                    try:
+                        raw = await asyncio.to_thread(
+                            response["Body"].read, min(row["size_bytes"], MAX_FILE) + 1
+                        )
+                        verify(raw, row["sha256"], row["size_bytes"])
+                    finally:
+                        response["Body"].close()
                 file = "s3-artifacts/" + object_key
                 private_file(destination / file, raw)
                 s3_objects.append(
@@ -420,11 +422,12 @@ async def restore(
             if not allow_s3_inventory:
                 raise ValueError("RESTORE_S3_LIST_PERMISSION_CONFIRMATION_REQUIRED")
             client = await asyncio.to_thread(s3_client, settings)
-            listing = await asyncio.to_thread(
-                client.list_objects_v2,
-                Bucket=cast(str, settings.artifact_s3_bucket),
-                MaxKeys=1,
-            )
+            with s3_operation("storage.list"):
+                listing = await asyncio.to_thread(
+                    client.list_objects_v2,
+                    Bucket=cast(str, settings.artifact_s3_bucket),
+                    MaxKeys=1,
+                )
             if listing.get("KeyCount", 0) or listing.get("Contents") or listing.get("IsTruncated"):
                 raise ValueError("RESTORE_S3_TARGET_NOT_EMPTY")
         async with maintenance_connection(db, freeze=False) as connection:
@@ -456,20 +459,22 @@ async def restore(
                 )
             if client:
                 for object_key in manifest["s3Tombstones"]:
-                    await asyncio.to_thread(
-                        client.put_object,
-                        Bucket=cast(str, settings.artifact_s3_bucket),
-                        Key=object_key,
-                        Body=b"",
-                    )
+                    with s3_operation("storage.put"):
+                        await asyncio.to_thread(
+                            client.put_object,
+                            Bucket=cast(str, settings.artifact_s3_bucket),
+                            Key=object_key,
+                            Body=b"",
+                        )
                 for item in manifest["s3Objects"]:
                     raw = safe_snapshot_file(source, item["file"]).read_bytes()
-                    await asyncio.to_thread(
-                        client.put_object,
-                        Bucket=cast(str, settings.artifact_s3_bucket),
-                        Key=item["key"],
-                        Body=raw,
-                    )
+                    with s3_operation("storage.put"):
+                        await asyncio.to_thread(
+                            client.put_object,
+                            Bucket=cast(str, settings.artifact_s3_bucket),
+                            Key=item["key"],
+                            Body=raw,
+                        )
             # 循环外键无法简单按表排序恢复，因此仅在本恢复会话临时停用外键检查；全部写入之后逐条外键执行反向存在性校验，
             # 任一悬空引用都回滚，绝不以重新启用检查冒充已有数据已经验证。
             await connection.execute(text("SET FOREIGN_KEY_CHECKS=0"))

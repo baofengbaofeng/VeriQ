@@ -29,6 +29,7 @@ from ..db import (
     OfflineImportUpload,
 )
 from ..file_volume import check_volume, initial_volume
+from ..outbound import s3_operation
 from ..service import Problem
 from ..settings import Settings
 from .workspace import WorkspaceRepository
@@ -257,13 +258,14 @@ class S3ArtifactStore:
 
         def write() -> None:
             try:
-                self.client.put_object(
-                    Bucket=self.bucket,
-                    Key=object_key,
-                    Body=content,
-                    IfNoneMatch="*",
-                    ContentType="application/octet-stream",
-                )
+                with s3_operation("storage.put"):
+                    self.client.put_object(
+                        Bucket=self.bucket,
+                        Key=object_key,
+                        Body=content,
+                        IfNoneMatch="*",
+                        ContentType="application/octet-stream",
+                    )
             except ClientError as exc:
                 if exc.response["ResponseMetadata"]["HTTPStatusCode"] != 412:
                     raise
@@ -272,11 +274,12 @@ class S3ArtifactStore:
         await asyncio.to_thread(write)
 
     def _read(self, object_key: str, digest: str, size: int) -> bytes:
-        result = self.client.get_object(Bucket=self.bucket, Key=object_key)
-        try:
-            return verify(result["Body"].read(min(size, MAX_FILE) + 1), digest, size)
-        finally:
-            result["Body"].close()
+        with s3_operation("storage.get"):
+            result = self.client.get_object(Bucket=self.bucket, Key=object_key)
+            try:
+                return verify(result["Body"].read(min(size, MAX_FILE) + 1), digest, size)
+            finally:
+                result["Body"].close()
 
     async def read(
         self, workspace: str, digest: str, size: int, incarnation: str | None = None
@@ -296,11 +299,20 @@ class S3ArtifactStore:
 
         Trace。
         """
-        await asyncio.to_thread(
-            lambda: self.client.delete_object(
-                Bucket=self.bucket, Key=key(workspace, digest, incarnation)
-            )
-        )
+        await asyncio.to_thread(self._mutate, "delete", key(workspace, digest, incarnation))
+
+    def _mutate(self, operation: str, object_key: str) -> None:
+        with s3_operation(f"storage.{operation}"):
+            if operation == "delete":
+                self.client.delete_object(Bucket=self.bucket, Key=object_key)
+            else:
+                self.client.put_object(
+                    Bucket=self.bucket,
+                    Key=object_key,
+                    Body=b"",
+                    ContentType="application/octet-stream",
+                    Metadata={"veriq-retired": "true"},
+                )
 
     async def retire(self, workspace: str, digest: str, incarnation: str | None = None) -> None:
         """复制或迁移到 incarnation 键后删除主键，配合围栏退休，S3ArtifactStore.retire 遵守本文件边界。retire
@@ -308,15 +320,7 @@ class S3ArtifactStore:
 
         Trace。主键在退休后永久占位，迟到的条件写入不能把已删除字节复活。
         """
-        await asyncio.to_thread(
-            lambda: self.client.put_object(
-                Bucket=self.bucket,
-                Key=key(workspace, digest, incarnation),
-                Body=b"",
-                ContentType="application/octet-stream",
-                Metadata={"veriq-retired": "true"},
-            )
-        )
+        await asyncio.to_thread(self._mutate, "retire", key(workspace, digest, incarnation))
 
 
 async def bind_volume(

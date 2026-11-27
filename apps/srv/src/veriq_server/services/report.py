@@ -688,7 +688,7 @@ class ReportService:
             raise Problem(409, "INVALID_REPORT_DISPLAY", "Report steps differ from expected plan")
         for actual, planned in zip(steps, plan["steps"], strict=True):
             if (
-                any(actual.get(k) != planned.get(k) for k in ["id", "order", "parentId"])
+                any(actual.get(k) != planned.get(k) for k in ["id", "order", "parentId", "phase"])
                 or len({a["id"] for a in actual["assertions"]}) != len(actual["assertions"])
                 or {a["id"] for a in actual["assertions"]}
                 != {a["id"] for a in planned["assertions"]}

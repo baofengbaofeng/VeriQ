@@ -304,6 +304,20 @@ export type CloudOperation =
           query?: Record<string, string | number | boolean>;
       }
     | {
+          operation: "createExecutionPlan";
+          params: {
+              workspaceId: string;
+          };
+          data: S["ExecutionPlanWrite"];
+      }
+    | {
+          operation: "getExecutionPlan";
+          params: {
+              workspaceId: string;
+              planId: string;
+          };
+      }
+    | {
           operation: "listProviders";
           params: {
               workspaceId: string;
@@ -356,6 +370,15 @@ export type CloudOperation =
           };
           data: S["ServiceAccountCreate"];
           agentFormTurnId?: string;
+      }
+    | {
+          operation: "triggerExecutionPlan";
+          params: {
+              workspaceId: string;
+              planId: string;
+          };
+          data: S["TriggerRequest"];
+          idempotencyKey: string;
       }
     | {
           operation: "listRuns";

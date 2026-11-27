@@ -5,6 +5,7 @@
  */
 
 import { tx, useAppLocale } from "./locale";
+import { installBrowserDiagnostics } from "./browser-logging";
 import { ExecutionPlansPage } from "./features/runs/ExecutionPlansPage";
 import { AgentPage } from "./features/agent/AgentPage";
 import { AiPage } from "./features/ai/AiPage";
@@ -239,6 +240,7 @@ function App() {
         </Auth.Provider>
     );
 }
+installBrowserDiagnostics("web");
 createRoot(document.getElementById("root")!).render(
     <AppLocaleProvider>
         <BrowserRouter>

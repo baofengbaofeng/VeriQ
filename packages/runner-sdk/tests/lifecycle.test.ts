@@ -4,7 +4,7 @@ import { analyze } from "../../compiler/src/index.js";
 import { asset, id, snapshot } from "../../compiler/tests/helpers.js";
 import { fixture } from "./helpers.js";
 import type { LifecycleProvider } from "../src/index.js";
-import type { ExecutionSnapshotV1 } from "@veriq/contracts";
+import type { CaseDslV1, ExecutionSnapshotV1 } from "@veriq/contracts";
 let f: Awaited<ReturnType<typeof fixture>>;
 beforeAll(async () => {
     f = await fixture();
@@ -303,6 +303,121 @@ it.each([false, true])(
                 present: true,
                 value: "[REDACTED]",
             });
+        }
+    },
+);
+
+it.each(["SUCCESS", "FAILURE", "CANCELLED", "LEASE_LOST", "CLEANUP_FAILED", "BOTH_FAILED"] as const)(
+    "executes only the %s page cleanup before fixture cleanup",
+    async (condition) => {
+        const other = await fixture();
+        try {
+            const { source, execution } = input();
+            const doc = source.assets[0]!;
+            if (doc.kind !== "CASE") throw Error();
+            const lifecycle: Required<NonNullable<CaseDslV1["lifecycle"]>> = {
+                prepare: [{ id: "before", action: "goto", path: "/prepare-browser" }],
+                cleanup: [
+                    { on: "SUCCESS", steps: [{ id: "on-success", action: "goto", path: "/clean-success" }] },
+                    { on: "FAILURE", steps: [{ id: "on-failure", action: "goto", path: "/clean-failure" }] },
+                    { on: "CANCELLED", steps: [{ id: "on-cancel", action: "goto", path: "/clean-cancelled" }] },
+                ],
+            };
+            doc.document.lifecycle = lifecycle;
+            const cancelled = condition === "CANCELLED" || condition === "LEASE_LOST";
+            const wrongURL = {
+                id: "wrongURL",
+                type: "url",
+                source: "page",
+                operator: "contains",
+                expected: "/never-there",
+                severity: "BLOCK",
+                expectedSource: "REQ",
+            } as const;
+            if (condition === "FAILURE") doc.document.steps[0]!.afterAssertions = [wrongURL];
+            if (condition === "CLEANUP_FAILED") lifecycle.cleanup[0]!.steps[0]!.afterAssertions = [wrongURL];
+            if (condition === "BOTH_FAILED") {
+                lifecycle.prepare[0]!.afterAssertions = [wrongURL];
+                lifecycle.cleanup[1]!.steps[0]!.afterAssertions = [wrongURL];
+            }
+            const { rehash } = await import("../../compiler/tests/helpers.js");
+            rehash(source);
+            execution.assetSourceHash = source.sourceHash;
+            execution.environment = {
+                ...execution.environment,
+                baseURL: other.origin,
+                apiBaseURL: other.origin,
+                allowedOrigins: [other.origin],
+            };
+            const analysis = analyze(source);
+            expect(analysis.issues).toEqual([]);
+            const controller = new AbortController();
+            const order: string[] = [];
+            const skipped: string[] = [];
+            other.hooks.set("/prepare-browser", async () => {
+                order.push("page prepare");
+            });
+            const businessFailed = condition === "FAILURE" || condition === "BOTH_FAILED";
+            const path = cancelled ? "/clean-cancelled" : businessFailed ? "/clean-failure" : "/clean-success";
+            other.hooks.set(path, async () => {
+                order.push("page cleanup");
+            });
+            const plan = analysis.cases[0]!;
+            const result = await executeCase(plan, source, {
+                page: other.page,
+                execution,
+                signal: controller.signal,
+                ...(condition === "LEASE_LOST" ? { cleanupSignal: AbortSignal.abort() } : {}),
+                redact: (v) => v,
+                onEvent: async (event) => {
+                    if (event.type === "STEP_FINISHED" && event.result.status === "SKIPPED") skipped.push(event.stepId);
+                    if (event.type === "STEP_STARTED" && event.stepId === plan.steps[0]?.step.id) {
+                        order.push("main");
+                        if (cancelled) controller.abort();
+                    }
+                },
+                lifecycle: {
+                    authenticate: async () => {
+                        order.push("authentication");
+                        return { identityId: "reader" };
+                    },
+                    prepare: async () => {
+                        order.push("fixture prepare");
+                        return { variables: { code: "test" }, cleanupToken: "token" };
+                    },
+                    cleanup: async () => {
+                        order.push("fixture cleanup");
+                    },
+                },
+            });
+            expect(result.businessOutcome).toBe(cancelled ? "CANCELLED" : businessFailed ? "FAILED" : "PASSED");
+            const cleanupFailed =
+                condition === "LEASE_LOST" || condition === "CLEANUP_FAILED" || condition === "BOTH_FAILED";
+            if (condition === "BOTH_FAILED") {
+                expect(result.errorCode).toBe("PAGE_PREPARE_FAILED");
+                expect(skipped).toEqual([plan.steps[0]!.step.id]);
+            }
+            expect(result.cleanupStatus).toBe(cleanupFailed ? "FAILED" : "SUCCEEDED");
+            expect(result.cleanupErrorCode).toBe(
+                condition === "LEASE_LOST"
+                    ? "PAGE_CLEANUP_UNAVAILABLE"
+                    : cleanupFailed
+                      ? "PAGE_CLEANUP_FAILED"
+                      : undefined,
+            );
+            expect(order).toEqual([
+                "authentication",
+                "fixture prepare",
+                "page prepare",
+                ...(condition === "BOTH_FAILED" ? [] : ["main"]),
+                ...(condition === "LEASE_LOST" ? [] : ["page cleanup"]),
+                "fixture cleanup",
+            ]);
+            expect(other.requests.filter((r) => r.path.startsWith("/clean")).map((r) => r.path)).toEqual(
+                condition === "LEASE_LOST" ? [] : [path],
+            );
+        } finally {
+            await other.close();
         }
     },
 );

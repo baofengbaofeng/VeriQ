@@ -2,6 +2,7 @@
  * 本文件对运行环境做真实自检：核对稳定独立 Node24.x、引擎包、Chromium 渲染与可选控制 Origin：结果非信任证明（doctor）。
  */
 
+import { diagnosticFetch } from "./diagnostics.ts";
 import { access, readFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -143,7 +144,7 @@ export async function doctor(
     if (options.server) {
         try {
             const origin = controlOrigin(options.server);
-            const response = await fetch(origin + "/api/v1/health/live", {
+            const response = await diagnosticFetch(fetch, "runtime.health_live", origin + "/api/v1/health/live", {
                 redirect: "error",
                 signal: AbortSignal.any([AbortSignal.timeout(5_000), ...(options.signal ? [options.signal] : [])]),
             });

@@ -6,6 +6,7 @@
 
 import type { PlatformComponents, PlatformPaths } from "@veriq/contracts";
 import { agentFormRequestHeader } from "./agent-form-origin";
+import { tracedFetch } from "./traced-fetch";
 export { inheritAgentFormSignal, scopeAgentFormSignal } from "./agent-form-origin";
 type Schemas = PlatformComponents["schemas"];
 /**
@@ -104,7 +105,7 @@ export function installHostTransport(transport: HostTransport): void {
 export async function binaryRequest(path: string, signal?: AbortSignal): Promise<Response> {
     if (hostTransport) return hostTransport.binary(path, signal);
     const owner = sessionOwner;
-    const response = await fetch("/api/v1" + path, {
+    const response = await tracedFetch("web.api.binary", path, {
         credentials: "same-origin",
         signal,
         redirect: "error",
@@ -164,7 +165,7 @@ export async function request<T>(
         : signal;
     const owner = sessionOwner;
     try {
-        const response = await fetch("/api/v1" + path, {
+        const response = await tracedFetch("web.api.json", path, {
             method,
             credentials: "same-origin",
             signal: active,
@@ -329,7 +330,7 @@ export const runtimeApi = {
 export async function streamRequest(path: string, data: unknown, signal: AbortSignal) {
     if (hostTransport) return hostTransport.stream(path, data, signal);
     const owner = sessionOwner;
-    const response = await fetch("/api/v1" + path, {
+    const response = await tracedFetch("web.api.stream", path, {
         method: "POST",
         credentials: "same-origin",
         signal,

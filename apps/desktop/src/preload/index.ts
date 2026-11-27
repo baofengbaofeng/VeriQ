@@ -6,6 +6,20 @@ import type { DesktopBridge } from "../shared/bridge";
  * 源和正文，不能把类型声明当成授权证明。
  */
 const bridge: DesktopBridge = {
+    recordingOpen: (input) => ipcRenderer.invoke("veriq:desktop", "recordingOpen", input),
+    recordingMode: (sessionId, mode) => ipcRenderer.invoke("veriq:desktop", "recordingMode", { sessionId, mode }),
+    recordingBounds: (sessionId, bounds) =>
+        ipcRenderer.invoke("veriq:desktop", "recordingBounds", { sessionId, bounds }),
+    recordingNavigate: (sessionId, target) =>
+        ipcRenderer.invoke("veriq:desktop", "recordingNavigate", { sessionId, target }),
+    recordingClose: (sessionId) => ipcRenderer.invoke("veriq:desktop", "recordingClose", { sessionId }),
+    recordingEvents: (listener) => {
+        const forward = (_event: Electron.IpcRendererEvent, value: Parameters<typeof listener>[0]) => listener(value);
+        ipcRenderer.on("veriq:recording-notice", forward);
+        return () => {
+            ipcRenderer.off("veriq:recording-notice", forward);
+        };
+    },
     state: () => ipcRenderer.invoke("veriq:desktop", "state"),
     configure: (origin, proxy) => ipcRenderer.invoke("veriq:desktop", "configure", { origin, proxy }),
     login: (data) => ipcRenderer.invoke("veriq:desktop", "login", data),

@@ -5,6 +5,7 @@
 /**
  * 仅在宿主显式请求时上传离线结果，目标来源和设备令牌取自已登记配置，包内的路由元数据不参与发送。
  */
+import { diagnosticFetch } from "../diagnostics.ts";
 import { LocalStore } from "./store.ts";
 import { LocalReports } from "./reports.ts";
 import { controlOrigin, type DeviceConfig } from "../enrollment.ts";
@@ -29,7 +30,7 @@ export async function uploadOffline(
         const request = async (path: string, method: string, body: BodyInit, contentType: string) => {
             if (!path.startsWith(base + "/") || new URL(path, origin).origin !== origin)
                 throw new Error("UPLOAD_ORIGIN_MISMATCH");
-            const response = await fetch(origin + path, {
+            const response = await diagnosticFetch(fetch, "runtime.offline_upload", origin + path, {
                 method,
                 body,
                 redirect: "error",

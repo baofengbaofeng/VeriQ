@@ -1,6 +1,7 @@
 /**
  * 本文件封装带设备令牌与围栏令牌的控制面传输：强制同源路径校验、限制二进制体大小，download 完成后核对内容 sha256。
  */
+import { diagnosticFetch } from "../diagnostics.ts";
 import { createHash } from "node:crypto";
 import { RuntimeError } from "../enrollment.ts";
 import { DeviceSession } from "./credentials.ts";
@@ -55,7 +56,7 @@ export class AgentClient {
         const url = this.path(path);
         if (bytes && bytes.length > 1024 * 1024) throw new Error("CHUNK_TOO_LARGE");
         return this.session.withCredential(async (config) => {
-            const response = await fetch(url, {
+            const response = await diagnosticFetch(fetch, "runtime.control_binary", url, {
                 method: selection ? "POST" : bytes ? "PUT" : "GET",
                 redirect: "error",
                 credentials: "omit",

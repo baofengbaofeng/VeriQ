@@ -18,6 +18,8 @@ from jsonschema import Draft202012Validator
 import httpx
 
 from ..contracts import canonical_bytes, validate_schema
+from ..logging_context import trace_headers
+from ..outbound import OutboundCall, outbound
 from ..service import Problem
 from .mapping import MappingBudget, complete_rows, invalid, map_response, pointer
 from .policy import BoundDataset, SecretResolver, unavailable
@@ -154,15 +156,29 @@ async def _page(
     # 调试过滤器使用任务局部状态保护整次读取，连接失败和异常取消也会恢复调用方的原始日志上下文。
     token = _WIRE_ACTIVE.set(True)
     try:
-        return await _read_page(transport, wire, remaining)
+        with outbound("http", "dataset.request", uri="dataset.read", method=wire.method) as call:
+            # Preserve authored headers, the wire budget and each retry's signed bytes.
+            headers = trace_headers(call.span)
+            size = sum(len(name) + len(value) + 4 for name, value in wire.headers.raw)
+            size += sum(len(name) + len(value) + 4 for name, value in headers.items())
+            inject = size <= 16384 and not any(header in wire.headers for header in headers)
+            if inject:
+                wire.headers.update(headers)
+            try:
+                return await _read_page(transport, wire, remaining, call)
+            finally:
+                if inject:
+                    for header in headers:
+                        del wire.headers[header]
     finally:
         _WIRE_ACTIVE.reset(token)
 
 
 async def _read_page(
-    transport: httpx.AsyncBaseTransport, wire: httpx.Request, remaining: int
+    transport: httpx.AsyncBaseTransport, wire: httpx.Request, remaining: int, call: OutboundCall
 ) -> tuple[object, int]:
     response = await transport.handle_async_request(wire)
+    call.status = response.status_code
     try:
         if not 200 <= response.status_code < 300:
             raise Problem(502, "DATASET_UPSTREAM_REJECTED", "Dataset upstream rejected the read")

@@ -6,6 +6,7 @@
  * 设备级凭证只通过受控请求正文和私有配置传递，不进入 URL、Cookie、命令参数或日志；开发与安装宿主共享校验和轮换协议，
  * 平台差异仅限本机文件权限与原子提交实现。
  */
+import { diagnosticFetch } from "./diagnostics.ts";
 import { chmod, open, lstat, mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { join, basename, dirname } from "node:path";
 import { privateDirectory, readBoundedFile, removePrivate } from "./offline/config.ts";
@@ -77,7 +78,7 @@ export class RuntimeClient {
             throw new RuntimeError("CONTROL_ORIGIN_MISMATCH", 0);
         let response: Response;
         try {
-            response = await fetch(this.server + path, {
+            response = await diagnosticFetch(fetch, "runtime.control_json", this.server + path, {
                 method,
                 redirect: "error",
                 credentials: "omit",
