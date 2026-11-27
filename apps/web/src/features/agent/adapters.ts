@@ -50,7 +50,7 @@ export class CloudAgentAdapter {
     session = (id: string, signal?: AbortSignal) =>
         request<AgentSchemas["AgentSessionDTO"]>(this.sessionPath(id), "GET", undefined, signal);
 
-    // 重命名只接受新的标题字段，服务端返回更新后的会话 DTO 供本地列表刷新。
+    // 重命名向指定会话提交新的标题字段，调用方用服务端返回的会话对象更新列表里对应的会话名称。
     renameSession = (id: string, data: AgentSchemas["AgentSessionRename"], signal?: AbortSignal) =>
         request<AgentSchemas["AgentSessionDTO"]>(this.sessionPath(id), "PATCH", data, signal);
 

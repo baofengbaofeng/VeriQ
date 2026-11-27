@@ -158,7 +158,7 @@ function withoutDeniedSessions(page: SessionPage, denied: ReadonlySet<string>): 
     return { ...page, items: page.items.filter((session) => !denied.has(session.id)) };
 }
 
-// 会话列表的相对时间标签，短格式展示即可。
+// 会话列表在一周内依次按分钟、小时和天数显示经过的时间，满一周后改用浏览器本地格式显示日期。
 function formatRelativeTime(iso: string): string {
     const minutes = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
     if (minutes < 1) return tx("Now");
@@ -296,7 +296,7 @@ function WorkspaceConversation({
         setSessionDenial(failure);
     }
 
-    // 显式重取授权列表，完成前继续隐藏已拒绝的会话，返回后仍由用户自行选择会话。
+    // 重试时同时读取活动和归档会话，两个列表均返回后才撤销本次拒绝标记，随后仍由用户自己选择会话。
     async function retrySessions() {
         if (retryingSessions.current || signal.aborted) {
             return;

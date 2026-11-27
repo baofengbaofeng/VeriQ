@@ -191,7 +191,7 @@
     align-self: end;
 }
 /*
- * 编辑时更多按钮共享右侧三列，新建时保留保存按钮单独置于最右列的表单布局。
+ * 宽布局下新建表单的保存按钮独占最右列，编辑表单出现多个相邻按钮时共用右侧三列以容纳操作。
  */
 .vq-ai-form-actions > .vq-ai-provider-buttons:has(> button + button) {
     grid-column: 3 / -1;

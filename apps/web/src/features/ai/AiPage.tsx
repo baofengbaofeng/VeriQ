@@ -384,7 +384,7 @@ export function AiWorkspaceView({
                                             ...current,
                                             reviewedRequest: undefined,
                                         }));
-                                        // 失败回执仍保留在输出区供复核，主动取消由历史显示，避免把它报告为失败。
+                                        // 仅 FAILED 显示失败反馈，取消时收起等待框，刷新历史后可查看该次生成的记录。
                                         if (g.status === "FAILED") {
                                             feedback.complete("failure", g.errorCode ?? t("generationFailed"));
                                         } else if (g.status === "SUCCEEDED") {

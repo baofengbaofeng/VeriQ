@@ -482,7 +482,7 @@ test("new dataset fields expose accessible guidance below each control", async (
 });
 
 /**
- * 逐个探测下拉项的指针可达性，确保弹窗中被覆盖的选项也和键盘交互一样可以操作。
+ * 逐项试点新建数据集对话框中的四种格式，核对下拉选项在模态层上方实际能收到指针事件。
  */
 test("dataset format options receive pointer events above the new dataset dialog", async ({ page }) => {
     await installed(page);

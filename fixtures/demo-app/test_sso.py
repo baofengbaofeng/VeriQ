@@ -95,7 +95,7 @@ def _load_fixture():
 
 # 两个独立监听及各自的应用在同一作用域收尾，保留明确命名的站点资源便于核对跨站测试没有混用连接或数据库。
 @asynccontextmanager
-async def _sites(directory, expiry_clock=None, *, sso=True):  # pylint: disable=too-many-locals
+async def _sites(directory, expiry_clock=None, *, sso=True):  # pylint: disable=too-many-locals  # 两站共同收尾
     demo = _load_fixture()
     server_context, client_context = _certificate(directory)
     app_sockets = bind_sockets(0, address="127.0.0.1")
@@ -157,7 +157,7 @@ async def _login(client, app_origin, idp_origin, password):
 @pytest.mark.asyncio
 async def test_fresh_sso_attempts_reach_employee_operations(
     tmp_path,
-):  # pylint: disable=too-many-locals
+):  # pylint: disable=too-many-locals  # 分别核对两次登录与员工操作
     """两次独立 Cookie 容器都必须实际经过登录页和回调，业务页面、身份接口及持久化员工操作依赖真实登录结果。"""
     async with _sites(tmp_path) as (app, idp, password, _, fixture_token, cert_context):
         client = _client(cert_context)

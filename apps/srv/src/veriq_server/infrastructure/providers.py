@@ -588,5 +588,5 @@ class ProviderGateway:
         """工具执行兜底：任何异常都转为结构化错误回填给模型，避免单次工具失败打断整个对话循环。"""
         try:
             return await execute(name, arguments)
-        except Exception as error:  # noqa: BLE001 - 工具结果始终不可信，异常统一转错误正文
+        except Exception as error:  # noqa: BLE001 - AGENT_TOOL_ERROR 仅回传 type(error).__name__
             return {"error": "AGENT_TOOL_ERROR", "message": type(error).__name__}

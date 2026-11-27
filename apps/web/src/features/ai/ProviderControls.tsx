@@ -221,7 +221,7 @@ export function WorkspaceAiProviders({ workspace }: { workspace: Workspace }) {
     const view = useTableView(filtered, { matches: matchesProvider, scope: workspace.id });
 
     /**
-     * 页面和下载共用已用及可用额度的文案，导出的列仍与列表中展示的预算摘要保持一致。
+     * 预算列和下载文件使用同一摘要，按相同顺序列出已用估算金额和可用金额，并采用当前语言的标签。
      */
     const providerBudget = (provider: Provider) =>
         `${t("used")} ${provider.budget.estimatedUsedUsd} · ${t("available")} ${provider.budget.availableUsd}`;

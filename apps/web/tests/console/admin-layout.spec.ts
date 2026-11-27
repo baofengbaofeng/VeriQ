@@ -189,7 +189,7 @@ test("dataset JSON editor tracks viewport height and keeps draft actions visible
     await expect(panel.getByText(/Unapplied JSON changes/u)).toBeVisible();
     const baseline = await editorHost.evaluate((element) => element.clientHeight);
 
-    // 比较实际编辑器节点与窗口高度的变化量，同时检查每个操作无需滚动即可完整显示。
+    // 先调高再还原窗口，按实际编辑器节点核对高度变化量，并验证操作按钮在两种高度下都完整可见。
     for (const height of [800, 1000, 800]) {
         await page.setViewportSize({ width: 1280, height });
         await expect
@@ -222,7 +222,7 @@ test("dataset JSON editor tracks viewport height and keeps draft actions visible
     await expect(sourceText).toContainText("Scroll sample 0");
     expect(await compile.boundingBox()).toEqual(anchored);
 
-    // 中文标签沿用同一布局，切换语言后分别确认五个按钮的完整边界仍在当前视口内。
+    // 切换到中文后按译名逐一定位编辑区的五个操作按钮，确认每个按钮的完整边界仍位于当前视口内。
     await chooseLanguage(page, "zh");
     const translated = page.getByRole("tabpanel", { name: "数据（JSON）", exact: true });
     for (const name of ["放弃 JSON 更改", "应用 JSON", "保存草稿", "编译校验", "发布版本"]) {
@@ -230,7 +230,7 @@ test("dataset JSON editor tracks viewport height and keeps draft actions visible
     }
     await expect(translated.locator(".vq-monaco .view-lines")).toContainText("Viewport draft sentinel");
 
-    // 在更矮的窗口中仍保留可编辑区域，末尾草稿操作可以通过滚动到达，不会被视口裁掉。
+    // 缩短窗口后检查编辑器仍有足够的可编辑高度，再将保存草稿按钮滚入视口，确认可以完整访问该操作。
     await page.setViewportSize({ width: 1280, height: 420 });
     const compactEditor = translated.locator(".vq-monaco .monaco-editor");
     const compactHeight = () => compactEditor.evaluate((element) => element.clientHeight);

@@ -2064,7 +2064,7 @@ test("closing automatic dataset JSON publication stops before the write", async 
             await publish.click();
             const job = await queued;
             expect(job.status(), await job.text()).toBe(202);
-            // 已入队后才安装屏障，因此首个被暂缓的预览属于收到回执后的最终检查。
+            // 先等待编译任务入队，再暂缓下一次预览响应，使关闭等待框的断言只覆盖编译回执之后的最终检查。
             preview = await holdValidationReceipt(page, (url) => url.pathname === `${source}/validation-preview`);
             await compiler.compile();
             await preview.holding();

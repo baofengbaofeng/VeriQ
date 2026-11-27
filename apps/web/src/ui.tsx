@@ -123,7 +123,7 @@ export function useAction() {
                 await fn((message, onDismiss) => {
                     if (!dialog || succeeded || !current() || options?.signal?.aborted || waitingClosed) return false;
                     succeeded = true;
-                    // 等待项使用同一个弹窗切换终态；需要关闭后再交付内容的动作继续使用原有完成回调。
+                    // 等待提示可在原弹窗内显示成功结果，若调用方须在关闭后交付内容，则保留独立成功弹窗的关闭回调。
                     if (waiting && !onDismiss) {
                         waiting.complete("success", message);
                     } else {

@@ -337,7 +337,7 @@ function Thread({
         void act("send", async () => {
             const attachments = await encodeAgentAttachments(files, signal);
             const data = await agentSubmission(retryKey, messageText, { ...opts, attachments }, signal);
-            // 确认是确定性即时路径，继续用非流式提交；普通文本走 SSE 流式逐段展示。
+            // 确认提案使用普通提交以便处理提案已被替换的响应，普通消息使用 SSE 逐段展示本轮回复。
             if (opts.confirmation) {
                 const turn = await adapter.submit(id, data, signal).catch(async (failure: unknown) => {
                     if (
@@ -490,7 +490,7 @@ function Thread({
             setCopiedKey(key);
             setTimeout(() => setCopiedKey(""), 1500);
         } catch {
-            // 剪贴板不可用时静默忽略，避免打断对话流程。
+            // 只有写入剪贴板成功才显示短暂的复制提示，浏览器拒绝访问时保留当前会话内容并允许用户继续操作。
         }
     }
 
