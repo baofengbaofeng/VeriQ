@@ -4,6 +4,7 @@ from ..credentials.service import CredentialService, configured_keyring, version
 from ..db import SecretVersion
 from ..service import Problem, lock_installation
 from ..pagination import Page
+from ..services.agent_form_receipts import FORM_ORIGIN_HEADER, record_form_receipt
 from .base import API
 
 
@@ -81,10 +82,24 @@ class CredentialAPI(API):
             scope = WorkspaceScope(workspace_id)
             if self.action == "credential-revoke":
                 assert secret_ref and version_id
-                result = await service.revoke(scope, secret_ref, version_id)
+                result = await service.revoke(
+                    scope,
+                    secret_ref,
+                    version_id,
+                    form_origin=self.request.headers.get(FORM_ORIGIN_HEADER),
+                )
             else:
                 result = await service.create(
                     scope, secret_ref or data["secretRef"], data, new=self.action == "credentials"
+                )
+                await record_form_receipt(
+                    session,
+                    self.request.headers.get(FORM_ORIGIN_HEADER),
+                    user,
+                    workspace_id,
+                    action="credential.version.created",
+                    target_id=result["versionId"],
+                    capability="AUTH_CREDENTIALS",
                 )
         self.respond(result, 200 if self.action == "credential-revoke" else 201)
 
@@ -201,6 +216,7 @@ class AuthAdapterAPI(API):
                 ).scalar_one_or_none()
                 if row is None:
                     raise Problem(404, "AUTH_ADAPTER_NOT_FOUND", "Authentication adapter not found")
+                changed = not row.revoked
                 row.revoked = True
             else:
                 config = data["configuration"]
@@ -220,6 +236,16 @@ class AuthAdapterAPI(API):
                 row.id,
                 workspace_id=workspace_id,
             )
+            if not version_id or changed:
+                await record_form_receipt(
+                    session,
+                    self.request.headers.get(FORM_ORIGIN_HEADER),
+                    user,
+                    workspace_id,
+                    action="auth_adapter.revoked" if version_id else "auth_adapter.created",
+                    target_id=row.id,
+                    capability="AUTH_CREDENTIALS",
+                )
             result = {**adapter_dto(row), "revoked": row.revoked}
         self.respond(result, 200 if version_id else 201)
 

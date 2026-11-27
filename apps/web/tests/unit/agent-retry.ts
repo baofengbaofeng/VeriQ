@@ -113,3 +113,20 @@ test("attachment identity binds request replay without persisting the selected f
     assert.notEqual(second.requestId, first.requestId);
     assert.match(storage.getItem(key) ?? "", /^[a-f0-9]{64}\/[a-f0-9-]{36}\/$/);
 });
+
+test("delegation choices bind request replay and automatic turns keep the original request shape", async (context) => {
+    sessionFixture(context);
+    const key = "veriq.agent.retry/delegation";
+    const signal = new AbortController().signal;
+    const send = (delegationMode?: "MAIN" | "SUBAGENT") =>
+        agentSubmission(key, "Follow this run", { confirmation: false, delegationMode }, signal);
+    const automatic = await send();
+    assert.deepEqual(automatic, { requestId: automatic.requestId, text: "Follow this run" });
+    const delegated = await send("SUBAGENT");
+    assert.equal(delegated.delegationMode, "SUBAGENT");
+    assert.notEqual(delegated.requestId, automatic.requestId);
+    assert.deepEqual(await send("SUBAGENT"), delegated);
+    const main = await send("MAIN");
+    assert.equal(main.delegationMode, "MAIN");
+    assert.notEqual(main.requestId, delegated.requestId);
+});

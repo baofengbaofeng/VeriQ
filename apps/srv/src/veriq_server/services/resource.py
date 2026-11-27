@@ -22,6 +22,7 @@ from ..settings import Settings
 from ..db import Resource, ResourceDraft, ResourceVersion, User, Job
 from ..repositories.resource import ResourceRepository
 from ..service import Problem, audit, now, stamp
+from .agent_form_receipts import record_form_receipt
 from .snapshots import case_step_lists
 from .workspace import WorkspaceRepository
 
@@ -274,6 +275,7 @@ class ResourceService:
         *,
         engine_version: str = ENGINE_VERSION,
         settings: Settings | None = None,
+        form_origin: str | None = None,
     ):
         """注入会话、用户、设置与身份注册表，供授权与冻结引用，ResourceService.__init__ 遵守本文件边界，失败返回稳定
         Problem。
@@ -286,6 +288,31 @@ class ResourceService:
         # 也不把候选选择解释为已获批准的执行发行。
         self.engine_version = engine_version
         self.settings = settings
+        self.form_origin = form_origin
+
+    async def record_draft_form(
+        self, draft: ResourceDraft, action: str, *, previous_http: bool = False
+    ) -> None:
+        """仅在已保存的环境、夹具或连接数据集上关联员工表单，回执只写入业务标识和修订；编辑器正文不会复制到对话。"""
+        if self.form_origin is None:
+            return
+        content = draft.document_json
+        capability = content["kind"]
+        if capability == "DATASET" and (
+            previous_http or content["document"].get("source", {}).get("kind") == "HTTP"
+        ):
+            capability = "HTTP_DATASET"
+        if capability in {"ENVIRONMENT", "FIXTURE", "HTTP_DATASET"}:
+            await record_form_receipt(
+                self.session,
+                self.form_origin,
+                self.user,
+                draft.workspace_id,
+                action=action,
+                target_id=draft.resource_id,
+                capability=capability,
+                revision=draft.revision,
+            )
 
     async def authorize(
         self,
@@ -350,6 +377,7 @@ class ResourceService:
                 "name": data["name"],
                 "content": content,
             },
+            copied=True,
         )
         audit(
             self.session,
@@ -376,7 +404,9 @@ class ResourceService:
             if any(h.lower() == target.signature_header.lower() for h in source["headers"]):
                 raise _forbidden_header()
 
-    async def create(self, scope: WorkspaceScope, data: dict[str, Any]) -> dict[str, Any]:
+    async def create(
+        self, scope: WorkspaceScope, data: dict[str, Any], *, copied: bool = False
+    ) -> dict[str, Any]:
         """在 Workspace 内创建资源头与初始草稿，key 冲突返回 Problem，ResourceService.create 遵守本文件边界。
         create 实现于 apps/srv/src/veriq_server/services/resource.py：请按该符号的输入校验、错误码与调用方契约阅读，
         勿假设通用成功默认值。
@@ -428,16 +458,15 @@ class ResourceService:
         )
         self.session.add(resource)
         await self.session.flush()
-        self.session.add(
-            ResourceDraft(
-                resource_id=resource.id,
-                workspace_id=scope.workspace_id,
-                revision=1,
-                document_json=data["content"],
-                updated_by=self.user.id,
-                updated_at=now(),
-            )
+        draft = ResourceDraft(
+            resource_id=resource.id,
+            workspace_id=scope.workspace_id,
+            revision=1,
+            document_json=data["content"],
+            updated_by=self.user.id,
+            updated_at=now(),
         )
+        self.session.add(draft)
         audit(
             self.session,
             "resource.created",
@@ -445,6 +474,7 @@ class ResourceService:
             resource.id,
             workspace_id=scope.workspace_id,
         )
+        await self.record_draft_form(draft, "dataset.copied" if copied else "resource.created")
         return resource_dto(resource)
 
     async def update_draft(
@@ -465,6 +495,11 @@ class ResourceService:
         if draft.revision >= 9007199254740991:
             raise Problem(409, "REVISION_LIMIT", "Draft revision limit reached")
         draft.revision += 1
+        previous_http = (
+            self.form_origin is not None
+            and resource.kind == "DATASET"
+            and draft.document_json.get("document", {}).get("source", {}).get("kind") == "HTTP"
+        )
         draft.document_json, draft.updated_by, draft.updated_at = document, self.user.id, now()
         audit(
             self.session,
@@ -473,6 +508,7 @@ class ResourceService:
             resource.id,
             workspace_id=scope.workspace_id,
         )
+        await self.record_draft_form(draft, "resource.draft_updated", previous_http=previous_http)
         return draft_dto(draft)
 
     @staticmethod
@@ -687,4 +723,5 @@ class ResourceService:
             resource_id,
             workspace_id=scope.workspace_id,
         )
+        await self.record_draft_form(draft, "resource.validation_queued")
         return job_dto(job)

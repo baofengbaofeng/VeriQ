@@ -7,12 +7,21 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.authorization import Permission, WorkspaceScope
-from ..db import AgentTurn, ExecutionPlan, ResourceVersion, User
+from ..db import AgentSession, AgentTurn, ExecutionPlan, ResourceVersion, User
 from ..repositories.resource import ResourceRepository
 from ..service import Problem
+from ..settings import Settings
 from ..validation import validate_api
 from .agent_context import safe_plan
+from .agent_resource_batch import RESOURCE_BATCH_ACTION, save_resource_batch
 from .agent_resource_drafts import RESOURCE_ACTION, save_resource_draft
+from .agent_resource_lifecycle import (
+    RESOURCE_LIFECYCLE_ACTIONS,
+    apply_resource_lifecycle,
+    authorize_resource_lifecycle,
+)
+from .agent_run_operations import RUN_ACTIONS, apply_run_operation
+from .agent_tasks import follow_run
 from .execution_plan import ExecutionPlanService, TriggerService
 from .runtime import RuntimeService
 from .runs import RunService, selected_axes
@@ -193,25 +202,70 @@ async def current_selection(
 
 
 async def apply_proposal(
-    s: AsyncSession, scope: WorkspaceScope, user: User, turn: AgentTurn
+    s: AsyncSession, scope: WorkspaceScope, user: User, turn: AgentTurn, settings: Settings
 ) -> dict[str, Any]:
     """以具体提议轮次的稳定身份应用操作，先验证当前权限再复用回执；首次确认与领域变更在调用方同一事务提交。"""
     action = turn.proposal or turn.receipt
     if turn.status != "COMPLETED" or not action:
         raise Problem(409, "AGENT_NO_PROPOSAL", "There is no reviewed action to confirm")
     kind = action["type"]
-    permission = Permission.EDIT if kind in {"SAVE_PLAN", RESOURCE_ACTION} else Permission.EXECUTE
-    await WorkspaceRepository(s, scope).authorize(user, permission, write=True)
+    if kind in RESOURCE_LIFECYCLE_ACTIONS:
+        await authorize_resource_lifecycle(s, scope, user, action)
+    else:
+        permission = (
+            Permission.EDIT
+            if kind in {"SAVE_PLAN", RESOURCE_ACTION, RESOURCE_BATCH_ACTION}
+            else Permission.EXECUTE
+        )
+        await WorkspaceRepository(s, scope).authorize(user, permission, write=True)
     if turn.receipt:
         return turn.receipt
     if kind == RESOURCE_ACTION:
         receipt = await save_resource_draft(s, scope, user, action)
+    elif kind == RESOURCE_BATCH_ACTION:
+        receipt = await save_resource_batch(s, scope, user, action)
+    elif kind in RESOURCE_LIFECYCLE_ACTIONS:
+        receipt = await apply_resource_lifecycle(s, scope, user, action, settings)
+    elif kind in RUN_ACTIONS:
+        receipt = await apply_run_operation(s, scope, user, turn.id, action)
     else:
         receipt = await _apply_execution(s, scope, user, turn.id, action)
     validate_api("AgentReceipt", receipt)
     turn.receipt = receipt
     turn.related_run_id = receipt.get("runId")
+    if kind in {"RUN_ONCE", "TRIGGER_PLAN", "RERUN_RUN"} and turn.related_run_id:
+        await _follow_confirmed_run(s, user, turn, action)
     return receipt
+
+
+async def _follow_confirmed_run(
+    s: AsyncSession, user: User, turn: AgentTurn, action: dict[str, Any]
+) -> None:
+    """员工审阅过的委派方式优先于模型建议，自动跟踪达到当前容量上限时，仍提交已经获准的真实运行回执。"""
+    mode = turn.delegation_mode
+    if mode in {None, "MAIN"} or (mode == "AUTO" and action.get("delegateRun") is False):
+        return
+    owner = await s.get(AgentSession, turn.session_id)
+    if owner is None or turn.related_run_id is None:
+        raise _invalid()
+    # 先把父运行写入当前事务，再插入跟踪任务。手动运行和计划触发均以此顺序满足外键约束，并保持提交的原子性。
+    await s.flush()
+    try:
+        await follow_run(
+            s,
+            owner,
+            user,
+            turn.id,
+            turn.related_run_id,
+            "MANUAL" if mode == "SUBAGENT" else "AUTO",
+            analyze=action.get("analyzeRun", False),
+            from_turn=True,
+        )
+    except Problem as problem:
+        if problem.code != "AGENT_TASK_ALREADY_FOLLOWING" and (
+            mode != "AUTO" or problem.code != "AGENT_TASK_LIMIT"
+        ):
+            raise
 
 
 async def _apply_execution(

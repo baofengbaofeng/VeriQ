@@ -8,7 +8,7 @@ import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { PlatformComponents } from "@veriq/contracts";
 import { Auth } from "../../auth-context";
-import { ApiError, request, runtimeApi, type Workspace } from "../../api";
+import { ApiError, inheritAgentFormSignal, request, runtimeApi, type Workspace } from "../../api";
 import { Button } from "../../components/Button";
 import { Field } from "../../components/Field";
 import { Select, SelectItem } from "../../components/Select";
@@ -17,6 +17,7 @@ import { canExportWorkspaceTable, collectTablePages, DataTable, useTableView } f
 import { Panel, useAction } from "../../ui";
 import { useWorkspaceDirectory, WorkspaceStatus } from "../workspaces/WorkspaceDirectory";
 import { useWorkspace } from "../workspaces/WorkspaceContext";
+import type { WorkspaceCapability } from "../agent/workspace-forms";
 import { CloudResourceAdapter } from "../resources/adapters";
 import "./execution-plans.css";
 type S = PlatformComponents["schemas"];
@@ -37,13 +38,18 @@ const UNSELECTED = "unselected";
 /**
  * 执行计划只接收当前目录已授权的工作区；页面以用户与空间为键，链接中的计划标识仅对该空间有效。
  */
-export function ExecutionPlansPage() {
+export function ExecutionPlansPage({ capability }: { capability?: WorkspaceCapability } = {}) {
     useAppLocale();
     const { user } = useContext(Auth);
     const { workspace, requested } = useWorkspaceDirectory();
-    const { selected } = useWorkspace();
+    const { selected, signal } = useWorkspace();
     const [params] = useSearchParams();
     if (!user) return <Navigate to="/login" />;
+    if (capability) {
+        if (capability !== "CI_PLAN_TOKENS" || !workspace || !signal) return null;
+        if (workspace.archived || !["OWNER", "ADMIN"].includes(workspace.role)) return null;
+        return <PlanTokenForm key={user.id + selected} workspaceId={workspace.id} signal={signal} />;
+    }
     return (
         <Panel title={tx("执行计划")}>
             <WorkspaceStatus />
@@ -172,6 +178,46 @@ function VersionSelector({
     );
 }
 
+function usePlanList(workspaceId: string, signal: AbortSignal) {
+    return useQuery({
+        queryKey: ["workspace", workspaceId, "plans"],
+        queryFn: ({ signal: q }) =>
+            collectTablePages(
+                (cursor, activeSignal) =>
+                    request<Page<Plan>>(
+                        `/workspaces/${workspaceId}/execution-plans` +
+                            (cursor ? "?cursor=" + encodeURIComponent(cursor) : ""),
+                        "GET",
+                        undefined,
+                        activeSignal,
+                    ),
+                AbortSignal.any([signal, q]),
+            ),
+    });
+}
+
+/**
+ * 从计划令牌卡片只进入服务账号面板。签发时可选计划直接来自当前空间的计划列表，避免请求运行或资源编辑数据。
+ */
+function PlanTokenForm({ workspaceId, signal }: { workspaceId: string; signal: AbortSignal }) {
+    const plans = usePlanList(workspaceId, signal);
+    if (plans.isPending) return <p role="status">{tx("加载计划 / Loading plans…")}</p>;
+    if (plans.isError)
+        return (
+            <p role="alert">
+                {plans.error.message} <Button onClick={() => void plans.refetch()}>{tx("Retry")}</Button>
+            </p>
+        );
+    return (
+        <ServiceAccounts
+            workspace={workspaceId}
+            plans={plans.data.filter((plan) => !plan.archived)}
+            signal={signal}
+            executionOnly
+        />
+    );
+}
+
 /**
  * 计划管理表单只发送明确选择，运行触发保留一次操作的幂等键供网络重试；服务端冲突会原样显示并保留用户输入，查询和轮询在
  * 页面卸载时取消，旧空间结果不会更新新空间的状态。
@@ -181,9 +227,17 @@ function PlanWorkspace({ workspace, requestedPlanId }: { workspace: Workspace; r
     const base = `/workspaces/${workspace.id}`,
         cache = useQueryClient();
     const { busy, error, submit: act } = useAction();
+    const { signal: workspaceSignal } = useWorkspace();
     const controller = useMemo(() => new AbortController(), []);
     useEffect(() => () => controller.abort(), [controller]);
-    const signal = controller.signal;
+    const signal = useMemo(
+        () =>
+            inheritAgentFormSignal(
+                workspaceSignal ? AbortSignal.any([controller.signal, workspaceSignal]) : controller.signal,
+                workspaceSignal,
+            ),
+        [controller, workspaceSignal],
+    );
     const canEdit = !workspace.archived && ["OWNER", "ADMIN", "EDITOR"].includes(workspace.role);
     const canExecute = !workspace.archived && workspace.role !== "VIEWER";
     const [editing, setEditing] = useState<Plan | null>(null),
@@ -198,20 +252,7 @@ function PlanWorkspace({ workspace, requestedPlanId }: { workspace: Workspace; r
         [retries, setRetries] = useState(0),
         [receipt, setReceipt] = useState<S["TriggerReceipt"] | null>(null);
     const triggerKey = useRef<{ plan: string; key: string }>();
-    const plans = useQuery({
-        queryKey: ["workspace", workspace.id, "plans"],
-        queryFn: ({ signal: q }) =>
-            collectTablePages(
-                (cursor, activeSignal) =>
-                    request<Page<Plan>>(
-                        base + "/execution-plans" + (cursor ? "?cursor=" + encodeURIComponent(cursor) : ""),
-                        "GET",
-                        undefined,
-                        activeSignal,
-                    ),
-                AbortSignal.any([signal, q]),
-            ),
-    });
+    const plans = usePlanList(workspace.id, signal);
     const runtimes = useInfiniteQuery({
         queryKey: ["workspace", workspace.id, "plan-runtimes"],
         queryFn: ({ pageParam, signal: q }) => runtimeApi.list(workspace.id, pageParam, AbortSignal.any([signal, q])),
@@ -703,7 +744,17 @@ function PlanWorkspace({ workspace, requestedPlanId }: { workspace: Workspace; r
  * 服务身份管理仅把一次性签发值留在本组件内存，关闭显示、切换账号或卸载即清除，分页缓存只保存账号和令牌元数据；签发用途
  * 分别限定维护操作、执行计划或短期设备登记，避免用途混用。
  */
-function ServiceAccounts({ workspace, plans, signal }: { workspace: string; plans: Plan[]; signal: AbortSignal }) {
+function ServiceAccounts({
+    workspace,
+    plans,
+    signal,
+    executionOnly = false,
+}: {
+    workspace: string;
+    plans: Plan[];
+    signal: AbortSignal;
+    executionOnly?: boolean;
+}) {
     const { language } = useAppLocale();
     const feedback = useOperationFeedback();
     const base = `/workspaces/${workspace}/service-accounts`,
@@ -757,7 +808,8 @@ function ServiceAccounts({ workspace, plans, signal }: { workspace: string; plan
         ]
             .filter(Boolean)
             .join(" · ");
-    const tokenView = useTableView(tokens.data ?? [], {
+    const visibleTokens = executionOnly ? tokens.data?.filter((token) => token.purpose === "EXECUTION") : tokens.data;
+    const tokenView = useTableView(visibleTokens ?? [], {
         scope: account,
         matches: (token, term) =>
             [
@@ -921,31 +973,33 @@ function ServiceAccounts({ workspace, plans, signal }: { workspace: string; plan
                             });
                         }}
                     >
-                        <Field
-                            label={tx("Token purpose")}
-                            hint={tx("Select the permitted use before issuing a token.")}
-                            htmlFor="plan-token-purpose"
-                            required
-                        >
-                            <Select
-                                id="plan-token-purpose"
-                                appearance="default-dropdown"
+                        {!executionOnly && (
+                            <Field
+                                label={tx("Token purpose")}
+                                hint={tx("Select the permitted use before issuing a token.")}
+                                htmlFor="plan-token-purpose"
                                 required
-                                disabled={busy}
-                                value={purpose}
-                                onValueChange={(next) => {
-                                    setPurpose(next as S["ServiceTokenDTO"]["purpose"]);
-                                    setScopes([]);
-                                    setDelivery(undefined);
-                                }}
                             >
-                                {TOKEN_PURPOSES.map((value) => (
-                                    <SelectItem key={value} value={value}>
-                                        {tx(`Token purpose: ${value}`)}
-                                    </SelectItem>
-                                ))}
-                            </Select>
-                        </Field>
+                                <Select
+                                    id="plan-token-purpose"
+                                    appearance="default-dropdown"
+                                    required
+                                    disabled={busy}
+                                    value={purpose}
+                                    onValueChange={(next) => {
+                                        setPurpose(next as S["ServiceTokenDTO"]["purpose"]);
+                                        setScopes([]);
+                                        setDelivery(undefined);
+                                    }}
+                                >
+                                    {TOKEN_PURPOSES.map((value) => (
+                                        <SelectItem key={value} value={value}>
+                                            {tx(`Token purpose: ${value}`)}
+                                        </SelectItem>
+                                    ))}
+                                </Select>
+                            </Field>
+                        )}
                         <p>
                             {purpose === "RUNTIME_ENROLLMENT"
                                 ? tx("10 分钟内一次登记 / One enrollment within 10 minutes")
@@ -1026,7 +1080,7 @@ function ServiceAccounts({ workspace, plans, signal }: { workspace: string; plan
                         </section>
                     )}
                     {tokens.isPending && <p role="status">{tx("Loading tokens…")}</p>}
-                    {(tokens.isSuccess || !!tokens.data?.length) && (
+                    {(tokens.isSuccess || !!visibleTokens?.length) && (
                         <DataTable
                             label={tx("Service tokens")}
                             view={tokenView}
@@ -1063,7 +1117,7 @@ function ServiceAccounts({ workspace, plans, signal }: { workspace: string; plan
                                             <tr>
                                                 <td className="vq-table-empty" colSpan={7}>
                                                     {tx(
-                                                        tokens.data?.length
+                                                        visibleTokens?.length
                                                             ? "No matching service tokens."
                                                             : "No tokens issued for this account.",
                                                     )}

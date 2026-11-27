@@ -3,8 +3,8 @@
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0026_resource_creation_identity"
-down_revision = "0025_file_volume"
+revision = "0028_resource_creation_identity"
+down_revision = "0027_agent_form_receipts"
 branch_labels = None
 depends_on = None
 

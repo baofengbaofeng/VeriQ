@@ -2020,6 +2020,56 @@ export type StaticDatasetSelection =
 export type AgentAttachmentMediaType = "text/plain" | "text/markdown" | "text/csv" | "image/png" | "image/jpeg";
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "AgentDelegationMode".
+ */
+export type AgentDelegationMode = "AUTO" | "SUBAGENT" | "MAIN";
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "AgentDraftOperations".
+ */
+export type AgentDraftOperations =
+  | {
+      type: "CANCEL_RUN" | "RERUN_RUN";
+      sourceRunId: Id;
+    }
+  | {
+      type: "VALIDATE_RESOURCE";
+      resourceId: Id;
+      revision: number;
+    }
+  | {
+      type: "PUBLISH_RESOURCE";
+      resourceId: Id;
+      revision: number;
+      validationJobId: Id;
+    };
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "AgentWorkspaceCapability".
+ */
+export type AgentWorkspaceCapability =
+  | "ENVIRONMENT"
+  | "FIXTURE"
+  | "HTTP_DATASET"
+  | "AUTH_CREDENTIALS"
+  | "DEVICE_ACCESS"
+  | "DEVICE_CREDENTIAL_DELIVERY"
+  | "CI_PLAN_TOKENS"
+  | "WORKSPACE_MEMBERS"
+  | "AI_PROVIDERS"
+  | "NOTIFICATION_INBOX"
+  | "WORKSPACE_ARCHIVE"
+  | "REPORT_EVIDENCE"
+  | "WORKSPACE_AUDIT"
+  | "LOCAL_RETENTION";
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "AgentConfigurableResourceKind".
+ */
+export type AgentConfigurableResourceKind =
+  "CASE" | "SUITE" | "DATASET" | "ELEMENT_CATALOG" | "ASSERTION_TEMPLATE" | "FLOW";
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
  * via the `definition` "AgentRunSelection".
  */
 export type AgentRunSelection =
@@ -2109,12 +2159,6 @@ export type AgentRunSelection =
     };
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
- * via the `definition` "AgentConfigurableResourceKind".
- */
-export type AgentConfigurableResourceKind =
-  "CASE" | "SUITE" | "DATASET" | "ELEMENT_CATALOG" | "ASSERTION_TEMPLATE" | "FLOW";
-/**
- * This interface was referenced by `ContractDefinitions`'s JSON-Schema
  * via the `definition` "AgentProposal".
  */
 export type AgentProposal =
@@ -2132,14 +2176,31 @@ export type AgentProposal =
         buildSha?: string;
         reason?: string;
       };
+      delegateRun?: boolean;
+      analyzeRun?: boolean;
     }
   | {
       type: "RUN_ONCE";
       selection: AgentRunSelection;
       planId?: Id;
       planRevision?: number;
+      delegateRun?: boolean;
+      analyzeRun?: boolean;
     }
-  | AgentResourceDraftProposal;
+  | AgentResourceDraftProposal
+  | {
+      type: "CANCEL_RUN";
+      sourceRunId: Id;
+      sourceSnapshotHash: string;
+    }
+  | {
+      type: "RERUN_RUN";
+      sourceRunId: Id;
+      sourceSnapshotHash: string;
+    }
+  | AgentValidateResourceProposal
+  | AgentPublishResourceProposal
+  | AgentResourceBatchProposal;
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
  * via the `definition` "AgentReceipt".
@@ -2161,12 +2222,19 @@ export type AgentReceipt =
       type: "RUN_ONCE";
       runId: Id;
     }
+  | AgentResourceDraftReceipt
+  | AgentValidateResourceReceipt
+  | AgentPublishResourceReceipt
   | {
-      type: "SAVE_RESOURCE_DRAFT";
-      resourceId: Id;
-      revision: number;
-      kind: AgentConfigurableResourceKind;
-    };
+      type: "CANCEL_RUN";
+      runId: Id;
+    }
+  | {
+      type: "RERUN_RUN";
+      sourceRunId: Id;
+      runId: Id;
+    }
+  | AgentResourceBatchReceipt;
 
 export interface ContractDefinitions {
   Id?: Id;
@@ -2345,6 +2413,21 @@ export interface ContractDefinitions {
   AgentAttachmentMediaType?: AgentAttachmentMediaType;
   AgentAttachmentUpload?: AgentAttachmentUpload;
   AgentAttachmentDTO?: AgentAttachmentDTO;
+  AgentTask?: AgentTask;
+  AgentTaskCreate?: AgentTaskCreate;
+  AgentTaskCollection?: AgentTaskCollection;
+  AgentDelegationMode?: AgentDelegationMode;
+  AgentValidateResourceProposal?: AgentValidateResourceProposal;
+  AgentPublishResourceProposal?: AgentPublishResourceProposal;
+  AgentValidateResourceReceipt?: AgentValidateResourceReceipt;
+  AgentPublishResourceReceipt?: AgentPublishResourceReceipt;
+  AgentDraftOperations?: AgentDraftOperations;
+  AgentWorkspaceCapability?: AgentWorkspaceCapability;
+  AgentWorkspaceForm?: AgentWorkspaceForm;
+  AgentWorkspaceFormReceipt?: AgentWorkspaceFormReceipt;
+  AgentResourceBatchProposal?: AgentResourceBatchProposal;
+  AgentResourceDraftReceipt?: AgentResourceDraftReceipt;
+  AgentResourceBatchReceipt?: AgentResourceBatchReceipt;
   AgentTurnSubmit?: AgentTurnSubmit;
   AgentPlanPreview?: AgentPlanPreview;
   AgentRunSelection?: AgentRunSelection;
@@ -3929,6 +4012,180 @@ export interface AgentAttachmentDTO {
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "AgentTask".
+ */
+export interface AgentTask {
+  id: Id;
+  runId: Id;
+  state: "QUEUED" | "FOLLOWING" | "COMPLETED" | "STOPPED" | "FAILED" | "ANALYZING";
+  mode: "MANUAL" | "AUTO";
+  outcome?: string;
+  errorCode?: string;
+  analysis?: {
+    basis: string;
+    /**
+     * @maxItems 30
+     */
+    suggestions: string[];
+  };
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "AgentTaskCreate".
+ */
+export interface AgentTaskCreate {
+  requestId: Id;
+  runId: Id;
+  analyze?: boolean;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "AgentTaskCollection".
+ */
+export interface AgentTaskCollection {
+  /**
+   * @maxItems 100
+   */
+  items: AgentTask[];
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "AgentValidateResourceProposal".
+ */
+export interface AgentValidateResourceProposal {
+  type: "VALIDATE_RESOURCE";
+  resourceId: Id;
+  revision: number;
+  sourceHash: Sha256;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "AgentPublishResourceProposal".
+ */
+export interface AgentPublishResourceProposal {
+  type: "PUBLISH_RESOURCE";
+  resourceId: Id;
+  revision: number;
+  sourceHash: Sha256;
+  validationJobId: Id;
+  validationReceiptId: Id;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "AgentValidateResourceReceipt".
+ */
+export interface AgentValidateResourceReceipt {
+  type: "VALIDATE_RESOURCE";
+  resourceId: Id;
+  revision: number;
+  sourceHash: Sha256;
+  validationJobId: Id;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "AgentPublishResourceReceipt".
+ */
+export interface AgentPublishResourceReceipt {
+  type: "PUBLISH_RESOURCE";
+  resourceId: Id;
+  revision: number;
+  sourceHash: Sha256;
+  validationJobId: Id;
+  validationReceiptId: Id;
+  versionId: Id;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "AgentWorkspaceForm".
+ */
+export interface AgentWorkspaceForm {
+  type: "OPEN_WORKSPACE_FORM";
+  workspaceId: Id;
+  capability: AgentWorkspaceCapability;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "AgentWorkspaceFormReceipt".
+ */
+export interface AgentWorkspaceFormReceipt {
+  id: Id;
+  action: string;
+  capability: AgentWorkspaceCapability;
+  targetId: Id;
+  revision?: number;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "AgentResourceBatchProposal".
+ */
+export interface AgentResourceBatchProposal {
+  type: "SAVE_RESOURCE_DRAFTS";
+  /**
+   * @minItems 2
+   * @maxItems 5
+   */
+  items:
+    | [AgentResourceDraftProposal, AgentResourceDraftProposal]
+    | [AgentResourceDraftProposal, AgentResourceDraftProposal, AgentResourceDraftProposal]
+    | [AgentResourceDraftProposal, AgentResourceDraftProposal, AgentResourceDraftProposal, AgentResourceDraftProposal]
+    | [
+        AgentResourceDraftProposal,
+        AgentResourceDraftProposal,
+        AgentResourceDraftProposal,
+        AgentResourceDraftProposal,
+        AgentResourceDraftProposal
+      ];
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "AgentResourceDraftProposal".
+ */
+export interface AgentResourceDraftProposal {
+  type: "SAVE_RESOURCE_DRAFT";
+  resource: {
+    kind: AgentConfigurableResourceKind;
+    key: Key;
+    name: string;
+    content: ResourceDocumentV1;
+  };
+  resourceId?: Id;
+  revision?: number;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "AgentResourceDraftReceipt".
+ */
+export interface AgentResourceDraftReceipt {
+  type: "SAVE_RESOURCE_DRAFT";
+  resourceId: Id;
+  revision: number;
+  kind: AgentConfigurableResourceKind;
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
+ * via the `definition` "AgentResourceBatchReceipt".
+ */
+export interface AgentResourceBatchReceipt {
+  type: "SAVE_RESOURCE_DRAFTS";
+  /**
+   * @minItems 2
+   * @maxItems 5
+   */
+  items:
+    | [AgentResourceDraftReceipt, AgentResourceDraftReceipt]
+    | [AgentResourceDraftReceipt, AgentResourceDraftReceipt, AgentResourceDraftReceipt]
+    | [AgentResourceDraftReceipt, AgentResourceDraftReceipt, AgentResourceDraftReceipt, AgentResourceDraftReceipt]
+    | [
+        AgentResourceDraftReceipt,
+        AgentResourceDraftReceipt,
+        AgentResourceDraftReceipt,
+        AgentResourceDraftReceipt,
+        AgentResourceDraftReceipt
+      ];
+}
+/**
+ * This interface was referenced by `ContractDefinitions`'s JSON-Schema
  * via the `definition` "AgentTurnSubmit".
  */
 export interface AgentTurnSubmit {
@@ -3943,6 +4200,7 @@ export interface AgentTurnSubmit {
     | [AgentAttachmentUpload]
     | [AgentAttachmentUpload, AgentAttachmentUpload]
     | [AgentAttachmentUpload, AgentAttachmentUpload, AgentAttachmentUpload];
+  delegationMode?: AgentDelegationMode;
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
@@ -3993,21 +4251,6 @@ export interface AgentPlanPreview {
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema
- * via the `definition` "AgentResourceDraftProposal".
- */
-export interface AgentResourceDraftProposal {
-  type: "SAVE_RESOURCE_DRAFT";
-  resource: {
-    kind: AgentConfigurableResourceKind;
-    key: Key;
-    name: string;
-    content: ResourceDocumentV1;
-  };
-  resourceId?: Id;
-  revision?: number;
-}
-/**
- * This interface was referenced by `ContractDefinitions`'s JSON-Schema
  * via the `definition` "AgentTurnDTO".
  */
 export interface AgentTurnDTO {
@@ -4035,6 +4278,74 @@ export interface AgentTurnDTO {
    * @maxItems 40
    */
   steps?: AgentTurnStepDTO[];
+  delegationMode?: AgentDelegationMode;
+  workspaceForm?: AgentWorkspaceForm;
+  /**
+   * @maxItems 10
+   */
+  workspaceFormReceipts?:
+    | []
+    | [AgentWorkspaceFormReceipt]
+    | [AgentWorkspaceFormReceipt, AgentWorkspaceFormReceipt]
+    | [AgentWorkspaceFormReceipt, AgentWorkspaceFormReceipt, AgentWorkspaceFormReceipt]
+    | [AgentWorkspaceFormReceipt, AgentWorkspaceFormReceipt, AgentWorkspaceFormReceipt, AgentWorkspaceFormReceipt]
+    | [
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt
+      ]
+    | [
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt
+      ]
+    | [
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt
+      ]
+    | [
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt
+      ]
+    | [
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt
+      ]
+    | [
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt,
+        AgentWorkspaceFormReceipt
+      ];
 }
 /**
  * This interface was referenced by `ContractDefinitions`'s JSON-Schema

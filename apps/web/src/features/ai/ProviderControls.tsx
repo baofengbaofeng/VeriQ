@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import * as Dialog from "@radix-ui/react-dialog";
 import type { PlatformComponents } from "@veriq/contracts";
-import { ApiError, type Workspace } from "../../api";
+import { ApiError, inheritAgentFormSignal, type Workspace } from "../../api";
 import icons from "../../admin-icons.svg?no-inline";
 import { Button } from "../../components/Button";
 import { Field } from "../../components/Field";
@@ -47,7 +47,8 @@ export function useProviderDirectory(workspace: Workspace, adapter: AiAdapter, p
     const { showSuccess, showFailure } = useOperationFeedback();
     const [controller] = useState(() => new AbortController());
     const signal = useMemo(
-        () => (parent ? AbortSignal.any([parent, controller.signal]) : controller.signal),
+        () =>
+            parent ? inheritAgentFormSignal(AbortSignal.any([parent, controller.signal]), parent) : controller.signal,
         [parent, controller],
     );
     useEffect(() => () => controller.abort(), [controller]);

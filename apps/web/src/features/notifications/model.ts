@@ -25,9 +25,21 @@ export type AgentNotificationTarget = Schemas["NotificationAgentSeenRequest"];
  */
 export type InboxPage = Schemas["NotificationInboxDTO"];
 
+export type InboxLiveUpdates = "stream" | "poll";
+
 /**
- * 等待中的邀请会随时间到期而没有新事件，只在展示该视图时以慢速间隔复核状态，有事件的变更继续走订阅。
+ * 桌面按活动会话轮询个人收件箱，浏览器仅补查待处理邀请的到期状态，权限已失效或会话已结束时均停止轮询。
  */
-export function invitationRefreshInterval(rows: readonly InboxNotification[] = []): number | false {
-    return rows.some((row) => row.kind === "WORKSPACE_INVITED" && row.invitationStatus === "PENDING") ? 30_000 : false;
+export function inboxRefreshInterval(
+    mode: InboxLiveUpdates,
+    signal?: AbortSignal,
+    rows: readonly { kind: InboxNotification["kind"]; invitationStatus?: string }[] = [],
+    errorStatus?: number,
+): number | false {
+    if (!signal || signal.aborted || (errorStatus !== undefined && [401, 403, 404, 410].includes(errorStatus))) {
+        return false;
+    }
+    return mode === "poll" || rows.some((row) => row.kind === "WORKSPACE_INVITED" && row.invitationStatus === "PENDING")
+        ? 30_000
+        : false;
 }

@@ -4,6 +4,7 @@ from ..contracts import canonical_bytes
 from ..auth.authorization import WorkspaceScope
 from ..pagination import Page
 from ..service import Problem
+from ..services.agent_form_receipts import FORM_ORIGIN_HEADER
 from ..services.ai import AiService
 from .base import API
 
@@ -93,7 +94,14 @@ class AiAPI(API):
         scope = WorkspaceScope(workspace_id)
         service = self.service()
         if self.action == "ai-providers":
-            self.respond(await service.write_provider(scope, self.body("ProviderWrite")), 201)
+            self.respond(
+                await service.write_provider(
+                    scope,
+                    self.body("ProviderWrite"),
+                    form_origin=self.request.headers.get(FORM_ORIGIN_HEADER),
+                ),
+                201,
+            )
         elif self.action == "ai-context":
             self.respond(await service.preview(scope, self.body("GenerationRequest")))
         elif self.action == "ai-generations":
@@ -129,7 +137,10 @@ class AiAPI(API):
         """
         self.respond(
             await self.service().write_provider(
-                WorkspaceScope(workspace_id), self.body("ProviderWrite"), item_id
+                WorkspaceScope(workspace_id),
+                self.body("ProviderWrite"),
+                item_id,
+                form_origin=self.request.headers.get(FORM_ORIGIN_HEADER),
             )
         )
 
@@ -139,4 +150,10 @@ class AiAPI(API):
 
         嵌套资源引用不得跨空间隐式放行。
         """
-        self.respond(await self.service().delete_provider(WorkspaceScope(workspace_id), item_id))
+        self.respond(
+            await self.service().delete_provider(
+                WorkspaceScope(workspace_id),
+                item_id,
+                form_origin=self.request.headers.get(FORM_ORIGIN_HEADER),
+            )
+        )

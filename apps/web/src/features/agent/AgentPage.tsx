@@ -11,6 +11,7 @@ import { CloudReportAdapter } from "../reports/adapters";
 import { useWorkspaceDirectory, WorkspaceStatus } from "../workspaces/WorkspaceDirectory";
 import { useWorkspace } from "../workspaces/WorkspaceContext";
 import { CloudAgentAdapter } from "./adapters";
+import { WebAgentFormHost } from "./WebAgentFormHost";
 import { AgentWorkspaceView } from "./AgentWorkspaceView";
 import { acknowledgeAgentReply } from "../notifications/transport";
 
@@ -40,21 +41,31 @@ export function AgentPage() {
         <Panel title={tx("Test Agent")}>
             <WorkspaceStatus />
             {workspace && (
-                <AgentWorkspaceView
+                <WebAgentFormHost
                     key={`${user.id}/${workspace.id}/${initialPlan ?? ""}`}
-                    workspace={workspace}
-                    owner={user.id}
-                    ownerName={user.displayName}
-                    adapter={adapters.agent}
-                    providers={adapters.providers}
-                    reports={adapters.reports}
-                    onReplyVisible={acknowledgeAgentReply}
-                    parentSignal={signal}
-                    initialPlanId={initialPlan}
-                    navigate={(runId) => (
-                        <Link to={`/reports?workspaceId=${workspace.id}&runId=${runId}`}>{tx("Open full report")}</Link>
+                    workspaceId={workspace.id}
+                    signal={signal}
+                >
+                    {(launcher) => (
+                        <AgentWorkspaceView
+                            workspace={workspace}
+                            owner={user.id}
+                            ownerName={user.displayName}
+                            adapter={adapters.agent}
+                            providers={adapters.providers}
+                            reports={adapters.reports}
+                            onReplyVisible={acknowledgeAgentReply}
+                            parentSignal={signal}
+                            initialPlanId={initialPlan}
+                            formLauncher={launcher}
+                            navigate={(runId) => (
+                                <Link to={`/reports?workspaceId=${workspace.id}&runId=${runId}`}>
+                                    {tx("Open full report")}
+                                </Link>
+                            )}
+                        />
                     )}
-                />
+                </WebAgentFormHost>
             )}
         </Panel>
     );

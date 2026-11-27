@@ -4,7 +4,6 @@ import {
     ResourceWorkspaceView,
     ReportWorkspaceView,
     AiWorkspaceView,
-    AgentWorkspaceView,
     appI18n,
     canExportWorkspaceTable,
     setAppLanguage,
@@ -12,6 +11,7 @@ import {
 } from "@veriq/web/desktop";
 import type { PlatformComponents } from "@veriq/contracts";
 import type { DesktopState } from "../shared/bridge";
+import { DesktopAgentForms } from "./AgentForms";
 import { RetentionPanel } from "./RetentionPanel";
 import { RecordingWorkspace } from "./recording/RecordingWorkspace";
 import { desktopErrorMessage, desktopStateLabel } from "../shared/desktop-errors";
@@ -208,7 +208,9 @@ export function App() {
                             type="button"
                             key={key}
                             aria-current={tab === key ? "page" : undefined}
-                            onClick={() => setTab(key)}
+                            onClick={() => {
+                                setTab(key);
+                            }}
                         >
                             {t[key]}
                         </button>
@@ -682,16 +684,26 @@ export function App() {
                             </p>
                         ))}
                     {tab === "conversation" &&
-                        (workspace && conversationOwner && adapters ? (
+                        (workspace && userId && conversationOwner && adapters ? (
                             <section className="panel">
                                 <h2>{t.conversation}</h2>
-                                <AgentWorkspaceView
+                                <DesktopAgentForms
                                     key={cloudScope}
                                     workspace={workspace}
                                     owner={conversationOwner}
-                                    adapter={adapters.conversation}
-                                    providers={adapters.ai}
-                                    reports={adapters.reports}
+                                    employeeId={userId}
+                                    adapters={adapters}
+                                    parentSignal={scope.signal}
+                                    language={language}
+                                    localWorkspaceId={agent?.workspaceId}
+                                    retentionUnavailable={
+                                        !!(busy || agent?.active || agent?.preparing || agent?.online)
+                                    }
+                                    onRetentionComplete={async () => {
+                                        setRun("");
+                                        await queries.invalidateQueries({ queryKey: ["workspace", "reports"] });
+                                        await refresh();
+                                    }}
                                     navigate={(id) => (
                                         <button
                                             type="button"

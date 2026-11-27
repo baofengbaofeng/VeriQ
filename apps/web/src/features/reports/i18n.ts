@@ -103,6 +103,9 @@ export const zh = {
     previewAlt: "受限截图",
     previewReady: "截图预览已就绪。",
     audit: "空间审计",
+    moreAudit: "更多审计记录",
+    reloadAudit: "重新加载空间审计",
+    auditEmpty: "此空间没有审计记录。",
 };
 const en: typeof zh = {
     reports: "Reports",
@@ -203,6 +206,9 @@ const en: typeof zh = {
     previewAlt: "Restricted screenshot",
     previewReady: "Screenshot preview is ready.",
     audit: "Workspace audit",
+    moreAudit: "More audit entries",
+    reloadAudit: "Reload workspace audit",
+    auditEmpty: "No audit entries in this Workspace.",
 };
 editorI18n.addResourceBundle("zh", "reports", zh, true, true);
 editorI18n.addResourceBundle("en", "reports", en, true, true);

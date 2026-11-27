@@ -191,4 +191,5 @@ class PublishService(ResourceService):
             version.id,
             workspace_id=scope.workspace_id,
         )
+        await self.record_draft_form(draft, "resource.published")
         return version_dto(version)

@@ -29,6 +29,7 @@ from ..db import (
 )
 from ..service import Problem, lock_installation, stamp
 from ..settings import Settings
+from .agent_form_receipts import record_form_receipt
 from .notification_events import invalidate_inbox, notification_time
 from .workspace import WorkspaceRepository, add_invited_member, require_open_invitation
 
@@ -318,11 +319,21 @@ class NotificationInbox:
             notice.read_at = current
             await invalidate_inbox(self.session, self.user.id)
 
-    async def read(self, notification_id: str) -> dict[str, Any]:
+    async def read(self, notification_id: str, *, form_origin: str | None = None) -> dict[str, Any]:
         """在全局写入护栏内核验当前权限并原子标记，收到旧页面操作时仍拒绝不可见记录，响应可用于刷新本地列表。"""
         await lock_installation(self.session)
         row = await self._get(notification_id)
         current = await notification_time(self.session)
+        if row[0].read_at is None:
+            await record_form_receipt(
+                self.session,
+                form_origin,
+                self.user,
+                row[2].id,
+                action="notification.read",
+                target_id=row[0].id,
+                capability="NOTIFICATION_INBOX",
+            )
         await self._mark(row[0], current)
         return _dto(row, current)
 
@@ -349,7 +360,9 @@ class NotificationInbox:
             await invalidate_inbox(self.session, self.user.id)
         return {"updated": result.rowcount}
 
-    async def accept(self, notification_id: str) -> dict[str, Any]:
+    async def accept(
+        self, notification_id: str, *, form_origin: str | None = None
+    ) -> dict[str, Any]:
         """按通知所属账号接受邀请，持有同一安装锁复查邀请和成员状态，失败时工作区写入与已读状态均保持原样。"""
         await lock_installation(self.session)
         notice, event, workspace, invitation, _, _ = await self._get(notification_id)
@@ -363,6 +376,15 @@ class NotificationInbox:
         else:
             repo = await require_open_invitation(self.session, invitation)
             await add_invited_member(repo, invitation, self.user)
+            await record_form_receipt(
+                self.session,
+                form_origin,
+                self.user,
+                workspace.id,
+                action="notification.invitation_accepted",
+                target_id=notice.id,
+                capability="NOTIFICATION_INBOX",
+            )
         await self._mark(notice, await notification_time(self.session))
         return {"workspaceId": workspace.id}
 
