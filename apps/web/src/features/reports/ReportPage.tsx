@@ -45,7 +45,10 @@ const reportCode = (t: ReturnType<typeof useLabels>, group: string, value: unkno
 /**
  * 报告历史跟随顶栏空间，链接中的运行标识只交给已确认授权的目标；身份、空间或运行变化会重建视图。
  */
-export function ReportPage({ initialAuditOpen = false }: { initialAuditOpen?: boolean } = {}) {
+export function ReportPage({
+    initialAuditOpen = false,
+    reportAdapter,
+}: { initialAuditOpen?: boolean; reportAdapter?: ReportAdapter } = {}) {
     useAppLocale();
     const { user } = useContext(Auth);
     const { workspace, requested } = useWorkspaceDirectory();
@@ -53,7 +56,7 @@ export function ReportPage({ initialAuditOpen = false }: { initialAuditOpen?: bo
     const t = useLabels();
     const [params] = useSearchParams();
     const initialRunId = requested ? (params.get("runId") ?? "") : "";
-    const adapter = useMemo(() => new CloudReportAdapter(selected), [selected]);
+    const adapter = useMemo(() => reportAdapter ?? new CloudReportAdapter(selected), [reportAdapter, selected]);
     if (!user) return <Navigate to="/login" />;
     return (
         <Panel title={t("reports")}>

@@ -6,8 +6,6 @@ import type { DesktopBridge } from "../shared/bridge";
  * 源和正文，不能把类型声明当成授权证明。
  */
 const bridge: DesktopBridge = {
-    prepareAgentWebForm: (input) => ipcRenderer.invoke("veriq:desktop", "prepareAgentWebForm", input),
-    openAgentWebForm: (ticket) => ipcRenderer.invoke("veriq:desktop", "openAgentWebForm", { ticket }),
     state: () => ipcRenderer.invoke("veriq:desktop", "state"),
     configure: (origin, proxy) => ipcRenderer.invoke("veriq:desktop", "configure", { origin, proxy }),
     login: (data) => ipcRenderer.invoke("veriq:desktop", "login", data),

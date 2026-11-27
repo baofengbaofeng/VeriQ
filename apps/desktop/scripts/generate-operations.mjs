@@ -1,11 +1,27 @@
 import { readFile, writeFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import { format, resolveConfig } from "prettier";
+
+const formatting = await resolveConfig(fileURLToPath(import.meta.url));
+
+/**
+ * 三份宿主契约按仓库统一格式直接生成，确保再次运行生成器后可以逐字校验已有版本并只展示真实的协议变更。
+ */
+async function writeGenerated(name, content) {
+    const target = new URL(`../src/shared/${name}`, import.meta.url);
+    await writeFile(target, await format(content, { ...formatting, filepath: fileURLToPath(target) }));
+}
 
 /**
  * 桌面可调用的云端业务操作明确列举于此，生成器只读取现有 OpenAPI 以避免复制路由和正文类型；新增服务端接口不会自动成为
  * 渲染进程的新权限。
  */
 const allowed = new Set(
-    `login session logout getSetup getAccount listWorkspaces getWorkspace
+    `login session logout getSetup getAccount listWorkspaces getWorkspace archiveWorkspace
+listMembers updateMember removeMember listInvitations inviteMember revokeInvitation
+listExecutionPlans listServiceAccounts createServiceAccount disableServiceAccount
+listServiceTokens issueServiceToken revokeServiceToken
+listNotifications getNotification markNotificationRead markAllNotificationsRead acceptNotificationInvitation
 listDatasetCopySources copyDataset previewHttpDataset
 listResources createResource getResource updateResource getDraft updateDraft validateResource publishResource
 listVersions getVersion listDependents previewResourceValidation getPublishedCompiledSource getJob getValidationReceipt
@@ -21,14 +37,6 @@ listRuntimes getRuntime updateRuntimeGrants updateRuntimeTrust revokeRuntime upd
 inspectEnrollment approveEnrollment listCredentials createCredential rotateCredential revokeCredential
 listAuthAdapters createAuthAdapter revokeAuthAdapter`.split(/\s+/),
 );
-const formWrites = new Set([
-    "createResource",
-    "updateDraft",
-    "updateResource",
-    "validateResource",
-    "publishResource",
-    "copyDataset",
-]);
 const document = JSON.parse(
     await readFile(new URL("../../../packages/contracts/openapi/platform.yaml", import.meta.url)),
 );
@@ -51,6 +59,9 @@ for (const [path, item] of Object.entries(document.paths)) {
         const idempotency = parameters.some(
             (parameter) => parameter.in === "header" && parameter.name === "Idempotency-Key",
         );
+        const agentForm = (operation.parameters ?? []).some(
+            (parameter) => parameter.$ref === "#/components/parameters/AgentFormOrigin",
+        );
         catalog[name] = {
             path,
             method: method.toUpperCase(),
@@ -58,7 +69,7 @@ for (const [path, item] of Object.entries(document.paths)) {
             queries,
             request: request ?? null,
             idempotency,
-            ...(formWrites.has(name) ? { agentForm: true } : {}),
+            ...(agentForm ? { agentForm: true } : {}),
             kind:
                 name === "streamRunReport" || name === "streamAgentTurn"
                     ? "stream"
@@ -77,7 +88,7 @@ for (const [path, item] of Object.entries(document.paths)) {
                     : []),
                 ...(Object.keys(queries).length ? ["        query?: Record<string, string | number | boolean>;"] : []),
                 ...(request ? [`        data: S[${JSON.stringify(request)}];`] : []),
-                ...(formWrites.has(name) ? ["        agentFormTurnId?: string;"] : []),
+                ...(agentForm ? ["        agentFormTurnId?: string;"] : []),
                 ...(idempotency ? ["        idempotencyKey: string;"] : []),
                 "    }",
             ].join("\n"),
@@ -86,12 +97,9 @@ for (const [path, item] of Object.entries(document.paths)) {
     }
 }
 if (allowed.size) throw new Error("Desktop operations missing from OpenAPI: " + [...allowed]);
-await writeFile(
-    new URL("../src/shared/operations.generated.json", import.meta.url),
-    JSON.stringify(catalog, null, 4) + "\n",
-);
-await writeFile(
-    new URL("../src/shared/operations.generated.ts", import.meta.url),
+await writeGenerated("operations.generated.json", JSON.stringify(catalog, null, 4) + "\n");
+await writeGenerated(
+    "operations.generated.ts",
     [
         "/**",
         " * 由 generate-operations.mjs 根据明确的桌面白名单和 OpenAPI 自动生成，业务请求类型只允许固定操作",
@@ -117,8 +125,8 @@ for (const [name, schema] of Object.entries(document.components.schemas)) {
         .replaceAll("../schemas/platform-v1.schema.json#/$defs/", "#/$defs/");
     definitions["api_" + name] = JSON.parse(normalized);
 }
-await writeFile(
-    new URL("../src/shared/validation.generated.json", import.meta.url),
+await writeGenerated(
+    "validation.generated.json",
     JSON.stringify(
         {
             $schema: "https://json-schema.org/draft/2020-12/schema",

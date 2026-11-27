@@ -198,7 +198,7 @@ export const api = {
     login: (data: Schemas["LoginRequest"]) => request<Session>("/auth/login", "POST", data),
     session: () => request<Session>("/auth/session"),
     logout: () => request<Schemas["Empty"]>("/auth/logout", "POST", {}),
-    account: () => request<User>("/account"),
+    account: (signal?: AbortSignal) => request<User>("/account", "GET", undefined, signal),
     sessions: (options: SessionListQuery = {}, signal?: AbortSignal) =>
         request<AccountSessions>("/account/sessions" + queryString({ ...options }), "GET", undefined, signal),
     revokeSession: (sessionId: string, signal?: AbortSignal) =>

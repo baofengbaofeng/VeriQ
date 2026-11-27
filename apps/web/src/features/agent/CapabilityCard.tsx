@@ -40,17 +40,9 @@ export function CapabilityCard({
     useLayoutEffect(() => () => pending.current?.abort(), []);
     if (!isWorkspaceFormCard(card) || card.workspaceId !== workspaceId || signal.aborted) return null;
     const label = formLabel(card.capability, language);
-    const native = formDestination(card, launcher.platform);
-    const external = !native && launcher.platform === "desktop" ? launcher.openWebForm : undefined;
-    if (!native && !external) {
+    if (!formDestination(card, launcher.platform)) {
         const hint =
-            launcher.platform === "web"
-                ? language === "zh"
-                    ? "请在桌面端的设置与诊断中打开。"
-                    : "Open Settings & diagnostics in the desktop app."
-                : language === "zh"
-                  ? "请在已登录的 Web 控制台中打开。"
-                  : "Open the signed-in Web console.";
+            language === "zh" ? "请在桌面端的 Test Agent 中打开。" : "Open this form in the desktop Test Agent.";
         return (
             <p>
                 <strong>{label}</strong> {hint}
@@ -65,20 +57,14 @@ export function CapabilityCard({
         setBusy(true);
         setFailed(false);
         try {
-            const destination = await authorizedFormDestination(
-                card,
-                workspaceId,
-                external ? "web" : launcher.platform,
-                active,
-                () => authorize(active),
+            const destination = await authorizedFormDestination(card, workspaceId, launcher.platform, active, () =>
+                authorize(active),
             );
             if (!destination || active.aborted) return;
             const ref = { workspaceId, sessionId, turnId, capability: card.capability };
-            if (external) await external(ref, active);
-            else
-                launcher.open(destination, ref, signal, () => {
-                    if (!signal.aborted) onClose?.();
-                });
+            launcher.open(destination, ref, signal, () => {
+                if (!signal.aborted) onClose?.();
+            });
         } catch {
             if (!active.aborted) setFailed(true);
         } finally {
@@ -89,7 +75,7 @@ export function CapabilityCard({
     return (
         <div>
             <button type="button" disabled={busy} onClick={() => void open()}>
-                {external ? (language === "zh" ? `${label}（浏览器）` : `${label} (browser)`) : label}
+                {label}
             </button>
             {failed && (
                 <p role="alert">

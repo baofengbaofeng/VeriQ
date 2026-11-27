@@ -2,7 +2,7 @@
  * VeriQ 桌面共享入口只导出已经实现的业务视图和适配器，使用 Web 自身配置生成独立声明与静态资源；桌面严格工程消费产物而
  * 不继承旧 Web 的类型兼容选项。
  */
-export { installHostTransport, scopeAgentFormSignal, type HostTransport, type Workspace } from "./api";
+export { ApiError, installHostTransport, scopeAgentFormSignal, type HostTransport, type Workspace } from "./api";
 export { ResourceWorkspaceView } from "./features/resources/ResourcePage";
 export {
     CloudResourceAdapter,
@@ -19,8 +19,14 @@ export {
 } from "./features/reports/adapters";
 export { BundleWorkspaceView } from "./features/bundles/BundlePage";
 export { CloudBundleAdapter, type BundleAdapter } from "./features/bundles/adapters";
+export { DesktopManagementForm } from "./features/agent/DesktopManagementForm";
 export { AgentWorkspaceView } from "./features/agent/AgentWorkspaceView";
-export { formLabel, type WorkspaceCapability, type WorkspaceFormDestination } from "./features/agent/workspace-forms";
+export {
+    formLabel,
+    type WorkspaceCapability,
+    type WorkspaceFormDestination,
+    type WorkspaceFormReference,
+} from "./features/agent/workspace-forms";
 export { CloudAgentAdapter } from "./features/agent/adapters";
 export { AiWorkspaceView } from "./features/ai/AiPage";
 export { CloudAiAdapter } from "./features/ai/adapters";

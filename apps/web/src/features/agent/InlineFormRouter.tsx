@@ -18,6 +18,7 @@ import { tx } from "../../locale";
 import { EnvironmentPage } from "../environments/EnvironmentPage";
 import { InboxProvider } from "../notifications/InboxProvider";
 import { NotificationsPage } from "../notifications/NotificationsPage";
+import type { ReportAdapter } from "../reports/adapters";
 import { ReportPage } from "../reports/ReportPage";
 import { DatasetDetailPage, ResourcePage } from "../resources/ResourcePage";
 import { datasetDetailRoute, datasetListPath } from "../resources/dataset-routes";
@@ -51,10 +52,12 @@ export function InlineFormRouter({
     href,
     reference,
     signal,
+    nativeReportAdapter,
 }: {
     href: string;
     reference: WorkspaceFormReference;
     signal: AbortSignal;
+    nativeReportAdapter?: ReportAdapter;
 }) {
     const baseNavigation = useContext(UNSAFE_NavigationContext);
     const anchor = useId();
@@ -94,13 +97,19 @@ export function InlineFormRouter({
                         <Route path="/resources/fixtures" element={<ResourcePage fixedKind="FIXTURE" />} />
                         <Route path={datasetListPath} element={<ResourcePage fixedKind="DATASET" />} />
                         <Route path={datasetDetailRoute} element={<DatasetFormDetail />} />
-                        <Route path="/workspaces" element={<WorkspacePage />} />
-                        <Route path="/execution-plans" element={<ExecutionPlansPage />} />
-                        <Route path="/runtimes" element={<RuntimePage />} />
+                        <Route path="/workspaces" element={<WorkspacePage capability={reference.capability} />} />
+                        <Route
+                            path="/execution-plans"
+                            element={<ExecutionPlansPage capability={reference.capability} />}
+                        />
+                        <Route path="/runtimes" element={<RuntimePage capability={reference.capability} />} />
                         <Route
                             path="/notifications"
                             element={
-                                <InboxProvider parentSignal={signal}>
+                                <InboxProvider
+                                    parentSignal={signal}
+                                    liveUpdates={nativeReportAdapter ? "poll" : "stream"}
+                                >
                                     <NotificationsPage />
                                 </InboxProvider>
                             }
@@ -112,7 +121,10 @@ export function InlineFormRouter({
                                     {reference.capability === "NOTIFICATION_INBOX" && (
                                         <Link to="/notifications">{tx("Back to notifications")}</Link>
                                     )}
-                                    <ReportPage initialAuditOpen={reference.capability === "WORKSPACE_AUDIT"} />
+                                    <ReportPage
+                                        reportAdapter={nativeReportAdapter}
+                                        initialAuditOpen={reference.capability === "WORKSPACE_AUDIT"}
+                                    />
                                 </>
                             }
                         />

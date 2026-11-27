@@ -1,6 +1,7 @@
 /**
  * 在受控端口启动本地模型并准备真实员工工作区，供卡片从生成、重新授权到用户表单操作的跨层浏览器回归共享。
  */
+import { randomUUID } from "node:crypto";
 import { createServer } from "node:http";
 import { expect, type Page } from "@playwright/test";
 import { editorScope } from "../editor-fixture";
@@ -66,7 +67,7 @@ export async function conversationForm(
         await installed(page, baseURL);
         const scope = await editorScope(
             page,
-            `form-${capability.toLowerCase().replaceAll("_", "-")}`,
+            `form-${capability.split("_")[0].toLowerCase()}-${randomUUID().slice(0, 8)}`,
             sheet ? "/account" : "/agent",
         );
         const { workspaceId, headers } = scope;

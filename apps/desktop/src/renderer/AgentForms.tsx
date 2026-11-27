@@ -4,24 +4,24 @@
 import { useCallback, useLayoutEffect, useRef, useState, type ComponentProps } from "react";
 import {
     AgentWorkspaceView,
+    DesktopManagementForm,
     canExportWorkspaceTable,
     formLabel,
     ReportWorkspaceView,
     ResourceWorkspaceView,
     scopeAgentFormSignal,
     type Workspace,
-    type WorkspaceCapability,
+    type WorkspaceFormReference,
     type WorkspaceFormDestination,
 } from "@veriq/web/desktop";
 import type { cloudAdapters } from "./adapters";
-import { openAgentFormInBrowser } from "./agent-web-form";
 import { RetentionPanel } from "./RetentionPanel";
 
 type Destination = Extract<WorkspaceFormDestination, { platform: "desktop" }>;
 type Form = {
     destination: Destination;
-    capability: WorkspaceCapability;
-    turnId: string;
+    reference: WorkspaceFormReference;
+    mountId: number;
     signal: AbortSignal;
     controller: AbortController;
     onClose: () => void;
@@ -29,6 +29,7 @@ type Form = {
 };
 type AgentProps = ComponentProps<typeof AgentWorkspaceView>;
 type Props = Pick<AgentProps, "owner" | "navigate"> & {
+    employeeId: string;
     parentSignal: AbortSignal;
     workspace: Workspace;
     adapters: ReturnType<typeof cloudAdapters>;
@@ -41,6 +42,7 @@ type Props = Pick<AgentProps, "owner" | "navigate"> & {
 export function DesktopAgentForms({
     workspace,
     owner,
+    employeeId,
     navigate,
     parentSignal,
     adapters,
@@ -50,6 +52,7 @@ export function DesktopAgentForms({
     onRetentionComplete,
 }: Props) {
     const current = useRef<Form>();
+    const mounts = useRef(0);
     const [form, setForm] = useState<Form>();
     const closeButton = useRef<HTMLButtonElement>(null);
     const close = useCallback((target: Form, refresh: boolean) => {
@@ -75,9 +78,9 @@ export function DesktopAgentForms({
     useLayoutEffect(() => () => current.current?.controller.abort(), []);
     const launcher: NonNullable<AgentProps["formLauncher"]> = {
         platform: "desktop",
-        openWebForm: (ref, active) => openAgentFormInBrowser(window.veriq, ref, active),
         open: (destination, ref, signal, onClose) => {
             if (
+                parentSignal.aborted ||
                 signal.aborted ||
                 destination.platform !== "desktop" ||
                 destination.workspaceId !== workspace.id ||
@@ -88,14 +91,14 @@ export function DesktopAgentForms({
             if (current.current) close(current.current, true);
             const controller = new AbortController();
             const active = scopeAgentFormSignal(
-                AbortSignal.any([signal, controller.signal]),
+                AbortSignal.any([parentSignal, signal, controller.signal]),
                 ref.turnId,
                 ref.capability,
             );
             const next = {
                 destination,
-                capability: ref.capability,
-                turnId: ref.turnId,
+                reference: ref,
+                mountId: ++mounts.current,
                 signal: active,
                 controller,
                 opener,
@@ -119,13 +122,22 @@ export function DesktopAgentForms({
                 navigate={navigate}
             />
             {form && !form.signal.aborted && (
-                <aside className="agent-native-form" aria-labelledby="desktop-agent-form-title" key={form.turnId}>
+                <aside className="agent-native-form" aria-labelledby="desktop-agent-form-title" key={form.mountId}>
                     <header className="agent-native-form-header">
-                        <h3 id="desktop-agent-form-title">{formLabel(form.capability, language)}</h3>
+                        <h3 id="desktop-agent-form-title">{formLabel(form.reference.capability, language)}</h3>
                         <button type="button" ref={closeButton} onClick={() => close(form, true)}>
                             {language === "zh" ? "关闭表单" : "Close form"}
                         </button>
                     </header>
+                    {form.destination.tab === "management" && (
+                        <DesktopManagementForm
+                            employeeId={employeeId}
+                            href={form.destination.href}
+                            reference={form.reference}
+                            signal={form.signal}
+                            reports={adapters.reports}
+                        />
+                    )}
                     {form.destination.tab === "resources" && (
                         <ResourceWorkspaceView
                             workspace={workspace}
@@ -138,7 +150,7 @@ export function DesktopAgentForms({
                         <ReportWorkspaceView
                             adapter={adapters.reports}
                             signal={form.signal}
-                            initialAuditOpen={form.capability === "WORKSPACE_AUDIT"}
+                            initialAuditOpen={form.reference.capability === "WORKSPACE_AUDIT"}
                             rawEvidenceAllowed={workspace.role === "OWNER" || workspace.role === "ADMIN"}
                             allowTableExport={canExportWorkspaceTable(workspace.role)}
                         />

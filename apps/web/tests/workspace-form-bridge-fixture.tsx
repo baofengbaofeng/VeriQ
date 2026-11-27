@@ -4,17 +4,21 @@
 import { StrictMode, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { CapabilityCard } from "../src/features/agent/CapabilityCard";
-import type { FormLauncher, WorkspaceFormCard } from "../src/features/agent/workspace-forms";
+import type {
+    WorkspaceFormCard,
+    WorkspaceFormDestination,
+    WorkspaceFormReference,
+} from "../src/features/agent/workspace-forms";
 import { AppLocaleProvider } from "../src/locale-ui";
 
 const workspaceId = "22222222-2222-4222-8222-222222222222";
 const card: WorkspaceFormCard = { workspaceId, type: "OPEN_WORKSPACE_FORM", capability: "AUTH_CREDENTIALS" };
-type Reference = Parameters<NonNullable<FormLauncher["openWebForm"]>>[0];
-
 function BridgeFixture() {
     const [allow, setAllow] = useState(false);
     const [checks, setChecks] = useState(0);
-    const [launches, setLaunches] = useState<Reference[]>([]);
+    const [launches, setLaunches] = useState<{ destination: WorkspaceFormDestination; ref: WorkspaceFormReference }[]>(
+        [],
+    );
     const [signal] = useState(() => new AbortController().signal);
     return (
         <>
@@ -31,10 +35,7 @@ function BridgeFixture() {
                 }}
                 launcher={{
                     platform: "desktop",
-                    open: () => {
-                        throw new Error("Unexpected native navigation");
-                    },
-                    openWebForm: async (ref) => setLaunches((current) => [...current, ref]),
+                    open: (destination, ref) => setLaunches((current) => [...current, { destination, ref }]),
                 }}
             />
             <label>

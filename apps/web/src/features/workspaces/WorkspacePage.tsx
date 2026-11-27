@@ -19,6 +19,7 @@ import { Field, Notice, Panel, useAction, values } from "../../ui";
 import { useOperationFeedback } from "../../operation-feedback";
 import { useWorkspaceDirectory, WorkspaceStatus } from "./WorkspaceDirectory";
 import { useWorkspace } from "./WorkspaceContext";
+import type { WorkspaceCapability } from "../agent/workspace-forms";
 import { WorkspaceAiProviders } from "../ai/ProviderControls";
 import { IdentityManager } from "../environments/IdentityManager";
 import { CloudIdentityAdapter } from "../environments/identity-adapter";
@@ -27,6 +28,13 @@ import { MemberActions, MemberRoster } from "./MemberActions";
 import { WorkspaceTableFilters } from "./WorkspaceTableFilters";
 import { SampleWorkspaceWizard } from "../examples/SampleWorkspaceWizard";
 import "./workspace-management.css";
+
+const workspaceFormTabs: Partial<Record<WorkspaceCapability, SettingsTab>> = {
+    WORKSPACE_ARCHIVE: "basic",
+    WORKSPACE_MEMBERS: "members",
+    AUTH_CREDENTIALS: "auth-credentials",
+    AI_PROVIDERS: "ai-providers",
+};
 
 const message = (error: Error | null) =>
     error instanceof ApiError ? error.message : error ? "Unable to load Workspace data. Please retry." : "";
@@ -76,7 +84,7 @@ function WorkspaceQueryFeedback({
 /**
  * 管理顶栏选择的空间及其成员与邀请；样例向导创建空间后通知目录，保留分页操作和成员权限判断。
  */
-export function WorkspacePage() {
+export function WorkspacePage({ capability }: { capability?: WorkspaceCapability } = {}) {
     useAppLocale();
     const { user } = useContext(Auth),
         { workspace, choose } = useWorkspaceDirectory(),
@@ -87,6 +95,15 @@ export function WorkspacePage() {
         if (sampleOpen) document.getElementById("sample-wizard-title")?.focus();
     }, [sampleOpen]);
     if (!user) return <Navigate to="/login" />;
+    if (capability) {
+        const tab = workspaceFormTabs[capability];
+        if (!tab) return null;
+        return workspace ? (
+            <WorkspaceDetail key={user.id + workspace.id} id={workspace.id} identity={user.id} pinned={tab} />
+        ) : (
+            <WorkspaceStatus />
+        );
+    }
     return (
         <Panel title={workspace ? `${tx("Workspaces")}: ${workspace.name}` : tx("Workspaces")}>
             <p>{tx("One project is one Workspace. Membership controls access to its resources.")}</p>
@@ -115,7 +132,7 @@ export function WorkspacePage() {
     );
 }
 
-function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
+function WorkspaceDetail({ id, identity, pinned }: { id: string; identity: string; pinned?: SettingsTab }) {
     useAppLocale();
     const client = useQueryClient(),
         { signal } = useWorkspace();
@@ -123,7 +140,7 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
     const navigate = useNavigate();
     const prefix = useId();
     const params = new URLSearchParams(location.search);
-    const tab = settingsTabs.find((entry) => entry.id === params.get("tab"))?.id ?? "basic";
+    const tab = pinned ?? settingsTabs.find((entry) => entry.id === params.get("tab"))?.id ?? "basic";
     function activate(next: SettingsTab) {
         if (next === tab) return;
         if (!params.has("fromAgentForm") && tab === "auth-credentials") params.delete("workspaceId");
@@ -176,30 +193,40 @@ function WorkspaceDetail({ id, identity }: { id: string; identity: string }) {
     );
     const ws = detail.data;
     if (!ws || accessFailure) return status;
+    const panels: Record<SettingsTab, React.ReactNode> = {
+        basic: <WorkspaceBasics ws={ws} refresh={refresh} archiveOnly={!!pinned} />,
+        members: (
+            <WorkspaceMembers
+                key={`${ws.role}-${ws.archived}`}
+                ws={ws}
+                active={tab === "members"}
+                refresh={refresh}
+                link={invitation}
+                onIssued={issued}
+                onClearIssued={clearInvitation}
+                membersOnly={!!pinned}
+            />
+        ),
+        "auth-credentials": tab === "auth-credentials" && <WorkspaceAuthentication workspace={ws} />,
+        "ai-providers": tab === "ai-providers" && (
+            <WorkspaceAiProviders key={`${ws.role}-${ws.archived}`} workspace={ws} />
+        ),
+    };
     return (
         <article className="vq-workspace-settings">
             {status}
-            <SettingsTabs selected={tab} prefix={prefix} activate={activate} />
-            <SettingsPanel tab="basic" prefix={prefix} selected={tab}>
-                <WorkspaceBasics ws={ws} refresh={refresh} />
-            </SettingsPanel>
-            <SettingsPanel tab="members" prefix={prefix} selected={tab}>
-                <WorkspaceMembers
-                    key={`${ws.role}-${ws.archived}`}
-                    ws={ws}
-                    active={tab === "members"}
-                    refresh={refresh}
-                    link={invitation}
-                    onIssued={issued}
-                    onClearIssued={clearInvitation}
-                />
-            </SettingsPanel>
-            <SettingsPanel tab="auth-credentials" prefix={prefix} selected={tab}>
-                {tab === "auth-credentials" && <WorkspaceAuthentication workspace={ws} />}
-            </SettingsPanel>
-            <SettingsPanel tab="ai-providers" prefix={prefix} selected={tab}>
-                {tab === "ai-providers" && <WorkspaceAiProviders key={`${ws.role}-${ws.archived}`} workspace={ws} />}
-            </SettingsPanel>
+            {pinned ? (
+                panels[pinned]
+            ) : (
+                <>
+                    <SettingsTabs selected={tab} prefix={prefix} activate={activate} />
+                    {settingsTabs.map(({ id: tabId }) => (
+                        <SettingsPanel key={tabId} tab={tabId} prefix={prefix} selected={tab}>
+                            {panels[tabId]}
+                        </SettingsPanel>
+                    ))}
+                </>
+            )}
         </article>
     );
 }
@@ -230,7 +257,7 @@ type SettingsProps = { ws: Workspace; refresh: () => Promise<void> };
 /**
  * 概览集中展示所选工作区的标识和状态，归档单独提供给所有者，名称更新和权限状态仍以服务端回读为准。
  */
-function WorkspaceBasics({ ws, refresh }: SettingsProps) {
+function WorkspaceBasics({ ws, refresh, archiveOnly = false }: SettingsProps & { archiveOnly?: boolean }) {
     const { signal } = useWorkspace(),
         a = useAction();
     const { language } = useAppLocale();
@@ -271,7 +298,7 @@ function WorkspaceBasics({ ws, refresh }: SettingsProps) {
                                 {tx(ws.archived ? "Workspace state: archived" : "Workspace state: active")}
                             </span>
                         </div>
-                        {canManage && (
+                        {canManage && !archiveOnly && (
                             <Dialog.Trigger asChild>
                                 <Button
                                     size="regular"
@@ -472,6 +499,7 @@ function WorkspaceMembers({
     link,
     onIssued,
     onClearIssued,
+    membersOnly,
 }: {
     ws: Workspace;
     active: boolean;
@@ -479,11 +507,13 @@ function WorkspaceMembers({
     link: string;
     onIssued: (link: string) => void;
     onClearIssued: () => void;
+    membersOnly: boolean;
 }) {
     const { signal } = useWorkspace(),
         a = useAction();
     const canManage = ["OWNER", "ADMIN"].includes(ws.role) && !ws.archived;
-    const globalDirectory = useContext(Auth).user?.systemAdmin === true;
+    const globalAdmin = useContext(Auth).user?.systemAdmin === true;
+    const globalDirectory = globalAdmin && !membersOnly;
     const [q, setQ] = useState("");
     const [roleFilter, setRoleFilter] = useState<string[]>([]);
     const [membership, setMembership] = useState("");

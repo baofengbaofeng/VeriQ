@@ -27,6 +27,52 @@ export type CloudOperation =
           };
       }
     | {
+          operation: "archiveWorkspace";
+          params: {
+              workspaceId: string;
+          };
+          agentFormTurnId?: string;
+      }
+    | {
+          operation: "listMembers";
+          params: {
+              workspaceId: string;
+          };
+          query?: Record<string, string | number | boolean>;
+      }
+    | {
+          operation: "updateMember";
+          params: {
+              workspaceId: string;
+              userId: string;
+          };
+          data: S["MemberWrite"];
+          agentFormTurnId?: string;
+      }
+    | {
+          operation: "removeMember";
+          params: {
+              workspaceId: string;
+              userId: string;
+          };
+          agentFormTurnId?: string;
+      }
+    | {
+          operation: "inviteMember";
+          params: {
+              workspaceId: string;
+          };
+          data: S["InviteRequest"];
+          agentFormTurnId?: string;
+      }
+    | {
+          operation: "listInvitations";
+          params: {
+              workspaceId: string;
+          };
+          query?: Record<string, string | number | boolean>;
+      }
+    | {
           operation: "listResources";
           params: {
               workspaceId: string;
@@ -251,6 +297,13 @@ export type CloudOperation =
           };
       }
     | {
+          operation: "listExecutionPlans";
+          params: {
+              workspaceId: string;
+          };
+          query?: Record<string, string | number | boolean>;
+      }
+    | {
           operation: "listProviders";
           params: {
               workspaceId: string;
@@ -263,6 +316,7 @@ export type CloudOperation =
               workspaceId: string;
           };
           data: S["ProviderWrite"];
+          agentFormTurnId?: string;
       }
     | {
           operation: "getProvider";
@@ -278,6 +332,7 @@ export type CloudOperation =
               providerId: string;
           };
           data: S["ProviderWrite"];
+          agentFormTurnId?: string;
       }
     | {
           operation: "deleteProvider";
@@ -285,6 +340,22 @@ export type CloudOperation =
               workspaceId: string;
               providerId: string;
           };
+          agentFormTurnId?: string;
+      }
+    | {
+          operation: "listServiceAccounts";
+          params: {
+              workspaceId: string;
+          };
+          query?: Record<string, string | number | boolean>;
+      }
+    | {
+          operation: "createServiceAccount";
+          params: {
+              workspaceId: string;
+          };
+          data: S["ServiceAccountCreate"];
+          agentFormTurnId?: string;
       }
     | {
           operation: "listRuns";
@@ -351,6 +422,7 @@ export type CloudOperation =
               runtimeId: string;
           };
           data: S["RuntimeGrantWrite"];
+          agentFormTurnId?: string;
       }
     | {
           operation: "updateRuntimeTrust";
@@ -359,6 +431,7 @@ export type CloudOperation =
               runtimeId: string;
           };
           data: S["RuntimeTrustWrite"];
+          agentFormTurnId?: string;
       }
     | {
           operation: "revokeRuntime";
@@ -366,6 +439,7 @@ export type CloudOperation =
               workspaceId: string;
               runtimeId: string;
           };
+          agentFormTurnId?: string;
       }
     | {
           operation: "approveEnrollment";
@@ -373,6 +447,7 @@ export type CloudOperation =
               enrollmentId: string;
           };
           data: S["EnrollmentApprove"];
+          agentFormTurnId?: string;
       }
     | {
           operation: "listBundles";
@@ -433,6 +508,23 @@ export type CloudOperation =
           query?: Record<string, string | number | boolean>;
       }
     | {
+          operation: "issueServiceToken";
+          params: {
+              workspaceId: string;
+              serviceAccountId: string;
+          };
+          data: S["ServiceTokenIssue"];
+          agentFormTurnId?: string;
+      }
+    | {
+          operation: "listServiceTokens";
+          params: {
+              workspaceId: string;
+              serviceAccountId: string;
+          };
+          query?: Record<string, string | number | boolean>;
+      }
+    | {
           operation: "getValidationReceipt";
           params: {
               workspaceId: string;
@@ -443,7 +535,45 @@ export type CloudOperation =
           operation: "getSetup";
       }
     | {
+          operation: "listNotifications";
+          query?: Record<string, string | number | boolean>;
+      }
+    | {
+          operation: "markAllNotificationsRead";
+          data: S["NotificationReadAllRequest"];
+      }
+    | {
+          operation: "getNotification";
+          params: {
+              notificationId: string;
+          };
+      }
+    | {
+          operation: "markNotificationRead";
+          params: {
+              notificationId: string;
+          };
+          data: S["Empty"];
+          agentFormTurnId?: string;
+      }
+    | {
+          operation: "acceptNotificationInvitation";
+          params: {
+              notificationId: string;
+          };
+          data: S["Empty"];
+          agentFormTurnId?: string;
+      }
+    | {
           operation: "getAccount";
+      }
+    | {
+          operation: "revokeInvitation";
+          params: {
+              workspaceId: string;
+              invitationId: string;
+          };
+          agentFormTurnId?: string;
       }
     | {
           operation: "previewResourceValidation";
@@ -465,6 +595,7 @@ export type CloudOperation =
               workspaceId: string;
           };
           data: S["CredentialCreate"];
+          agentFormTurnId?: string;
       }
     | {
           operation: "rotateCredential";
@@ -473,6 +604,7 @@ export type CloudOperation =
               secretRef: string;
           };
           data: S["CredentialRotate"];
+          agentFormTurnId?: string;
       }
     | {
           operation: "revokeCredential";
@@ -482,6 +614,7 @@ export type CloudOperation =
               versionId: string;
           };
           data: S["EmptyObject"];
+          agentFormTurnId?: string;
       }
     | {
           operation: "listAuthAdapters";
@@ -496,6 +629,7 @@ export type CloudOperation =
               workspaceId: string;
           };
           data: S["AuthAdapterCreate"];
+          agentFormTurnId?: string;
       }
     | {
           operation: "revokeAuthAdapter";
@@ -504,10 +638,30 @@ export type CloudOperation =
               versionId: string;
           };
           data: S["EmptyObject"];
+          agentFormTurnId?: string;
       }
     | {
           operation: "inspectEnrollment";
           data: S["EnrollmentInspect"];
+      }
+    | {
+          operation: "disableServiceAccount";
+          params: {
+              workspaceId: string;
+              serviceAccountId: string;
+          };
+          data: S["EmptyObject"];
+          agentFormTurnId?: string;
+      }
+    | {
+          operation: "revokeServiceToken";
+          params: {
+              workspaceId: string;
+              serviceAccountId: string;
+              tokenId: string;
+          };
+          data: S["EmptyObject"];
+          agentFormTurnId?: string;
       }
     | {
           operation: "updateRuntimeCredentialDelivery";
@@ -516,6 +670,7 @@ export type CloudOperation =
               runtimeId: string;
           };
           data: S["RuntimeCredentialDeliveryWrite"];
+          agentFormTurnId?: string;
       }
     | {
           operation: "getPublishedCompiledSource";

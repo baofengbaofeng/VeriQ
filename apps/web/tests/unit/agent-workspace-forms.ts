@@ -19,7 +19,26 @@ test("authenticated destinations are fixed, scoped, and limited to implemented p
         web?.platform === "web" && web.href,
         `/workspaces?tab=auth-credentials&workspaceId=${workspaceId}&fromAgentForm=1`,
     );
-    assert.equal(formDestination(card, "desktop"), undefined);
+    for (const capability of [
+        "AUTH_CREDENTIALS",
+        "DEVICE_ACCESS",
+        "DEVICE_CREDENTIAL_DELIVERY",
+        "CI_PLAN_TOKENS",
+        "WORKSPACE_MEMBERS",
+        "AI_PROVIDERS",
+        "NOTIFICATION_INBOX",
+        "WORKSPACE_ARCHIVE",
+    ] as const) {
+        const management = { ...card, capability };
+        const route = formDestination(management, "web");
+        assert.ok(route?.platform === "web");
+        assert.deepEqual(formDestination(management, "desktop"), {
+            platform: "desktop",
+            workspaceId,
+            tab: "management",
+            href: route.href,
+        });
+    }
     assert.deepEqual(formDestination({ ...card, capability: "FIXTURE" }, "desktop"), {
         platform: "desktop",
         workspaceId,
@@ -32,7 +51,7 @@ test("authenticated destinations are fixed, scoped, and limited to implemented p
 test("a swapped card, failed authorization or changed scope cannot open an existing workspace form", async () => {
     const scope = new AbortController();
     const check = (read: () => Promise<WorkspaceFormCard>) =>
-        authorizedFormDestination(card, workspaceId, "web", scope.signal, read);
+        authorizedFormDestination(card, workspaceId, "desktop", scope.signal, read);
     await assert.rejects(check(async () => ({ ...card, workspaceId: "other" })));
     await assert.rejects(check(async () => ({ ...card, capability: "DEVICE_ACCESS" })));
     await assert.rejects(
@@ -40,7 +59,7 @@ test("a swapped card, failed authorization or changed scope cannot open an exist
             throw new Error("WORKSPACE_FORBIDDEN");
         }),
     );
-    assert.equal((await check(async () => card))?.platform, "web");
+    assert.equal((await check(async () => card))?.platform, "desktop");
     assert.equal(
         await check(async () => {
             scope.abort();

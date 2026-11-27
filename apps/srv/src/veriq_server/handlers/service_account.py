@@ -9,6 +9,14 @@ from ..services.service_account import ServiceAccountService, account_dto
 from .base import API
 
 
+def _require_form_token_purpose(origin: str | None, purpose: str) -> None:
+    """计划令牌卡只关联执行令牌的签发和吊销，普通服务账号接口仍支持全部契约用途。"""
+    if origin is not None and purpose != "EXECUTION":
+        raise Problem(
+            422, "PLAN_TOKEN_PURPOSE_REQUIRED", "The plan token form only manages execution tokens"
+        )
+
+
 class ServiceAccountAPI(API):
     """工作区服务账号治理：分页列出、创建账号、签发/吊销令牌以及禁用账号；令牌明文仅在签发响应出现一次，库内只存摘要。
     （ServiceAccountAPI）ServiceAccountAPI 必须坚持 Workspace
@@ -130,6 +138,7 @@ class ServiceAccountAPI(API):
                 "service-token-revoke": "EmptyObject",
             }[self.action]
         )
+        origin = self.request.headers.get(FORM_ORIGIN_HEADER)
         async with self.db.sessions.begin() as session:
             await lock_installation(session)
             user, _ = await self.identity(session)
@@ -143,6 +152,7 @@ class ServiceAccountAPI(API):
                 assert account_id
                 account = await service.get(workspace_id, account_id)
                 if self.action == "service-token-issue":
+                    _require_form_token_purpose(origin, data["purpose"])
                     result = await service.issue(
                         user, account, data["purpose"], data.get("operations"), data.get("planIds")
                     )
@@ -165,6 +175,7 @@ class ServiceAccountAPI(API):
                     # 待撤销令牌须归属当前服务账号，未匹配时统一返回不存在，防止同一空间的管理操作跨账号吊销令牌。
                     if not token or token.service_account_id != account.id:
                         raise Problem(404, "SERVICE_TOKEN_NOT_FOUND", "Service token not found")
+                    _require_form_token_purpose(origin, token.purpose)
                     changed = token.revoked_at is None
                     if changed:
                         token.revoked_at = now()
@@ -180,7 +191,7 @@ class ServiceAccountAPI(API):
             if changed:
                 await record_form_receipt(
                     session,
-                    self.request.headers.get(FORM_ORIGIN_HEADER),
+                    origin,
                     user,
                     workspace_id,
                     action=action,

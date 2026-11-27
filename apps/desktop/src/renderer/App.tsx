@@ -663,13 +663,14 @@ export function App() {
                         </>
                     )}
                     {tab === "conversation" &&
-                        (workspace && conversationOwner && adapters ? (
+                        (workspace && userId && conversationOwner && adapters ? (
                             <section className="panel">
                                 <h2>{t.conversation}</h2>
                                 <DesktopAgentForms
                                     key={cloudScope}
                                     workspace={workspace}
                                     owner={conversationOwner}
+                                    employeeId={userId}
                                     adapters={adapters}
                                     parentSignal={scope.signal}
                                     language={language}

@@ -118,19 +118,6 @@ export type LocalOperation =
  */
 export interface DesktopBridge {
     /**
-     * 此入口只接收已持久化的私有会话、轮次及预期能力；系统浏览器只会打开主进程验证后生成的已有表单页面。
-     */
-    prepareAgentWebForm(input: {
-        workspaceId: string;
-        sessionId: string;
-        turnId: string;
-        capability: S["AgentWorkspaceCapability"];
-    }): Promise<string>;
-    /**
-     * 只消费宿主刚才签发的单次表单票据；切换账号或工作区、票据超时或重复使用都会在打开系统浏览器前拒绝。
-     */
-    openAgentWebForm(ticket: string): Promise<void>;
-    /**
      * 读取主窗口会话与后台的无密钥状态投影，后台不可达可以作为独立诊断事实返回；这个接口不隐式启动业务执行，也不把缓存
      * Cookie 的存在等同于服务端仍认可登录。
      */

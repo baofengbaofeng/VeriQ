@@ -125,6 +125,11 @@ export function resolveOperation(value: unknown, workspace: string | undefined):
     // 幂等键独立于请求头，以专门字段暴露给有限的导出操作。
     if (rule.request ? validateSchema(rule.request, input.data).length : input.data !== undefined)
         throw new Error("IPC_PAYLOAD_INVALID");
+    if (
+        (input.operation === "approveEnrollment" || input.operation === "updateRuntimeGrants") &&
+        object(input.data).workspaceId !== workspace
+    )
+        throw new Error("WORKSPACE_SCOPE_MISMATCH");
     const body = input.data as PlatformComponents["schemas"]["ResourceCreate" | "DraftWrite"];
     const datasetWrite =
         (input.operation === "updateDraft" ||
@@ -141,6 +146,11 @@ export function resolveOperation(value: unknown, workspace: string | undefined):
     } else if (!agentTurn && JSON.stringify(input).length > 1024 * 1024) throw new Error("IPC_PAYLOAD_LIMIT");
     const turn = input.agentFormTurnId;
     if (turn !== undefined && (!rule.agentForm || typeof turn !== "string" || turn.length !== 36 || !uuid.test(turn)))
+        throw new Error("IPC_PAYLOAD_INVALID");
+    if (
+        ((input.operation === "issueServiceToken" || input.operation === "revokeServiceToken") && turn === undefined) ||
+        (input.operation === "issueServiceToken" && object(input.data).purpose !== "EXECUTION")
+    )
         throw new Error("IPC_PAYLOAD_INVALID");
     if (rule.idempotency) {
         if (

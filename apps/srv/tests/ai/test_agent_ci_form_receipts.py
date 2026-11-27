@@ -30,6 +30,25 @@ async def test_ci_account_and_token_receipts_follow_successful_mutations_and_hid
         assert created.status_code == 201, created.text
         account = created.json()["data"]["id"]
         tokens = f"{base}/{account}/tokens"
+        enrollment = {"purpose": "RUNTIME_ENROLLMENT"}
+        forbidden_issue = await client.post(tokens, json=enrollment, headers=origin)
+        assert (forbidden_issue.status_code, forbidden_issue.json().get("code")) == (
+            422,
+            "PLAN_TOKEN_PURPOSE_REQUIRED",
+        )
+        ordinary_token = await client.post(tokens, json=enrollment)
+        assert ordinary_token.status_code == 201, ordinary_token.text
+        ordinary_token_id = ordinary_token.json()["data"]["id"]
+        enrollment_revoke = f"{tokens}/{ordinary_token_id}/revoke"
+        denied = await client.post(enrollment_revoke, json={}, headers=origin)
+        assert (denied.status_code, denied.json().get("code")) == (
+            422,
+            "PLAN_TOKEN_PURPOSE_REQUIRED",
+        )
+        async with db.sessions() as session:
+            assert (await session.get(ServiceToken, ordinary_token_id)).revoked_at is None
+        assert (await client.post(enrollment_revoke, json={})).status_code == 200
+
         intent = {"purpose": "EXECUTION", "operations": ["trigger"], "planIds": [plan["id"]]}
         wrong_origin = await client.post(
             tokens, json=intent, headers={"X-VeriQ-Agent-Form": str(uuid4())}
@@ -41,7 +60,10 @@ async def test_ci_account_and_token_receipts_follow_successful_mutations_and_hid
         async with db.sessions() as session:
             assert not (
                 await session.scalars(
-                    select(ServiceToken).where(ServiceToken.service_account_id == account)
+                    select(ServiceToken).where(
+                        ServiceToken.service_account_id == account,
+                        ServiceToken.purpose == "EXECUTION",
+                    )
                 )
             ).all()
         issued = await client.post(tokens, json=intent, headers=origin)

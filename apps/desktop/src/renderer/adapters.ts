@@ -1,5 +1,6 @@
 import {
     installHostTransport,
+    ApiError,
     CloudResourceAdapter,
     LocalResourceAdapter,
     CloudReportAdapter,
@@ -69,7 +70,12 @@ export function installDesktopTransport(): void {
     installHostTransport({
         json: async (path, method, data, signal, headers) => {
             signal?.throwIfAborted();
-            const value = await bridge.cloud(operation(path, method, data, headers));
+            const value = await bridge.cloud(operation(path, method, data, headers)).catch((error: unknown) => {
+                signal?.throwIfAborted();
+                const failure = error instanceof Error && /\bHOST_HTTP_([45]\d\d) ([A-Z_]{1,80})$/.exec(error.message);
+                if (failure) throw new ApiError(failure[2]!, failure[2]!, Number(failure[1]), "");
+                throw error;
+            });
             signal?.throwIfAborted();
             return value;
         },

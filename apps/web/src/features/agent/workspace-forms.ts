@@ -34,6 +34,7 @@ export type WorkspaceFormDestination =
           tab: "resources";
           resourceKind: "ENVIRONMENT" | "FIXTURE" | "DATASET";
       }
+    | { platform: "desktop"; workspaceId: string; tab: "management"; href: string }
     | { platform: "desktop"; workspaceId: string; tab: "reports" | "settings" };
 
 export type WorkspaceFormPlatform = WorkspaceFormDestination["platform"];
@@ -51,7 +52,6 @@ export type FormLauncher = {
         signal: AbortSignal,
         onClose: () => void,
     ) => void;
-    openWebForm?: (ref: WorkspaceFormReference, signal: AbortSignal) => Promise<void>;
 };
 
 const scopedPaths = new Set(
@@ -93,7 +93,7 @@ export function formLabel(capability: WorkspaceCapability, language: "zh" | "en"
 }
 
 /**
- * 浏览器只能导航到固定页面；桌面只使用已有的本机设置或云端工作区视图，不把服务器字段交给系统打开。
+ * 两个宿主共用固定页面映射；桌面资源、证据及保留设置另用原生视图。
  */
 export function formDestination(
     card: WorkspaceFormCard,
@@ -101,27 +101,25 @@ export function formDestination(
 ): WorkspaceFormDestination | undefined {
     if (!isWorkspaceFormCard(card)) return;
     const { workspaceId, capability } = card;
-    if (platform === "web") {
-        const path = forms[capability][2];
-        if (!path) return;
-        const query = new URLSearchParams({ workspaceId, fromAgentForm: "1" });
-        const href = capability === "NOTIFICATION_INBOX" ? path : `${path}${path.includes("?") ? "&" : "?"}${query}`;
-        return { platform, workspaceId, href };
+    if (platform === "desktop") {
+        switch (capability) {
+            case "ENVIRONMENT":
+            case "FIXTURE":
+                return { platform, workspaceId, tab: "resources", resourceKind: capability };
+            case "HTTP_DATASET":
+                return { platform, workspaceId, tab: "resources", resourceKind: "DATASET" };
+            case "REPORT_EVIDENCE":
+            case "WORKSPACE_AUDIT":
+                return { platform, workspaceId, tab: "reports" };
+            case "LOCAL_RETENTION":
+                return { platform, workspaceId, tab: "settings" };
+        }
     }
-    switch (capability) {
-        case "ENVIRONMENT":
-        case "FIXTURE":
-            return { platform, workspaceId, tab: "resources", resourceKind: capability };
-        case "HTTP_DATASET":
-            return { platform, workspaceId, tab: "resources", resourceKind: "DATASET" };
-        case "REPORT_EVIDENCE":
-        case "WORKSPACE_AUDIT":
-            return { platform, workspaceId, tab: "reports" };
-        case "LOCAL_RETENTION":
-            return { platform, workspaceId, tab: "settings" };
-        default:
-            return;
-    }
+    const path = forms[capability][2];
+    if (!path) return;
+    const query = new URLSearchParams({ workspaceId, fromAgentForm: "1" });
+    const href = capability === "NOTIFICATION_INBOX" ? path : `${path}${path.includes("?") ? "&" : "?"}${query}`;
+    return platform === "web" ? { platform, workspaceId, href } : { platform, workspaceId, tab: "management", href };
 }
 
 /**

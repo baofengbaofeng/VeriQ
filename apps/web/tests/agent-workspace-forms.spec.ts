@@ -49,6 +49,8 @@ test("inline archive retains the outer URL and requires the original confirmatio
         const card = page.getByRole("button", { name: "Review workspace archive settings", exact: true });
         await card.click();
         const panel = page.getByRole("region", { name: "Review workspace archive settings", exact: true });
+        await expect(panel.getByRole("button", { name: "Rename Workspace", exact: true })).toHaveCount(0);
+        await expect(panel.getByRole("tablist", { name: "Workspace settings" })).toHaveCount(0);
         const archive = panel.getByRole("button", { name: "Archive Workspace", exact: true });
         await archive.click();
         const dialog = page.getByRole("dialog", { name: "Archive Workspace", exact: true });
@@ -197,10 +199,10 @@ test("a separate browser signs in at the verified form URL and continues in its 
     }
 });
 
-test("desktop card mounting and revoked clicks never invoke the browser bridge", async ({ page }) => {
+test("desktop card opens the native destination only after reading the authorized turn", async ({ page }) => {
     await page.goto("/tests/workspace-form-bridge-fixture.html");
     const open = page.locator("#root button");
-    await expect(open).toHaveText(/browser|浏览器/i);
+    await expect(open).toHaveText(/Manage identities and credential versions|管理身份与固定凭证版本/);
     await expect(page.locator("#checks")).toHaveText("0");
     await expect(page.locator("#launches")).toHaveText("[]");
     await open.click();
@@ -210,14 +212,70 @@ test("desktop card mounting and revoked clicks never invoke the browser bridge",
     await page.getByLabel("Allow the next authorization").check();
     await open.click();
     await expect(page.locator("#checks")).toHaveText("2");
-    await expect(page.locator("#launches")).toHaveText(
-        JSON.stringify([
-            {
-                workspaceId: "22222222-2222-4222-8222-222222222222",
+    const launches = page.locator("#launches");
+    await expect(launches).toContainText("AUTH_CREDENTIALS");
+    const workspaceId = "22222222-2222-4222-8222-222222222222";
+    expect(JSON.parse((await launches.textContent())!)).toEqual([
+        {
+            destination: {
+                platform: "desktop",
+                workspaceId,
+                tab: "management",
+                href: `/workspaces?tab=auth-credentials&workspaceId=${workspaceId}&fromAgentForm=1`,
+            },
+            ref: {
+                workspaceId,
                 sessionId: "33333333-3333-4333-8333-333333333333",
                 turnId: "44444444-4444-4444-8444-444444444444",
                 capability: "AUTH_CREDENTIALS",
             },
-        ]),
-    );
+        },
+    ]);
 });
+
+/**
+ * 三类管理卡复用真实页面并只发起所属能力的读取；即使账号本身拥有系统管理权限也不会顺带加载其它目录。
+ */
+for (const scenario of [
+    {
+        capability: "WORKSPACE_MEMBERS",
+        label: "Manage workspace members and roles",
+        reads: ["/members", "/invitations"],
+    },
+    { capability: "DEVICE_CREDENTIAL_DELIVERY", label: "Review device credential delivery", reads: ["/runtimes"] },
+    {
+        capability: "CI_PLAN_TOKENS",
+        label: "Manage CI service accounts and plan tokens",
+        reads: ["/execution-plans", "/service-accounts"],
+    },
+]) {
+    test(`isolated management form renders only the selected ${scenario.capability} domain`, async ({
+        page,
+        baseURL,
+    }) => {
+        await conversationForm(page, baseURL, scenario.capability, async ({ workspaceId }) => {
+            const paths = new Set<string>();
+            page.on("request", (request) => paths.add(new URL(request.url()).pathname));
+            await page.getByRole("button", { name: scenario.label, exact: true }).click();
+            const panel = page.getByRole("region", { name: scenario.label, exact: true });
+            if (scenario.capability === "WORKSPACE_MEMBERS") {
+                await expect(panel.getByRole("table", { name: "Members", exact: true })).toBeVisible();
+                await expect(panel.getByRole("tablist", { name: "Workspace settings" })).toHaveCount(0);
+                expect(paths.has("/api/v1/admin/users")).toBe(false);
+            } else if (scenario.capability === "DEVICE_CREDENTIAL_DELIVERY") {
+                await expect(
+                    panel.getByText("No registered Runtimes in this Workspace.", { exact: true }),
+                ).toBeVisible();
+                await expect(panel.getByRole("heading", { name: "Deployment service accounts" })).toHaveCount(0);
+                await expect(panel.getByRole("button", { name: "Inspect device" })).toHaveCount(0);
+                expect(paths.has(`/api/v1/workspaces/${workspaceId}/service-accounts`)).toBe(false);
+            } else {
+                await expect(panel.getByText("No service accounts yet.", { exact: true })).toBeVisible();
+                await expect(panel.getByRole("heading", { name: "Plan list", exact: true })).toHaveCount(0);
+                expect(paths.has(`/api/v1/workspaces/${workspaceId}/runtimes`)).toBe(false);
+            }
+            for (const suffix of scenario.reads)
+                expect(paths.has(`/api/v1/workspaces/${workspaceId}${suffix}`)).toBe(true);
+        });
+    });
+}

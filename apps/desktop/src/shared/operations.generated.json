@@ -59,6 +59,88 @@
         "idempotency": false,
         "kind": "json"
     },
+    "archiveWorkspace": {
+        "path": "/api/v1/workspaces/{workspaceId}",
+        "method": "DELETE",
+        "ids": ["workspaceId"],
+        "queries": {},
+        "request": null,
+        "idempotency": false,
+        "agentForm": true,
+        "kind": "json"
+    },
+    "listMembers": {
+        "path": "/api/v1/workspaces/{workspaceId}/members",
+        "method": "GET",
+        "ids": ["workspaceId"],
+        "queries": {
+            "cursor": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+            },
+            "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100,
+                "default": 25
+            }
+        },
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "updateMember": {
+        "path": "/api/v1/workspaces/{workspaceId}/members/{userId}",
+        "method": "PUT",
+        "ids": ["workspaceId", "userId"],
+        "queries": {},
+        "request": "MemberWrite",
+        "idempotency": false,
+        "agentForm": true,
+        "kind": "json"
+    },
+    "removeMember": {
+        "path": "/api/v1/workspaces/{workspaceId}/members/{userId}",
+        "method": "DELETE",
+        "ids": ["workspaceId", "userId"],
+        "queries": {},
+        "request": null,
+        "idempotency": false,
+        "agentForm": true,
+        "kind": "json"
+    },
+    "inviteMember": {
+        "path": "/api/v1/workspaces/{workspaceId}/invitations",
+        "method": "POST",
+        "ids": ["workspaceId"],
+        "queries": {},
+        "request": "InviteRequest",
+        "idempotency": false,
+        "agentForm": true,
+        "kind": "json"
+    },
+    "listInvitations": {
+        "path": "/api/v1/workspaces/{workspaceId}/invitations",
+        "method": "GET",
+        "ids": ["workspaceId"],
+        "queries": {
+            "cursor": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+            },
+            "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100,
+                "default": 25
+            }
+        },
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
     "listResources": {
         "path": "/api/v1/workspaces/{workspaceId}/resources",
         "method": "GET",
@@ -402,6 +484,25 @@
         "idempotency": false,
         "kind": "json"
     },
+    "listExecutionPlans": {
+        "path": "/api/v1/workspaces/{workspaceId}/execution-plans",
+        "method": "GET",
+        "ids": ["workspaceId"],
+        "queries": {
+            "cursor": {
+                "type": "string"
+            },
+            "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100,
+                "default": 30
+            }
+        },
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
     "listProviders": {
         "path": "/api/v1/workspaces/{workspaceId}/ai/providers",
         "method": "GET",
@@ -428,6 +529,7 @@
         "queries": {},
         "request": "ProviderWrite",
         "idempotency": false,
+        "agentForm": true,
         "kind": "json"
     },
     "getProvider": {
@@ -446,6 +548,7 @@
         "queries": {},
         "request": "ProviderWrite",
         "idempotency": false,
+        "agentForm": true,
         "kind": "json"
     },
     "deleteProvider": {
@@ -455,6 +558,36 @@
         "queries": {},
         "request": null,
         "idempotency": false,
+        "agentForm": true,
+        "kind": "json"
+    },
+    "listServiceAccounts": {
+        "path": "/api/v1/workspaces/{workspaceId}/service-accounts",
+        "method": "GET",
+        "ids": ["workspaceId"],
+        "queries": {
+            "cursor": {
+                "type": "string"
+            },
+            "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100,
+                "default": 30
+            }
+        },
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "createServiceAccount": {
+        "path": "/api/v1/workspaces/{workspaceId}/service-accounts",
+        "method": "POST",
+        "ids": ["workspaceId"],
+        "queries": {},
+        "request": "ServiceAccountCreate",
+        "idempotency": false,
+        "agentForm": true,
         "kind": "json"
     },
     "listRuns": {
@@ -556,6 +689,7 @@
         "queries": {},
         "request": "RuntimeGrantWrite",
         "idempotency": false,
+        "agentForm": true,
         "kind": "json"
     },
     "updateRuntimeTrust": {
@@ -565,6 +699,7 @@
         "queries": {},
         "request": "RuntimeTrustWrite",
         "idempotency": false,
+        "agentForm": true,
         "kind": "json"
     },
     "revokeRuntime": {
@@ -574,6 +709,7 @@
         "queries": {},
         "request": null,
         "idempotency": false,
+        "agentForm": true,
         "kind": "json"
     },
     "approveEnrollment": {
@@ -583,6 +719,7 @@
         "queries": {},
         "request": "EnrollmentApprove",
         "idempotency": false,
+        "agentForm": true,
         "kind": "json"
     },
     "listBundles": {
@@ -681,6 +818,34 @@
         "idempotency": false,
         "kind": "json"
     },
+    "issueServiceToken": {
+        "path": "/api/v1/workspaces/{workspaceId}/service-accounts/{serviceAccountId}/tokens",
+        "method": "POST",
+        "ids": ["workspaceId", "serviceAccountId"],
+        "queries": {},
+        "request": "ServiceTokenIssue",
+        "idempotency": false,
+        "agentForm": true,
+        "kind": "json"
+    },
+    "listServiceTokens": {
+        "path": "/api/v1/workspaces/{workspaceId}/service-accounts/{serviceAccountId}/tokens",
+        "method": "GET",
+        "ids": ["workspaceId", "serviceAccountId"],
+        "queries": {
+            "cursor": {
+                "type": "string"
+            },
+            "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+            }
+        },
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
     "getValidationReceipt": {
         "path": "/api/v1/workspaces/{workspaceId}/jobs/{jobId}/validation-receipt",
         "method": "GET",
@@ -699,6 +864,69 @@
         "idempotency": false,
         "kind": "json"
     },
+    "listNotifications": {
+        "path": "/api/v1/notifications",
+        "method": "GET",
+        "ids": [],
+        "queries": {
+            "cursor": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+            },
+            "limit": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100,
+                "default": 25
+            },
+            "unread": {
+                "type": "boolean",
+                "default": false
+            }
+        },
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "markAllNotificationsRead": {
+        "path": "/api/v1/notifications/read-all",
+        "method": "POST",
+        "ids": [],
+        "queries": {},
+        "request": "NotificationReadAllRequest",
+        "idempotency": false,
+        "kind": "json"
+    },
+    "getNotification": {
+        "path": "/api/v1/notifications/{notificationId}",
+        "method": "GET",
+        "ids": ["notificationId"],
+        "queries": {},
+        "request": null,
+        "idempotency": false,
+        "kind": "json"
+    },
+    "markNotificationRead": {
+        "path": "/api/v1/notifications/{notificationId}/read",
+        "method": "POST",
+        "ids": ["notificationId"],
+        "queries": {},
+        "request": "Empty",
+        "idempotency": false,
+        "agentForm": true,
+        "kind": "json"
+    },
+    "acceptNotificationInvitation": {
+        "path": "/api/v1/notifications/{notificationId}/accept",
+        "method": "POST",
+        "ids": ["notificationId"],
+        "queries": {},
+        "request": "Empty",
+        "idempotency": false,
+        "agentForm": true,
+        "kind": "json"
+    },
     "getAccount": {
         "path": "/api/v1/account",
         "method": "GET",
@@ -706,6 +934,16 @@
         "queries": {},
         "request": null,
         "idempotency": false,
+        "kind": "json"
+    },
+    "revokeInvitation": {
+        "path": "/api/v1/workspaces/{workspaceId}/invitations/{invitationId}",
+        "method": "DELETE",
+        "ids": ["workspaceId", "invitationId"],
+        "queries": {},
+        "request": null,
+        "idempotency": false,
+        "agentForm": true,
         "kind": "json"
     },
     "previewResourceValidation": {
@@ -742,6 +980,7 @@
         "queries": {},
         "request": "CredentialCreate",
         "idempotency": false,
+        "agentForm": true,
         "kind": "json"
     },
     "rotateCredential": {
@@ -751,6 +990,7 @@
         "queries": {},
         "request": "CredentialRotate",
         "idempotency": false,
+        "agentForm": true,
         "kind": "json"
     },
     "revokeCredential": {
@@ -760,6 +1000,7 @@
         "queries": {},
         "request": "EmptyObject",
         "idempotency": false,
+        "agentForm": true,
         "kind": "json"
     },
     "listAuthAdapters": {
@@ -787,6 +1028,7 @@
         "queries": {},
         "request": "AuthAdapterCreate",
         "idempotency": false,
+        "agentForm": true,
         "kind": "json"
     },
     "revokeAuthAdapter": {
@@ -796,6 +1038,7 @@
         "queries": {},
         "request": "EmptyObject",
         "idempotency": false,
+        "agentForm": true,
         "kind": "json"
     },
     "inspectEnrollment": {
@@ -807,6 +1050,26 @@
         "idempotency": false,
         "kind": "json"
     },
+    "disableServiceAccount": {
+        "path": "/api/v1/workspaces/{workspaceId}/service-accounts/{serviceAccountId}/disable",
+        "method": "POST",
+        "ids": ["workspaceId", "serviceAccountId"],
+        "queries": {},
+        "request": "EmptyObject",
+        "idempotency": false,
+        "agentForm": true,
+        "kind": "json"
+    },
+    "revokeServiceToken": {
+        "path": "/api/v1/workspaces/{workspaceId}/service-accounts/{serviceAccountId}/tokens/{tokenId}/revoke",
+        "method": "POST",
+        "ids": ["workspaceId", "serviceAccountId", "tokenId"],
+        "queries": {},
+        "request": "EmptyObject",
+        "idempotency": false,
+        "agentForm": true,
+        "kind": "json"
+    },
     "updateRuntimeCredentialDelivery": {
         "path": "/api/v1/workspaces/{workspaceId}/runtimes/{runtimeId}/credential-delivery",
         "method": "PUT",
@@ -814,6 +1077,7 @@
         "queries": {},
         "request": "RuntimeCredentialDeliveryWrite",
         "idempotency": false,
+        "agentForm": true,
         "kind": "json"
     },
     "getPublishedCompiledSource": {
