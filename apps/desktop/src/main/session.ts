@@ -1,3 +1,4 @@
+import { diagnosticFetch } from "../../../runtime/src/diagnostics.ts";
 import type { Session } from "electron";
 import { createHash } from "node:crypto";
 import type { PlatformComponents } from "@veriq/contracts";
@@ -68,7 +69,7 @@ export class HostSession {
      * JSON undefined 数据。Cookie 和响应 CSRF 均不加入 renderer 返回值。
      */
     private async response(operation: ResolvedOperation): Promise<Response> {
-        return this.session.fetch(this.origin + operation.path, {
+        return diagnosticFetch(this.session.fetch.bind(this.session), "desktop.control", this.origin + operation.path, {
             method: operation.method,
             credentials: "include",
             redirect: "error",

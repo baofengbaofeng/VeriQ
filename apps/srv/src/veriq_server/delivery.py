@@ -3,7 +3,7 @@
 """
 
 import asyncio
-import logging
+from logging import ERROR
 import smtplib
 import ssl
 from email.message import EmailMessage
@@ -12,10 +12,10 @@ from typing import Protocol
 from sqlalchemy import delete, select
 
 from .db import Database, User, UserToken
+from .log import log
+from .outbound import outbound
 from .service import audit, digest, issue_reset, lock_installation, stamp
 from .settings import Settings
-
-log = logging.getLogger("veriq.mail")
 
 
 class Delivery(Protocol):
@@ -54,12 +54,15 @@ class SMTPDelivery:
         send 实现于 apps/srv/src/veriq_server/delivery.py：请按该符号的输入校验、错误码与调用方契约阅读，
         勿假设通用成功默认值。
         """
-        message = EmailMessage()
-        message["From"] = self.config.smtp_from
-        message["To"] = recipient
-        message["Subject"] = subject
-        message.set_content(body)
-        await asyncio.to_thread(self._send, message)
+        with outbound(
+            "smtp", "mail.delivered", failure_event="mail.delivery_failed", method_name="send"
+        ):
+            message = EmailMessage()
+            message["From"] = self.config.smtp_from
+            message["To"] = recipient
+            message["Subject"] = subject
+            message.set_content(body)
+            await asyncio.to_thread(self._send, message)
 
     def _send(self, message: EmailMessage) -> None:
         """同步建立 SMTP 会话，按配置执行 TLS/STARTTLS 与 login，然后 send_message，SMTPDelivery._send
@@ -120,6 +123,7 @@ class ResetDispatcher:
         """
         token: str | None = None
         user_id: str | None = None
+        smtp_in_progress = False
         try:
             async with self.db.sessions.begin() as session:
                 await lock_installation(session)
@@ -136,6 +140,7 @@ class ResetDispatcher:
                 audit(session, "reset.requested", None, user.id)
             url = self.config.public_url + "/reset/confirm#token=" + token
             assert self.delivery is not None
+            smtp_in_progress = isinstance(self.delivery, SMTPDelivery)
             await self.delivery.send(
                 recipient,
                 "Reset your VeriQ password",
@@ -144,11 +149,13 @@ class ResetDispatcher:
                     f"{stamp(expiry)}. If you did not request it, ignore this email."
                 ),
             )
+            smtp_in_progress = False
             async with self.db.sessions.begin() as session:
                 audit(session, "reset.delivered", None, user_id)
         except Exception:
             # 邮件失败日志仅记录固定事件，不附异常文本、收件人或重置链接，避免投递适配器错误将口令重置材料写入运维日志。
-            log.error('{"event":"mail.delivery_failed"}')
+            if not smtp_in_progress:
+                log("_undef", "mail.delivery_failed", level=ERROR)
             if token:
                 try:
                     async with self.db.sessions.begin() as session:
@@ -157,7 +164,7 @@ class ResetDispatcher:
                         )
                         audit(session, "reset.delivery_failed", None, user_id)
                 except Exception:
-                    log.error('{"event":"mail.revoke_failed"}')
+                    log("_undef", "mail.revoke_failed", level=ERROR)
 
     async def close(self) -> None:
         """等待全部进行中的投递任务结束后再返回，供 HTTPServer 优雅停机路径调用，ResetDispatcher.close

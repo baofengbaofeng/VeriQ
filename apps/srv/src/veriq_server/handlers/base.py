@@ -1,24 +1,23 @@
 """统一管理控制面请求的会话身份、请求关联与错误响应，在具体业务处理前验证请求来源及大小。"""
 
 import json
-import logging
-import time
 from datetime import datetime
+from logging import ERROR
 from typing import Any, cast
 from uuid import uuid4
 from jsonschema import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
-from tornado.web import RequestHandler
+from tornado.web import HTTPError, OutputTransform, RequestHandler
 from ..db import SESSION_ACTIVITY_INTERVAL, Database, User, UserSession
+from ..log import log
+from ..logging_context import TraceContext, inbound_trace, trace_headers, use_trace
 from ..service import Problem, digest, now
 from ..settings import Settings
 from ..validation import validate_api
 
 MAX_HTTP_BODY_BYTES = 8 * 1024 * 1024
-
-log = logging.getLogger("veriq.http")
 
 
 class API(RequestHandler):
@@ -32,7 +31,7 @@ class API(RequestHandler):
     db: Database
     action: str
     request_id: str
-    started: float
+    trace: TraceContext
     _session_activity: tuple[str, datetime] | None
 
     body_limit = 65536
@@ -44,8 +43,7 @@ class API(RequestHandler):
         action: str = "",
         methods: tuple[str, ...] | None = None,
     ) -> None:
-        """注入 Settings、数据库句柄与路由 action，并生成贯穿日志的 request_id；started 单调时钟用于后续耗时度量，
-        不写响应。
+        """注入 Settings、数据库句柄与路由 action，生成请求编号并验证入站链路标识。
         initialize 实现于 apps/srv/src/veriq_server/handlers/base.py：请按该符号的输入校验、错误码与调用方契约阅读，
         勿假设通用成功默认值。
         """
@@ -53,8 +51,28 @@ class API(RequestHandler):
         if methods is not None:
             self.SUPPORTED_METHODS = methods
         self.request_id = str(uuid4())
-        self.started = time.monotonic()
+        self.trace = inbound_trace(self.request.headers, self.request_id)
         self._session_activity = None
+
+    async def _execute(
+        self, transforms: list[OutputTransform], *args: bytes, **kwargs: bytes
+    ) -> None:
+        # 在 Tornado 的方法、正文和 CSRF 检查之前绑定上下文，失败路径沿用同一份标识。
+        with use_trace(self.trace):
+            self._set_correlation_headers()
+            method = self.request.method
+            log(
+                "_com_request_in",
+                "request.started",
+                uri=self.action or "unknown",
+                method=method if method in RequestHandler.SUPPORTED_METHODS else "UNKNOWN",
+            )
+            await super()._execute(transforms, *args, **kwargs)
+
+    def _set_correlation_headers(self) -> None:
+        self.set_header("X-Request-Id", self.request_id)
+        for name, value in trace_headers(self.trace).items():
+            self.set_header(name, value)
 
     def on_finish(self) -> None:
         """成功完成请求后才投递已认证观察值，失败响应与单纯会话探测不形成活动，当前事务无需等待活动写入。"""
@@ -143,7 +161,7 @@ class API(RequestHandler):
                 413: "Request body exceeds limit",
             }.get(status_code, "An unexpected error occurred")
         self.set_status(status_code)
-        self.set_header("X-Request-Id", self.request_id)
+        self._set_correlation_headers()
         self.finish({"code": code, "message": message, "details": {}, "requestId": self.request_id})
 
     def _handle_request_exception(self, e: BaseException) -> None:
@@ -155,16 +173,9 @@ class API(RequestHandler):
             super()._handle_request_exception(e)
 
     def log_exception(self, typ: Any, value: Any, tb: Any) -> None:
-        """仅以 requestId 与异常类型结构化记录错误，避免把正文或令牌写入应用日志；日志为单行 JSON，便于集中检索
-        requestId。
-        log_exception 实现于 apps/srv/src/veriq_server/handlers/base.py：请按该符号的输入校验、错误码与调用方契约阅读，
-        勿假设通用成功默认值。
-        """
-        log.error(
-            json.dumps(
-                {"event": "request.error", "requestId": self.request_id, "errorType": typ.__name__}
-            )
-        )
+        """只记录意外错误的类型，避免将正文、SQL 或凭据带入日志。"""
+        if not isinstance(value, HTTPError) or value.status_code >= 500:
+            log("_undef", "request.error", level=ERROR, error_type=typ.__name__)
 
     async def identity(self, s: AsyncSession, admin: bool = False) -> tuple[User, UserSession]:
         """从 veriq_session Cookie 解析未过期会话；admin=True 时额外要求 system_admin。

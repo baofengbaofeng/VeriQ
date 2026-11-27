@@ -6,6 +6,7 @@
 /**
  * 本机查看器使用私有临时目录中的 Trace 副本，嵌入模式限制文件服务只访问该目录，两种入口均绑定回环地址。
  */
+import { captureDiagnostics } from "./diagnostics.ts";
 import { spawn } from "node:child_process";
 import { mkdtemp, stat, copyFile, chmod, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
@@ -82,8 +83,9 @@ export async function openTrace(
                 "--port",
                 "0",
             ],
-            { cwd: directory, stdio: "inherit", signal },
+            { cwd: directory, stdio: ["inherit", "inherit", "pipe"], signal },
         );
+        captureDiagnostics(child.stderr, "playwright.trace");
         await new Promise<void>((resolve, reject) => {
             child.once("error", (error) => {
                 if (!signal.aborted || !child.pid) reject(error);

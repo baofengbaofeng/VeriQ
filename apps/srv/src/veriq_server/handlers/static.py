@@ -279,7 +279,7 @@ class PublishedFileHandler(StaticFileHandler, API):
         文件父类初始化只接收经过验证的包内根目录。这里没有添加任意路径或 symlink 授权选项。
         """
         site: PublishedSite = kwargs["site"]
-        API.initialize(self, kwargs["config"], kwargs["db"])
+        API.initialize(self, kwargs["config"], kwargs["db"], action="published-file")
         StaticFileHandler.initialize(self, path=str(site.root))
         self.site, self.spa = site, kwargs.get("spa", False)
 

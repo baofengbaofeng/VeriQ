@@ -2,6 +2,7 @@
  * VeriQ 桌面共享入口只导出已经实现的业务视图和适配器，使用 Web 自身配置生成独立声明与静态资源；桌面严格工程消费产物而
  * 不继承旧 Web 的类型兼容选项。
  */
+export { installBrowserDiagnostics } from "./browser-logging";
 export { installHostTransport, type HostTransport, type Workspace } from "./api";
 export { ResourceWorkspaceView } from "./features/resources/ResourcePage";
 export {

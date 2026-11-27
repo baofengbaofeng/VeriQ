@@ -7,12 +7,12 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
 import re
 from dataclasses import dataclass
 from datetime import timedelta
 from hashlib import sha256
 from pathlib import Path
+from logging import WARNING
 from typing import Any
 from uuid import uuid4
 
@@ -21,6 +21,8 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..log import log
+from ..logging_context import new_trace, use_trace
 from ..auth.authorization import Permission, WorkspaceScope
 from ..contracts import asset_source_hash, canonical_bytes, validate_schema
 from ..db import Attempt, Database, Job, User, ValidationReceipt
@@ -35,7 +37,6 @@ from .jobs import database_time
 from .resource import ResourceService
 from .workspace import WorkspaceRepository
 
-logger = logging.getLogger(__name__)
 _LEASE = timedelta(minutes=5)
 _BUILD_LIMIT = 240
 _IDLE_POLL = 1
@@ -461,7 +462,7 @@ async def compile_next(db: Database, settings: Settings) -> bool:
             await _return_claim(db, claim)
             if problem.code.startswith("SERVER_COMPILER_"):
                 raise Problem(503, problem.code, "Server compiler tools are unavailable") from None
-            logger.warning("Server compiler release changed after claim")
+            log("_undef", "compiler.release_changed", level=WARNING)
             return False
         error = _error_result(problem.code, problem.diagnostics)
     except Problem as problem:
@@ -469,7 +470,7 @@ async def compile_next(db: Database, settings: Settings) -> bool:
     except TimeoutError:
         error = _error_result("SERVER_COMPILATION_TIMEOUT")
     except (OSError, ValueError, KeyError, TypeError):
-        logger.warning("VeriQ server compiler output could not be read")
+        log("_undef", "compiler.output_unavailable", level=WARNING)
         error = _error_result("INVALID_COMPILED_BUNDLE")
     await _finalize(db, settings, claim, output, error)
     return True
@@ -492,26 +493,27 @@ async def serve_compiler(
         )
     retry_pause = _IDLE_POLL
     while not stop.is_set():
-        try:
-            processed = await compile_next(db, settings)
-        except DBAPIError as error:
-            args = error.orig.args if error.orig is not None else ()
-            transient = error.connection_invalidated or (
-                args and args[0] in _TRANSIENT_MYSQL_ERRORS
-            )
-            if once or not transient:
-                raise
-            # 未确认提交的领取会自然到期，已提交的回执则由终态拦住后续重试，重连不主动重放旧围栏。
-            logger.warning("VeriQ server compiler database temporarily unavailable")
-            delay = retry_pause
-            retry_pause = min(retry_pause * 2, _MAX_DB_RETRY)
-        else:
-            if once:
-                return
-            retry_pause = _IDLE_POLL
-            if processed:
-                continue
-            delay = _IDLE_POLL
+        with use_trace(new_trace()):
+            try:
+                processed = await compile_next(db, settings)
+            except DBAPIError as error:
+                args = error.orig.args if error.orig is not None else ()
+                transient = error.connection_invalidated or (
+                    args and args[0] in _TRANSIENT_MYSQL_ERRORS
+                )
+                if once or not transient:
+                    raise
+                # 未确认提交的领取会自然到期，已提交的回执则由终态拦住后续重试，重连不主动重放旧围栏。
+                log("_undef", "compiler.database_unavailable", level=WARNING)
+                delay = retry_pause
+                retry_pause = min(retry_pause * 2, _MAX_DB_RETRY)
+            else:
+                if once:
+                    return
+                retry_pause = _IDLE_POLL
+                if processed:
+                    continue
+                delay = _IDLE_POLL
         try:
             await asyncio.wait_for(stop.wait(), timeout=delay)
         except TimeoutError:

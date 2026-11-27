@@ -1,3 +1,4 @@
+import { diagnosticCode, getLogger } from "../../../runtime/src/diagnostics.ts";
 import { BrowserWindow, session } from "electron";
 import { randomUUID } from "node:crypto";
 import type { DesktopAgentClient } from "../agent/client";
@@ -45,7 +46,11 @@ export async function openNativeTrace(client: DesktopAgentClient, input: unknown
         void client
             .call({ operation: "viewerClose", viewerId })
             .finally(() => isolated.clearStorageData())
-            .catch((error) => console.error("Trace viewer cleanup failed:", error.message));
+            .catch((error) =>
+                getLogger("desktop.trace").error("desktop.trace_viewer_cleanup_failed", {
+                    code: diagnosticCode(error, "TRACE_VIEWER_CLEANUP_FAILED"),
+                }),
+            );
     });
     try {
         await viewer.loadURL(value.url);

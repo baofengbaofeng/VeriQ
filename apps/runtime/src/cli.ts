@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * 开发期 CLI 提供注册、联网认领和历史报告读取，密钥经 pino redact 保护。
+ * 开发期 CLI 提供注册、联网认领和历史报告读取，诊断输出与命令结果分别发送到 stderr 和 stdout。
  */
 import { readFile } from "node:fs/promises";
 import { recoverOffline } from "./offline/run.ts";
@@ -19,7 +19,7 @@ import { openTrace } from "./trace.ts";
  * 业务参数不得指定保险库辅助程序或把后端失败解释为明文授权。
  */
 import { Command } from "commander";
-import pino from "pino";
+import { diagnosticCode, getLogger, installDiagnosticConsole, withDiagnosticContext } from "./diagnostics.ts";
 import { join, dirname, basename } from "node:path";
 import { loadInstalledRuntimeDistribution, assertRuntimeRole, diagnoseRelease } from "./distribution.ts";
 import { spawn } from "node:child_process";
@@ -38,16 +38,8 @@ import { createDarwinDistribution } from "./execution/darwin-source.ts";
 import { darwinNative } from "./native/darwin.ts";
 import type { RuntimeDistribution } from "./distribution.ts";
 
-const logger = pino(
-    {
-        name: "veriq_cli",
-        redact: {
-            paths: ["token", "deviceToken", "deviceCode", "authorization"],
-            censor: "[REDACTED]",
-        },
-    },
-    pino.destination(2),
-);
+const logger = getLogger("veriq_cli");
+installDiagnosticConsole("veriq_cli.console");
 const entryRole = basename(process.execPath).replace(/\.exe$/i, "");
 const entryDistribution = ["veriq_cli", "veriq_agent"].includes(entryRole)
     ? await loadInstalledRuntimeDistribution(dirname(dirname(dirname(process.execPath))))
@@ -649,22 +641,26 @@ results
             ) + "\n",
         );
     });
-try {
-    await program.parseAsync();
-} catch (error) {
-    const code =
-        error instanceof RuntimeError
-            ? error.code
-            : controller.signal.aborted
-              ? "CANCELLED"
-              : error instanceof Error && /^[A-Z_]{1,60}$/.test(error.message)
-                ? error.message
-                : "OPERATION_FAILED";
-    logger.error({ event: "command_failed", code }, "VeriQ command failed");
-    if (code === "RUNTIME_STORAGE_LOW" || code === "RUNTIME_STORAGE_UNAVAILABLE") {
-        process.stderr.write(storageGuidance(code));
-    } else {
-        process.stderr.write(`VeriQ: ${code}. Check doctor, connectivity and current authorization, then retry.\n`);
+await withDiagnosticContext(async () => {
+    try {
+        await program.parseAsync();
+    } catch (error) {
+        const code =
+            error instanceof RuntimeError
+                ? error.code
+                : controller.signal.aborted
+                  ? "CANCELLED"
+                  : error instanceof Error && /^[A-Z_]{1,60}$/.test(error.message)
+                    ? error.message
+                    : "OPERATION_FAILED";
+        logger.error("runtime.command_failed", {
+            code: code === "CANCELLED" ? code : diagnosticCode(error, "OPERATION_FAILED"),
+        });
+        if (code === "RUNTIME_STORAGE_LOW" || code === "RUNTIME_STORAGE_UNAVAILABLE") {
+            process.stderr.write(storageGuidance(code));
+        } else {
+            process.stderr.write(`VeriQ: ${code}. Check doctor, connectivity and current authorization, then retry.\n`);
+        }
+        process.exitCode = controller.signal.aborted ? 130 : 1;
     }
-    process.exitCode = controller.signal.aborted ? 130 : 1;
-}
+});

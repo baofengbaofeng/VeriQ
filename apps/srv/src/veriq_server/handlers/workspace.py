@@ -1,4 +1,3 @@
-import logging
 import secrets
 from datetime import timedelta
 from typing import Any
@@ -25,8 +24,6 @@ from ..services.workspace import (
     workspace_dto,
 )
 from .base import API
-
-log = logging.getLogger("veriq.http")
 
 
 class WorkspaceAPI(API):
@@ -255,8 +252,7 @@ class WorkspaceAPI(API):
                 )
                 result["delivery"] = "SENT"
             except Exception:
-                # 邀请邮件失败时保留可复制的接受链接，日志仅记录固定事件，不包含地址、令牌或适配器错误细节。
-                log.warning("Workspace invitation email delivery failed")
+                # 投递适配层记录调用结果。邮件发送失败时仍保留可复制的接受链接。
                 result["delivery"] = "FAILED"
         self.respond(result, 201)
 

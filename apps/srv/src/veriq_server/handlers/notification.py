@@ -2,15 +2,17 @@
 
 import asyncio
 import json
-import logging
 from contextlib import suppress
 from dataclasses import dataclass, field
 from itertools import batched
+from logging import WARNING
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 from tornado.iostream import StreamClosedError
 
+from ..log import log
+from ..logging_context import new_trace, use_trace
 from ..db import Database, User, UserSession
 from ..pagination import boolean_filter
 from ..service import Problem, lock_installation
@@ -26,7 +28,6 @@ _STREAM_LIMIT = 1024
 _BATCH_SIZE = 100
 _HEARTBEAT_SECONDS = 15
 _STREAM_TIMEOUT = 10
-_LOG = logging.getLogger("veriq.notification")
 
 
 @dataclass(eq=False)
@@ -69,7 +70,8 @@ class NotificationWatcher:
         self._subscribers.add(subscriber)
         self._wake.set()
         if self._task is None:
-            self._task = asyncio.create_task(self._read())
+            with use_trace(new_trace()):
+                self._task = asyncio.create_task(self._read())
         return subscriber
 
     def unsubscribe(self, subscriber: _Subscriber) -> None:
@@ -113,7 +115,7 @@ class NotificationWatcher:
             async with self.db.sessions.begin() as session:
                 await deliver_due_notifications(session, limit=_BATCH_SIZE)
         except SQLAlchemyError:
-            _LOG.warning("Inbox delivery scan failed; it will be retried")
+            log("_undef", "notification.delivery_scan_failed", level=WARNING)
         finally:
             if self._delivery is asyncio.current_task():
                 self._delivery = None
@@ -128,7 +130,7 @@ class NotificationWatcher:
                 try:
                     await self._refresh()
                 except SQLAlchemyError:
-                    _LOG.warning("Inbox version scan failed; it will be retried")
+                    log("_undef", "notification.version_scan_failed", level=WARNING)
                 if not self._subscribers:
                     break
                 try:

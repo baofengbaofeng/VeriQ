@@ -7,14 +7,13 @@ SPA 路由之后才使用最终 JSON 404。控制面运行时仍不需要 Node �
 """
 
 import asyncio
-import json
-import logging
 import re
 from typing import TYPE_CHECKING, Any
 from tornado.http1connection import HTTP1Connection
 from tornado.httputil import HTTPServerRequest
 from tornado.web import Application, RequestHandler
 from .db import Database
+from .log import request_log
 from .delivery import Delivery, ResetDispatcher, SMTPDelivery
 from .settings import Settings
 from .readiness import ReadinessMonitor
@@ -57,8 +56,6 @@ from .credentials.registry import IdentityRegistry
 
 if TYPE_CHECKING:
     from tornado.web import _HandlerDelegate
-
-log = logging.getLogger("veriq.http")
 
 
 class _ControlApplication(Application):
@@ -614,24 +611,6 @@ def make_app(settings: Settings, db: Database, delivery: Delivery | None = None)
             ("POST",),
         ),
     ]
-
-    def request_log(handler: RequestHandler) -> None:
-        """结构化访问日志：仅记录请求 ID、方法、状态与耗时，不含路径参数与载荷；该符号的输入校验、
-        错误返回与调用方契约以本文件实现为准。
-        request_log 实现于 apps/srv/src/veriq_server/app.py：请按该符号的输入校验、错误码与调用方契约阅读，
-        勿假设通用成功默认值。
-        """
-        log.info(
-            json.dumps(
-                {
-                    "event": "request",
-                    "requestId": getattr(handler, "request_id", None),
-                    "method": handler.request.method,
-                    "status": handler.get_status(),
-                    "durationMs": round(handler.request.request_time() * 1000),
-                }
-            )
-        )
 
     handlers = [
         (

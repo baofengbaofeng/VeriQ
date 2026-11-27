@@ -1,3 +1,4 @@
+import { diagnosticCode, getLogger } from "../../../runtime/src/diagnostics.ts";
 import { desktopErrorMessage } from "../shared/desktop-errors";
 import { app, dialog, Menu, nativeImage, Tray, type MenuItemConstructorOptions } from "electron";
 
@@ -105,7 +106,9 @@ export function installLifecycleMenu(actions: {
 export function reportLifecycleError(error: unknown): void {
     const code =
         error instanceof Error && /^[A-Z0-9_]{1,100}$/.test(error.message) ? error.message : "DESKTOP_LIFECYCLE_FAILED";
-    console.error("VeriQ desktop lifecycle failed:", code);
+    getLogger("desktop.lifecycle").error("desktop.lifecycle_failed", {
+        code: diagnosticCode(error, "DESKTOP_LIFECYCLE_FAILED"),
+    });
     dialog.showErrorBox(
         "VeriQ",
         desktopErrorMessage(code, app.getLocale().toLowerCase().startsWith("zh") ? "zh" : "en"),

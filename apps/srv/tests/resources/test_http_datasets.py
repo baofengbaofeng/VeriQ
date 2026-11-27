@@ -100,9 +100,10 @@ def test_custom_signature_matches_wire_bytes():
     ("op", "query"),
     [("QUERY", b"q=abc&q=&page=1"), ("SORTED_QUERY", b"page=1&q=&q=abc")],
 )
-async def test_paged_signature_probe_matches_first_wire_request(op, query):
+async def test_paged_signature_probe_matches_first_wire_request(op, query, caplog):
     """用独立摘要对照实际发出的第一页及离线签名验证，排序视图保留分页参数而不改变线上参数顺序。"""
     from veriq_server.datasets.request import fetch_rows, verify_signature
+    from veriq_server.logging_context import inbound_trace, use_trace
 
     doc = config()
     doc["source"]["auth"]["input"] = {"op": op}
@@ -115,14 +116,27 @@ async def test_paged_signature_probe_matches_first_wire_request(op, query):
     conf, args = bound(doc), {"search": "abc"}
     expected = hmac.new(b"fixture", query, hashlib.sha256).hexdigest()
 
+    outbound_ids = []
+    trace_id, span_id = "a" * 32, "b" * 16
+    trace = inbound_trace({"x-trace-id": trace_id, "x-cspanid": span_id}, "dataset-request")
+
     def upstream(req):
+        outbound_ids.append((req.headers.get("x-trace-id"), req.headers.get("x-cspanid")))
         assert req.url.query == b"q=abc&q=&page=1" and req.headers["X-Signature"] == expected
         return httpx.Response(200, stream=httpx.ByteStream(b'{"items":[],"more":false}'))
 
     def secret(*_):
         return "fixture"
 
-    assert await fetch_rows(conf, args, secret, transport=httpx.MockTransport(upstream)) == []
+    caplog.set_level(20)
+    with use_trace(trace):
+        assert await fetch_rows(conf, args, secret, transport=httpx.MockTransport(upstream)) == []
+    records = [r for r in caplog.records if getattr(r, "veriq_tag", "") == "_com_http_success"]
+    assert len(records) == 1
+    fields = records[0].veriq_fields
+    assert outbound_ids == [(trace_id, fields["cspanid"])]
+    assert fields["traceid"] == trace_id
+    assert fields["spanid"] == span_id and fields["cspanid"] != span_id
     probe = {"at": "2024-01-01T00:00:00Z", "expected": expected}
     assert verify_signature(conf, args, secret, probe) == {"signatureMatches": True}
 

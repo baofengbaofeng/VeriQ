@@ -5,14 +5,16 @@ Job/Attempt/容量与发布围栏相关约束在表级 CheckConstraint 固化，
 Database 隐藏连接参数并启用 pool_pre_ping，连接时固定 UTC 时区。"""
 
 import asyncio
-import logging
+from contextlib import suppress
 from datetime import UTC, datetime, timedelta
+from logging import WARNING
 from typing import Any
 
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
     ForeignKey,
+    event,
     Integer,
     String,
     Text,
@@ -26,10 +28,15 @@ from sqlalchemy import (
     update,
 )
 from sqlalchemy.dialects.mysql import DATETIME, LONGBLOB
+from sqlalchemy.engine import Dialect, Engine, ExecutionContext
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.pool import ConnectionPoolEntry
 
+from .log import log
+from .logging_context import new_trace, use_trace
+from .outbound import outbound
 from .settings import Settings
 
 
@@ -47,7 +54,6 @@ uuid_type = String(36, collation="ascii_bin")
 hash_type = String(64, collation="ascii_bin")
 SESSION_ACTIVITY_INTERVAL = timedelta(minutes=1)
 _SESSION_ACTIVITY_LIMIT = 64
-_log = logging.getLogger("veriq.accounts")
 
 
 class Installation(Base):
@@ -233,6 +239,68 @@ class Notification(Base):
     suppressed_at: Mapped[datetime | None] = mapped_column(DATETIME(fsp=6))
 
 
+def instrument_database(engine: Engine) -> None:
+    """Record each cursor execution, including ORM flushes and raw statements."""
+    methods = {
+        "SELECT",
+        "INSERT",
+        "UPDATE",
+        "DELETE",
+        "REPLACE",
+        "WITH",
+        "SHOW",
+        "SET",
+        "CREATE",
+        "ALTER",
+        "DROP",
+    }
+
+    def fields(statement: str, context: ExecutionContext) -> dict[str, str]:
+        operation = statement.lstrip()[:16].split(None, 1)
+        method = operation[0].upper() if operation else ""
+        result = {"method_name": method if method in methods else "OTHER"}
+        # Statement introspection is optional metadata. It cannot block database I/O.
+        with suppress(Exception):
+            compiled = context.compiled
+            clause = compiled.statement if compiled is not None else None
+            table = getattr(clause, "table", None)
+            if table is None:
+                descriptions = getattr(clause, "column_descriptions", ())
+                entity = descriptions[0].get("entity") if descriptions else None
+                table = getattr(entity, "__table__", None)
+            table_name = getattr(table, "name", None)
+            if isinstance(table_name, str) and table_name in Base.metadata.tables:
+                result["table"] = table_name
+        return result
+
+    @event.listens_for(engine, "do_connect")
+    def connect(
+        dialect: Dialect, record: ConnectionPoolEntry, args: list[Any], params: dict[str, Any]
+    ) -> Any:
+        with outbound("mysql", "database.connect", method_name="CONNECT"):
+            return dialect.connect(*args, **params)
+
+    @event.listens_for(engine, "do_execute")
+    def execute(cursor: Any, statement: str, parameters: Any, context: ExecutionContext) -> bool:
+        with outbound("mysql", "database.execute", **fields(statement, context)):
+            context.dialect.do_execute(cursor, statement, parameters, context)
+        return True
+
+    @event.listens_for(engine, "do_executemany")
+    def execute_many(
+        cursor: Any, statement: str, parameters: Any, context: ExecutionContext
+    ) -> bool:
+        with outbound("mysql", "database.execute", **fields(statement, context)):
+            context.dialect.do_executemany(cursor, statement, parameters, context)
+        return True
+
+    @event.listens_for(engine, "do_execute_no_params")
+    def execute_no_params(cursor: Any, statement: str, context: ExecutionContext) -> bool:
+        with outbound("mysql", "database.execute", **fields(statement, context)):
+            context.dialect.do_execute_no_params(cursor, statement, context)
+        return True
+
+
 class Database:
     """异步引擎与会话工厂：READ COMMITTED、utf8mb4、UTC，并 hide_parameters 防日志泄密。Database 实现于
 
@@ -251,6 +319,7 @@ class Database:
             connect_args={"charset": "utf8mb4", "init_command": "SET time_zone = '+00:00'"},
             hide_parameters=True,
         )
+        instrument_database(self.engine.sync_engine)
         self.sessions = async_sessionmaker(self.engine, expire_on_commit=False)
         self._pending_activity: dict[str, datetime] = {}
         self._activity_writer: asyncio.Task[None] | None = None
@@ -269,7 +338,8 @@ class Database:
         elif len(self._pending_activity) < _SESSION_ACTIVITY_LIMIT:
             self._pending_activity[session_id] = observed_at
         if self._activity_writer is None and self._pending_activity:
-            self._activity_writer = asyncio.create_task(self._write_session_activity())
+            with use_trace(new_trace()):
+                self._activity_writer = asyncio.create_task(self._write_session_activity())
 
     async def _write_session_activity(self) -> None:
         """写入量限制为每个会话每分钟一次，由数据库判断时间门槛，跨进程乱序观察不会倒退或延长会话。
@@ -296,7 +366,7 @@ class Database:
                             .values(last_active_at=observed)
                         )
                 except SQLAlchemyError:
-                    _log.warning("Unable to persist account session activity")
+                    log("_undef", "accounts.session_activity_failed", level=WARNING)
         finally:
             self._activity_writer = None
 

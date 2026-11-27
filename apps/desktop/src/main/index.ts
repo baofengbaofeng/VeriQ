@@ -1,4 +1,22 @@
-import { app, BrowserWindow, ipcMain, protocol, session, safeStorage, net, Tray, dialog, shell } from "electron";
+import {
+    diagnosticCode,
+    getLogger,
+    installDiagnosticConsole,
+    withDiagnosticContext,
+} from "../../../runtime/src/diagnostics.ts";
+import {
+    app,
+    BrowserWindow,
+    ipcMain,
+    protocol,
+    session,
+    safeStorage,
+    net,
+    type Tray,
+    dialog,
+    shell,
+    type IpcMainInvokeEvent,
+} from "electron";
 import { join, dirname, resolve, extname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { readFile, writeFile, open, lstat, copyFile } from "node:fs/promises";
@@ -26,6 +44,9 @@ import { assertAgentReconfigurationAllowed } from "../shared/credential-status";
 import type { CloudOperation } from "../shared/operations.generated";
 import type { DesktopState } from "../shared/bridge";
 import { privateDirectory, readPrivate, updatePrivate } from "../../../runtime/src/offline/config.ts";
+
+const logger = getLogger("desktop.main");
+installDiagnosticConsole("desktop.main.console");
 
 /**
  * 主进程负责桌面窗口、普通登录网络与独立后台的连接边界，启动配置只从可信安装路径或开发启动器读取；这些进程级设置不能通
@@ -527,7 +548,7 @@ async function artifact(input: unknown) {
  * 未知动作即使带有合法业务参数，也不会回退到某个默认处理器。
  */
 function installBridge() {
-    ipcMain.handle("veriq:desktop", async (event, operation: unknown, input: unknown) => {
+    const handle = async (event: IpcMainInvokeEvent, operation: unknown, input: unknown) => {
         if (!window || !event.senderFrame) throw new Error("IPC_SENDER_DENIED");
         authorizeSender(
             { id: event.sender.id, frame: event.senderFrame, url: event.senderFrame.url },
@@ -627,7 +648,10 @@ function installBridge() {
             default:
                 throw new Error("IPC_OPERATION_DENIED");
         }
-    });
+    };
+    ipcMain.handle("veriq:desktop", (event, operation: unknown, input: unknown) =>
+        withDiagnosticContext(() => handle(event, operation, input)),
+    );
 }
 
 /**
@@ -693,7 +717,12 @@ async function main() {
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
     const cookieProtection = await requireCookieProtection(safeStorage, process.platform, undefined, hostIdentity);
-    console.log("VeriQ Cookie protection verified:", JSON.stringify(cookieProtection));
+    logger.notice("desktop.cookie_protection_verified", {
+        provider: cookieProtection.provider,
+        platform: cookieProtection.platform,
+        backend: cookieProtection.backend,
+        encrypted: cookieProtection.encrypted,
+    });
     await prepareCookieStorage(profile, app.getPath("sessionData"), async () => {
         const result = await dialog.showMessageBox({
             type: "warning",
@@ -819,17 +848,19 @@ async function main() {
     try {
         await ensureAgent();
     } catch (error) {
-        console.error("VeriQ Agent startup unavailable:", error instanceof Error ? error.message : "UNKNOWN_ERROR");
+        logger.error("desktop.agent_startup_unavailable", { code: diagnosticCode(error, "AGENT_START_UNAVAILABLE") });
     }
 }
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
     app.on("second-instance", show);
     app.on("activate", show);
-    void main().catch((error) => {
-        console.error("VeriQ desktop failed:", error);
-        app.exit(1);
-    });
+    void withDiagnosticContext(() =>
+        main().catch((error) => {
+            logger.fatal("desktop.startup_failed", { code: diagnosticCode(error, "DESKTOP_START_FAILED") });
+            app.exit(1);
+        }),
+    );
 }
 app.on("before-quit", (event) => {
     if (!quitting && window && !window.isDestroyed()) {
