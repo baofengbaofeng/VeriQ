@@ -8,7 +8,7 @@ from ..services.connected_datasets import protected_test
 
 from ..credentials.resolve import CredentialProofTransport
 from ..service import lock_installation, Problem
-from ..services.jobs import JobService, RuntimeIdentity
+from ..services.jobs import ClosedClaim, JobService, RuntimeIdentity
 from ..services.lease import LeaseService
 from ..services.maintenance import MaintenanceService
 from ..services.content import ContentService, CHUNK_BYTES
@@ -196,7 +196,7 @@ class ExecutionAPI(DeviceAPI):
         post 实现于 apps/srv/src/veriq_server/handlers/execution.py：请按该符号的输入校验、错误码与调用方契约阅读，
         勿假设通用成功默认值。
         """
-        result: dict[str, Any] | None
+        result: dict[str, Any] | ClosedClaim | None
         if self.action in {
             "expired-leases/reap",
             "fixture-cleanups/reconcile",
@@ -326,7 +326,17 @@ class ExecutionAPI(DeviceAPI):
                         if self.action == "activate"
                         else service.heartbeat(attempt_id, proof, data["progress"])
                     )
-        if result is None:
+        if isinstance(result, ClosedClaim):
+            self.set_status(409)
+            self.finish(
+                {
+                    "code": "UNACTIVATED_CLAIM_CLOSED",
+                    "message": "Expired unactivated claim is closed",
+                    "details": {"clientRequestId": result.client_request_id},
+                    "requestId": self.request_id,
+                }
+            )
+        elif result is None:
             self.set_status(204)
             self.finish()
         else:

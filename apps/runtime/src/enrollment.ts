@@ -55,7 +55,11 @@ export function controlOrigin(value: string): string {
 export class RuntimeError extends Error {
     code: string;
     status: number;
-    constructor(code: string, status: number) {
+    constructor(
+        code: string,
+        status: number,
+        readonly clientRequestId?: string,
+    ) {
         super(`VeriQ request failed: ${code} (${status})`);
         this.code = code;
         this.status = status;
@@ -109,7 +113,7 @@ export class RuntimeClient {
             } catch {
                 throw new RuntimeError("INVALID_RESPONSE", response.status);
             }
-        let value: { data?: T; code?: unknown };
+        let value: { data?: T; code?: unknown; details?: { clientRequestId?: unknown } };
         try {
             value = JSON.parse(Buffer.concat(chunks).toString("utf8"));
         } catch {
@@ -118,6 +122,15 @@ export class RuntimeClient {
         if (!response.ok) {
             const code =
                 typeof value.code === "string" && /^[A-Z_]{1,80}$/.test(value.code) ? value.code : "REQUEST_FAILED";
+            if (
+                path === "/internal/v1/jobs/claim" &&
+                method === "POST" &&
+                response.status === 409 &&
+                code === "UNACTIVATED_CLAIM_CLOSED" &&
+                typeof value.details?.clientRequestId === "string"
+            ) {
+                throw new RuntimeError(code, response.status, value.details.clientRequestId);
+            }
             throw new RuntimeError(code, response.status);
         }
         if (value.data === undefined) throw new RuntimeError("INVALID_RESPONSE", response.status);

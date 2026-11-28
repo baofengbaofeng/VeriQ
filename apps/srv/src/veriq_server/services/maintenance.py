@@ -153,26 +153,9 @@ class MaintenanceService:
             )
             more |= len(attempts) > limit
             for attempt in attempts[:limit]:
-                attempt.phase, attempt.outcome = "FINISHED", "ERROR"
-                if attempt.finished_at is None:
-                    attempt.finished_at = current
-                attempt.facts = {
-                    "business": "UNKNOWN",
-                    "cleanup": "UNKNOWN",
-                    "evidence": "INCOMPLETE",
-                    "errorCode": "WORKER_LOST",
-                }
                 job = await self.session.get(Job, attempt.job_id)
                 assert job
-                job.state, job.outcome = "FINISHED", "ERROR"
-                capacity = CapacityService(self.session, self.settings)
-                if attempt.activated_at is None:
-                    await capacity.release(attempt)
-                else:
-                    await capacity.quarantine(attempt)
-                from .completion import CompletionService
-
-                await CompletionService(self.session, self.settings).aggregate_job(job, attempt)
+                await completion.expire_lease(job, attempt, current)
                 partials = (
                     await self.session.execute(
                         select(AttemptUpload).where(

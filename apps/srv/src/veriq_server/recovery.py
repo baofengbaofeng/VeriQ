@@ -418,7 +418,7 @@ async def restore(
             material_targets[path] = raw
     client: mypy_boto3_s3.client.S3Client | None = None
     try:
-        if manifest["s3Objects"] or manifest["s3Tombstones"]:
+        if manifest["s3Objects"] or manifest["s3Tombstones"] or settings.artifact_backend == "S3":
             if not allow_s3_inventory:
                 raise ValueError("RESTORE_S3_LIST_PERMISSION_CONFIRMATION_REQUIRED")
             client = await asyncio.to_thread(s3_client, settings)

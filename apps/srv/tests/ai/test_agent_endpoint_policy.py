@@ -1,6 +1,7 @@
 """通过真实会话与本机模型协议验证出口授权撤销前后的历史边界、付费调用次数、流式披露和预留结算。"""
 
 import asyncio
+import json
 from uuid import uuid4
 
 import pytest
@@ -126,8 +127,22 @@ async def test_stream_revocation_blocks_tool_followup_and_settles_usage(
         assert text not in response.text
         async with db.sessions() as session:
             usage_row = (await session.scalars(select(AiGeneration))).one()
-            assert usage_row.status == "FAILED" and usage_row.reserved_micros > 0
+            body = model.calls[0]["body"]
+            prompt = {key: body[key] for key in ("system", "messages", "tools") if key in body}
+            prompt_bytes = len(
+                json.dumps(prompt, ensure_ascii=False, separators=(",", ":")).encode()
+            )
+            assert usage_row.data["inputTokenBound"] >= (prompt_bytes + 8192) * 4
+            assert (
+                usage_row.reserved_micros
+                >= usage_row.data["inputTokenBound"] + 2 * 4 * body["max_tokens"]
+            )
+            assert usage_row.status == "FAILED"
             assert usage_row.cost_micros == (110 if reports_usage else None)
+
+
+async def _unexpected_callback(*_args):
+    pytest.fail("No model callback should run")
 
 
 async def test_round_denied_before_first_sdk_request_retains_no_charge():
@@ -136,20 +151,84 @@ async def test_round_denied_before_first_sdk_request_retains_no_charge():
     async def denied():
         return "AI_ENDPOINT_FORBIDDEN"
 
-    async def unexpected(*args):
-        pytest.fail("No model callback should run")
-
     async with emulator(port=0) as model:
         gateway = ProviderGateway(
             config={"baseURL": model.base_url, "adapter": "ANTHROPIC", "model": "emulator"},
             key="test",
         )
         reply = await gateway.generate_agent_stream(
-            DraftContext({}, {}, 20), [], unexpected, None, unexpected, authorize_round=denied
+            DraftContext({}, {}, 20),
+            [],
+            _unexpected_callback,
+            None,
+            _unexpected_callback,
+            authorize_round=denied,
         )
         assert not model.calls
         assert (reply.error_code, reply.input_tokens, reply.output_tokens) == (
             "AI_ENDPOINT_FORBIDDEN",
             0,
             0,
+        )
+
+
+@pytest.mark.parametrize("adapter", ["ANTHROPIC", "OPENAI_COMPATIBLE"])
+async def test_stream_tool_schema_exceeding_round_limit_is_never_sent(adapter):
+    """工具声明即使在首轮也要计入请求上限，发出首次请求前本地拒绝的用量为零。"""
+    async with emulator(port=0) as model:
+        gateway = ProviderGateway(
+            {"adapter": adapter, "baseURL": model.base_url, "model": "emulator"}, "test"
+        )
+        tools = [{"name": "check", "description": "查" * 90000, "parameters": {"type": "object"}}]
+        reply = await gateway.generate_agent_stream(
+            DraftContext({}, {}, 100), tools, _unexpected_callback, None, _unexpected_callback
+        )
+        assert not model.calls
+        assert (reply.error_code, reply.input_tokens, reply.output_tokens) == (
+            "AI_REQUEST_LIMIT",
+            0,
+            0,
+        )
+
+
+@pytest.mark.parametrize(
+    ("adapter", "reports_usage"),
+    [("OPENAI_COMPATIBLE", True), ("OPENAI_COMPATIBLE", False), ("ANTHROPIC", True)],
+)
+async def test_stream_history_exceeding_reservation_stops_before_followup(adapter, reports_usage):
+    """两次请求各自都低于冻结总额，合计超过预留时停止；只结算已发送轮次，缺失用量时保留预留。"""
+
+    async def large_result(name, arguments):
+        assert name == "check" and arguments == {}
+        return {"result": "测" * 1400}
+
+    async with emulator(port=0) as model:
+        if adapter == "ANTHROPIC":
+            events = list(
+                _claude_events(
+                    [({"type": "tool_use", "id": "tool_test", "name": "check", "input": {}}, [])],
+                    stop_reason="tool_use",
+                )
+            )
+            events[0]["message"]["usage"]["input_tokens"] = 6000
+        else:
+            events = [_tool_delta("check", {}, "tool_test")]
+            if reports_usage:
+                events[0]["usage"] = {
+                    "prompt_tokens": 6000,
+                    "completion_tokens": 30,
+                    "total_tokens": 6030,
+                }
+        model.stream_responses = [events, events]
+        gateway = ProviderGateway(
+            {"adapter": adapter, "baseURL": model.base_url, "model": "emulator"}, "test"
+        )
+        tools = [{"name": "check", "description": "Check", "parameters": {"type": "object"}}]
+        reply = await gateway.generate_agent_stream(
+            DraftContext({}, {}, 100), tools, _unexpected_callback, None, large_result, max_rounds=2
+        )
+        assert len(model.calls) == 1
+        assert reply.error_code == "AI_REQUEST_LIMIT"
+        assert (reply.input_tokens, reply.output_tokens) == (
+            (6000, 30) if reports_usage else (None, None)
         )

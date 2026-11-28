@@ -409,7 +409,8 @@ async def test_bounded_chunk_upload_retains_exact_large_bytes_and_rejects_wrong_
         assert retained and retained.content == content and retained.size_bytes == len(content)
 
 
-async def test_actual_dropped_http_response_recovers_only_the_unactivated_attempt(site):
+@pytest.mark.parametrize("expired", [False, True])
+async def test_actual_dropped_http_response_recovers_only_the_unactivated_attempt(site, expired):
 
     c, db = site
     await setup(c)
@@ -455,6 +456,17 @@ async def test_actual_dropped_http_response_recovers_only_the_unactivated_attemp
     finally:
         proxy.close()
         await proxy.wait_closed()
+    if expired:
+        async with db.sessions.begin() as session:
+            await session.execute(
+                text(
+                    "UPDATE veriq_attempts SET lease_expires_at=UTC_TIMESTAMP(6)-INTERVAL 1 SECOND"
+                )
+            )
+        closed = await reconcile_on_peer(c, db, "/internal/v1/jobs/claim", data, auth(d))
+        assert closed.status_code == 409 and closed.json()["code"] == "UNACTIVATED_CLAIM_CLOSED"
+        assert closed.json()["details"] == {"clientRequestId": data["clientRequestId"]}
+        return
     recovered = await c.post("/internal/v1/jobs/claim", json=data, headers=auth(d))
     assert recovered.status_code == 200, recovered.text
     async with db.sessions() as session:
@@ -768,3 +780,146 @@ async def test_claim_scans_past_multiple_pages_of_ineligible_older_jobs(site):
     assert reply.json()["data"]["jobId"] == newer[0]
     async with db.sessions() as session:
         assert len((await session.execute(select(Attempt))).scalars().all()) == 1
+
+
+@pytest.mark.parametrize("maintenance_first", [False, True])
+async def test_expired_unactivated_claim_closes_once_across_api_nodes(site, maintenance_first):
+    """两台 API 重放同一未激活请求，包括维护抢先收割的旧版回执。"""
+    c, db = site
+    await setup(c)
+    await login(c)
+    ws = await workspace(c)
+    d = await device(c, ws)
+    await queued_browser_jobs(c, db, ws, 1)
+    data, path = claim_body(d), "/internal/v1/jobs/claim"
+    first = (await c.post(path, json=data, headers=auth(d))).json()["data"]
+    async with db.sessions.begin() as session:
+        await session.execute(
+            text("UPDATE veriq_attempts SET lease_expires_at=UTC_TIMESTAMP(6)-INTERVAL 1 SECOND")
+        )
+    if maintenance_first:
+        account = (
+            await c.post(f"/api/v1/workspaces/{ws}/service-accounts", json={"name": "Lease reaper"})
+        ).json()["data"]
+        token = (
+            await c.post(
+                f"/api/v1/workspaces/{ws}/service-accounts/{account['id']}/tokens",
+                json={"purpose": "MAINTENANCE", "operations": ["expired-leases/reap"]},
+            )
+        ).json()["data"]["token"]
+        reaped = await c.post(
+            "/internal/v1/maintenance/expired-leases/reap",
+            json={"workspaceId": ws, "limit": 10},
+            headers={"Authorization": "Bearer " + token, "Idempotency-Key": str(uuid4())},
+        )
+        assert reaped.status_code == 200, reaped.text
+        async with db.sessions.begin() as session:
+            attempt = await session.get(Attempt, first["attemptId"])
+            assert attempt.facts["errorCode"] == "UNACTIVATED_CLAIM_CLOSED"
+            # 已升级的服务同样能核对升级前收割器写入、仍有完整容量和领取关联的历史。
+            attempt.facts = {**attempt.facts, "cleanup": "UNKNOWN", "errorCode": "WORKER_LOST"}
+    async with db.sessions.begin() as session:
+        attempt = await session.get(Attempt, first["attemptId"])
+        previous_phase, previous_facts = attempt.phase, attempt.facts
+        if maintenance_first:
+            attempt.facts = {**previous_facts, "processStopped": False}
+        else:
+            attempt.phase = "PREPARING"
+    ambiguous = await c.post(path, json=data, headers=auth(d))
+    assert ambiguous.status_code == 409 and ambiguous.json()["code"] == "LEASE_EXPIRED"
+    async with db.sessions.begin() as session:
+        attempt = await session.get(Attempt, first["attemptId"])
+        assert attempt.capacity_state == ("RELEASED" if maintenance_first else "HELD")
+        attempt.phase, attempt.facts = previous_phase, previous_facts
+
+    conflict = await c.post(path, json={**data, "availableSlots": 0}, headers=auth(d))
+    assert conflict.status_code == 409 and conflict.json()["code"] == "IDEMPOTENCY_CONFLICT"
+
+    replies = await asyncio.gather(
+        c.post(path, json=data, headers=auth(d)),
+        reconcile_on_peer(c, db, path, data, auth(d)),
+    )
+    for reply in replies:
+        assert reply.status_code == 409, reply.text
+        assert reply.json()["code"] == "UNACTIVATED_CLAIM_CLOSED"
+        assert reply.json()["details"] == {"clientRequestId": data["clientRequestId"]}
+    async with db.sessions() as session:
+        attempt = (await session.scalars(select(Attempt))).one()
+        job = await session.get(Job, attempt.job_id)
+        case = await session.get(CaseExecution, job.case_execution_id)
+        run = await session.get(Run, job.run_id)
+        assert attempt.id == job.active_attempt_id == first["attemptId"]
+        assert attempt.activated_at is None and attempt.phase == "FINISHED"
+        assert attempt.capacity_state == "RELEASED" and attempt.outcome == "ERROR"
+        assert all((row.state, row.outcome) == ("FINISHED", "ERROR") for row in (job, case, run))
+        assert set(await session.scalars(select(ResourceLease.state))) == {"RELEASED"}
+        assert set(await session.scalars(select(CapacityPool.used))) == {0}
+    activate = await c.post(
+        f"/internal/v1/attempts/{first['attemptId']}/activate",
+        json={k: first[k] for k in ("leaseToken", "fencingToken")},
+        headers=auth(d),
+    )
+    assert activate.status_code == 409 and activate.json()["code"] == "LEASE_EXPIRED"
+
+    await queued_browser_jobs(c, db, ws, 1)
+    next_claim = await c.post(path, json=claim_body(d), headers=auth(d))
+    assert (
+        next_claim.status_code == 200
+        and next_claim.json()["data"]["attemptId"] != first["attemptId"]
+    )
+    replay = await c.post(path, json=data, headers=auth(d))
+    assert replay.status_code == 409 and replay.json()["code"] == "UNACTIVATED_CLAIM_CLOSED"
+    async with db.sessions() as session:
+        assert set(await session.scalars(select(CapacityPool.used))) == {1}
+
+
+async def test_reaper_isolates_inconsistent_claim_without_rolling_back_other_expiries(site):
+    c, db = site
+    await setup(c)
+    await login(c)
+    ws = await workspace(c)
+    one, two = await device(c, ws), await device(c, ws)
+    await queued_browser_jobs(c, db, ws, 2)
+    path, req = "/internal/v1/jobs/claim", claim_body(one)
+    first = (await c.post(path, json=req, headers=auth(one))).json()["data"]
+    second = (await c.post(path, json=claim_body(two), headers=auth(two))).json()["data"]
+    key = f"02/runtime/{one['runnerId']}"
+    async with db.sessions.begin() as session:
+        # 预留行仍为 HELD，设备池计数已失配；直接释放会触及数据库非负约束。
+        pool = await session.get(CapacityPool, key)
+        pool.used = 0
+        await session.execute(
+            text("UPDATE veriq_attempts SET lease_expires_at=UTC_TIMESTAMP(6)-INTERVAL 1 SECOND")
+        )
+    refused = await c.post(path, json=req, headers=auth(one))
+    assert refused.status_code == 409 and refused.json()["code"] == "CAPACITY_INCONSISTENT"
+    async with db.sessions() as session:
+        assert (await session.get(Attempt, first["attemptId"])).phase == "LEASED"
+    account = (
+        await c.post(f"/api/v1/workspaces/{ws}/service-accounts", json={"name": "Lease reaper"})
+    ).json()["data"]
+    token = (
+        await c.post(
+            f"/api/v1/workspaces/{ws}/service-accounts/{account['id']}/tokens",
+            json={"purpose": "MAINTENANCE", "operations": ["expired-leases/reap"]},
+        )
+    ).json()["data"]["token"]
+    reaped = await c.post(
+        "/internal/v1/maintenance/expired-leases/reap",
+        json={"workspaceId": ws, "limit": 10},
+        headers={"Authorization": "Bearer " + token, "Idempotency-Key": str(uuid4())},
+    )
+    assert reaped.status_code == 200 and reaped.json()["data"]["processedCount"] == 2
+    async with db.sessions() as session:
+        bad = await session.get(Attempt, first["attemptId"])
+        good = await session.get(Attempt, second["attemptId"])
+        assert bad.capacity_state == "QUARANTINED" and bad.facts["errorCode"] == "WORKER_LOST"
+        assert (
+            good.capacity_state == "RELEASED"
+            and good.facts["errorCode"] == "UNACTIVATED_CLAIM_CLOSED"
+        )
+        lease = await session.get(ResourceLease, (bad.id, key))
+        assert lease.state == "QUARANTINED"
+        assert (await session.get(CapacityPool, "00/global/browser")).used == 1
+    replay = await c.post(path, json=req, headers=auth(one))
+    assert replay.status_code == 409 and replay.json()["code"] == "LEASE_EXPIRED"

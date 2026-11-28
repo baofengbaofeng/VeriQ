@@ -414,3 +414,65 @@ test("a visible pending name cannot reach the server before its directory sync s
     assert.equal(claimed, false);
     assert.equal(await fs.readFile(path, "utf8"), bytes);
 });
+
+test("only a committed closure for the pending UUID permits a durably published replacement", async (t) => {
+    const { readPending } = await import("../src/agent/pending-claim.ts");
+    const { RuntimeClient } = await import("../src/enrollment.ts");
+    const { claimLoop } = await import("../src/agent/claim-loop.ts");
+    const root = await mkdtemp(join(tmpdir(), "vq-expired-claim-"));
+    t.after(() => rm(root, { recursive: true, force: true }));
+    const server = new RuntimeClient("http://127.0.0.1:8000");
+    const requests: string[] = [];
+    let result: (requestId: string) => Response = () => {
+        throw new Error("LOST_REPLY");
+    };
+    t.mock.method(globalThis, "fetch", async (_url: string, init: RequestInit) => {
+        const body = JSON.parse(String(init.body));
+        assert.deepEqual(await readPending(root, true), body);
+        requests.push(body.clientRequestId);
+        return result(body.clientRequestId);
+    });
+    const options = {
+        root,
+        runnerId: "11111111-1111-4111-8111-111111111111",
+        capabilities: { engineVersion: "1.0.0", os: "linux", arch: "x64", browsers: ["chromium"] },
+        once: true,
+        client: {
+            request: (path: string, method: string, body: unknown) => server.request(path, method, body, "device"),
+        },
+        supervisor: { recover: async () => [], checkStorageAdmission: async () => undefined },
+        signal: new AbortController().signal,
+    } as unknown as Parameters<typeof claimLoop>[0];
+    await assert.rejects(claimLoop(options), /NETWORK_UNAVAILABLE/);
+    const oldId = requests[0];
+    assert(oldId);
+    const closed = "UNACTIVATED_CLAIM_CLOSED";
+    for (const [code, status, details] of [
+        ["LEASE_EXPIRED", 409, { clientRequestId: oldId }],
+        ["ATTEMPT_ALREADY_ACTIVATED", 409, { clientRequestId: oldId }],
+        [closed, 409, {}],
+        [closed, 409, { clientRequestId: options.runnerId }],
+        [closed, 503, { clientRequestId: oldId }],
+    ] as const) {
+        result = () => Response.json({ code, details }, { status });
+        await assert.rejects(claimLoop(options), new RegExp(code));
+        assert.equal((await readPending(root, true))?.clientRequestId, oldId);
+    }
+    result = (id) =>
+        id === oldId
+            ? Response.json({ code: closed, details: { clientRequestId: id } }, { status: 409 })
+            : new Response(null, { status: 204 });
+    // 已确认关闭后、写新 UUID 前重启；本地没有发布成功的新请求，网络上只能看见旧 UUID。
+    let checks = 0;
+    const interrupted = t.mock.method(options.supervisor, "checkStorageAdmission", async () => {
+        if (++checks === 2) throw new Error("INTERRUPTED_AFTER_CLOSE");
+    });
+    await assert.rejects(claimLoop(options), /INTERRUPTED_AFTER_CLOSE/);
+    assert(requests.every((id) => id === oldId));
+    assert.equal(await readPending(root, true), undefined);
+    interrupted.mock.restore();
+    await claimLoop(options);
+    assert(requests.slice(0, -1).every((id) => id === oldId));
+    assert.notEqual(requests.at(-1), oldId);
+    assert.equal(await readPending(root, true), undefined);
+});

@@ -1,18 +1,17 @@
-// 首页语言及主题按钮只切换本页文案并保存本机偏好；翻译源在启动时保留，切回中文不依赖已经替换的文本。
 (() => {
     const root = document.documentElement;
     const languageButton = document.getElementById("language");
     const themeButton = document.getElementById("theme");
-    const translations = Array.from(document.querySelectorAll("[data-en]"), (element) => ({
+    const translations = Array.from(document.querySelectorAll("[data-zh]"), (element) => ({
         element,
-        zh: element.textContent,
-        en: element.dataset.en,
+        zh: element.dataset.zh.replace(/\n\s*/g, ""),
+        en: element.textContent.trim().replace(/\s+/g, " "),
     }));
     const navigation = document.querySelector("nav");
     const description = document.querySelector('meta[name="description"]');
-    let language = "zh";
+    let language = "en";
     try {
-        if (localStorage.getItem("veriq-language") === "en") language = "en";
+        if (localStorage.getItem("veriq-language") === "zh") language = "zh";
     } catch {}
 
     function renderTheme() {
