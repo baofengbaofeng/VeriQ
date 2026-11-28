@@ -55,6 +55,39 @@ function Get-AclObservation([string]$Path) {
 }
 
 <#
+恢复判断只接受原始有序访问项和保护请求位完全保留，系统可单向增加自动继承回执，重复或未知标志一律拒绝。
+#>
+function Compare-SourceDacl([string]$Expected, [string]$Actual) {
+    $result = @{
+        accepted = $false; exactlyRestored = $false; autoInheritanceApplied = $false
+        protectedAndRequestMatched = $false; orderedAcesMatched = $false
+        expectedFlags = ''; actualFlags = ''
+    }
+    $pattern = '\AD:(?<flags>P?(?:AR)?(?:AI)?)(?<aces>(?:\(.*\))?)\z'
+    $expectedParts = [regex]::Match($Expected, $pattern, [Text.RegularExpressions.RegexOptions]::Singleline)
+    $actualParts = [regex]::Match($Actual, $pattern, [Text.RegularExpressions.RegexOptions]::Singleline)
+    if (!$expectedParts.Success -or !$actualParts.Success) { return $result }
+    $expectedFlags = $expectedParts.Groups['flags'].Value
+    $actualFlags = $actualParts.Groups['flags'].Value
+    $expectedAuto = $expectedFlags.EndsWith('AI')
+    $actualAuto = $actualFlags.EndsWith('AI')
+    $expectedBase = if ($expectedAuto) { $expectedFlags.Substring(0, $expectedFlags.Length - 2) } else {
+        $expectedFlags
+    }
+    $actualBase = if ($actualAuto) { $actualFlags.Substring(0, $actualFlags.Length - 2) } else { $actualFlags }
+    $result.expectedFlags = $expectedFlags
+    $result.actualFlags = $actualFlags
+    $result.protectedAndRequestMatched = [string]::Equals($expectedBase, $actualBase, [StringComparison]::Ordinal)
+    $result.orderedAcesMatched = [string]::Equals(
+        $expectedParts.Groups['aces'].Value, $actualParts.Groups['aces'].Value, [StringComparison]::Ordinal)
+    $result.exactlyRestored = [string]::Equals($Expected, $Actual, [StringComparison]::Ordinal)
+    $result.autoInheritanceApplied = !$expectedAuto -and $actualAuto
+    $result.accepted = $result.protectedAndRequestMatched -and $result.orderedAcesMatched -and
+        ($result.exactlyRestored -or $result.autoInheritanceApplied)
+    return $result
+}
+
+<#
 构建摘要同时绑定确切运行时和全部原生构建成员，普通账户直接读取这些锁定文件，测试前后不得出现替换或重建。
 #>
 function Get-BuildHashes {
@@ -64,6 +97,82 @@ function Get-BuildHashes {
         $hashes[$file.FullName.Substring($Workspace.Length)] = (Get-FileHash -LiteralPath $file.FullName).Hash
     }
     return $hashes
+}
+
+<#
+边界检查使用当前普通身份的真实令牌评价对象删除权与父目录删除子项权，不根据叶文件只读授权推断整条祖先安全。
+#>
+function Assert-ControlledPaths {
+    $pathAccessSource = @'
+using System;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+using System.Security.Principal;
+using Microsoft.Win32.SafeHandles;
+public static class VeriQNativePathAccess {
+    [StructLayout(LayoutKind.Sequential)] struct Mapping {
+        public uint Read, Write, Execute, All;
+    }
+    [DllImport("advapi32.dll", SetLastError = true)]
+    static extern bool DuplicateToken(IntPtr token, int level, out SafeAccessTokenHandle duplicate);
+    [DllImport("advapi32.dll", SetLastError = true)]
+    static extern bool AccessCheck(byte[] descriptor, SafeAccessTokenHandle token, uint access,
+        ref Mapping mapping, IntPtr privileges, ref uint privilegeBytes, out uint granted, out bool allowed);
+    public static bool Allowed(byte[] descriptor, uint access) {
+        using (var identity = WindowsIdentity.GetCurrent(TokenAccessLevels.Query | TokenAccessLevels.Duplicate)) {
+            SafeAccessTokenHandle token;
+            if (!DuplicateToken(identity.AccessToken.DangerousGetHandle(), 2, out token)) {
+                throw new Win32Exception(Marshal.GetLastWin32Error());
+            }
+            using (token) {
+                var mapping = new Mapping { Read = 0x120089, Write = 0x120116, Execute = 0x1200A0, All = 0x1F01FF };
+                IntPtr privileges = Marshal.AllocHGlobal(4096);
+                try {
+                    uint bytes = 4096, granted; bool allowed;
+                    if (!AccessCheck(descriptor, token, access, ref mapping, privileges, ref bytes,
+                        out granted, out allowed)) throw new Win32Exception(Marshal.GetLastWin32Error());
+                    return allowed && (granted & access) == access;
+                } finally { Marshal.FreeHGlobal(privileges); }
+            }
+        }
+    }
+}
+'@
+    Add-Type -TypeDefinition $pathAccessSource
+    $manifest = Get-Content -LiteralPath (Join-Path $OutputRoot 'control/boundaries.json') -Raw | ConvertFrom-Json
+    if ($manifest.source -cne $Source -or $manifest.sid -cne $ExpectedSid -or
+        @($manifest.checks).Count -lt 1 -or @($manifest.checks).Count -gt 32) {
+        throw 'NATIVE_PATH_BOUNDARY_MANIFEST_INVALID'
+    }
+    $observed = [Collections.Generic.List[object]]::new()
+    $replaceable = $false
+    foreach ($check in $manifest.checks) {
+        $descriptor = [Convert]::FromBase64String($check.descriptor)
+        $parentDescriptor = [Convert]::FromBase64String($check.parentDescriptor)
+        $canDelete = [VeriQNativePathAccess]::Allowed($descriptor, 0x10000)
+        $parentCanDeleteChild = [VeriQNativePathAccess]::Allowed($parentDescriptor, 0x40)
+        $canChangePermissions = [VeriQNativePathAccess]::Allowed($descriptor, 0x40000)
+        $canTakeOwnership = [VeriQNativePathAccess]::Allowed($descriptor, 0x80000)
+        $parentCanChangePermissions = [VeriQNativePathAccess]::Allowed($parentDescriptor, 0x40000)
+        $parentCanTakeOwnership = [VeriQNativePathAccess]::Allowed($parentDescriptor, 0x80000)
+        $observed.Add(@{
+            path = $check.path; parent = $check.parent; canDelete = $canDelete
+            parentCanDeleteChild = $parentCanDeleteChild
+            canChangePermissions = $canChangePermissions; canTakeOwnership = $canTakeOwnership
+            parentCanChangePermissions = $parentCanChangePermissions; parentCanTakeOwnership = $parentCanTakeOwnership
+        })
+        if ($canDelete -or $parentCanDeleteChild -or $canChangePermissions -or $canTakeOwnership -or
+            $parentCanChangePermissions -or $parentCanTakeOwnership) { $replaceable = $true }
+    }
+    if ($replaceable) {
+        Write-Observation 'standard-user-path-boundaries.json' {
+            @{ source = $Source; sid = $ExpectedSid; checks = $observed.ToArray(); replaceable = $true }
+        }
+        throw 'NATIVE_CONTROLLED_ANCESTOR_REPLACEABLE'
+    }
+    Write-Record 'standard-user-path-boundaries.json' @{
+        source = $Source; sid = $ExpectedSid; checks = $observed.ToArray(); replaceable = $false
+    }
 }
 
 if ($Mode -eq 'Child') {
@@ -104,6 +213,7 @@ if ($Mode -eq 'Child') {
     if ((Get-Location).Path -ne (Join-Path $Workspace 'apps/runtime')) {
         throw 'NATIVE_STANDARD_USER_WORKING_DIRECTORY_INVALID'
     }
+    Assert-ControlledPaths
     # 子进程环境指向系统实际加载的当前账户档案，避免继承管理员目录后把其他身份的凭据位置误当作本次验收。
     $env:USERPROFILE = $profile
     $env:USERNAME = $identity.Name.Split('\')[-1]
@@ -112,6 +222,7 @@ if ($Mode -eq 'Child') {
     $env:TEMP = Join-Path $OutputRoot 'fixtures'
     $env:TMP = $env:TEMP
     $env:VERIQ_NATIVE_EVIDENCE = $EvidenceDirectory
+    $env:PATH = (Split-Path -Parent $NodePath) + ';' + $env:PATH
     New-Item -ItemType Directory -Path $env:TEMP | Out-Null
     $probe = Join-Path $Workspace ('.veriq-standard-user-write-probe-' + [guid]::NewGuid().ToString('N'))
     $denied = $false
@@ -321,7 +432,10 @@ function Save-State {
 <#
 私有监管目录明确设置拥有者与保护授权，普通账户仅能读取启动闸门，不能伪造状态、提前放行或继承监管句柄。
 #>
-function Set-ControlAcl([string]$Path, [string]$Reader = '') {
+function Set-ControlAcl(
+    [string]$Path, [string]$Reader = '',
+    [ValidateSet('', 'state', 'output', 'gate', 'runtime')][string]$Scope = ''
+) {
     $acl = [Security.AccessControl.DirectorySecurity]::new()
     $acl.SetAccessRuleProtection($true, $false)
     $acl.SetOwner([Security.Principal.SecurityIdentifier]::new($parentSid))
@@ -336,9 +450,11 @@ function Set-ControlAcl([string]$Path, [string]$Reader = '') {
             'ContainerInherit,ObjectInherit', 'None', 'Allow'))
     }
     Set-Acl -LiteralPath $Path -AclObject $acl
-    $scope = if ($Path -eq $stateDirectory) { 'state' } elseif ($Reader) { 'gate' } else { 'output' }
-    Write-Observation ('standard-user-acl-' + $scope + '.json') {
-        @{ source = $Source; scope = $scope; acl = (Get-AclObservation $Path) }
+    if (!$Scope) {
+        $Scope = if ($Path -eq $stateDirectory) { 'state' } elseif ($Reader) { 'gate' } else { 'output' }
+    }
+    Write-Observation ('standard-user-acl-' + $Scope + '.json') {
+        @{ source = $Source; scope = $Scope; acl = (Get-AclObservation $Path) }
     }
 }
 
@@ -481,7 +597,7 @@ function Complete-Cleanup {
     if (Test-Path -LiteralPath $userEvidence) {
         foreach ($name in @(
             '', 'standard-user-identity.json', 'standard-user-file-owner.json', 'standard-user-build-inputs.json',
-            'standard-user-readonly-failure.json'
+            'standard-user-readonly-failure.json', 'standard-user-path-boundaries.json'
         )) {
             $path = if ($name) { Join-Path $userEvidence $name } else { $userEvidence }
             if (Test-Path -LiteralPath $path) {
@@ -499,15 +615,24 @@ function Complete-Cleanup {
         $acl.SetSecurityDescriptorSddlForm($state.originalDacl, $section)
         Set-Acl -LiteralPath $Workspace -AclObject $acl
         $afterDacl = (Get-Acl -LiteralPath $Workspace).GetSecurityDescriptorSddlForm($section)
+        $comparison = Compare-SourceDacl $state.originalDacl $afterDacl
         Write-Observation 'standard-user-source-acl.json' {
             @{
                 source = $Source; expectedDacl = $state.originalDacl; beforeDacl = $beforeDacl
-                afterDacl = $afterDacl; exactlyRestored = $afterDacl -eq $state.originalDacl
+                afterDacl = $afterDacl; sourceAclExactlyRestored = $comparison.exactlyRestored
+                autoInheritanceApplied = $comparison.autoInheritanceApplied
+                sourceAclProtectedAndRequestMatched = $comparison.protectedAndRequestMatched
+                sourceAclOrderedAcesMatched = $comparison.orderedAcesMatched
+                expectedFlags = $comparison.expectedFlags; actualFlags = $comparison.actualFlags
             }
         }
-        if ($afterDacl -ne $state.originalDacl) {
+        if (!$comparison.accepted) {
             throw 'NATIVE_SOURCE_ACL_RESTORE_UNCONFIRMED'
         }
+        $state.aclExactlyRestored = $comparison.exactlyRestored
+        $state.autoInheritanceApplied = $comparison.autoInheritanceApplied
+        $state.aclProtectedAndRequestMatched = $comparison.protectedAndRequestMatched
+        $state.aclOrderedAcesMatched = $comparison.orderedAcesMatched
     }
     $state.aclRestored = $true
     Save-State
@@ -529,6 +654,9 @@ function Complete-Cleanup {
     Save-State
     Write-Record 'standard-user-cleanup.json' @{
         source = $Source; errors = @(); testExitCode = $state.exitCode; sourceAclRestored = $state.aclRestored
+        sourceAclExactlyRestored = $state.aclExactlyRestored; autoInheritanceApplied = $state.autoInheritanceApplied
+        sourceAclProtectedAndRequestMatched = $state.aclProtectedAndRequestMatched
+        sourceAclOrderedAcesMatched = $state.aclOrderedAcesMatched
         processTreeDrained = $true; sidProcessesRemaining = 0; forcedTermination = $state.forcedTermination
     }
 }
@@ -582,8 +710,11 @@ $state = [pscustomobject]@{
     jobCreated = $false; processId = 0; creationTime = ''; assigned = $false; gateReleased = $false
     originalDacl = (Get-Acl -LiteralPath $Workspace).GetSecurityDescriptorSddlForm($section)
     aclChanged = $false; aclRestored = $false; forcedTermination = $false; cleaned = $false; exitCode = 1
+    aclExactlyRestored = $false; autoInheritanceApplied = $false
+    aclProtectedAndRequestMatched = $false; aclOrderedAcesMatched = $false
 }
 Save-State
+$sourceNodePath = $NodePath
 $before = Get-BuildHashes
 $job = $null
 $child = $null
@@ -607,12 +738,44 @@ try {
     New-Item -ItemType Directory -Path $OutputRoot | Out-Null
     Set-ControlAcl $OutputRoot
     $outputAcl = Get-Acl -LiteralPath $OutputRoot
+    # 容器本身不给普通账户删除权限，避免通过重命名祖先替换只读运行目录；可写夹具子项仍继承原有修改能力。
     $outputAcl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new(
-        $user.SID, 'Modify', 'ContainerInherit,ObjectInherit', 'None', 'Allow'))
+        $user.SID, 'ReadAndExecute,Write', 'None', 'None', 'Allow'))
+    $outputAcl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new(
+        $user.SID, 'Modify', 'ContainerInherit,ObjectInherit', 'InheritOnly', 'Allow'))
     Set-Acl -LiteralPath $OutputRoot -AclObject $outputAcl
+    Write-Observation 'standard-user-acl-output.json' {
+        @{ source = $Source; scope = 'output'; acl = (Get-AclObservation $OutputRoot) }
+    }
     $control = Join-Path $OutputRoot 'control'
     New-Item -ItemType Directory -Path $control | Out-Null
     Set-ControlAcl $control $state.sid
+    # 共享工具缓存已实测允许普通主体写入，因此只复制相同锁定字节到本次只读运行目录，不改变全机工具的权限。
+    $runtimeDirectory = Join-Path $OutputRoot 'runtime'
+    New-Item -ItemType Directory -Path $runtimeDirectory | Out-Null
+    Set-ControlAcl $runtimeDirectory $state.sid 'runtime'
+    $privateNode = Join-Path $runtimeDirectory 'node.exe'
+    Copy-Item -LiteralPath $NodePath -Destination $privateNode
+    $nodeAcl = [Security.AccessControl.FileSecurity]::new()
+    $nodeAcl.SetAccessRuleProtection($true, $false)
+    $nodeAcl.SetOwner([Security.Principal.SecurityIdentifier]::new($parentSid))
+    foreach ($sid in @($parentSid, 'S-1-5-18')) {
+        $nodeAcl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new(
+            [Security.Principal.SecurityIdentifier]::new($sid), 'FullControl', 'Allow'))
+    }
+    $nodeAcl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new(
+        $user.SID, 'ReadAndExecute', 'Allow'))
+    Set-Acl -LiteralPath $privateNode -AclObject $nodeAcl
+    $copyHash = (Get-FileHash -LiteralPath $privateNode -Algorithm SHA256).Hash
+    if ($copyHash -cne $before['node'] -or
+        (Get-FileHash -LiteralPath $NodePath -Algorithm SHA256).Hash -cne $before['node']) {
+        throw 'NATIVE_PRIVATE_NODE_BYTES_MISMATCH'
+    }
+    Write-Record 'standard-user-node-copy.json' @{
+        source = $Source; sourceNodeSha256 = $before['node']; copyNodeSha256 = $copyHash
+        copyBytes = (Get-Item -LiteralPath $privateNode).Length; acl = (Get-AclObservation $privateNode)
+    }
+    $NodePath = $privateNode
     $tracked = @(& git -C $Workspace -c core.quotepath=false ls-files)
     if ($LASTEXITCODE -ne 0 -or !$tracked.Count) { throw 'NATIVE_SOURCE_LIST_UNAVAILABLE' }
     $inputs = @($tracked | ForEach-Object { Join-Path $Workspace $_ }) + @($PSCommandPath, $NodePath)
@@ -630,6 +793,32 @@ try {
     $state.aclChanged = $true
     Save-State
     Set-Acl -LiteralPath $Workspace -AclObject $readAcl
+    $checks = [Collections.Generic.List[object]]::new()
+    $seen = @{}
+    foreach ($leaf in @($privateNode, $stateDirectory, $Workspace)) {
+        $current = $leaf
+        while ($parent = [IO.Directory]::GetParent($current)) {
+            if (!$seen.ContainsKey($current)) {
+                foreach ($path in @($current, $parent.FullName)) {
+                    if ((Get-Item -LiteralPath $path -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) {
+                        throw 'NATIVE_CONTROLLED_ANCESTOR_REPARSE_REJECTED'
+                    }
+                }
+                $checks.Add(@{
+                    path = $current; parent = $parent.FullName
+                    descriptor = [Convert]::ToBase64String(
+                        (Get-Acl -LiteralPath $current).GetSecurityDescriptorBinaryForm())
+                    parentDescriptor = [Convert]::ToBase64String(
+                        (Get-Acl -LiteralPath $parent.FullName).GetSecurityDescriptorBinaryForm())
+                })
+                $seen[$current] = $true
+            }
+            $current = $parent.FullName
+        }
+    }
+    if ($checks.Count -gt 32) { throw 'NATIVE_PATH_BOUNDARY_BUDGET_EXCEEDED' }
+    $boundaryManifest = @{ source = $Source; sid = $state.sid; checks = $checks.ToArray() }
+    [IO.File]::WriteAllText((Join-Path $control 'boundaries.json'), ($boundaryManifest | ConvertTo-Json -Depth 5))
     $userEvidence = Join-Path $OutputRoot 'evidence'
     New-Item -ItemType Directory -Path $userEvidence | Out-Null
     $parameters = @(
@@ -680,6 +869,13 @@ try {
     }
     Save-State
     $after = Get-BuildHashes
+    $sourceNodeHashAfter = (Get-FileHash -LiteralPath $sourceNodePath -Algorithm SHA256).Hash
+    Write-Record 'standard-user-node-copy.json' @{
+        source = $Source; sourceNodeSha256 = $before['node']; copyNodeSha256 = $copyHash
+        sourceNodeSha256After = $sourceNodeHashAfter; copyNodeSha256After = $after['node']
+        copyBytes = (Get-Item -LiteralPath $privateNode).Length; acl = (Get-AclObservation $privateNode)
+    }
+    if ($sourceNodeHashAfter -cne $before['node']) { throw 'NATIVE_ORIGINAL_NODE_BYTES_CHANGED' }
     if ($before.Count -ne $after.Count -or @($before.Keys | Where-Object { $before[$_] -ne $after[$_] }).Count) {
         throw 'NATIVE_BUILD_INPUTS_CHANGED'
     }
