@@ -32,11 +32,33 @@ test("native forms expose their named member, invitation, plan and CI operations
     for (const operation of [
         "createWorkspace",
         "renameWorkspace",
-        "createExecutionPlan",
         "acknowledgeNotificationAgentReply",
         "subscribeNotificationInbox",
     ])
         assert.throws(() => resolveOperation({ operation }, workspaceId), /IPC_OPERATION_DENIED/);
+    const plan = {
+        operation: "createExecutionPlan",
+        params: { workspaceId },
+        data: {
+            name: "Native plan",
+            suiteVersionId: targetId,
+            environmentVersionId: targetId,
+            browsers: ["chromium"],
+            runtimeIds: [targetId],
+            overlapPolicy: "QUEUE",
+            maxCaseRetries: 0,
+            roleKeys: ["reader"],
+            variables: {},
+        },
+    };
+    assert.deepEqual(resolveOperation(plan, workspaceId), {
+        method: "POST",
+        path: `/api/v1/workspaces/${workspaceId}/execution-plans`,
+        kind: "json",
+        data: plan.data,
+    });
+    assert.throws(() => resolveOperation({ operation: "createExecutionPlan" }, workspaceId), /IPC_PAYLOAD_INVALID/);
+    assert.throws(() => resolveOperation(plan, targetId), /WORKSPACE_SCOPE_MISMATCH/);
 });
 
 /**

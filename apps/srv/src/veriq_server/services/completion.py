@@ -495,7 +495,7 @@ class CompletionService:
         }
 
     async def expire_lease(self, job: Job, attempt: Attempt, current: datetime) -> bool:
-        """调用方在安装锁内核对数据库时限，领取重放与定时回收统一结算原预留和运行结果。"""
+        """调用方在安装锁内确认数据库时限已过，此处统一结算原预留和运行结果，只有能证明未激活的尝试才释放容量。"""
         capacity = CapacityService(self.session, self.settings)
         unactivated = unactivated_lease(job, attempt) and await capacity.reservations_match(
             job, attempt, "HELD"

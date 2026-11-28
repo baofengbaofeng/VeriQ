@@ -245,7 +245,7 @@ def _tree_state(root: pathlib.Path) -> dict[str, tuple[int, str]]:
 
 async def _restore(case: _RecoveryCase, trap: _DatabaseTrap, **flags: bool) -> None:
     """
-    调用公开恢复函数，让各场景单独指定所需的归档与操作员确认。
+    通过公开恢复入口传入归档摘要、目标配置和默认操作员确认，各场景可单独覆盖确认项以检验恢复前置守卫。
     """
     confirmations = {
         "services_stopped": True,
@@ -302,7 +302,7 @@ async def test_untouched_archive_reaches_database_trap(
 async def test_empty_s3_archive_requires_inventory_permission(
     recovery_case: _RecoveryCase, database_trap: _DatabaseTrap
 ) -> None:
-    """即使快照中没有 S3 对象或墓碑，也必须先获得清点目标桶的许可。"""
+    """验证对象存储部署即使归档内没有对象或墓碑，也必须取得清点目标桶的操作员许可，才能继续后续恢复检查。"""
     await _assert_restore_refused(
         recovery_case, database_trap, "RESTORE_S3_LIST_PERMISSION_CONFIRMATION_REQUIRED"
     )
@@ -318,7 +318,7 @@ async def test_empty_s3_archive_checks_target_bucket_before_database(
     monkeypatch: pytest.MonkeyPatch,
     occupied: bool,
 ) -> None:
-    """以受控 SDK 响应模拟有对象和无对象的桶，只有清点为空才可进入数据库校验。"""
+    """通过受控客户端响应模拟有对象和无对象的目标桶，验证清点确认桶为空后才进入数据库校验，非空时提前拒绝。"""
     client = boto3.Session().client(
         "s3", region_name="us-east-1", aws_access_key_id="synthetic", aws_secret_access_key="test"
     )
@@ -350,7 +350,7 @@ async def test_empty_s3_archive_checks_target_bucket_before_database(
 async def test_file_restore_with_s3_history_still_requires_inventory(
     recovery_case: _RecoveryCase, database_trap: _DatabaseTrap, history: str
 ) -> None:
-    """默认写入 FILE 的部署也必须为历史 S3 对象或墓碑授权清点。"""
+    """验证默认写入本地文件的部署若归档仍含历史对象存储数据或墓碑，也必须取得清点目标桶许可后才能继续恢复。"""
     manifest = _archive_manifest(recovery_case)
     key = "historical/object"
     if history == "object":

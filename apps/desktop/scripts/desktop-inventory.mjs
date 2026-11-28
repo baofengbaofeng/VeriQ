@@ -82,6 +82,6 @@ export async function desktopInventory(directory) {
         "THIRD_PARTY_NOTICES.md",
     ])
         if (!files.some((file) => file.path === required)) throw new Error("DESKTOP_GUI_ENTRY_MISSING");
-    const bytes = Buffer.from(JSON.stringify({ schemaVersion: 1, files }) + "\n");
+    const bytes = Buffer.from(JSON.stringify({ schemaVersion: 1, files }, null, 4) + "\n");
     return { bytes, sha256: createHash("sha256").update(bytes).digest("hex"), files };
 }

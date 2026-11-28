@@ -1,4 +1,4 @@
-"""将服务端与 Python 依赖的日志经统一渲染器输出到现有诊断流。"""
+"""将服务端和依赖库的日志统一渲染到诊断流，关联当前链路并隔离敏感依赖的原始消息与异常内容。"""
 
 from contextlib import nullcontext
 from datetime import UTC, datetime
@@ -57,7 +57,7 @@ def _trace_fields() -> dict[str, str]:
 
 
 def log(tag: str, event: str, *, level: int = NOTICE, **fields: Any) -> None:
-    """发出预先筛选过的结构化字段，并保留业务调用点作为源位置。"""
+    """发出调用方预先筛选的结构化字段，链路标识取自当前任务上下文，并保留业务调用点作为日志源位置。"""
     if _logger.isEnabledFor(level):
         context = _trace_fields()
         for key in ("traceid", "spanid", "request_id"):
@@ -74,7 +74,7 @@ def log(tag: str, event: str, *, level: int = NOTICE, **fields: Any) -> None:
 
 
 class LogFormatter(logging.Formatter):
-    """以统一协议渲染业务日志，隔离第三方可能包含原始请求的诊断文本。"""
+    """以统一协议渲染业务日志及依赖诊断，敏感依赖仅保留来源和异常类型，防止原始请求或错误详情外泄。"""
 
     def format(self, record: logging.LogRecord) -> str:
         level = _LEVEL_NAMES.get(record.levelno, "NOTICE")
@@ -107,17 +107,16 @@ class LogFormatter(logging.Formatter):
 
 
 def configure_logging() -> None:
-    """为独立服务进程启用单一 stderr 诊断输出，默认阈值为 NOTICE。"""
+    """为独立服务进程设置标准错误诊断流和统一渲染器，默认记录通知及以上级别，并归并依赖的独立处理器。"""
     level = _LEVELS.get(os.environ.get("LOG_LEVEL", "").strip().upper(), NOTICE)
     handler = logging.StreamHandler()
     handler.setLevel(level)
     handler.setFormatter(LogFormatter())
     logging.basicConfig(handlers=[handler], level=level, force=True)
-    # 标准日志的调试错误输出会回显原始消息与参数，服务进程只允许经过渲染器的诊断。
+    # 标准日志处理器的调试错误输出会回显原始消息与参数，此处关闭该旁路，确保诊断仍经过统一渲染器。
     logging.raiseExceptions = False
     _logger.setLevel(level)
-    # 导入时已有独立处理器的依赖也必须经过脱敏边界。
-    # Dotted loggers can exist before their named parents and are absent from getChildren().
+    # 导入时已有独立处理器的依赖也须经过脱敏边界，直接遍历注册表以覆盖尚未创建父级的点分名称日志器。
     for dependency in logging.Logger.manager.loggerDict.copy().values():
         if not isinstance(dependency, logging.Logger):
             continue
@@ -127,7 +126,7 @@ def configure_logging() -> None:
 
 
 def request_log(handler: RequestHandler) -> None:
-    """记录 Tornado 的响应完成事件，路径使用路由动作而非请求 URI。"""
+    """响应完成后在请求自身的链路上下文中记录状态码和耗时，路径字段使用路由动作以免泄漏原始请求地址。"""
     trace = getattr(handler, "trace", None)
     with use_trace(trace) if trace is not None else nullcontext():
         log(

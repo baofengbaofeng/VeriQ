@@ -10,7 +10,7 @@ from .base import API
 
 
 def _require_form_token_purpose(origin: str | None, purpose: str) -> None:
-    """计划令牌卡只关联执行令牌的签发和吊销，普通服务账号接口仍支持全部契约用途。"""
+    """带表单来源的计划令牌卡只允许签发和吊销执行令牌，未关联表单的普通服务账号接口仍支持全部契约用途。"""
     if origin is not None and purpose != "EXECUTION":
         raise Problem(
             422, "PLAN_TOKEN_PURPOSE_REQUIRED", "The plan token form only manages execution tokens"

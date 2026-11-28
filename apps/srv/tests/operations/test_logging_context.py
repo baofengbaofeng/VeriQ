@@ -1,4 +1,4 @@
-"""核对服务端请求关联边界以及依赖日志的安全格式。"""
+"""核对并发请求的链路隔离、下游跨度继承和响应头，并验证依赖日志及异常响应不会泄漏敏感请求内容。"""
 
 import asyncio
 from io import StringIO
@@ -18,7 +18,7 @@ from veriq_server.logging_context import child_span, current_trace, trace_header
 
 
 class Probe(API):
-    """交错两个请求并触发一个安全错误响应。"""
+    """通过异步等待让并发请求交错记录日志，按查询参数触发含敏感消息的异常，供响应和诊断脱敏断言使用。"""
 
     async def get(self):
         await asyncio.sleep(0.01)

@@ -195,7 +195,7 @@ export function parseDraftObject(value: string | undefined): Record<string, unkn
         const parsed: unknown = JSON.parse(value?.trim() || "{}");
         if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed as Record<string, unknown>;
     } catch {
-        // Invalid freeform JSON remains editable in the local draft.
+        // 自由编辑的 JSON 尚未形成合法对象时保留本地输入并返回未解析状态，让后续诊断提示问题且不丢失用户草稿。
     }
 }
 
@@ -360,7 +360,7 @@ export function listRecordingDrafts(storage: Storage, scope: string): RecordingD
             if (draft?.id === key.slice(prefix.length) && stepPhases.every((phase) => Array.isArray(draft[phase])))
                 drafts.push(draft);
         } catch {
-            // An incomplete local copy cannot overwrite any valid draft.
+            // 本地存储中的草稿副本若无法解析就跳过该项并继续读取其它副本，避免单条损坏记录阻断有效草稿恢复。
         }
     }
     return drafts;

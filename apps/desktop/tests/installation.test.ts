@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { generateKeyPairSync, sign } from "node:crypto";
-import { mkdtemp, mkdir, writeFile, symlink, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, symlink, rm, realpath } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { parseDesktopRelease, type DesktopRelease } from "../src/installation/release.ts";
@@ -134,7 +134,7 @@ test("desktop release identities and Mac host capabilities fail closed", () => {
  * 可观察结果，不通过扫描源码关键字或假造打包回执证明安装器可用。
  */
 test("GUI inventory covers all resources and refuses linked input", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "veriq-gui-inventory-"));
+    const directory = await realpath(await mkdtemp(join(tmpdir(), "veriq-gui-inventory-")));
     try {
         for (const part of ["main", "preload", "renderer"]) await mkdir(join(directory, part));
         for (const file of [

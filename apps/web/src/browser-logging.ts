@@ -38,7 +38,7 @@ export function browserLog(level: LogLevel, tag: LogInput["tag"], fields: LogInp
             }),
         );
     } catch {
-        // Diagnostics must preserve the caller's original result and cannot log failures through the console wrapper.
+        // 诊断失败必须保留调用方原有结果，此处吞掉输出错误，避免再次调用已包装的控制台接口而递归产生日志。
     }
 }
 

@@ -178,7 +178,7 @@ function Thread({
         getNextPageParam: (page, _pages, _parameter, parameters) =>
             page.nextCursor && !parameters.includes(page.nextCursor) ? page.nextCursor : undefined,
         refetchInterval: (query) => {
-            // 关闭面板可能中止浏览器等待，但服务端已开始的事务仍可能在首次历史读取之后提交。
+            // 关闭表单面板可能中止浏览器等待，但服务端事务仍可能稍后提交，因此在回执对账窗口内继续短间隔读取历史。
             const remaining = reconcileFormUntil.current - Date.now();
             if (remaining > 0) return Math.max(250, Math.min(1500, remaining));
             const loaded = query.state.data?.pages.flatMap((page) => page.items) ?? [];

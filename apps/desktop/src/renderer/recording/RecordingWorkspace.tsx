@@ -288,7 +288,7 @@ export function RecordingWorkspace({ workspaceId, owner, language, openReport, r
         };
         const observer = new ResizeObserver(sync);
         observer.observe(element);
-        // The native view is stacked above every renderer element, including modal portals.
+        // 原生浏览视图位于渲染层和弹窗传送节点之上，因此监听弹窗节点增删并重新核对可显示区域，避免遮挡操作。
         const portals = new MutationObserver(sync);
         portals.observe(document.body, { childList: true });
         const workspace = element.closest(".recording-workspace");
@@ -450,7 +450,7 @@ export function RecordingWorkspace({ workspaceId, owner, language, openReport, r
         if (!first) return;
         const previous = current.catalogDraft;
         const baseVersionId = current.catalogVersionId;
-        // A different frozen base starts a fresh draft instead of overwriting another base's recovery point.
+        // 元素目录的冻结基准版本变化后必须新建草稿，只有同一基准版本才能复用保存回执，避免覆盖另一版本的恢复点。
         const recover = previous?.baseVersionId === baseVersionId ? previous : undefined;
         const clientDraftId = recover?.clientDraftId ?? current.catalogClientId ?? crypto.randomUUID();
         change((item) => ({ ...item, catalogClientId: clientDraftId }));

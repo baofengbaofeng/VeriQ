@@ -34,7 +34,7 @@ function waitForPoll(signal: AbortSignal): Promise<void> {
 }
 
 /**
- * Bind the authoring operations to the chosen workspace and the desktop's typed cloud transport.
+ * 录制编写操作统一绑定当前选定工作区并经桌面类型化云传输发送，资源和报告适配器共享同一空间范围。
  */
 export function createRecordingServices(workspaceId: string) {
     const resources = new CloudResourceAdapter(workspaceId);
@@ -77,7 +77,7 @@ export function createRecordingServices(workspaceId: string) {
             return await resources.save(resourceId, { revision, content: input.content }, signal);
         } catch (error) {
             signal?.throwIfAborted();
-            // Recover a committed save whose reply was lost without applying the same edit twice.
+            // 保存失败后重新读取草稿，只有修订号恰好递增一次且文档摘要一致才恢复已提交结果，避免重复应用同一编辑。
             const saved = await resources.draft(resourceId, signal).catch(() => null);
             if (saved?.revision === revision + 1 && saved.documentHash === hash) {
                 return saved;

@@ -1,4 +1,4 @@
-"""Check result logging at the SMTP and database boundaries."""
+"""验证邮件与数据库传输边界的成功和失败均只记录一次结果，不暴露消息或语句正文，且日志故障不影响调用结果。"""
 
 import smtplib
 

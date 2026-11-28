@@ -9,9 +9,11 @@ from pathlib import Path
 import httpx
 import pytest
 from pydantic import ValidationError
+from sqlalchemy import select
 
 import veriq_server.settings
 from veriq_server import cli
+from veriq_server.db import Installation
 from veriq_server.settings import Settings, load_settings
 
 
@@ -49,10 +51,12 @@ async def test_real_cli_init_migrate_create_admin_and_serve(site, tmp_path):
     _, database = site
     env = os.environ.copy()
     env["VERIQ_DATABASE_URL"] = database.engine.url.render_as_string(hide_password=False)
+    artifacts = (tmp_path / "artifacts").resolve()
+    env["VERIQ_ARTIFACT_DIRECTORY"] = str(artifacts)
     path = tmp_path / "veriq.json"
     binary = str(Path("apps/srv/.venv/bin/veriq_server").resolve())
 
-    async def command(*args, stdin_text=None):
+    async def command(*args, stdin_text=None, expected_exit=0):
         p = await asyncio.create_subprocess_exec(
             binary,
             "--config",
@@ -64,7 +68,9 @@ async def test_real_cli_init_migrate_create_admin_and_serve(site, tmp_path):
             stderr=asyncio.subprocess.PIPE,
         )
         stdout, stderr = await p.communicate(stdin_text.encode() if stdin_text else None)
-        assert p.returncode == 0, "Operator command failed (output withheld to protect secrets)"
+        assert (
+            p.returncode == expected_exit
+        ), "Operator command failed (output withheld to protect secrets)"
         assert env["VERIQ_DATABASE_URL"].encode() not in stdout + stderr
         return stdout.decode()
 
@@ -86,7 +92,11 @@ async def test_real_cli_init_migrate_create_admin_and_serve(site, tmp_path):
         stdin_text="CLI password 123!\nCLI password 123!\n",
     )
     assert not secret_path.exists()
+    await command("doctor", expected_exit=1)
+    assert not artifacts.exists()
+    artifacts.mkdir(mode=0o700)
     await command("doctor")
+    assert list(artifacts.iterdir()) == []
     p = await asyncio.create_subprocess_exec(
         binary,
         "--config",
@@ -99,7 +109,8 @@ async def test_real_cli_init_migrate_create_admin_and_serve(site, tmp_path):
         stderr=asyncio.subprocess.PIPE,
     )
     try:
-        async with httpx.AsyncClient(base_url="http://127.0.0.1:18890") as other:
+        # 回环验收直接连接本次启动的进程，系统代理可能在监听就绪前返回 502，不能用该响应冒充服务已启动。
+        async with httpx.AsyncClient(base_url="http://127.0.0.1:18890", trust_env=False) as other:
             for _ in range(100):
                 try:
                     response = await other.get("/api/v1/setup")
@@ -108,8 +119,20 @@ async def test_real_cli_init_migrate_create_admin_and_serve(site, tmp_path):
                     await asyncio.sleep(0.05)
             else:
                 pytest.fail("CLI serve failed to start")
+            assert response.status_code == 200
+            assert response.headers["content-type"].startswith("application/json")
             assert response.json()["data"]["initialized"] is True
             assert (await other.get("/api/v1/health/live")).status_code == 200
+            ready = await other.get("/health/ready")
+            assert ready.status_code == 200
+            assert ready.json()["data"]["status"] == "ok"
+            assert all(ready.json()["data"]["checks"].values())
+            async with database.sessions() as session:
+                volume_id = (
+                    await session.execute(select(Installation.file_volume_id))
+                ).scalar_one()
+            assert volume_id is not None
+            assert (artifacts / ".veriq-volume").read_text() == volume_id
     finally:
         p.terminate()
         await p.communicate()

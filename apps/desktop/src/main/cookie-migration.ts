@@ -12,15 +12,18 @@ const limit = 64 * 1024 * 1024;
 const missing = (error: unknown) => (error as NodeJS.ErrnoException)?.code === "ENOENT";
 
 /**
- * Linux 逐级打开并持有真实父目录描述符，文件只作同句柄类型、拥有者、权限和大小检查而不读取 Cookie 内容；Windows 交给同
- * 等固定用途原生操作，真正不存在才返回 false，符号链接、公开对象与未知失败都不能被略
- * 过。
+ * Linux 逐级打开并持有真实父目录描述符，文件只核验类型、拥有者、权限和大小而不读取 Cookie 内容；
+ * Windows 与 Darwin 交给同等固定用途原生操作，真正不存在才返回 false，符号链接、公开对象与未知失败都不能略过。
  */
 async function member(directory: string, name: string, retire: boolean): Promise<boolean> {
     if (!names.includes(name)) throw new Error("COOKIE_MEMBER_INVALID");
     if (process.platform === "win32") {
         const { windowsNative } = await import("../../../runtime/src/native/windows.ts");
         return windowsNative().privateCookieFile(join(directory, name), retire);
+    }
+    if (process.platform === "darwin") {
+        const { darwinNative } = await import("../../../runtime/src/native/darwin.ts");
+        return darwinNative().privateCookieFile(join(directory, name), retire);
     }
     if (process.platform !== "linux") throw new Error("COOKIE_PLATFORM_UNSUPPORTED");
     let parent: FileHandle | undefined;

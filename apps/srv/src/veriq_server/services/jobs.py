@@ -53,13 +53,13 @@ ClaimDTO = dict[str, Any]
 
 @dataclass(frozen=True)
 class ClosedClaim:
-    """安装锁内确认原领取已终止，HTTP 层在事务提交后将请求 UUID 回送设备。"""
+    """携带安装锁内已确认终止的原领取请求标识，供接口层在事务提交后回送设备，使设备能核对并清除对应请求。"""
 
     client_request_id: str
 
 
 def has_execution_record(attempt: Attempt) -> bool:
-    """激活、执行事件或完成回执中的任意记录都排除未启动证明。"""
+    """检查激活时间、执行来源、事件序号及完成回执，任意已有记录都排除未启动证明，防止错误释放执行容量。"""
     return (
         attempt.activated_at is not None
         or attempt.execution_provenance is not None
@@ -338,7 +338,7 @@ class JobService:
         return True
 
     async def close_expired_claim(self, job: Job, attempt: Attempt, current: datetime) -> None:
-        """在原领取回执已核验且租约确已过期时，提交未激活关闭或验证已持久化的终态。"""
+        """在原领取回执已核验且租约确已过期时关闭未激活尝试，或核对已有终态及释放记录；不能证明安全时拒绝重放。"""
         if unactivated_lease(job, attempt):
             from .completion import CompletionService
 

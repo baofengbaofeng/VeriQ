@@ -828,7 +828,7 @@ function installBridge() {
 }
 
 /**
- * Verify the installed host and its protected cookie store before opening the persistent partition.
+ * 持久会话打开前先核验已安装宿主身份、加密提供者和旧 Cookie 退役状态，只有全部通过才允许使用登录分区。
  */
 async function preparePersistentSession(hostIdentity: Awaited<ReturnType<typeof verifyDesktopHost>>) {
     await privateDirectory(profile);

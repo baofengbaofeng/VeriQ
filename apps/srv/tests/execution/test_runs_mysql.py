@@ -432,7 +432,7 @@ async def test_debug_candidate_waits_for_validation_without_fabricating_publishe
 
 
 async def test_draft_run_selects_frozen_rows(site):
-    """已冻结候选按原数据顺序展开指定行，省略时保留完整矩阵，重复提交复用运行。"""
+    """验证已冻结候选按矩阵原有顺序展开指定行，省略选择时保留完整矩阵，相同幂等请求重复提交时复用原运行。"""
     from test_publish import queue
     from veriq_server.db import Run
 

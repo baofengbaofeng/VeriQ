@@ -55,7 +55,7 @@ jobs:
         timeout-minutes: 60
         services:
             mysql:
-                image: mysql:8.4.8@sha256:2952e3be7807f06fc18de50b3ea1a632d5c70d63482ff7d7376fe3aa8999babf
+                image: mysql:8.4.13@sha256:a81d043930e51745522bd5c430961cf8286f0a23f0a9a2a6e0108f7ea71b0902
                 env:
                     MYSQL_ROOT_PASSWORD: veriq-ci-only
                     MYSQL_DATABASE: veriq_test
@@ -95,6 +95,12 @@ jobs:
                   PY
                   node apps/web/tests/prepare-editor-agent.mjs
                   cp .superpowers/cache/t11/release/inventory.json .superpowers/sdd/veriq-1/state/approved-engine-inventory.json
+            - name: Verify production database and CLI operator lifecycle
+              run: |
+                  uv run --project apps/srv --frozen --no-sync python -m pytest \
+                    -c apps/srv/pyproject.toml \
+                    apps/srv/tests/auth/test_auth.py::test_production_cookie_and_database_shape \
+                    apps/srv/tests/auth/test_settings_cli.py::test_real_cli_init_migrate_create_admin_and_serve
             - name: Full normal release
               run: ./build.sh
             - name: Reject emergency artifacts in normal release CI

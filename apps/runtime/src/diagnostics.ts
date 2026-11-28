@@ -73,7 +73,7 @@ const logger = pino(
                 });
                 writeSync(2, `${line}\n`);
             } catch {
-                // 诊断目标在进程退出或重定向失败时可能不可写，正常业务和关闭流程不能依赖它。
+                // 诊断目标在进程退出或重定向失败时可能不可写，此处吞掉输出错误以免打断正常业务和关闭流程。
             }
         },
     },
@@ -123,7 +123,7 @@ export function diagnosticCode(error: unknown, fallback: string): string {
 }
 
 /**
- * 业务日志使用固定事件名和明确允许的字段，参数不包含请求正文、凭证或原始异常。
+ * 业务日志把来源和事件合并到结构化字段，调用方必须预先筛选参数，排除请求正文、凭证及原始异常。
  */
 export function getLogger(source: string) {
     const log = (level: Level, event: string, fields: Fields = {}) =>

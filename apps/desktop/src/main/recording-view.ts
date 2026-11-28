@@ -28,7 +28,7 @@ type ActiveRecording = {
 };
 
 /**
- * 已批准的跨源页面可显示地址，goto 步骤始终相对于环境基准来源。
+ * 已批准的跨源页面可显示地址，但录制的导航步骤只接受环境基准来源内的路径，防止回放改变目标来源。
  */
 function replayPath(url: URL, baseOrigin: string): string | undefined {
     if (url.origin !== baseOrigin || url.pathname.startsWith("//")) return;

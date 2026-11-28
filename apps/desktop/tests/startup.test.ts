@@ -1,18 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, realpath } from "node:fs/promises";
 import { localRetentionDefaults } from "../src/shared/retention-policy.ts";
 import { DesktopAgent } from "../src/agent/service.ts";
 
 const uuid = "11111111-1111-4111-8111-111111111111";
 const startOnline = { operation: "onlineStart" };
+const unavailableExecution = process.platform === "darwin" ? /DARWIN_NATIVE_DISTRIBUTION_REQUIRED/ : /ENOENT/;
 
 /**
- * 启动阶段复用真实 DesktopAgent 与私有文件状态，只延迟真实在线自检到测试明确释放。
- * 缺少引擎时仍由原自检失败，测试借此检查等待期间的并发预留。
+ * 启动阶段复用真实 DesktopAgent 与私有文件状态，只延迟本机最早的发行/自检门禁到测试明确释放。
+ * Darwin 缺少安装能力、其它平台缺少引擎时仍由真实门禁失败，测试借此检查等待期间的并发预留。
  */
 async function pendingStart() {
-    const root = await mkdtemp("/tmp/veriq-startup-");
+    const root = await realpath(await mkdtemp("/tmp/veriq-startup-"));
     const agent = new DesktopAgent(root, {
         origin: "http://127.0.0.1:8888",
         engineDirectory: "/missing/engine",
@@ -25,16 +26,17 @@ async function pendingStart() {
     const started = new Promise<void>((resolve) => {
         entered = resolve;
     });
-    const original = Reflect.get(agent, "diagnose");
+    const boundary = process.platform === "darwin" ? "darwinExecution" : "diagnose";
+    const original = Reflect.get(agent, boundary);
     assert.equal(typeof original, "function");
     let delayed = false;
-    Reflect.set(agent, "diagnose", async (headed: boolean) => {
+    Reflect.set(agent, boundary, async (...args: unknown[]) => {
         if (!delayed) {
             delayed = true;
             entered();
             await gate;
         }
-        return original.call(agent, headed);
+        return original.apply(agent, args);
     });
     const first = agent.dispatch(startOnline).then(
         (value) => ({ value }),
@@ -84,8 +86,8 @@ test("pending startup rejects competing mutations and releases after failure", a
         };
         assert.equal(status.preparing?.operation, "onlineStart");
         fixture.release();
-        assert.match(String(((await fixture.first) as { error: Error }).error), /ENOENT/);
-        await assert.rejects(fixture.agent.dispatch(startOnline), /ENOENT/);
+        assert.match(String(((await fixture.first) as { error: Error }).error), unavailableExecution);
+        await assert.rejects(fixture.agent.dispatch(startOnline), unavailableExecution);
     } finally {
         await fixture.dispose();
     }
@@ -115,7 +117,7 @@ test("startup cancellation targets its operation and waits for release", async (
         fixture.release();
         await cancelled;
         assert.match(String(((await fixture.first) as { error: Error }).error), /AGENT_START_CANCELLED/);
-        await assert.rejects(fixture.agent.dispatch(startOnline), /ENOENT/);
+        await assert.rejects(fixture.agent.dispatch(startOnline), unavailableExecution);
         const { LocalStore } = await import("../../runtime/src/offline/store.ts");
         const { DatabaseSync } = await import("node:sqlite");
         const current = "22222222-2222-4222-8222-222222222222";
@@ -166,7 +168,7 @@ test("stop drains the reserved startup and prevents later work", async () => {
  * 运行安装器或伪造进程排空记录，空历史只证明这个新建测试档案没有旧执行。
  */
 test("maintenance holds idle ownership until explicit stop and prevents a new run", async () => {
-    const root = await mkdtemp("/tmp/veriq-maintenance-");
+    const root = await realpath(await mkdtemp("/tmp/veriq-maintenance-"));
     const agent = new DesktopAgent(root, {
         origin: "http://127.0.0.1:8888",
         engineDirectory: "/missing/engine",

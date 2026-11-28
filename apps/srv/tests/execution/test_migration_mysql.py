@@ -306,7 +306,7 @@ async def test_bound_file_volume_refuses_relative_downgrade(site):
 
 
 async def test_form_receipt_prevents_downgrade_and_preserves_large_revision(site):
-    """已保存的私有回执必须阻止回退，数据库读回原有标识及超过 32 位范围的修订号。"""
+    """验证已有私有回执会阻止数据库回退，并从数据库读回原有实体标识及超出三十二位范围的修订号，避免历史丢失。"""
     client, database = site
     await test_auth.setup(client)
     await test_auth.login(client)

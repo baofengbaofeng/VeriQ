@@ -1,4 +1,4 @@
-"""Encode single-line EVENT_TAG diagnostics consistently with the shared TypeScript formatter."""
+"""服务端日志与共享脚本渲染器遵守同一单行事件协议，对字段脱敏、转义并限制整条输出的编码字节数。"""
 
 from collections.abc import Mapping
 from datetime import datetime, timezone
@@ -110,7 +110,7 @@ def render_log(
     tag: str = "_undef",
     fields: Mapping[str, object] | None = None,
 ) -> str:
-    """Render one line using a bounded UTF-8 representation and UTC's numeric offset."""
+    """将级别、时间、来源及结构化字段编码成有字节上限的单行日志，统一使用零时区数字偏移并转义控制字符。"""
     upper_level = level.upper()
     resolved_level = (
         upper_level if upper_level in _LEVELS else _LEVEL_ALIASES.get(upper_level, "NOTICE")

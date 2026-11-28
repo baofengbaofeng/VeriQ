@@ -510,7 +510,7 @@ async def test_admin_audit_release_preserves_lost_outcome_and_requires_workspace
 
 
 async def test_page_cleanup_authority_requires_explicit_cancel_and_live_lease(site):
-    """明确取消仅向已激活且尚在租约和 Run 期限内的执行保留清理许可。"""
+    """验证用户明确取消后仅向已激活且仍在租约和运行期限内的尝试保留清理许可，耗尽运行预算后撤销该许可。"""
     c, db = site
     await setup(c)
     await login(c)
@@ -784,7 +784,7 @@ async def test_claim_scans_past_multiple_pages_of_ineligible_older_jobs(site):
 
 @pytest.mark.parametrize("maintenance_first", [False, True])
 async def test_expired_unactivated_claim_closes_once_across_api_nodes(site, maintenance_first):
-    """两台 API 重放同一未激活请求，包括维护抢先收割的旧版回执。"""
+    """验证两个接口节点并发重放同一过期未激活请求时只关闭一次，同时兼容维护流程抢先收割后保存的旧版回执。"""
     c, db = site
     await setup(c)
     await login(c)
@@ -816,7 +816,7 @@ async def test_expired_unactivated_claim_closes_once_across_api_nodes(site, main
         async with db.sessions.begin() as session:
             attempt = await session.get(Attempt, first["attemptId"])
             assert attempt.facts["errorCode"] == "UNACTIVATED_CLAIM_CLOSED"
-            # 已升级的服务同样能核对升级前收割器写入、仍有完整容量和领取关联的历史。
+            # 模拟旧版收割器写入的工作进程丢失结局，保留完整容量和领取关联，以验证升级后仍能安全核对原请求历史。
             attempt.facts = {**attempt.facts, "cleanup": "UNKNOWN", "errorCode": "WORKER_LOST"}
     async with db.sessions.begin() as session:
         attempt = await session.get(Attempt, first["attemptId"])
@@ -885,7 +885,7 @@ async def test_reaper_isolates_inconsistent_claim_without_rolling_back_other_exp
     second = (await c.post(path, json=claim_body(two), headers=auth(two))).json()["data"]
     key = f"02/runtime/{one['runnerId']}"
     async with db.sessions.begin() as session:
-        # 预留行仍为 HELD，设备池计数已失配；直接释放会触及数据库非负约束。
+        # 保留容量预留行的持有状态但清零设备池计数，制造直接释放会触及非负约束的失配账本，验证回收先拒绝该操作。
         pool = await session.get(CapacityPool, key)
         pool.used = 0
         await session.execute(

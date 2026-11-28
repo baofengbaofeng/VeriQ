@@ -12,7 +12,7 @@ from ..service import Problem
 
 
 def case_step_lists(document: dict[str, Any]) -> Iterator[tuple[str, list[dict[str, Any]]]]:
-    """复用编译器的 CASE 步骤路径，包含可选准备与各个清理分支的列表。"""
+    """按编译器使用的用例步骤路径依次枚举准备、主步骤和各清理分支，使依赖冻结与受保护事件共享相同位置。"""
     lifecycle = document.get("lifecycle", {})
     if "prepare" in lifecycle:
         yield "lifecycle/prepare", lifecycle["prepare"]
@@ -53,7 +53,7 @@ def dataset_matrix_rows(document: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def selected_dataset_rows(document: dict[str, Any], keys: list[str]) -> list[dict[str, Any]]:
-    """只接受冻结静态矩阵中存在的唯一行键，并保留矩阵原有顺序。"""
+    """要求选择列表包含一至一千个互不重复且确实存在的冻结行键，返回顺序沿用静态矩阵而非调用方传入顺序。"""
     key_set = set(keys)
     rows = [row for row in dataset_matrix_rows(document) if row["key"] in key_set]
     if not 1 <= len(keys) <= 1000 or len(key_set) != len(keys) or len(rows) != len(keys):

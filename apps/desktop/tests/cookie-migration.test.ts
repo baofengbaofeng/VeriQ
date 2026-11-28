@@ -4,13 +4,13 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, writeFile, readFile, rm, chmod } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readFile, rm, chmod, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { prepareCookieStorage } from "../src/main/cookie-migration.ts";
 
 async function fixture(run: (profile: string, partition: string) => Promise<void>) {
-    const profile = await mkdtemp(join(tmpdir(), "veriq-cookie-test-"));
+    const profile = await realpath(await mkdtemp(join(tmpdir(), "veriq-cookie-test-")));
     const partition = join(profile, "electron/Partitions/veriq-host");
     await mkdir(partition, { recursive: true, mode: 0o700 });
     await mkdir(join(partition, "Network"), { mode: 0o700 });
@@ -67,8 +67,12 @@ test("interrupted approved retirement keeps pending state and resumes before any
     fixture(async (profile, partition) => {
         await writeFile(join(partition, "Cookies"), "first", { mode: 0o600 });
         await writeFile(join(partition, "Network/Cookies"), "second", { mode: 0o600 });
-        await chmod(join(partition, "Network"), 0o500);
-        await assert.rejects(prepareCookieStorage(profile, join(profile, "electron"), async () => true));
+        await assert.rejects(
+            prepareCookieStorage(profile, join(profile, "electron"), async () => {
+                await chmod(join(partition, "Network"), 0o500);
+                return true;
+            }),
+        );
         assert.equal(JSON.parse(await readFile(join(profile, "cookie-protection.json"), "utf8")).state, "resetting");
         assert.equal(await readFile(join(partition, "Network/Cookies"), "utf8"), "second");
         await chmod(join(partition, "Network"), 0o700);
@@ -111,7 +115,7 @@ test("Cookie retirement is metadata-only for large files and refuses unsafe memb
         await chmod(path, 0o644);
         await assert.rejects(
             prepareCookieStorage(profile, join(profile, "electron"), confirm),
-            /COOKIE_STORAGE_NOT_PRIVATE/,
+            process.platform === "darwin" ? /DARWIN_PRIVATE_INVALID/ : /COOKIE_STORAGE_NOT_PRIVATE/,
         );
         assert.equal(asked, false);
         await chmod(path, 0o600);
@@ -123,7 +127,7 @@ test("Cookie retirement is metadata-only for large files and refuses unsafe memb
         }
         await assert.rejects(
             prepareCookieStorage(profile, join(profile, "electron"), confirm),
-            /COOKIE_STORAGE_NOT_PRIVATE/,
+            process.platform === "darwin" ? /DARWIN_PRIVATE_INVALID/ : /COOKIE_STORAGE_NOT_PRIVATE/,
         );
         assert.equal(asked, false);
         assert.equal((await lstat(path)).size, 64 * 1024 * 1024 + 1);

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, realpath } from "node:fs/promises";
 import { DesktopAgent } from "../src/agent/service.ts";
 
 /**
@@ -8,7 +8,7 @@ import { DesktopAgent } from "../src/agent/service.ts";
  * 之前被拒绝，不依赖模拟浏览器结果。
  */
 test("independent Node24 agent reports an idle durable profile", async () => {
-    const root = await mkdtemp("/tmp/veriq-t19-agent-");
+    const root = await realpath(await mkdtemp("/tmp/veriq-t19-agent-"));
     try {
         const agent = new DesktopAgent(root, {
             origin: "http://127.0.0.1:8888",
@@ -29,7 +29,7 @@ test("independent Node24 agent reports an idle durable profile", async () => {
 });
 
 test("agent refuses arbitrary path and process operations", async () => {
-    const root = await mkdtemp("/tmp/veriq-t19-agent-");
+    const root = await realpath(await mkdtemp("/tmp/veriq-t19-agent-"));
     try {
         const agent = new DesktopAgent(root, {
             origin: "http://127.0.0.1:8888",
@@ -52,11 +52,8 @@ test("agent refuses arbitrary path and process operations", async () => {
  */
 test("browser capability distinguishes the installed headless shell from headed distribution", async () => {
     const { probeBrowser } = await import("../src/agent/browser-capability.ts");
-    const { resolve } = await import("node:path");
-    const binary = resolve(
-        "../../.superpowers/cache/playwright/chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome-headl" +
-            "ess-shell",
-    );
+    const { registry } = await import("playwright-core/lib/coreBundle");
+    const binary = registry.registry.findExecutable("chromium-headless-shell").executablePath();
     assert.equal((await probeBrowser(binary, false)).available, true);
     assert.equal((await probeBrowser(binary, true)).available, false);
     assert.equal((await probeBrowser(undefined, true)).available, false);
@@ -67,14 +64,17 @@ test("browser capability distinguishes the installed headless shell from headed 
  * 任何设备注册之前，状态中仍没有设备授权。
  */
 test("missing production release cannot produce advertised capabilities", async () => {
-    const root = await mkdtemp("/tmp/veriq-release-missing-");
+    const root = await realpath(await mkdtemp("/tmp/veriq-release-missing-"));
     try {
         const agent = new DesktopAgent(root, {
             origin: "http://127.0.0.1:8888",
             engineDirectory: root + "/missing",
             browserExecutable: "/missing/browser",
         });
-        await assert.rejects(agent.dispatch({ operation: "doctor" }), { code: "ENOENT" });
+        await assert.rejects(
+            agent.dispatch({ operation: "doctor" }),
+            process.platform === "darwin" ? { message: "DARWIN_NATIVE_DISTRIBUTION_REQUIRED" } : { code: "ENOENT" },
+        );
         const status = (await agent.dispatch({ operation: "status" })) as { device?: unknown };
         assert.equal(status.device, undefined);
     } finally {
@@ -91,7 +91,7 @@ test("online disk pause preserves another error and keeps retained scratch visib
     const { tmpdir } = await import("node:os");
     const { DeviceSession } = await import("../../runtime/src/agent/credentials.ts");
     const { AgentClient } = await import("../../runtime/src/agent/transport.ts");
-    const root = await mkdtemp("/tmp/vq-desktop-");
+    const root = await realpath(await mkdtemp("/tmp/vq-desktop-"));
     t.after(() => rm(root, { recursive: true, force: true }));
     const origin = "http://127.0.0.1:8888";
     const id = "11111111-1111-4111-8111-111111111111";
@@ -100,6 +100,14 @@ test("online disk pause preserves another error and keeps retained scratch visib
     Reflect.set(agent, "deviceConfig", async () => ({ server: origin, runnerId: id }));
     const capabilities = { engineVersion: "0.1.0", os: "linux", arch: "x64", browsers: ["chromium"] };
     Reflect.set(agent, "diagnose", async () => ({ ok: true, capabilities }));
+    const temporary = process.platform === "darwin" ? join(root, "control") : tmpdir();
+    if (process.platform === "darwin") {
+        const { createDarwinSource } = await import("../../runtime/src/execution/darwin-source.ts");
+        await mkdir(temporary, { mode: 0o700 });
+        const source = await createDarwinSource({ temporaryDirectory: temporary });
+        // 本用例隔离外部安装身份，实际私有日志和观察器仍消费真实源码探针签发的品牌能力，不能用空对象冒充。
+        Reflect.set(agent, "darwinExecution", async () => source);
+    }
     t.mock.method(DeviceSession.prototype, "open", async () => {});
     t.mock.method(DeviceSession.prototype, "close", async () => {});
     let sampled!: () => void;
@@ -114,7 +122,7 @@ test("online disk pause preserves another error and keeps retained scratch visib
     let claimCount = 0;
     t.mock.timers.enable({ apis: ["setTimeout"] });
     t.mock.method(fs, "statfs", async (path: string) => {
-        if (path === tmpdir()) sampled();
+        if (path === temporary) sampled();
         return { type: 0n, bsize: 4096n, blocks: 400000n, bfree: capacity, bavail: capacity, files: 1n, ffree: 1n };
     });
     t.mock.method(AgentClient.prototype, "request", async (path: string) => {
