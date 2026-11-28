@@ -73,35 +73,108 @@ function candidates(event: Event, selected?: Element): RecordingCandidate[] {
 }
 
 /**
- * 被测页面没有公开的 contextBridge。普通文本仅在用户编辑并提交时进入录制；认证表单与凭证字段不自动采集。
+ * 被测页面没有公开的 contextBridge。只有显式声明为普通业务数据的字段才能采集值，认证表单与凭证字段排除。
  * 页面脚本派发的事件不会成为录制步骤；标注时在捕获阶段拦截业务激活，记录时放行真实点击。
  */
 if (process.isMainFrame) {
     let current: RecordingArm | undefined;
-    let edits = new WeakSet<Element>();
+    let edits = new WeakMap<Element, "public" | "pending" | "blocked">();
     let requestId = 0;
     let selected: HTMLSelectElement | ReturnType<typeof findDataElement>;
     ipcRenderer.on("veriq:recording-arm", (_event, next: RecordingArm | undefined) => {
         current = next;
-        edits = new WeakSet();
+        edits = new WeakMap();
         selected = undefined;
         if (next) {
             const { sessionId, navigation, generation } = next;
             ipcRenderer.send("veriq:recording-arm-ack", { sessionId, navigation, generation });
         }
     });
+    const credentialHint = /user.?name|pass.?word|passwd|pass.?code|pass.?phrase|secret|token|one.?time|otp|api.?key/i;
+    const verificationHint =
+        /(?:verification|security|recovery).?code|cc-|cvv|cvc|webauthn|密码|口令|验证码|密钥|安全码/i;
+    function sensitiveHint(text: string): boolean {
+        return (
+            credentialHint.test(text) ||
+            verificationHint.test(text) ||
+            /(?:^|[^a-z])pin(?:$|[^a-z]|code|number)/i.test(text.replace(/([a-z])([A-Z])/g, "$1 $2"))
+        );
+    }
+    function riskyLabels(element: Element, labels: Iterable<Element>, matches: (text: string) => boolean): boolean {
+        const sources = new Set<Element>();
+        for (const label of labels) {
+            if (sources.size >= 256) return true;
+            sources.add(label);
+        }
+        for (const key of ["aria-labelledby", "aria-describedby"]) {
+            const references = element.getAttribute(key) ?? "";
+            if (references.length > 4096) return true;
+            for (const id of references.split(/\s+/).filter(Boolean)) {
+                const label = element.ownerDocument.getElementById(id);
+                if (label) sources.add(label);
+                if (sources.size > 256) return true;
+            }
+        }
+        const controls = "input,textarea,select,output,[contenteditable]:not([contenteditable=false i])";
+        let count = 0;
+        let visibleText = "";
+        let namedText = "";
+        for (const label of sources) {
+            if (label.matches(controls)) return true;
+            const tree = document.createTreeWalker(label, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, (node) =>
+                node instanceof Element && node.matches(controls) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT,
+            );
+            for (let node: Node | null = label; node; node = tree.nextNode()) {
+                if (++count > 256) return true;
+                if (node instanceof Text) {
+                    if (namedText.length + node.length > 4096) return true;
+                    visibleText += node.data;
+                    namedText += node.data;
+                } else if (node instanceof Element) {
+                    for (const name of ["aria-label", "alt", "title"]) {
+                        const hint = node.getAttribute(name);
+                        if (!hint) continue;
+                        if (namedText.length + hint.length + 2 > 4096 || matches(hint)) return true;
+                        namedText += ` ${hint} `;
+                    }
+                }
+            }
+            if (namedText.length >= 4096) return true;
+            visibleText += " ";
+            namedText += " ";
+        }
+        return matches(visibleText) || matches(namedText);
+    }
     function ordinaryControl(element: HTMLSelectElement | HTMLInputElement | HTMLTextAreaElement): boolean {
-        if (element.matches(":disabled") || element.form?.querySelector("input[type=password]")) return false;
+        if (element.matches(":disabled")) return false;
+        const form = element.form;
+        if (form) {
+            const formHints = ["name", "id", "action", "aria-label"].map((key) => form.getAttribute(key)).join(" ");
+            const authHint = (hint: string) =>
+                /log.?in|sign.?in|sign.?up|authenticat|reset.?password|登录|注册/i.test(hint) || sensitiveHint(hint);
+            if (
+                authHint(formHints) ||
+                riskyLabels(form, [], authHint) ||
+                !(form.elements instanceof HTMLFormControlsCollection) ||
+                form.querySelector("input[type=password]") ||
+                Array.from(form.elements).some(
+                    (control) =>
+                        control instanceof HTMLInputElement &&
+                        (control.type === "password" || sensitiveHint(control.autocomplete)),
+                )
+            )
+                return false;
+        }
         const hints = [
             element.autocomplete,
             element.name,
             element.id,
             element.getAttribute("aria-label"),
             element.getAttribute("placeholder"),
+            element.title,
         ].join(" ");
-        return !/username|password|passwd|secret|token|one-time|otp|verification.?code|cc-|cvv|cvc|webauthn|密码|口令|验证码|密钥/i.test(
-            hints,
-        );
+        if (sensitiveHint(hints) || riskyLabels(element, element.labels ?? [], sensitiveHint)) return false;
+        return getComputedStyle(element).getPropertyValue("-webkit-text-security") === "none";
     }
     function ordinaryField(element: EventTarget | null): element is HTMLTextAreaElement | HTMLInputElement {
         return (
@@ -168,22 +241,34 @@ if (process.isMainFrame) {
         }
     });
     const captureEdit = (event: Event) => {
-        if (!event.isTrusted || current?.mode !== "record" || !ordinaryField(event.target)) return;
         const field = event.target;
-        if (event.type === "input") {
-            edits.add(field);
+        if (!event.isTrusted || current?.mode !== "record" || !(field instanceof Element)) return;
+        if (event instanceof KeyboardEvent && (event.key !== "Enter" || event.shiftKey || event.isComposing)) return;
+        const previous = edits.get(field);
+        if (event.type !== "input" && !edits.delete(field)) return;
+        if (previous === "blocked" || !ordinaryField(field)) {
+            if (event.type === "input") edits.set(field, "blocked");
             return;
         }
-        if (event instanceof KeyboardEvent && (event.key !== "Enter" || event.shiftKey || event.isComposing)) return;
-        if (!edits.delete(field) || field.value.length > 4096) return;
+        const declared = field.getAttribute("veriq-record-value") === "public";
+        if (event.type === "input") {
+            edits.set(field, declared && previous !== "pending" ? "public" : "pending");
+            return;
+        }
         const { sessionId, navigation, generation } = current;
-        ipcRenderer.sendSync("veriq:recording-event", {
+        const capture = {
             sessionId,
             navigation,
             generation,
             candidates: candidates(event),
-            value: field.value,
-        });
+            ...(elementRole(field) === "combobox" ? { editableCombobox: true } : {}),
+        };
+        if (previous !== "public" || !declared) {
+            ipcRenderer.sendSync("veriq:recording-event", { ...capture, type: "fill-pending" });
+            return;
+        }
+        const value = field.value;
+        if (value.length <= 4096) ipcRenderer.sendSync("veriq:recording-event", { ...capture, value });
     };
     for (const type of ["input", "change", "focusout", "keydown"])
         window.addEventListener(type, captureEdit, { capture: true });

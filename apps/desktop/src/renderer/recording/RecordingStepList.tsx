@@ -1,7 +1,15 @@
 import { RecordingStepConfiguration, type RecordingVersionOption } from "@veriq/web/desktop";
 import type { LocatorV1 } from "@veriq/contracts";
 import { useCallback } from "react";
-import { requiresTarget, type CatalogVersion, type DraftStep, type StepPhase } from "./draft-model";
+import {
+    editRecordingStep,
+    editorStep,
+    missingFillValue,
+    requiresTarget,
+    type CatalogVersion,
+    type DraftStep,
+    type StepPhase,
+} from "./draft-model";
 
 const phases: Record<StepPhase, string> = {
     prepare: "准备 / Prepare",
@@ -53,6 +61,7 @@ export function RecordingStepList({
             <legend>{phases[phase]}</legend>
             {steps.map((item, index) => {
                 const { step, target, recording } = item;
+                const editable = editorStep(step);
                 return (
                     <details
                         key={step.id}
@@ -62,6 +71,7 @@ export function RecordingStepList({
                     >
                         <summary>
                             {index + 1}. {step.action}
+                            {missingFillValue(step) && " · 待补业务值 / Business value required"}
                             {item.disabled ? " · disabled" : ""}
                             {item.note ? ` · ${item.note}` : ""}
                         </summary>
@@ -121,21 +131,29 @@ export function RecordingStepList({
                                 </p>
                             ))}
                         <RecordingStepConfiguration
-                            step={step}
+                            step={editable}
                             versions={versions}
                             preceding={[...preceding, ...steps.slice(0, index)]
                                 .filter((entry) => !entry.disabled)
-                                .map((entry) => entry.step)}
+                                .map((entry) => editorStep(entry.step))}
                             bindings={bindings}
                             onChange={(next) => {
-                                if (JSON.stringify(next) !== JSON.stringify(step))
+                                if (JSON.stringify(next) !== JSON.stringify(editable))
                                     replace(step.id, (current) => ({
                                         ...current,
-                                        step: JSON.parse(JSON.stringify(next)),
+                                        step: editRecordingStep(current.step, JSON.parse(JSON.stringify(next))),
                                     }));
                             }}
                         />
                         <div className="header-actions">
+                            {missingFillValue(step) && (
+                                <button
+                                    type="button"
+                                    onClick={() => replace(step.id, (current) => ({ ...current, step: editable }))}
+                                >
+                                    将业务值设为空字符串 / Use empty string
+                                </button>
+                            )}
                             <button
                                 type="button"
                                 disabled={index === 0}

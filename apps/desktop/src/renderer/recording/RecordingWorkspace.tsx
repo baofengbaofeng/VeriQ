@@ -237,11 +237,7 @@ export function RecordingWorkspace({ workspaceId, owner, language, openReport, r
                         setAnnotationStatus("操作步骤已达 500 项上限 / The case already has 500 action steps.");
                         return;
                     }
-                    const stepEvent =
-                        event.action === "fill"
-                            ? { ...event, candidates, type: "fill" as const, value: "" }
-                            : { ...event, candidates, type: "click" as const };
-                    change((item) => applyRecordingEvent(item, stepEvent));
+                    change((item) => applyRecordingEvent(item, { ...event, candidates }));
                     setRevealStepId(`step_${event.id}`);
                     setTab("steps");
                 } else {

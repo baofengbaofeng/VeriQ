@@ -10,6 +10,8 @@ __pycache__/
 # Ignore known artifact directories only. A future source tree named build stays trackable.
 .Python
 apps/runtime/build/
+/apps/runtime/native/darwin/build/
+/_site/
 apps/srv/build/
 develop-eggs/
 **/dist/
@@ -241,3 +243,4 @@ __marimo__/
 /apps/desktop/out-source/
 
 /apps/desktop/build/
+.claude

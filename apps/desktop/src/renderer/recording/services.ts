@@ -33,7 +33,9 @@ function waitForPoll(signal: AbortSignal): Promise<void> {
     });
 }
 
-/** Bind the authoring operations to the chosen workspace and the desktop's typed cloud transport. */
+/**
+ * Bind the authoring operations to the chosen workspace and the desktop's typed cloud transport.
+ */
 export function createRecordingServices(workspaceId: string) {
     const resources = new CloudResourceAdapter(workspaceId);
     const reports = new CloudReportAdapter(workspaceId);

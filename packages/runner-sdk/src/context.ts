@@ -61,7 +61,9 @@ export interface StepContextOptions {
     data?: JsonObject;
     vars?: JsonObject;
     signal?: AbortSignal;
-    /** Preserve the page for a distinct cleanup phase after interrupted work settles. */
+    /**
+     * Preserve the page for a distinct cleanup phase after interrupted work settles.
+     */
     preservePageOnAbort?: boolean;
     deadline?: number;
     downloads?: { directory: string; maxBytes: number };

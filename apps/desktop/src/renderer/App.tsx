@@ -402,7 +402,8 @@ export function App() {
                             <p>
                                 {language === "zh"
                                     ? "设备注册和本机测试执行需要安装桌面 Runtime。"
-                                    : "Device enrollment and local test execution require an installed desktop Runtime."}
+                                    : "Device enrollment and local test execution require " +
+                                      "an installed desktop Runtime."}
                             </p>
                         </section>
                     )}

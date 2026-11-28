@@ -114,6 +114,8 @@ class UserToken(Base):
     user_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_users.id"), index=True)
     token_hash: Mapped[str] = mapped_column(hash_type, unique=True)
     expires_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
+    # 旧令牌保留空值；新签发以数据库 UTC 记录，邮件冷却不依赖各 API 节点墙钟或内存。
+    issued_at: Mapped[datetime | None] = mapped_column(DATETIME(fsp=6))
     consumed: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
@@ -564,6 +566,7 @@ class Job(Base):
         ),
         Index("ix_veriq_job_claim", "workspace_id", "state", "created_at", "id"),
         Index("ix_job_server_compile_queue", "kind", "state", "created_at", "id"),
+        Index("ix_job_server_compile_slots", "state", "server_compile_expires_at", "workspace_id"),
         CheckConstraint(
             "server_compilation_id IS NULL OR (kind = 'VALIDATE' AND active_attempt_id IS NULL)",
             name="ck_job_server_compile_origin",

@@ -56,6 +56,7 @@ export type RecordingEvent = { sessionId: string; navigation: number; id: string
           options?: RecordingOption[];
           table?: RecordingTable;
       }
+    | { type: "fill-pending"; candidates: RecordingCandidate[] }
     | { type: "fill"; candidates: RecordingCandidate[]; value: string }
     | { type: "location"; url: string }
     | { type: "navigation"; path: string; cause?: RecordingNavigationCause }

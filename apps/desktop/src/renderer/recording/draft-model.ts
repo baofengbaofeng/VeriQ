@@ -6,8 +6,11 @@ export type StepPhase = "steps" | "prepare" | CleanupOutcome;
 export const cleanupOutcomes = ["SUCCESS", "FAILURE", "CANCELLED"] as const;
 export const stepPhases = ["prepare", "steps", ...cleanupOutcomes] as const;
 
+type PendingFill = Omit<Extract<StepV1, { action: "fill" }>, "value"> & { value?: never };
+type EditableStep = StepV1 | PendingFill;
+
 export interface DraftStep {
-    step: StepV1;
+    step: EditableStep;
     disabled?: boolean;
     note?: string;
     recording?: { catalogVersionId: string; candidates: RecordingCandidate[] };
@@ -115,16 +118,22 @@ export function applyRecordingEvent(draft: RecordingDraft, event: RecordingEvent
     ) {
         return { ...draft, steps: [...draft.steps, { step: { id, action: "goto", path: event.path } }] };
     }
-    if (event.type !== "click" && event.type !== "fill") return draft;
+    if (event.type === "annotation-action" && (event.action === "fill" || event.action === "click")) {
+        event = { ...event, type: event.action === "fill" ? "fill-pending" : "click" };
+    }
+    if (event.type !== "click" && event.type !== "fill" && event.type !== "fill-pending") return draft;
+    const step: EditableStep =
+        event.type === "click"
+            ? { id, action: "click", target: "" }
+            : event.type === "fill"
+              ? { id, action: "fill", target: "", value: event.value }
+              : { id, action: "fill", target: "" };
     return {
         ...draft,
         steps: [
             ...draft.steps,
             {
-                step:
-                    event.type === "fill"
-                        ? { id, action: "fill", target: "", value: event.value }
-                        : { id, action: "click", target: "" },
+                step,
                 recording: { catalogVersionId: draft.catalogVersionId, candidates: event.candidates },
             },
         ],
@@ -158,7 +167,26 @@ interface Diagnostic {
     detail?: string;
 }
 
-export function requiresTarget(step: StepV1): step is Extract<StepV1, { target: string }> {
+export function missingFillValue(step: EditableStep): step is PendingFill {
+    return step.action === "fill" && typeof step.value !== "string";
+}
+
+export function editorStep(step: EditableStep): StepV1 {
+    return missingFillValue(step) ? { ...step, value: "" } : step;
+}
+
+/**
+ * 表单以空字符串显示待补值项。调整其它配置时保留缺值状态，只有录入业务值或明确选用空字符串才能完成填写步骤。
+ */
+export function editRecordingStep(previous: EditableStep, next: StepV1): EditableStep {
+    if (next.action === "fill" && next.value === "" && (previous.action !== "fill" || missingFillValue(previous))) {
+        const { value: _placeholder, ...pending } = next;
+        return pending;
+    }
+    return next;
+}
+
+export function requiresTarget(step: EditableStep): step is Extract<EditableStep, { target: string }> {
     return "target" in step;
 }
 
@@ -229,7 +257,11 @@ export function buildCaseDraft(
         const converted: StepV1[] = [];
         for (const item of items) {
             if (item.disabled) continue;
-            let { step } = item;
+            if (missingFillValue(item.step)) {
+                diagnostics.push({ code: "MISSING_FILL_VALUE", stepId: item.step.id });
+                continue;
+            }
+            let step = item.step;
             if (ids.has(step.id)) diagnostics.push({ code: "DUPLICATE_STEP_ID", stepId: step.id });
             ids.add(step.id);
             if (requiresTarget(step)) {
@@ -278,7 +310,7 @@ export function buildCaseDraft(
             ? [success, failure]
             : [success, failure, cancelled];
     const [first, ...rest] = main.converted;
-    if (!first) diagnostics.push({ code: "NO_ENABLED_ACTIONS" });
+    if (draft.steps.every((item) => item.disabled)) diagnostics.push({ code: "NO_ENABLED_ACTIONS" });
     if (draft.kind === "WRITE" && !main.converted.some(({ id }) => id === draft.persistenceCheckpointStepId))
         diagnostics.push({ code: "MISSING_PERSISTENCE_CHECKPOINT" });
     const fixtureInput = parseDraftObject(draft.fixtureInput) as CaseDslV1["fixtureInput"];

@@ -6,6 +6,7 @@ import {
     buildCaseDraft,
     confirmTarget,
     copyRecordingDraft,
+    editRecordingStep,
     listRecordingDrafts,
     newRecordingDraft,
     storeRecordingDraft,
@@ -220,4 +221,54 @@ test("recording keeps the query, fragment and committed field value in action or
             { id: "step_edit", action: "fill", value: "杭州明天的天气", target: "" },
         ],
     );
+});
+
+test("an omitted fill stays incomplete through persistence and accepts an explicit empty or business value", () => {
+    const draft = { ...newRecordingDraft(), title: "Record", roleKey: "operator", catalogVersionId: firstVersion };
+    const catalog = { versionId: firstVersion, document };
+    const recorded = applyRecordingEvent(draft, {
+        sessionId: "session",
+        navigation: 1,
+        id: "edit",
+        type: "fill-pending",
+        candidates: [{ locator: document.elements[0]!.locator, matches: 1 }],
+    });
+    const write = (draft: typeof recorded) => buildCaseDraft(draft, catalog, validateCaseSchema);
+    const item = recorded.steps[0];
+    assert.ok(item);
+    assert.deepEqual(item.step, { id: "step_edit", action: "fill", target: "" });
+    const restored = JSON.parse(JSON.stringify(recorded));
+    assert.deepEqual(write(restored), { diagnostics: [{ code: "MISSING_FILL_VALUE", stepId: "step_edit" }] });
+    for (const value of ["", "business query"]) {
+        assert.equal(item.step.action, "fill");
+        const completed = { ...recorded, steps: [{ ...item, step: { ...item.step, value } }] };
+        assert.deepEqual(write(completed).content?.document.steps, [
+            { id: "step_edit", target: "submitButton", action: "fill", value },
+        ]);
+    }
+});
+
+test("choosing a fill annotation supplies the selected locator and leaves the business value pending", () => {
+    const event = {
+        sessionId: "session",
+        navigation: 1,
+        id: "annotation",
+        type: "annotation-action" as const,
+        targetId: "picked",
+        candidates: [{ locator, matches: 1 }],
+    };
+    const draft = newRecordingDraft();
+    const selected = applyRecordingEvent(draft, { ...event, action: "fill" });
+    assert.deepEqual(selected.steps[0], {
+        step: { id: "step_annotation", action: "fill", target: "" },
+        recording: { catalogVersionId: draft.catalogVersionId, candidates: event.candidates },
+    });
+    assert.equal(applyRecordingEvent(draft, { ...event, action: "click" }).steps[0]?.step.action, "click");
+});
+
+test("changing back to fill cannot confirm an editor-generated empty value", () => {
+    const click = { id: "edit", action: "click", target: "" } as const;
+    const fill = { ...click, action: "fill", value: "" } as const;
+    assert.deepEqual(editRecordingStep(click, fill), { id: "edit", action: "fill", target: "" });
+    assert.deepEqual(editRecordingStep(fill, fill), fill);
 });

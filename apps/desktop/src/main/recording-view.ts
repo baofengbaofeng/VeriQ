@@ -27,7 +27,9 @@ type ActiveRecording = {
     lastClick: number | undefined;
 };
 
-/** 已批准的跨源页面可显示地址，goto 步骤始终相对于环境基准来源。 */
+/**
+ * 已批准的跨源页面可显示地址，goto 步骤始终相对于环境基准来源。
+ */
 function replayPath(url: URL, baseOrigin: string): string | undefined {
     if (url.origin !== baseOrigin || url.pathname.startsWith("//")) return;
     return url.href.slice(url.origin.length).replaceAll("{", "%7B").replaceAll("}", "%7D");
@@ -37,7 +39,9 @@ function sameScope(left: RecordingScope, right: RecordingScope): boolean {
     return left.origin === right.origin && left.userId === right.userId && left.workspaceId === right.workspaceId;
 }
 
-/** 单窗口只持有一个视图。宿主自行绑定已认证用户、工作区和来源，并在任一绑定失效时撤销记录能力。 */
+/**
+ * 单窗口只持有一个视图。宿主自行绑定已认证用户、工作区和来源，并在任一绑定失效时撤销记录能力。
+ */
 export class RecordingView {
     private active: ActiveRecording | undefined;
 

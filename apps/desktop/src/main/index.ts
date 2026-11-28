@@ -154,7 +154,9 @@ function recordingBounds(value: unknown): RecordingBounds | null {
     return { x: coordinate("x"), y: coordinate("y"), width: coordinate("width"), height: coordinate("height") };
 }
 
-/** 可信窗口只提交环境版本标识。宿主用自己的已认证会话核对发布版本，且在异步返回后再次核对用户和工作区。 */
+/**
+ * 可信窗口只提交环境版本标识。宿主用自己的已认证会话核对发布版本，且在异步返回后再次核对用户和工作区。
+ */
 async function openRecording(input: unknown, owner: BrowserWindow): Promise<{ sessionId: string }> {
     const scope = recordingScope();
     if (!scope) throw new Error("RECORDING_SCOPE_REQUIRED");
@@ -711,6 +713,7 @@ function installBridge() {
                 }
                 recording.close(scope, id);
                 if (mountedRecording === id) closeRecording();
+                return state();
             }
             case "state":
                 return state();
@@ -824,7 +827,9 @@ function installBridge() {
     );
 }
 
-/** Verify the installed host and its protected cookie store before opening the persistent partition. */
+/**
+ * Verify the installed host and its protected cookie store before opening the persistent partition.
+ */
 async function preparePersistentSession(hostIdentity: Awaited<ReturnType<typeof verifyDesktopHost>>) {
     await privateDirectory(profile);
     try {

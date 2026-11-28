@@ -272,11 +272,23 @@ async def _claim(db: Database, settings: Settings) -> _Claim | None:
     async with db.sessions.begin() as session:
         await lock_installation(session)
         clock = await database_time(session)
+        # 在安装锁内读到的每个有效围栏各占一个全局槽和当前工作区的唯一槽，升级前同一空间的旧围栏也逐个计数。
+        # 数据库约束保证有期限的作业属于服务端编译。完成和归还清除期限，过期围栏退出占用集合后可以重新领取作业。
+        occupied_workspaces = (
+            await session.scalars(
+                select(Job.workspace_id)
+                .where(Job.state == "RUNNING", Job.server_compile_expires_at > clock)
+                .limit(settings.compile_slots)
+            )
+        ).all()
+        if len(occupied_workspaces) >= settings.compile_slots:
+            return None
         job = (
             await session.execute(
                 select(Job)
                 .where(
                     Job.kind == "VALIDATE",
+                    Job.workspace_id.not_in(occupied_workspaces),
                     or_(*(_eligible(engine) for engine in engines.values())),
                     Job.active_attempt_id.is_(None),
                     ~select(Attempt.id)

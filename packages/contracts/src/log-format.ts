@@ -92,7 +92,9 @@ function fieldValue(key: string, value: unknown): string | undefined {
     return text.includes("@") ? text.replace(email, redacted) : text;
 }
 
-/** Render one line using a bounded UTF-8 representation and UTC's numeric offset. */
+/**
+ * Render one line using a bounded UTF-8 representation and UTC's numeric offset.
+ */
 export function renderLog({ level, timestamp, location, tag = "_undef", fields }: LogInput): string {
     const upperLevel = level.toUpperCase();
     const resolvedLevel =

@@ -119,7 +119,9 @@ export type LocalOperation =
  * 不接触 Cookie、设备 token 或明文保险库内容。
  */
 export interface DesktopBridge {
-    /** 录制仅以工作区内已发布环境为网络授权，目标页面与可信编辑工作区通过独立进程和临时会话隔离。 */
+    /**
+     * 录制仅以工作区内已发布环境为网络授权，目标页面与可信编辑工作区通过独立进程和临时会话隔离。
+     */
     recordingOpen(input: RecordingOpen): Promise<{ sessionId: string }>;
     recordingMode(sessionId: string, mode: RecordingMode): Promise<{ path?: string }>;
     recordingAnnotationAction(sessionId: string, targetId: string, action: AnnotationAction): Promise<void>;

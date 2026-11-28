@@ -25,7 +25,8 @@ test(
             const screenshot = await policy.screenshot(f.page, directory);
             const trace = await policy.stopTrace(f.page.context(), directory);
             expect((await stat(screenshot.path)).size).toBeGreaterThan(100);
-            const archive = await promisify(execFile)("python", [
+            const python = process.platform === "win32" ? "python" : "python3";
+            const archive = await promisify(execFile)(python, [
                 "-c",
                 "import sys,zipfile; z=zipfile.ZipFile(sys.argv[1]); print(any(sys.argv[2].encode() in z.read(n) for" +
                     " n i" +

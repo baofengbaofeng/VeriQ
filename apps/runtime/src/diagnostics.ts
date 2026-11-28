@@ -21,7 +21,9 @@ function id(bytes: number): string {
     return value;
 }
 
-/** 在命令、IPC 或后台作业的入口生成独立标识，在异步调用完成前保持同一个上下文。 */
+/**
+ * 在命令、IPC 或后台作业的入口生成独立标识，在异步调用完成前保持同一个上下文。
+ */
 export function withDiagnosticContext<T>(callback: (scope: DiagnosticContext) => T): T {
     const scope = { traceid: id(16), spanid: id(8) };
     return context.run(scope, callback, scope);
@@ -113,12 +115,16 @@ const knownCodes = new Set([
     "RUNTIME_VAULT_CAPABILITY_UNVERIFIED",
 ]);
 
-/** 仅保留明确已知的操作错误码，第三方异常不会因消息恰好是大写字符串而将原始内容混入诊断。 */
+/**
+ * 仅保留明确已知的操作错误码，第三方异常不会因消息恰好是大写字符串而将原始内容混入诊断。
+ */
 export function diagnosticCode(error: unknown, fallback: string): string {
     return error instanceof Error && knownCodes.has(error.message) ? error.message : fallback;
 }
 
-/** 业务日志使用固定事件名和明确允许的字段，参数不包含请求正文、凭证或原始异常。 */
+/**
+ * 业务日志使用固定事件名和明确允许的字段，参数不包含请求正文、凭证或原始异常。
+ */
 export function getLogger(source: string) {
     const log = (level: Level, event: string, fields: Fields = {}) =>
         emit(level, "_undef", { source, event, ...fields });
@@ -133,7 +139,9 @@ export function getLogger(source: string) {
     };
 }
 
-/** 仅在实际进程入口安装，吸收第三方 console 的普通消息，避免改变命令 stdout 和模块导入行为。 */
+/**
+ * 仅在实际进程入口安装，吸收第三方 console 的普通消息，避免改变命令 stdout 和模块导入行为。
+ */
 export function installDiagnosticConsole(source: string): void {
     const methods = {
         log: "notice",
@@ -167,7 +175,9 @@ export function installDiagnosticConsole(source: string): void {
     }
 }
 
-/** 只归一明确指定为第三方诊断的流，按完整行处理切分的 UTF-8，并限制无换行输入的占用。 */
+/**
+ * 只归一明确指定为第三方诊断的流，按完整行处理切分的 UTF-8，并限制无换行输入的占用。
+ */
 export function captureDiagnostics(stream: Readable, source: string): void {
     const { location } = callerProvenance();
     const operation = context.getStore();

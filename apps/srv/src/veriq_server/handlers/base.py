@@ -144,7 +144,7 @@ class API(RequestHandler):
         if isinstance(exc, Problem):
             status_code, code, message = (exc.status, exc.code, exc.message)
         elif isinstance(exc, IntegrityError):
-            status_code, code, message = (409, "CONFLICT", "Account already exists")
+            status_code, code, message = (409, "CONFLICT", "Request conflicts with existing data")
         else:
             code = {
                 400: "INVALID_REQUEST",

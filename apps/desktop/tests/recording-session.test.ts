@@ -211,3 +211,58 @@ test("extracts only the requested bounded table and rejects options replies for 
     assert.ok(list?.type === "annotation-target" && list.actions.includes("extractData"));
     assert.equal(session.acceptEvent(sender, { ...reply, captureId: second.captureId }), undefined);
 });
+
+test("a locator-only fill has no value and uses the same recording guards", () => {
+    const session = new RecordingSession(18);
+    const sender = { contentsId: 18, frame: {} };
+    session.setMode("record");
+    session.finishNavigation(sender.frame);
+    const edit = {
+        sessionId: session.id,
+        navigation: 1,
+        generation: 1,
+        candidates: [{ locator: { by: "role", role: "textbox" }, matches: 1 }],
+        type: "fill-pending",
+    };
+    const pending = session.acceptEvent(sender, edit);
+    assert.equal(pending?.type, "fill-pending");
+    assert.ok(pending && !("value" in pending));
+    assert.deepEqual(pending.candidates, edit.candidates);
+    assert.equal(session.acceptEvent(sender, { ...edit, value: "" }), undefined);
+    assert.equal(session.acceptEvent(sender, { ...edit, candidates: [] }), undefined);
+    assert.equal(session.acceptEvent({ ...sender, frame: {} }, edit), undefined);
+    session.setMode("paused");
+    assert.equal(session.acceptEvent(sender, edit), undefined);
+    session.setMode("record");
+    assert.equal(session.acceptEvent(sender, edit), undefined);
+    session.beginNavigation();
+    session.finishNavigation(sender.frame);
+    assert.equal(session.acceptEvent(sender, { ...edit, generation: 3 }), undefined);
+});
+
+test("only text-edit messages explicitly identifying an editable combobox may fill its locator", () => {
+    const session = new RecordingSession(18);
+    const sender = { contentsId: 18, frame: {} };
+    session.setMode("record");
+    session.finishNavigation(sender.frame);
+    const candidates = [{ locator: { by: "role", role: "combobox" }, matches: 1 }];
+    const capture = { sessionId: session.id, navigation: 1, generation: 1, candidates };
+    for (const payload of [{ type: "fill-pending" }, { value: "city" }]) {
+        assert.equal(session.acceptEvent(sender, { ...capture, ...payload }), undefined);
+        const edit = { ...capture, ...payload, editableCombobox: true };
+        assert.equal(session.acceptEvent(sender, edit)?.type, "value" in payload ? "fill" : "fill-pending");
+        assert.equal(session.acceptEvent(sender, { ...edit, editableCombobox: false }), undefined);
+        assert.equal(session.acceptEvent(sender, { ...edit, extra: true }), undefined);
+        assert.equal(session.acceptEvent(sender, { ...edit, candidates: [] }), undefined);
+        assert.equal(
+            session.acceptEvent(sender, {
+                ...edit,
+                candidates: [{ locator: { by: "role", role: "textbox" }, matches: 1 }],
+            }),
+            undefined,
+        );
+    }
+    const edit = { ...capture, editableCombobox: true };
+    assert.equal(session.acceptEvent(sender, { ...edit, value: "x".repeat(4097) }), undefined);
+    assert.equal(session.acceptEvent(sender, { ...edit, type: "fill-pending", value: "" }), undefined);
+});

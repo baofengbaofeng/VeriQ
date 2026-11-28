@@ -412,7 +412,7 @@ def build_release(options: BuildOptions) -> ReleaseManifest:
                         "pnpm",
                         "--filter",
                         "@veriq/runtime",
-                        "test",
+                        "test:linux",
                     ],
                 )
                 command(

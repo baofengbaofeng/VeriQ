@@ -1,59 +1,101 @@
-name: Observe Linux runtime vault
-on: workflow_dispatch
+name: Runtime private Linux vault verification
+on:
+    workflow_dispatch:
+    push:
+        branches: [master]
+        paths:
+            - .github/workflows/runtime-vault-linux.yml
+            - apps/runtime/**
+            - packages/**
+            - pnpm-lock.yaml
+            - pnpm-workspace.yaml
+    pull_request:
+        branches: [master]
+        paths:
+            - .github/workflows/runtime-vault-linux.yml
+            - apps/runtime/**
+            - packages/**
+            - pnpm-lock.yaml
+            - pnpm-workspace.yaml
 permissions:
-  contents: read
-
+    contents: read
 jobs:
-  vault:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 35
-    defaults:
-      run:
-        shell: bash
-        working-directory: apps/runtime
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
-        with:
-          node-version: 24.22.1
-      - name: Prepare the private evidence directory
-        run: |
-          umask 077
-          directory=$(mktemp -d "$RUNNER_TEMP/veriq-vault-evidence.XXXXXXXX")
-          echo "VERIQ_VAULT_EVIDENCE=$directory" >> "$GITHUB_ENV"
-      - name: Install locked workspace and native build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y gcc libc6-dev pkg-config binutils libsecret-1-dev libglib2.0-bin gnome-keyring dbus
-          corepack pnpm --filter '@veriq/runtime...' install --frozen-lockfile
-      - name: Record system and source inputs
-        run: |
-          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          git diff --exit-code "$GITHUB_SHA" -- ../..
-          node scripts/vault-linux-evidence.mjs packages
-      - name: Build production helper and separate test driver
-        run: |
-          node scripts/build-vault-linux.mjs
-          node scripts/build-vault-linux.mjs --test-driver
-      - name: Exercise an isolated Secret Service
-        run: node --import tsx --test tests/native/linux-vault.test.ts
-      - name: Verify cleanup and final source binding
-        if: always() && env.VERIQ_VAULT_EVIDENCE != ''
-        run: |
-          node scripts/vault-linux-evidence.mjs cleanup
-          node scripts/vault-linux-evidence.mjs source
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        if: always() && env.VERIQ_VAULT_EVIDENCE != ''
-        with:
-          name: linux-private-vault-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            ${{ env.VERIQ_VAULT_EVIDENCE }}/system-packages.json
-            ${{ env.VERIQ_VAULT_EVIDENCE }}/source-binding.json
-            ${{ env.VERIQ_VAULT_EVIDENCE }}/vault-*.json
-            ${{ env.VERIQ_VAULT_EVIDENCE }}/vault-*.log
-            ${{ env.VERIQ_VAULT_EVIDENCE }}/real-vault-observations.json
-            ${{ env.VERIQ_VAULT_EVIDENCE }}/always-cleanup.json
-          if-no-files-found: error
+    linux-vault:
+        runs-on: ubuntu-24.04
+        timeout-minutes: 20
+        env:
+            ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+            PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+            VERIQ_VAULT_EVIDENCE: ${{ github.workspace }}/.superpowers/sdd/veriq-1/evidence/t20/vault-${{ github.sha }}
+        steps:
+            - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+            - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+              with:
+                  node-version: 24.x
+            - name: Install selected system build and private Secret Service fixture packages
+              shell: bash
+              run: |
+                  set -o pipefail
+                  mkdir -p "$VERIQ_VAULT_EVIDENCE"
+                  df -B1 . | tee "$VERIQ_VAULT_EVIDENCE/initial-disk.log"
+                  node -e 'const d=require("node:fs").statfsSync(".",{bigint:true});const available=d.bavail*d.bsize;console.log(JSON.stringify({availableBytes:String(available),requiredBytes:"12884901888"}));if(available<12884901888n)process.exit(1)' | tee "$VERIQ_VAULT_EVIDENCE/initial-budget.json"
+                  sudo apt-get update 2>&1 | tee "$VERIQ_VAULT_EVIDENCE/apt-update.log"
+                  sudo apt-get install -y --no-install-recommends gcc libc6-dev pkg-config libsecret-1-dev libglib2.0-bin dbus gnome-keyring 2>&1 | tee "$VERIQ_VAULT_EVIDENCE/apt-install.log"
+                  npm install --prefix "$RUNNER_TEMP/veriq-node-tools" pnpm@11.25.0 --ignore-scripts
+                  node "$RUNNER_TEMP/veriq-node-tools/node_modules/pnpm/bin/pnpm.cjs" install --frozen-lockfile --ignore-scripts
+                  node apps/runtime/scripts/restricted-fixture-stage.mjs prepare "$VERIQ_VAULT_EVIDENCE" "$RUNNER_TEMP/veriq-node-tools/node_modules/pnpm/bin/pnpm.cjs"
+            - name: Capture actual selected package closure and licenses
+              working-directory: apps/runtime
+              run: node scripts/vault-linux-evidence.mjs packages
+            - name: Compile production helper and separate prompt test driver
+              working-directory: apps/runtime
+              shell: bash
+              run: |
+                  set -o pipefail
+                  node scripts/build-launcher.mjs 2>&1 | tee "$VERIQ_VAULT_EVIDENCE/guardian-build.log"
+                  node scripts/build-vault-linux.mjs 2>&1 | tee "$VERIQ_VAULT_EVIDENCE/production-build.log"
+                  node scripts/build-vault-linux.mjs --test-driver 2>&1 | tee "$VERIQ_VAULT_EVIDENCE/test-driver-build.log"
+            - name: Verify real private Secret Service and bounded helper lifecycle
+              timeout-minutes: 8
+              working-directory: apps/runtime
+              shell: bash
+              run: |
+                  set -o pipefail
+                  node --import tsx --test tests/vault-envelope.test.ts tests/vault-integration.test.ts tests/vault-history.test.ts tests/vault-deletion.test.ts tests/restricted-file.test.ts tests/restricted-operation.test.ts tests/restricted-fixture-stage.test.ts tests/vault-linux.test.ts tests/distribution.test.ts tests/native/linux-vault.test.ts 2>&1 | tee "$VERIQ_VAULT_EVIDENCE/vault-tests.log"
+            - name: Verify explicit managed file mode on an owned account and persistent bind volume
+              timeout-minutes: 4
+              working-directory: apps/runtime
+              shell: bash
+              run: |
+                  set -o pipefail
+                  veriq_fixture_node="$(command -v node)"
+                  sudo "$veriq_fixture_node" scripts/restricted-file-fixture.mjs test "$VERIQ_VAULT_EVIDENCE" "$RUNNER_TEMP" 2>&1 | tee "$VERIQ_VAULT_EVIDENCE/restricted-file-test.log"
+            - name: Always confirm owned restricted-file account and mount cleanup
+              if: always()
+              working-directory: apps/runtime
+              shell: bash
+              run: |
+                  veriq_fixture_node="$(command -v node)"
+                  sudo "$veriq_fixture_node" scripts/restricted-file-fixture.mjs cleanup "$VERIQ_VAULT_EVIDENCE"
+            - name: Always clean the owned isolated fixture deployment
+              if: always()
+              working-directory: apps/runtime
+              run: node scripts/restricted-fixture-stage.mjs cleanup "$VERIQ_VAULT_EVIDENCE"
+            - name: Always confirm owned daemon cleanup
+              if: always()
+              working-directory: apps/runtime
+              run: node scripts/vault-linux-evidence.mjs cleanup
+            - name: Always record actual source identity
+              if: always()
+              working-directory: apps/runtime
+              run: node scripts/vault-linux-evidence.mjs source
+            - name: Preserve bounded nonsecret observations
+              if: always()
+              uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+              with:
+                  name: runtime-vault-linux-${{ github.sha }}
+                  path: |
+                      .superpowers/sdd/veriq-1/evidence/t20/vault-${{ github.sha }}/*.json
+                      .superpowers/sdd/veriq-1/evidence/t20/vault-${{ github.sha }}/*.log
+                  include-hidden-files: true
+                  if-no-files-found: warn
