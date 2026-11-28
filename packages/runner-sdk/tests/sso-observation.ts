@@ -183,7 +183,7 @@ export function createSsoObservation(app: string, idp: string) {
                     else if (canRetain(result.stream, streams.has(result.stream)))
                         streams.set(result.stream, { request });
                 }
-                // 等真实关闭成功才释放槽位，未完成的命令只保留数值关联，不另存原始流句柄。
+                // 等真实关闭成功后才释放标识槽位，等待中的回调只保存数值关联，原始句柄由共享预算限制的流表持有。
                 if (name === "IO.close" && stream) {
                     for (const [key, entry] of streams)
                         if (entry === stream) {

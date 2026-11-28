@@ -110,7 +110,7 @@ test("bounds request IDs and records the first denial and stream byte counts", a
     session.emit("Page.frameNavigated", {
         frame: { id: privateText, url: "https://idp.test/login?query=" + privateText },
     });
-    // 主框架、一个文档和六个流先占八个槽位，新请求只有前一百二十个能取得序号。
+    // 主框架、一个文档和六个流先占八个槽位，后续请求仅前一百二十个取得序号，下一项记录零值以证明共享上限。
     for (const i of [119, 120]) session.emit("Fetch.requestPaused", { requestId: privateText + i });
     const boundaryEvents = JSON.parse(trace.report()).events.slice(-2);
     expect(boundaryEvents.map((item: { request: number }) => item.request)).toEqual([121, 0]);
