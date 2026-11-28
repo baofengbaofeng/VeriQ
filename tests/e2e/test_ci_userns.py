@@ -501,12 +501,14 @@ class CiUsernsBoundaryTests(unittest.TestCase):
                     }
                     original = os.path.lexists
 
-                    def exists(path):
+                    def exists(
+                        path, bound_target=target, bound_residue=residue, bound_exists=original
+                    ):
                         """只模拟本目的精确文件或悬空链接的存在，其余路径沿用真实文件系统，不扩大清理可见范围。"""
                         return (
                             True
-                            if Path(path) == target and residue in ("file", "dangling")
-                            else original(path)
+                            if Path(path) == bound_target and bound_residue in ("file", "dangling")
+                            else bound_exists(path)
                         )
 
                     with (
@@ -556,12 +558,14 @@ class CiUsernsBoundaryTests(unittest.TestCase):
                     target = Path("/etc/apparmor.d") / f"{stem}-shell"
                     original = os.path.lexists
 
-                    def exists(path):
+                    def exists(
+                        path, bound_target=target, bound_location=location, bound_exists=original
+                    ):
                         """只将本目的目标模拟为悬空链接，其它路径保持真实观察，防止替身把其它策略排除在拒绝范围外。"""
                         return (
                             True
-                            if Path(path) == target and location == "policy"
-                            else original(path)
+                            if Path(path) == bound_target and bound_location == "policy"
+                            else bound_exists(path)
                         )
 
                     with (

@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 import { trackFixture, stopFixture } from "./lifecycle";
 import { stopTestAgent } from "./agent-owner";
 import { closeTestDesktop } from "./desktop-close";
+import { selectDesktopWorkspace } from "./desktop-workspace";
 import { testEngine } from "./engine";
 import { observeHeadedRun, assertHeadedStopped } from "./headed";
 import { terminateRenderer } from "./renderer-fault";
@@ -175,7 +176,7 @@ test("bundled desktop opens offline with strict renderer and independent Node24"
         for (const operation of ["run", "upload", "download"]) {
             await expect(
                 page.evaluate((operation) => Reflect.apply(window.veriq.local, undefined, [{ operation }]), operation),
-            ).rejects.toThrow("AGENT_OPERATION_DENIED");
+            ).rejects.toThrow("IPC_OPERATION_DENIED");
         }
         await page.getByRole("button", { name: "报告与历史", exact: true }).click();
         await page.getByRole("button", { name: "本机报告 / Local reports", exact: true }).click();
@@ -325,7 +326,7 @@ test("production candidate completes the real connected desktop workflow", async
         await expect(
             page.getByLabel("平台工作区 / Platform workspace").locator(`option[value="${workspace.id}"]`),
         ).toHaveCount(1);
-        await page.getByLabel("平台工作区 / Platform workspace").selectOption(workspace.id);
+        await selectDesktopWorkspace(page, workspace.id);
         console.log("Desktop ordinary login and workspace selected");
         await page.getByLabel("共享给工作区 / Share with workspace").check();
         await page.getByRole("button", { name: "发起绑定 / Enroll", exact: true }).click();
@@ -779,7 +780,7 @@ test("connected reports and runs survive UI recovery and preserve stop evidence"
         await page.getByLabel("邮箱 / Email").fill("desktop-admin@example.com");
         await page.getByLabel("密码 / Password").fill("Desktop password 123!");
         await page.getByRole("button", { name: "登录", exact: true }).click();
-        await page.getByLabel("平台工作区 / Platform workspace").selectOption(workspaceId);
+        await selectDesktopWorkspace(page, workspaceId);
         const report = (id: string) =>
             page.evaluate(
                 ({ workspaceId, id }) =>
@@ -890,7 +891,7 @@ test("connected reports and runs survive UI recovery and preserve stop evidence"
             await page.getByLabel("邮箱 / Email").fill("desktop-admin@example.com");
             await page.getByLabel("密码 / Password").fill("Desktop password 123!");
             await page.getByRole("button", { name: "登录", exact: true }).click();
-            await page.getByLabel("平台工作区 / Platform workspace").selectOption(workspaceId);
+            await selectDesktopWorkspace(page, workspaceId);
         };
         // 故障恢复、退出、取消和有头取证各用独立 Run，释放业务响应后才做后续登录，避免耗尽同一次导航的十秒预算。
         await request.post("http://127.0.0.1:18891/__hold");
@@ -958,7 +959,7 @@ test("connected reports and runs survive UI recovery and preserve stop evidence"
         await headedPage.getByLabel("邮箱 / Email").fill("desktop-admin@example.com");
         await headedPage.getByLabel("密码 / Password").fill("Desktop password 123!");
         await headedPage.getByRole("button", { name: "登录", exact: true }).click();
-        await headedPage.getByLabel("平台工作区 / Platform workspace").selectOption(workspaceId);
+        await selectDesktopWorkspace(headedPage, workspaceId);
         await headedPage.getByLabel("共享给工作区 / Share with workspace").check();
         await headedPage.getByRole("button", { name: "发起绑定 / Enroll", exact: true }).click();
         await expect(headedPage.getByTestId("enrollment-code")).toBeVisible({ timeout: 20000 });
@@ -1158,7 +1159,7 @@ test("retained historical compatibility reports remain read-only while disconnec
         for (const operation of ["run", "upload", "download"]) {
             await expect(
                 page.evaluate((operation) => Reflect.apply(window.veriq.local, undefined, [{ operation }]), operation),
-            ).rejects.toThrow("AGENT_OPERATION_DENIED");
+            ).rejects.toThrow("IPC_OPERATION_DENIED");
         }
         await expect(
             page.evaluate(() => Reflect.apply(window.veriq.cloud, undefined, [{ operation: "createBundle" }])),
@@ -1288,7 +1289,7 @@ test("shared cloud editor publishes through the desktop host transport", async (
         await expect(
             page.getByLabel("平台工作区 / Platform workspace").locator(`option[value="${workspaceId}"]`),
         ).toHaveCount(1);
-        await page.getByLabel("平台工作区 / Platform workspace").selectOption(workspaceId);
+        await selectDesktopWorkspace(page, workspaceId);
         await page.getByRole("button", { name: "启动在线领取 / Start online worker", exact: true }).click();
         await expect.poll(async () => (await page.evaluate(() => window.veriq.state())).agent?.online).toBe(true);
         await page.getByLabel("语言 / Language").selectOption("en");
@@ -1312,20 +1313,52 @@ test("shared cloud editor publishes through the desktop host transport", async (
         const editor = article
             .locator(".vq-monaco")
             .filter({ has: page.getByRole("textbox", { name: "JSON source", exact: true }) });
+        const context = editor.locator(".native-edit-context");
+        const contextState = () =>
+            context.evaluate((element) => {
+                const edit = (
+                    element as HTMLElement & {
+                        editContext: { text: string; selectionStart: number; selectionEnd: number };
+                    }
+                ).editContext;
+                return {
+                    text: edit.text,
+                    start: edit.selectionStart,
+                    end: edit.selectionEnd,
+                    focused: document.activeElement === element,
+                    documentFocused: document.hasFocus(),
+                };
+            });
+        const nativeWindow = await electron.browserWindow(page);
+        await nativeWindow.evaluate((window) => {
+            window.show();
+            window.focus();
+            window.webContents.focus();
+        });
         await editor.locator(".view-lines").click();
         await page.keyboard.press("ControlOrMeta+A");
         await expect
-            .poll(() =>
-                editor.locator(".native-edit-context").evaluate((element) => {
-                    const context = (
-                        element as HTMLElement & {
-                            editContext?: { text: string; selectionStart: number; selectionEnd: number };
-                        }
-                    ).editContext;
-                    return !!context && context.selectionStart === 0 && context.selectionEnd === context.text.length;
-                }),
-            )
+            .poll(async () => {
+                const selected = await contextState();
+                return (
+                    selected.text.length > 0 &&
+                    selected.focused &&
+                    selected.documentFocused &&
+                    selected.start === 0 &&
+                    selected.end === selected.text.length
+                );
+            })
             .toBe(true);
+        const initialSelection = await contextState();
+        console.log("Native editor initial selection:", JSON.stringify(initialSelection));
+        await expect
+            .poll(() =>
+                nativeWindow.evaluate((window) => ({
+                    window: window.isFocused(),
+                    contents: window.webContents.isFocused(),
+                })),
+            )
+            .toEqual({ window: true, contents: true });
         const text = JSON.stringify(
             {
                 kind: "CASE",
@@ -1362,16 +1395,19 @@ test("shared cloud editor publishes through the desktop host transport", async (
         const priorClipboard = await electron.evaluate(({ clipboard }) => clipboard.readText());
         try {
             await electron.evaluate(({ clipboard }, text) => clipboard.writeText(text), text);
+            expect(await electron.evaluate(({ clipboard }) => clipboard.readText())).toBe(text);
             await page.keyboard.press("ControlOrMeta+V");
-            await expect
-                .poll(() =>
-                    editor
-                        .locator(".native-edit-context")
-                        .evaluate(
-                            (element) => (element as HTMLElement & { editContext: { text: string } }).editContext.text,
-                        ),
-                )
-                .toBe(text);
+            console.log("Native editor after paste:", JSON.stringify(await contextState()));
+            // EditContext 只保留主选区覆盖的行，粘贴后光标收拢不能证明全文；真实重选全部后再核对完整内容及选区。
+            await page.keyboard.press("ControlOrMeta+A");
+            await expect.poll(contextState).toEqual({
+                text,
+                start: 0,
+                end: text.length,
+                focused: true,
+                documentFocused: true,
+            });
+            console.log("Native editor verified full selection:", JSON.stringify(await contextState()));
         } finally {
             await electron.evaluate(({ clipboard }, text) => clipboard.writeText(text), priorClipboard);
         }
