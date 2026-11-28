@@ -19,8 +19,9 @@ import {
     type BrowserSsoResultV1,
     type ExecutionSnapshotV1,
 } from "@veriq/contracts";
-import { afterAll, beforeAll, expect, test } from "vitest";
+import { afterAll, beforeAll, expect, onTestFailed, test } from "vitest";
 import { authenticateBusiness } from "../src/fixtures/auth.js";
+import { createSsoObservation } from "./sso-observation.js";
 
 let browser: Browser;
 let browserServer: BrowserServer;
@@ -190,15 +191,19 @@ async function attempt({
     identities = ["tester"],
     loginPassword = password,
     stages,
+    observation,
     afterLogin,
 }: {
     identities?: string[];
     loginPassword?: string;
     stages?: BrowserSsoResultV1["stage"][];
+    observation?: ReturnType<typeof createSsoObservation>;
     afterLogin?: (page: Page) => Promise<void>;
 } = {}) {
     const browserContext = await browser.newContext({ serviceWorkers: "block", acceptDownloads: false });
     try {
+        observation?.attach(browserContext);
+        observation?.stage("START");
         const page = await browserContext.newPage();
         const adapterId = randomUUID(),
             workspaceId = randomUUID(),
@@ -259,14 +264,25 @@ async function attempt({
             page,
             execution,
             signal: AbortSignal.timeout(6000),
-            credentials: { resolve: async () => ({ username: "tester", password: loginPassword }) },
-            onSsoStage: (stage) => stages?.push(stage),
+            credentials: {
+                resolve: async () => {
+                    observation?.stage("SUBMISSION_PREPARED");
+                    return { username: "tester", password: loginPassword };
+                },
+            },
+            onSsoStage(stage) {
+                stages?.push(stage);
+                observation?.stage(stage);
+            },
+            ...(observation ? { onSsoOriginDenied: observation.denied } : {}),
         });
+        observation?.stage("AUTHENTICATED");
         await expect(page.locator("main").textContent()).resolves.toBe("Business page");
         await afterLogin?.(page);
         await auth.dispose();
         return auth.identityId;
     } finally {
+        observation?.dispose();
         await browserContext.close();
     }
 }
@@ -383,10 +399,15 @@ test.each(["gzip", "br"] as const)(
     async (encoding) => {
         redirectStatus = 303;
         denyEntry = false;
+        const observation = createSsoObservation(appOrigin, idpOrigin);
+        onTestFailed(() => {
+            console.error(observation.report());
+        });
         documentEncoding = encoding;
         try {
             await expect(
                 attempt({
+                    observation,
                     async afterLogin(page) {
                         const cookies = await page.context().cookies(appOrigin);
                         expect(
