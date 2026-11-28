@@ -411,6 +411,7 @@ async def test_bounded_chunk_upload_retains_exact_large_bytes_and_rejects_wrong_
 
 @pytest.mark.parametrize("expired", [False, True])
 async def test_actual_dropped_http_response_recovers_only_the_unactivated_attempt(site, expired):
+    """真实回环服务在提交领取后断开响应，客户端必须直连测试端口，以验证未激活领取的恢复而不受系统代理干扰。"""
 
     c, db = site
     await setup(c)
@@ -447,7 +448,7 @@ async def test_actual_dropped_http_response_recovers_only_the_unactivated_attemp
 
     try:
         port = proxy.sockets[0].getsockname()[1]
-        async with httpx.AsyncClient() as downstream:
+        async with httpx.AsyncClient(trust_env=False) as downstream:
             with pytest.raises(httpx.RemoteProtocolError):
                 await downstream.post(
                     f"http://127.0.0.1:{port}/internal/v1/jobs/claim", json=data, headers=auth(d)
@@ -874,6 +875,7 @@ async def test_expired_unactivated_claim_closes_once_across_api_nodes(site, main
 
 
 async def test_reaper_isolates_inconsistent_claim_without_rolling_back_other_expiries(site):
+    """让一条过期领取的容量账本失配，验证回收隔离该项并提交另一条正常过期回收，拒绝整体回滚掩盖进展。"""
     c, db = site
     await setup(c)
     await login(c)

@@ -141,11 +141,13 @@ def comment_ranges(
             )
         )
     for path in paths:
-        if path.suffix in source_inventory.TREE_SITTER_FILE_EXTENSIONS:
+        if path.suffix in source_inventory.TREE_SITTER_FILE_EXTENSIONS | {".ps1"}:
             output[path.as_posix()] = [
                 dict(span)
                 for span in comment_syntax.comment_ranges(
-                    (root / path).read_bytes(), path.suffix[1:], path.as_posix()
+                    (root / path).read_bytes(),
+                    "powershell" if path.suffix == ".ps1" else path.suffix[1:],
+                    path.as_posix(),
                 )
             ]
         elif path.suffix in NATIVE | STYLES:

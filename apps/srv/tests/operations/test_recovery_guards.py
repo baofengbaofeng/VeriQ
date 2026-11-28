@@ -23,7 +23,6 @@ from typing import Any, Never
 import boto3
 import pytest
 from botocore.stub import Stubber
-from sqlalchemy import event
 
 import veriq_server
 from veriq_server import db, readiness, recovery, settings, snapshot_io
@@ -68,14 +67,12 @@ class _DatabaseTrap:
     database: db.Database
     attempts: int = 0
 
-    def refuse_connection(
-        self, dialect: object, record: object, args: object, kwargs: object
-    ) -> Never:
+    def refuse_connection(self, *args: object, **kwargs: object) -> Never:
         """
         记录恢复逻辑跨过全部本地校验后的连接企图，并抛出仅含固定哨兵的异常，阻止驱动执行网络或数据库操作。
         """
-        # 回调签名由 SQLAlchemy 连接事件确定，丢弃驱动参数以免密码进入任何诊断或连接计数。
-        del dialect, record, args, kwargs
+        # 丢弃真实方言传入的连接参数，哨兵只记录访问次数，不能把合成凭据或连接信息写入断言和诊断。
+        del args, kwargs
         self.attempts += 1
         raise _DatabaseAccessError("SYNTHETIC_DB_ACCESS_ATTEMPT")
 
@@ -94,16 +91,16 @@ async def _database_trap(
     recovery_case: _RecoveryCase, monkeypatch: pytest.MonkeyPatch
 ) -> AsyncIterator[_DatabaseTrap]:
     """
-    从专用测试配置建立真实惰性引擎并安装驱动前哨兵，退出夹具时关闭引擎并移除只在当前用例生效的监听器。
+    从专用配置建立真实惰性引擎，在其独占方言的驱动入口安装哨兵，既保留连接观测也在任何联网前拒绝。
     """
     database = db.Database(recovery_case.target)
     trap = _DatabaseTrap(database)
     monkeypatch.setattr(recovery, "s3_client", _refuse_s3_client)
-    event.listen(database.engine.sync_engine, "do_connect", trap.refuse_connection)
+    # do_connect 观测器会返回连接并终止后续事件，直接守住本引擎的最终驱动入口，不依赖被忽略的事件排序参数。
+    monkeypatch.setattr(database.engine.sync_engine.dialect, "connect", trap.refuse_connection)
     try:
         yield trap
     finally:
-        event.remove(database.engine.sync_engine, "do_connect", trap.refuse_connection)
         await database.close()
 
 

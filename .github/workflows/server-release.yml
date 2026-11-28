@@ -95,12 +95,33 @@ jobs:
                   PY
                   node apps/web/tests/prepare-editor-agent.mjs
                   cp .superpowers/cache/t11/release/inventory.json .superpowers/sdd/veriq-1/state/approved-engine-inventory.json
+            - name: Prepare the pinned source-comment parser
+              run: |
+                  curl --proto '=https' --tlsv1.2 --fail --location --max-time 180 \
+                    https://github.com/PowerShell/PowerShell/releases/download/v7.6.6/powershell-7.6.6-linux-x64.tar.gz \
+                    --output "$RUNNER_TEMP/powershell-parser.tar.gz"
+                  python scripts/prepare_comment_tools.py --archive "$RUNNER_TEMP/powershell-parser.tar.gz"
+            - name: Verify source-comment parser boundaries
+              run: |
+                  uv run --project apps/srv --frozen --no-sync python -m pytest \
+                    -c apps/srv/pyproject.toml \
+                    tests/acceptance/test_comment_powershell.py \
+                    tests/acceptance/test_comment_syntax.py \
+                    tests/acceptance/test_comment_audit.py \
+                    tests/acceptance/test_comment_audit_legacy.py \
+                    tests/acceptance/test_comment_blocks.py \
+                    tests/acceptance/test_source_inventory.py \
+                    tests/acceptance/test_line_width.py --tb=short -q
             - name: Verify production database and CLI operator lifecycle
               run: |
                   uv run --project apps/srv --frozen --no-sync python -m pytest \
                     -c apps/srv/pyproject.toml \
                     apps/srv/tests/auth/test_auth.py::test_production_cookie_and_database_shape \
                     apps/srv/tests/auth/test_settings_cli.py::test_real_cli_init_migrate_create_admin_and_serve
+            - name: Run the complete server regression
+              run: |
+                  uv run --project apps/srv --frozen --no-sync python -m pytest \
+                    -c apps/srv/pyproject.toml apps/srv/tests --tb=short -q
             - name: Full normal release
               run: ./build.sh
             - name: Reject emergency artifacts in normal release CI

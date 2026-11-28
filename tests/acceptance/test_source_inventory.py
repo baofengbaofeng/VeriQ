@@ -129,12 +129,13 @@ def test_source_boundary_keeps_all_existing_suffixes_names_and_explicit_path(
     assert width.check_sources(repository) == [(name, 1, 122) for name in sorted(names)]
     report = _tool("comment_audit").audit(repository)
     assert [item["path"] for item in report["unsupportedPaths"]] == sorted(
-        set(names) - {"style.css", "app.java", "index.html"}
+        set(names) - {"style.css", "app.java", "index.html", "setup.ps1"}
     )
     assert all(item["reason"] for item in report["unsupportedPaths"])
     assert report["files"] == [
         {"path": "app.java", "commentLines": 1, "codeLines": 0},
         {"path": "index.html", "commentLines": 0, "codeLines": 1},
+        {"path": "setup.ps1", "commentLines": 0, "codeLines": 1},
         {"path": "style.css", "commentLines": 1, "codeLines": 0},
     ]
 

@@ -5,6 +5,7 @@ on:
         branches: [master]
         paths:
             - .github/workflows/runtime-native.yml
+            - .github/scripts/windows-native-user.ps1
             - apps/runtime/**
             - packages/**
             - pnpm-lock.yaml
@@ -13,6 +14,7 @@ on:
         branches: [master]
         paths:
             - .github/workflows/runtime-native.yml
+            - .github/scripts/windows-native-user.ps1
             - apps/runtime/**
             - packages/**
             - pnpm-lock.yaml
@@ -78,7 +80,13 @@ jobs:
               shell: pwsh
               working-directory: apps/runtime
               run: |
-                  node --import tsx --test tests/native/windows.test.ts tests/native/windows-scheduling.test.ts tests/native/windows-constructor.test.ts tests/native/windows-response-close.test.ts tests/native/windows-private-config.test.ts tests/native/windows-profile.test.ts tests/pipe-framing.test.ts tests/vault-envelope.test.ts tests/vault-integration.test.ts tests/vault-history.test.ts tests/vault-deletion.test.ts tests/restricted-file.test.ts tests/restricted-operation.test.ts tests/native/windows-vault.test.ts tests/native/windows-cookie.test.ts 2>&1 | Tee-Object -FilePath (Join-Path $env:VERIQ_NATIVE_EVIDENCE 'windows-native.log')
+                  & "$env:GITHUB_WORKSPACE/.github/scripts/windows-native-user.ps1" -Workspace $env:GITHUB_WORKSPACE -EvidenceDirectory $env:VERIQ_NATIVE_EVIDENCE -NodePath (Get-Command node).Source -Source $env:GITHUB_SHA
+                  exit $LASTEXITCODE
+            - name: Confirm temporary Windows user cleanup even after cancellation
+              if: always()
+              shell: pwsh
+              run: |
+                  & "$env:GITHUB_WORKSPACE/.github/scripts/windows-native-user.ps1" -Mode Cleanup -Workspace $env:GITHUB_WORKSPACE -EvidenceDirectory $env:VERIQ_NATIVE_EVIDENCE -Source $env:GITHUB_SHA
                   exit $LASTEXITCODE
             - name: Preserve source binding and final disk observation
               if: always()
@@ -86,7 +94,7 @@ jobs:
               run: |
                   $driveName = (Split-Path -Qualifier $env:GITHUB_WORKSPACE).TrimEnd(':')
                   $free = (Get-PSDrive -Name $driveName).Free
-                  $files = git ls-files apps/runtime apps/desktop packages pnpm-lock.yaml .github/workflows/runtime-native.yml
+                  $files = git ls-files apps/runtime apps/desktop packages pnpm-lock.yaml .github/workflows/runtime-native.yml .github/scripts/windows-native-user.ps1
                   $hashes = @{}
                   foreach ($file in $files) { $hashes[$file] = (Get-FileHash -Algorithm SHA256 $file).Hash.ToLowerInvariant() }
                   $nativeInputs = @{}

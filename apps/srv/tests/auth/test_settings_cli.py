@@ -96,7 +96,7 @@ async def test_real_cli_init_migrate_create_admin_and_serve(site, tmp_path):
     assert not artifacts.exists()
     artifacts.mkdir(mode=0o700)
     await command("doctor")
-    assert list(artifacts.iterdir()) == []
+    assert not list(artifacts.iterdir())
     p = await asyncio.create_subprocess_exec(
         binary,
         "--config",

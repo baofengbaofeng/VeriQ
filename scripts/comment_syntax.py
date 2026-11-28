@@ -366,6 +366,13 @@ def _html_ranges(source: bytes, root: "Node", path: str) -> list[CommentRange]:
 
 def comment_ranges(source: bytes, language: str, path: str) -> list[CommentRange]:
     """固定语言的完整语法树必须没有错误或缺失节点才可导出注释，Shell 首行解释器指令不作为说明范围返回给比例消费者。"""
+    if language == "powershell":
+        from comment_powershell import PowerShellError, comment_spans
+
+        try:
+            return convert_ranges(source, comment_spans(source), path)
+        except PowerShellError as error:
+            raise _failure(path, str(error)) from None
     if language not in GRAMMARS:
         raise _failure(path, "Unsupported source language")
     try:

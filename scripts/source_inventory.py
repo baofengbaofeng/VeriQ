@@ -96,6 +96,8 @@ def inventory(root: Path) -> list[SourceFile]:
             language, reason = "typescript", None
         elif path.suffix in TREE_SITTER_FILE_EXTENSIONS:
             language, reason = path.suffix[1:], None
+        elif path.suffix == ".ps1":
+            language, reason = "powershell", None
         elif path.suffix == ".sh" or path.as_posix() in SOURCE_PATHS:
             language = "shell"
             with (root / path).open("rb") as source:

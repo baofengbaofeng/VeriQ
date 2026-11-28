@@ -27,7 +27,10 @@ const files: Record<string, Uint8Array> = output?.files ?? {
     "dependencies.json": canonicalBytes(distribution.dependencies),
 };
 const compiler = join(root, "compiler.tgz");
-execFileSync("tar", ["-czf", compiler, "-C", "../compiler", "src", "package.json"]);
+// 测试归档只封装真实编译器文件，禁止 BSD tar 自动加入宿主 AppleDouble 元数据，以保留服务端严格成员校验。
+execFileSync("tar", ["-czf", compiler, "-C", "../compiler", "src", "package.json"], {
+    env: { ...process.env, COPYFILE_DISABLE: "1" },
+});
 const bytes = readFileSync(compiler);
 const hash = (b: Uint8Array) => createHash("sha256").update(b).digest("hex");
 const fixed = Object.entries(files)

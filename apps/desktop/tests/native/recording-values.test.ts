@@ -83,7 +83,7 @@ test(
         `,
             );
             const app = await _electron.launch({
-                executablePath: String(electronPath),
+                executablePath: process.env.VERIQ_TEST_ELECTRON ?? String(electronPath),
                 args: [resolve("tests/native/recording-app.cjs"), directory],
                 chromiumSandbox: true,
             });
