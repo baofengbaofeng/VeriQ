@@ -120,8 +120,20 @@ jobs:
                     apps/srv/tests/auth/test_settings_cli.py::test_real_cli_init_migrate_create_admin_and_serve
             - name: Run the complete server regression
               run: |
+                  set -o pipefail
+                  evidence="work/server-regression-$GITHUB_SHA"
+                  mkdir -p "$evidence"
+                  pnpm --filter @veriq/web build 2>&1 | tee "$evidence/web-build.log"
                   uv run --project apps/srv --frozen --no-sync python -m pytest \
-                    -c apps/srv/pyproject.toml apps/srv/tests --tb=short -q
+                    -c apps/srv/pyproject.toml apps/srv/tests --tb=short -q \
+                    --junitxml="$evidence/pytest.xml" 2>&1 | tee "$evidence/pytest.log"
+                  python - "$evidence/pytest.xml" <<'PY'
+                  import sys
+                  import xml.etree.ElementTree as ET
+                  suites = list(ET.parse(sys.argv[1]).iter('testsuite'))
+                  if not suites or any(int(item.get('skipped', '0')) for item in suites):
+                      raise SystemExit('Complete server regression must run without skipped tests')
+                  PY
             - name: Full normal release
               run: ./build.sh
             - name: Reject emergency artifacts in normal release CI
@@ -161,6 +173,8 @@ jobs:
                       work/release-*/*.log
                       work/release-*/source-binding.json
                       work/release-*/comment-audit.json
+                      work/server-regression-*/*.log
+                      work/server-regression-*/*.xml
                       output/server/**
                   if-no-files-found: error
             - name: Stop candidate container
