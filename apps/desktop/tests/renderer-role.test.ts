@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { rendererTarget, type RendererRoleSource } from "../../../tests/e2e/renderer-fault";
+import {
+    rendererTarget,
+    parseRendererEndpoint,
+    verifyRendererBinding,
+    type RendererRoleSource,
+} from "../../../tests/e2e/renderer-fault";
 
 type Metric = { pid: number; type: string; creationTime: number };
 const rendererPid = process.pid + 100000;
@@ -108,4 +113,126 @@ test("changed official identity or app window is rejected on revalidation", () =
     otherWindow.webContents.getURL = () => "http://127.0.0.1/";
     other.BrowserWindow.getAllWindows = () => [otherWindow];
     assert.throws(() => rendererTarget(other), /APP_WINDOW_REQUIRED/);
+});
+
+/**
+ * 重附着端点只能来自有限的 Chromium 私有端口文件，固定回环主机与严格浏览器路径；拒绝超界或混入 URL 的内容而不回显能力。
+ */
+test("recovered driver accepts only bounded loopback Chromium port records", () => {
+    const path = "/devtools/browser/12345678-1234-4234-8234-123456789abc";
+    assert.equal(parseRendererEndpoint(Buffer.from(`12345\n${path}\n`)), `ws://127.0.0.1:12345${path}`);
+    for (const raw of [
+        "",
+        `0\n${path}`,
+        `65536\n${path}`,
+        `0123\n${path}`,
+        `-1\n${path}`,
+        `1234\nws://evil.invalid${path}`,
+        `1234\n${path}\nextra`,
+        `1234\n${path}?token=secret`,
+        `1234\n/devtools/page/12345678-1234-4234-8234-123456789abc`,
+        `1234\n${path}\0`,
+        `1234\n${path}\n\n`,
+        `1234\n${path}\r`,
+        "x".repeat(513),
+    ])
+        assert.throws(() => parseRendererEndpoint(Buffer.from(raw)), /^Error: RENDERER_DEVTOOLS_ENDPOINT_INVALID$/);
+});
+
+/**
+ * 重附着页面由官方 target 反查原窗口和新 renderer，并核对 webContents 与主进程，任一身份漂移都拒绝。
+ */
+test("recovered driver rejects cross-target or replaced native identities", () => {
+    const proof = {
+        mainPid: process.pid,
+        windowId: 1,
+        contentsId: 2,
+        oldRendererPid: 10,
+        rendererPid: 11,
+        targetId: "A".repeat(32),
+        url: "veriq://app/index.html",
+    };
+    let targetId = proof.targetId,
+        contentsId = 2,
+        windowId = 1,
+        pid = 11,
+        url = proof.url;
+    let missing = false;
+    const contents = {
+        get id() {
+            return contentsId;
+        },
+        getURL: () => url,
+        getOSProcessId: () => pid,
+        getOrCreateDevToolsTargetId: () => targetId,
+    };
+    const native = {
+        BrowserWindow: {
+            getAllWindows: () => [{ id: windowId, webContents: { id: 2 } }],
+        },
+        webContents: { fromDevToolsTargetId: () => (missing ? undefined : contents) },
+    };
+    assert.deepEqual(verifyRendererBinding(native, proof), proof);
+    for (const change of [
+        () => {
+            targetId = "B".repeat(32);
+        },
+        () => {
+            contentsId = 3;
+        },
+        () => {
+            windowId = 3;
+        },
+        () => {
+            pid = 12;
+        },
+        () => {
+            url = "https://foreign.invalid";
+        },
+        () => {
+            missing = true;
+        },
+    ]) {
+        change();
+        assert.equal(verifyRendererBinding(native, proof), null);
+        targetId = proof.targetId;
+        contentsId = 2;
+        windowId = 1;
+        pid = 11;
+        url = proof.url;
+        missing = false;
+    }
+    assert.equal(verifyRendererBinding(native, { ...proof, mainPid: process.pid + 1 }), null);
+});
+
+/**
+ * 新驱动身份验证不接受仍然指向旧 renderer 的伪恢复记录，非法 target 格式和非应用 URL 也不能经反查结果自证有效。
+ */
+test("driver recovery proof cannot retain the crashed renderer or change the app origin", () => {
+    const proof = {
+        mainPid: process.pid,
+        windowId: 1,
+        contentsId: 2,
+        oldRendererPid: 10,
+        rendererPid: 10,
+        targetId: "A".repeat(32),
+        url: "veriq://app/index.html",
+    };
+    const contents = {
+        id: 2,
+        getURL: () => proof.url,
+        getOSProcessId: () => proof.rendererPid,
+        getOrCreateDevToolsTargetId: () => proof.targetId,
+    };
+    const native = {
+        BrowserWindow: { getAllWindows: () => [{ id: 1, webContents: { id: 2 } }] },
+        webContents: { fromDevToolsTargetId: () => contents },
+    };
+    assert.equal(verifyRendererBinding(native, proof), null);
+    proof.rendererPid = 11;
+    proof.targetId = "invalid";
+    assert.equal(verifyRendererBinding(native, proof), null);
+    proof.targetId = "A".repeat(32);
+    proof.url = "https://foreign.invalid";
+    assert.equal(verifyRendererBinding(native, proof), null);
 });

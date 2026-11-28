@@ -171,18 +171,24 @@ export async function authenticateBrowserSso(
             if (submitted.status() >= 400) throw new Error("SSO_AUTHENTICATION_FAILED");
             if (submitted.status() < 300) throw new Error("SSO_CHALLENGE_REQUIRED");
             context.onSsoStage?.("CALLBACK");
-            await page.waitForURL((url) => url.origin === app, { waitUntil: "domcontentloaded", timeout: 15000 });
+            const [observed] = await Promise.all([
+                boundary.observedDocument("landing"),
+                page.waitForURL((url) => url.origin === app, { waitUntil: "domcontentloaded", timeout: 15000 }),
+            ]);
+            if (!observed) throw new Error("SSO_FLOW_INVALID");
         } finally {
             await Promise.allSettled(controls.handles.map((handle) => handle.dispose()));
         }
-        if (!boundary.observedCallback()) throw new Error("SSO_FLOW_INVALID");
         const handoff = new URL(page.url());
         if (handoff.origin !== app) throw new Error("SSO_FLOW_INVALID");
         context.onSsoStage?.("IDENTITY");
         // 由浏览器导航发送 Cookie 并保持统一证书信任，直接读取已收到的响应正文，避免在受测页面中执行身份读取脚本。
         boundary.prepareIdentity(identityUrl.href);
-        const response = await page.goto(identityUrl.href, { waitUntil: "domcontentloaded", timeout: 10000 });
-        if (!response?.ok()) throw new Error("SSO_AUTHENTICATION_FAILED");
+        const [verifiedDocument, response] = await Promise.all([
+            boundary.observedDocument("identity"),
+            page.goto(identityUrl.href, { waitUntil: "domcontentloaded", timeout: 10000 }),
+        ]);
+        if (!verifiedDocument || !response?.ok()) throw new Error("SSO_AUTHENTICATION_FAILED");
         const actual = resolvePointer((await response.json()) as JsonValue, config.identityPointer);
         if (!actual.present || typeof actual.value !== "string" || !identity.allowedIdentityIds?.includes(actual.value))
             throw new Error("IDENTITY_NOT_ALLOWED");

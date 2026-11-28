@@ -2,7 +2,9 @@
  * 浏览器在发出请求之前先检查目标与当前登录阶段，重定向子请求单独鉴权，禁止把密码表单重放到业务站。
  * Playwright Context 路由补齐单页面 DevTools 会话不覆盖的子框架、弹窗和 WebSocket。
  */
+import { createHmac, randomBytes } from "node:crypto";
 import type { Page } from "@playwright/test";
+import { SsoLineage, type Admission, type Owner } from "./sso-lineage.js";
 import { applySsoDocumentPolicy, hasExactPolicyOrigin, type SsoDocumentResponse } from "./sso-response-policy.js";
 
 /**
@@ -19,6 +21,7 @@ export interface SsoNetworkScope {
 interface PausedRequest extends SsoDocumentResponse {
     request: { url: string; method: string };
     redirectedRequestId?: string;
+    networkId?: string;
     frameId: string;
     resourceType: string;
 }
@@ -41,12 +44,12 @@ export async function guardSsoPage(
     const mainFrameId = tree.frameTree.frame.id;
     const appOrigins = new Set([scope.app, scope.api]);
     const authOrigins = new Set([scope.idp, ...appOrigins]);
-    const loginChain = new Set<string>();
+    let loginParent: string | undefined;
     let submitting = false;
     let callback = false;
-    let returned = false;
     let business = false;
     let failed = false;
+    let denying = false;
     let documentRedirects = 0;
     let identityTarget: string | undefined;
     let identitySent = false;
@@ -59,9 +62,60 @@ export async function guardSsoPage(
     // 登录完成后仍可收到违反范围的请求；整案通过 onViolation 观察，拒绝 Promise 不作为未处理异常传播。
     void violation.catch(() => {});
 
+    if (!mainFrameId || mainFrameId.length > 256) throw new Error("SSO_SCOPE_UNAVAILABLE");
+    const lineage = new SsoLineage(decide, markViolation);
+    const responseKey = randomBytes(32);
+    const awaitingResponse = new Map<string, { tag: string; businessNetwork?: string }>();
+    const pendingRejections = new Set<string>();
+    const activeResponses = new Map<string, { rejected: boolean }>();
+
+    function responseTag(event: PausedRequest): string | undefined {
+        if (!event.networkId || event.networkId.length > 256) return;
+        return createHmac("sha256", responseKey)
+            .update(JSON.stringify([event.networkId, event.request.method, event.request.url]))
+            .digest("hex");
+    }
+
+    function onTerminal({ requestId, timestamp }: { requestId: string; timestamp?: number }) {
+        lineage.terminal(requestId, timestamp);
+    }
+
+    function onLoadingFailed(event: {
+        requestId: string;
+        timestamp: number;
+        type: string;
+        canceled?: boolean;
+        errorText: string;
+    }) {
+        onTerminal(event);
+        if (failed || denying || !event.canceled || event.type !== "Document" || event.errorText !== "net::ERR_ABORTED")
+            return;
+        if (business) {
+            const matches = [...awaitingResponse].filter(([, ticket]) => ticket.businessNetwork === event.requestId);
+            if (matches.length > 1) return markViolation();
+            const match = matches[0];
+            if (match && awaitingResponse.get(match[0]) === match[1]) awaitingResponse.delete(match[0]);
+            return;
+        }
+        if (!identityTarget) return;
+        const id = lineage.canceledHandoff(event.requestId, event.timestamp);
+        if (id && awaitingResponse.delete(id)) lineage.response(id, false);
+    }
+
+    function releaseLineage(preserveInFlight = false) {
+        session.off("Network.requestWillBeSent", onNetwork);
+        session.off("Page.frameNavigated", onFrame);
+        session.off("Network.loadingFinished", onTerminal);
+        if (!preserveInFlight) session.off("Network.loadingFailed", onLoadingFailed);
+        loginParent = undefined;
+        return lineage.close(preserveInFlight);
+    }
+
     function markViolation() {
         if (failed) return;
         failed = true;
+        awaitingResponse.clear();
+        releaseLineage();
         rejectViolation(new Error("SSO_ORIGIN_NOT_ALLOWED"));
         onViolation();
     }
@@ -81,9 +135,10 @@ export async function guardSsoPage(
     /**
      * 真正的密码提交只有一次机会进入导航链，网络暂停事件里的父请求标识用来区分回跳与站点另发的请求。
      */
-    function authorized(event: PausedRequest): boolean {
+    function authorized(event: PausedRequest): Admission | boolean {
         const url = new URL(event.request.url);
-        if (failed || !["http:", "https:"].includes(url.protocol) || url.username || url.password) return false;
+        if (failed || denying || !["http:", "https:"].includes(url.protocol) || url.username || url.password)
+            return false;
         if (carriesLoginMaterial(url)) return false;
         if (event.resourceType === "Document" && event.frameId !== mainFrameId) return false;
         if (business) return appOrigins.has(url.origin);
@@ -93,13 +148,13 @@ export async function guardSsoPage(
         const method = event.request.method;
         if (identityTarget) {
             if (!appOrigins.has(url.origin) || (method !== "GET" && method !== "HEAD")) return false;
-            if (!document) return true;
+            if (!document) return "resource";
             if (identitySent || event.redirectedRequestId || method !== "GET" || url.href !== identityTarget)
                 return false;
             identitySent = true;
-            return true;
+            return "identity";
         }
-        const redirectedLogin = event.redirectedRequestId && loginChain.has(event.redirectedRequestId);
+        const redirectedLogin = event.redirectedRequestId && event.redirectedRequestId === loginParent;
         if (method === "POST") {
             if (
                 !submitting ||
@@ -109,63 +164,205 @@ export async function guardSsoPage(
                 url.pathname !== scope.submitPath ||
                 url.search ||
                 event.redirectedRequestId ||
-                loginChain.size
+                loginParent
             )
                 return false;
-            loginChain.add(event.requestId);
-            return true;
+            loginParent = event.requestId;
+            return "chain";
         }
         if (method !== "GET" && method !== "HEAD") return false;
         if (document && url.origin === scope.idp) url.searchParams.forEach(protect);
-        if (!submitting) return true;
-        if (returned) return appOrigins.has(url.origin);
+        if (!submitting) return isIdpRead(url.origin, event.resourceType, method) ? "initialIdpRead" : "initial";
+        if (lineage.confirmed("landing") && document) return appOrigins.has(url.origin) && "handoff";
+        if (!document && appOrigins.has(url.origin)) return "resource";
         if (url.origin === scope.idp && !callback) {
             // 填写阶段的身份站读请求必须是已批准提交的主文档跳转，脚本发起的并发请求没有这条链。
             if (!document || !redirectedLogin) return false;
-            loginChain.add(event.requestId);
-            return true;
+            loginParent = event.requestId;
+            return "chain";
         }
         // 回调放行并不代表旧登录页已卸载；只放行该表单的导航链，其他业务请求等到主文档实际换成业务站页面。
         if (!document || !redirectedLogin || url.origin !== scope.app || method !== "GET") return false;
         if (!callback && url.pathname !== scope.callbackPath) return false;
         callback = true;
-        loginChain.add(event.requestId);
+        loginParent = event.requestId;
         url.searchParams.forEach(protect);
-        return true;
+        return "landing";
+    }
+
+    function owner(origin: string): Owner {
+        if (origin === scope.app) return "APP";
+        if (origin === scope.api) return "API";
+        if (origin === scope.idp) return "IDP";
+        return "OTHER";
+    }
+
+    function decide(
+        id: string,
+        allowed: boolean,
+        document: boolean,
+        admission?: Admission,
+        tag?: string,
+        acknowledged?: () => void,
+        businessNetwork?: string,
+    ) {
+        if (allowed && document) {
+            const count = awaitingResponse.size + activeResponses.size;
+            if (!tag || count >= 8 || awaitingResponse.has(id) || activeResponses.has(id)) allowed = false;
+            else awaitingResponse.set(id, { tag, ...(businessNetwork ? { businessNetwork } : {}) });
+        }
+        if (allowed && !failed && !denying && !(submitting && admission === "initial")) {
+            void session
+                .send("Fetch.continueRequest", { requestId: id, interceptResponse: document })
+                .then(acknowledged, () => {
+                    acknowledged?.();
+                    markViolation();
+                });
+        } else {
+            if (pendingRejections.has(id)) return;
+            const first = !denying;
+            denying = true;
+            const active = activeResponses.get(id);
+            if (active?.rejected) return;
+            if (active) active.rejected = true;
+            if (!id || id.length > 256 || pendingRejections.size >= 118) return markViolation();
+            pendingRejections.add(id);
+            if (first) {
+                awaitingResponse.clear();
+                releaseLineage();
+            }
+            const settled = () => {
+                pendingRejections.delete(id);
+                markViolation();
+            };
+            void session
+                .send("Fetch.failRequest", { requestId: id, errorReason: "BlockedByClient" })
+                .then(settled, settled);
+        }
     }
 
     /**
-     * 命令失败也要让认证停止；同步路径不保留网络事件中的网址、认证请求体或原始浏览器错误文本。
+     * 主框架在填写前读取固定身份站不依赖业务文档归属；填写后同一目标直接拒绝，迟到的网络通知不能成为其他跳的准入证明。
+     */
+    function isIdpRead(origin: string, type: string, method: string) {
+        return owner(origin) === "IDP" && !!type && type !== "Document" && (method === "GET" || method === "HEAD");
+    }
+
+    function onNetwork(event: {
+        requestId: string;
+        loaderId: string;
+        timestamp?: number;
+        frameId?: string;
+        type?: string;
+        documentURL: string;
+        request: { url: string; method: string };
+        redirectResponse?: unknown;
+    }) {
+        if (business || failed || denying) return;
+        try {
+            const url = new URL(event.request.url);
+            if (!["http:", "https:"].includes(url.protocol)) return;
+            if (event.frameId !== mainFrameId || !event.type || !["GET", "HEAD", "POST"].includes(event.request.method))
+                return markViolation();
+            if (isIdpRead(url.origin, event.type, event.request.method)) {
+                if (!event.requestId || event.requestId.length > 256 || !event.loaderId || event.loaderId.length > 256)
+                    markViolation();
+                return;
+            }
+            lineage.network(event.requestId, {
+                loader: event.loaderId,
+                ...(event.timestamp === undefined ? {} : { time: event.timestamp }),
+                type: event.type,
+                method: event.request.method,
+                target: owner(url.origin),
+                owner: owner(new URL(event.documentURL).origin),
+                redirected: event.redirectResponse !== undefined,
+            });
+        } catch {
+            markViolation();
+        }
+    }
+
+    function onFrame({ frame }: { frame: { id: string; url: string; loaderId: string } }) {
+        if (frame.id === mainFrameId && URL.canParse(frame.url))
+            lineage.frame(frame.loaderId, owner(new URL(frame.url).origin));
+    }
+
+    /**
+     * 在当前暂停事件返回前完成敏感地址检查。稍后配对或等待文档履约时只持有协议标识和分类，响应正文始终由原有策略处理。
      */
     session.on("Fetch.requestPaused", (event: PausedRequest) => {
-        void (async () => {
+        const id = event.requestId;
+        try {
+            const document = event.resourceType === "Document";
+            const target = new URL(event.request.url);
             if (event.responseStatusCode !== undefined || event.responseErrorReason !== undefined) {
-                const target = new URL(event.request.url);
-                if (failed || event.resourceType !== "Document" || event.frameId !== mainFrameId)
-                    throw new Error("SSO_ORIGIN_NOT_ALLOWED");
-                await applySsoDocumentPolicy(session, event, appOrigins, target.origin === scope.idp, () => failed);
+                const expected = awaitingResponse.get(id);
+                awaitingResponse.delete(id);
+                if (
+                    failed ||
+                    denying ||
+                    !document ||
+                    event.frameId !== mainFrameId ||
+                    !expected ||
+                    expected.tag !== responseTag(event)
+                )
+                    return decide(id, false, document);
+                const ticket = { rejected: false };
+                activeResponses.set(id, ticket);
+                const status = event.responseStatusCode ?? 0;
+                const successfulDocument =
+                    !event.responseErrorReason && status >= 200 && status < 300 && status !== 204 && status !== 205;
+                if (!successfulDocument) lineage.response(id, false);
+                void applySsoDocumentPolicy(
+                    session,
+                    event,
+                    appOrigins,
+                    target.origin === scope.idp,
+                    () => failed || denying,
+                )
+                    .then(() => {
+                        if (activeResponses.get(id) !== ticket) return;
+                        activeResponses.delete(id);
+                        if (successfulDocument && !failed && !denying) lineage.response(id, true);
+                    })
+                    .catch(() => {
+                        markViolation();
+                        decide(id, false, document);
+                    })
+                    .finally(() => {
+                        if (activeResponses.get(id) === ticket) activeResponses.delete(id);
+                    });
                 return;
             }
-            // 只在确认目标和方法都属于当前阶段后放行请求，拒绝路径在 Chromium 的命令确认后推进失败信号。
-            if (authorized(event)) {
-                await session.send("Fetch.continueRequest", {
-                    requestId: event.requestId,
-                    interceptResponse: event.resourceType === "Document",
-                });
-                return;
-            }
-            await session.send("Fetch.failRequest", { requestId: event.requestId, errorReason: "BlockedByClient" });
-            markViolation();
-        })().catch(async () => {
-            markViolation();
-            // 文档已关闭或响应已结束时取消命令可能失败，先标记本轮违例，确保其余请求仍受本轮边界约束。
-            await session
-                .send("Fetch.failRequest", {
-                    requestId: event.requestId,
-                    errorReason: "BlockedByClient",
-                })
-                .catch(() => {});
-        });
+            if (lineage.isContinuing(id)) return markViolation();
+            if (!id || id.length > 256) return decide(id, false, document);
+            const admission = authorized(event);
+            const tag = document ? responseTag(event) : undefined;
+            if (typeof admission === "boolean")
+                return decide(
+                    id,
+                    admission,
+                    document,
+                    undefined,
+                    tag,
+                    undefined,
+                    business ? event.networkId : undefined,
+                );
+            if (event.frameId !== mainFrameId || !event.networkId) return decide(id, false, document);
+            lineage.paused(event.networkId, {
+                id,
+                admission,
+                ...(tag ? { responseTag: tag } : {}),
+                ...(event.redirectedRequestId === undefined ? {} : { parent: event.redirectedRequestId }),
+                type: event.resourceType,
+                method: event.request.method,
+                target: owner(target.origin),
+                redirected: event.redirectedRequestId !== undefined,
+            });
+        } catch {
+            decide(id, false, event.resourceType === "Document");
+        }
     });
 
     // Context 路由用于排除其它页面或无法归属的 HTTP 请求；CDP 在主页面逐跳验证而不依赖首次路由回调。
@@ -188,10 +385,11 @@ export async function guardSsoPage(
     // 即使弹窗或内嵌框架还未发出 HTTP 请求，也在观察到新目标时停止该尝试并禁止继续出站。
     context.on("page", markViolation);
     page.on("frameattached", markViolation);
-    session.on("Page.frameNavigated", ({ frame }: { frame: { id: string; url: string } }) => {
-        if (callback && frame.id === mainFrameId && URL.canParse(frame.url) && new URL(frame.url).origin === scope.app)
-            returned = true;
-    });
+    session.on("Page.frameNavigated", onFrame);
+    session.on("Network.requestWillBeSent", onNetwork);
+    session.on("Network.loadingFinished", onTerminal);
+    session.on("Network.loadingFailed", onLoadingFailed);
+    await session.send("Network.enable");
     await session.send("Page.enable");
     await session.send("Fetch.enable", { patterns: [{ urlPattern: "*", requestStage: "Request" }] });
     return {
@@ -222,8 +420,8 @@ export async function guardSsoPage(
         /**
          * 观察已提交的原生导航链进入配置里的业务回调，仅凭页面重载或匹配路由不能证明身份已建立。
          */
-        observedCallback() {
-            return returned;
+        observedDocument(kind: "landing" | "identity") {
+            return lineage.committed(kind);
         },
         /**
          * 同一浏览器的单次身份导航沿用 Chromium 的证书信任与 Cookie，固定地址的任何重定向均在发出前拒绝。
@@ -235,6 +433,17 @@ export async function guardSsoPage(
          * 身份成功后停用身份站点的出站权限，业务请求继续由同一边界检查但不再受登录方法限制。
          */
         authorizeBusiness() {
+            if (
+                failed ||
+                denying ||
+                awaitingResponse.size ||
+                activeResponses.size ||
+                !lineage.confirmed("identity") ||
+                !releaseLineage(true)
+            ) {
+                markViolation();
+                throw new Error("SSO_ORIGIN_NOT_ALLOWED");
+            }
             business = true;
             loginValues.clear();
             embeddedLoginValues.clear();
@@ -244,6 +453,8 @@ export async function guardSsoPage(
          */
         stop() {
             failed = true;
+            awaitingResponse.clear();
+            releaseLineage();
             loginValues.clear();
             embeddedLoginValues.clear();
         },

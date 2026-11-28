@@ -36,9 +36,7 @@ async def main():
     from veriq_server.bundles.issuer import Issuer
 
     issuer_path = evidence / "issuer.json"
-    issuer = (
-        Issuer(issuer_path) if issuer_path.exists() else Issuer.initialize(issuer_path)
-    )
+    issuer = Issuer(issuer_path) if issuer_path.exists() else Issuer.initialize(issuer_path)
     (evidence / "issuer-public.json").write_text(json.dumps(issuer.public()))
     inventory = evidence / "approved-inventory.json"
     resume = "--resume" in sys.argv
@@ -215,10 +213,7 @@ async def main():
                 )
                 return
             if self.request.path == "/me":
-                if (
-                    self.request.headers.get("Authorization")
-                    != "Bearer synthetic-desktop-secret"
-                ):
+                if self.request.headers.get("Authorization") != "Bearer synthetic-desktop-secret":
                     self.set_status(401)
                     self.finish({"error": "unauthorized"})
                     return
@@ -230,9 +225,7 @@ async def main():
                 finally:
                     business_waiting -= 1
                 self.set_header("Content-Type", "text/html")
-                self.finish(
-                    '<html><h1 veriq-id="ready">Desktop business ready</h1></html>'
-                )
+                self.finish('<html><h1 veriq-id="ready">Desktop business ready</h1></html>')
 
     business = HTTPServer(Application([(r"/.*", Business)]))
     business.listen(18891, "127.0.0.1")
@@ -266,6 +259,7 @@ async def main():
     try:
         await ended.wait()
     finally:
+        business_release.set()
         server.stop()
         business.stop()
         await server.close_all_connections()

@@ -12,20 +12,22 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { brotliCompressSync, gzipSync } from "node:zlib";
-import { chromium, type Browser, type BrowserServer, type Page } from "@playwright/test";
+import { chromium, type BrowserContext, type Browser, type BrowserServer, type Page } from "@playwright/test";
 import {
     canonicalBytes,
     type BrowserSsoAuthConfigV1,
     type BrowserSsoResultV1,
     type ExecutionSnapshotV1,
 } from "@veriq/contracts";
-import { afterAll, beforeAll, expect, test } from "vitest";
+import { afterAll, beforeAll, expect, onTestFailed, test } from "vitest";
 import { authenticateBusiness } from "../src/fixtures/auth.js";
+import { createSsoObservation } from "./sso-observation.js";
 
 let browser: Browser;
 let browserServer: BrowserServer;
 let appOrigin: string;
 let idpOrigin: string;
+let identityOrigin: string;
 let forbiddenOrigin: string;
 const servers: Server[] = [];
 let redirectStatus = 303;
@@ -35,6 +37,13 @@ let unrelatedRead = false;
 let callbackLoginMaterial: "plain" | "percent" | "base64" | undefined;
 let documentEncoding: "gzip" | "br" | undefined;
 let conflictingNativePolicy = false;
+let manyStyles = false;
+let parallelStyles = false;
+let stylesPending: Promise<void> | undefined;
+let callbackPage: "sync" | "microtask" | "timer" | "meta" | "api" | undefined;
+let redirectHops = 0;
+let releaseParser: (() => void) | undefined;
+let receivedSlow: (() => void) | undefined;
 const password = randomUUID();
 const received: Array<{ station: string; method: string; path: string }> = [];
 
@@ -72,7 +81,13 @@ function html(res: ServerResponse, body: string) {
 beforeAll(async () => {
     function appHandler(req: IncomingMessage, res: ServerResponse) {
         track("APP", req);
+        if (req.url === "/held-business") {
+            receivedSlow?.();
+            return;
+        }
         if (req.url === "/protected") {
+            releaseParser?.();
+            releaseParser = undefined;
             if (req.headers.cookie?.includes("business=1")) {
                 res.setHeader("set-cookie", ["documentA=1; HttpOnly; Path=/", "documentB=1; HttpOnly; Path=/"]);
                 res.setHeader("Content-Security-Policy", "script-src 'self'");
@@ -86,8 +101,33 @@ beforeAll(async () => {
             return res
                 .writeHead(200, { "content-type": "text/javascript" })
                 .end('document.querySelector("main").textContent = "Business page";');
+        if (req.url === "/parser.js") {
+            releaseParser = () => res.writeHead(200, { "content-type": "text/javascript" }).end("");
+            return;
+        }
+        if (req.url === "/api-landing") return html(res, "<main>API</main>");
+        if (req.url?.startsWith("/chain-")) {
+            const step = Number(req.url.slice("/chain-".length));
+            return redirect(res, step < redirectHops ? "/chain-" + (step + 1) : "/protected", 303);
+        }
+        if (req.url === "/callback-script.js") {
+            const target = callbackPage === "api" ? identityOrigin + "/api-landing" : "/protected";
+            const navigate = "location.replace(" + JSON.stringify(target) + ")";
+            let script = navigate;
+            if (callbackPage === "microtask") script = "Promise.resolve().then(()=>" + navigate + ")";
+            if (callbackPage === "timer") script = "setTimeout(()=>" + navigate + ",0)";
+            return res.writeHead(200, { "content-type": "text/javascript" }).end(script);
+        }
         if (req.url === "/callback" && req.method === "GET") {
             res.setHeader("set-cookie", "business=1; HttpOnly; SameSite=Lax; Path=/");
+            if (callbackPage === "meta") return html(res, '<meta http-equiv="refresh" content="0;url=/protected">');
+            if (callbackPage)
+                return html(
+                    res,
+                    '<script src="/callback-script.js"></script>' +
+                        (callbackPage === "timer" ? '<script src="/parser.js"></script>' : ""),
+                );
+            if (redirectHops) return redirect(res, "/chain-1", 303);
             return redirect(res, "/protected", 303);
         }
         if (req.url === "/me" && req.headers.cookie?.includes("business=1")) {
@@ -132,8 +172,13 @@ beforeAll(async () => {
         const keyBytes = readFileSync(key);
         const app = createTlsServer({ key: keyBytes, cert }, appHandler);
         appOrigin = "https://127.0.0.1:" + (await listen(app));
+        identityOrigin = "https://127.0.0.1:" + (await listen(createTlsServer({ key: keyBytes, cert }, appHandler)));
         const idp = createTlsServer({ key: keyBytes, cert }, async (req, res) => {
             track("IDP", req);
+            if (req.url?.startsWith("/style-")) {
+                await stylesPending;
+                return res.writeHead(200, { "content-type": "text/css" }).end("form{}");
+            }
             if (req.url === "/unrelated") return res.writeHead(204).end();
             if (req.method === "POST" && req.url === "/submit") {
                 let body = "";
@@ -153,7 +198,17 @@ beforeAll(async () => {
             }
             html(
                 res,
-                '<form method="post" action="/submit"><label>Account<input name="user"></label>' +
+                (parallelStyles
+                    ? Array.from({ length: 100 }, (_, i) => `<link rel="stylesheet" href="/style-${i}.css">`).join("")
+                    : "") +
+                    (manyStyles
+                        ? Array.from(
+                              { length: 55 },
+                              (_, i) =>
+                                  `<script>document.write('<link rel="stylesheet" href="/style-${i}.css">')</script>`,
+                          ).join("")
+                        : "") +
+                    '<form method="post" action="/submit"><label>Account<input name="user"></label>' +
                     '<label>Password<input name="password" type="password"></label>' +
                     (unrelatedRead ? "<button disabled>Sign in</button>" : "<button>Sign in</button>") +
                     "</form>" +
@@ -190,15 +245,24 @@ async function attempt({
     identities = ["tester"],
     loginPassword = password,
     stages,
+    observation,
     afterLogin,
+    configureContext,
+    apiOrigin = appOrigin,
 }: {
+    configureContext?: (context: BrowserContext) => void;
+    apiOrigin?: string;
     identities?: string[];
     loginPassword?: string;
     stages?: BrowserSsoResultV1["stage"][];
+    observation?: ReturnType<typeof createSsoObservation>;
     afterLogin?: (page: Page) => Promise<void>;
 } = {}) {
     const browserContext = await browser.newContext({ serviceWorkers: "block", acceptDownloads: false });
     try {
+        configureContext?.(browserContext);
+        observation?.attach(browserContext);
+        observation?.stage("START");
         const page = await browserContext.newPage();
         const adapterId = randomUUID(),
             workspaceId = randomUUID(),
@@ -248,8 +312,8 @@ async function attempt({
             environment: {
                 schemaVersion: "1.0",
                 baseURL: appOrigin,
-                apiBaseURL: appOrigin,
-                allowedOrigins: [appOrigin, idpOrigin],
+                apiBaseURL: apiOrigin,
+                allowedOrigins: [appOrigin, idpOrigin, ...(apiOrigin === appOrigin ? [] : [apiOrigin])],
                 locale: "en-US",
                 timezone: "UTC",
                 roles: [role],
@@ -259,14 +323,25 @@ async function attempt({
             page,
             execution,
             signal: AbortSignal.timeout(6000),
-            credentials: { resolve: async () => ({ username: "tester", password: loginPassword }) },
-            onSsoStage: (stage) => stages?.push(stage),
+            credentials: {
+                resolve: async () => {
+                    observation?.stage("SUBMISSION_PREPARED");
+                    return { username: "tester", password: loginPassword };
+                },
+            },
+            onSsoStage(stage) {
+                stages?.push(stage);
+                observation?.stage(stage);
+            },
+            ...(observation ? { onSsoOriginDenied: observation.denied } : {}),
         });
+        observation?.stage("AUTHENTICATED");
         await expect(page.locator("main").textContent()).resolves.toBe("Business page");
         await afterLogin?.(page);
         await auth.dispose();
         return auth.identityId;
     } finally {
+        observation?.dispose();
         await browserContext.close();
     }
 }
@@ -383,10 +458,15 @@ test.each(["gzip", "br"] as const)(
     async (encoding) => {
         redirectStatus = 303;
         denyEntry = false;
+        const observation = createSsoObservation(appOrigin, idpOrigin);
+        onTestFailed(() => {
+            console.error(observation.report());
+        });
         documentEncoding = encoding;
         try {
             await expect(
                 attempt({
+                    observation,
                     async afterLogin(page) {
                         const cookies = await page.context().cookies(appOrigin);
                         expect(
@@ -482,5 +562,216 @@ test.each(["stun", "quic"] as const)("keeps native %s packets off the network af
         });
     } finally {
         await new Promise<void>((resolve) => socket.close(resolve));
+    }
+});
+
+test("loads the gzip landing script before the guard receives the committed frame notification", async () => {
+    documentEncoding = "gzip";
+    redirectStatus = 303;
+    denyEntry = false;
+    let decided = false;
+    let delivered = false;
+    try {
+        await attempt({
+            configureContext(context) {
+                const connect = context.newCDPSession.bind(context);
+                context.newCDPSession = async (page) => {
+                    const session = await connect(page);
+                    const emitter = session as unknown as { emit(name: string, ...args: unknown[]): boolean };
+                    const emit = emitter.emit.bind(session);
+                    const send = session.send.bind(session);
+                    let release: (() => void) | undefined;
+                    let script: string | undefined;
+                    session.on("Fetch.requestPaused", (event) => {
+                        if (!decided && event.request.url === appOrigin + "/demo.js") script = event.requestId;
+                    });
+                    emitter.emit = (name, ...args) => {
+                        const frame = (args[0] as { frame?: { url: string } })?.frame;
+                        if (name !== "Page.frameNavigated" || delivered || frame?.url !== appOrigin + "/protected")
+                            return emit(name, ...args);
+                        const notify = () => {
+                            delivered = true;
+                            emit(name, ...args);
+                        };
+                        if (decided) notify();
+                        else release = notify;
+                        return true;
+                    };
+                    session.send = (method, params) => {
+                        const result = send(method, params);
+                        if (
+                            (method === "Fetch.continueRequest" || method === "Fetch.failRequest") &&
+                            script &&
+                            (params as { requestId?: string })?.requestId === script
+                        ) {
+                            decided = true;
+                            release?.();
+                            release = undefined;
+                        }
+                        return result;
+                    };
+                    return session;
+                };
+            },
+        });
+        expect(decided && delivered).toBe(true);
+    } finally {
+        documentEncoding = undefined;
+    }
+});
+
+test("verifies the configured identity document on a separate authorized API origin", async () => {
+    redirectStatus = 303;
+    denyEntry = false;
+    await expect(attempt({ apiOrigin: identityOrigin })).resolves.toBe("tester");
+});
+
+test("completes authentication after 55 sequential same-origin login stylesheets", async () => {
+    received.length = 0;
+    manyStyles = true;
+    redirectStatus = 303;
+    denyEntry = false;
+    try {
+        await expect(attempt()).resolves.toBe("tester");
+        const submit = received.findIndex((r) => r.path === "/submit");
+        expect(
+            received.slice(0, submit).filter((r) => r.station === "IDP" && r.path.startsWith("/style-")),
+        ).toHaveLength(55);
+    } finally {
+        manyStyles = false;
+    }
+});
+
+test.each(["sync", "microtask", "timer"] as const)(
+    "accepts the committed callback document navigating via %s",
+    async (mode) => {
+        received.length = 0;
+        callbackPage = mode;
+        redirectStatus = 303;
+        denyEntry = false;
+        try {
+            await expect(attempt()).resolves.toBe("tester");
+            const paths = received.filter((r) => r.station === "APP").map((r) => r.path);
+            const script = paths.indexOf("/callback-script.js");
+            const landing = paths.indexOf("/protected", script + 1);
+            expect(script).toBeGreaterThan(paths.indexOf("/callback"));
+            expect(landing).toBeGreaterThan(script);
+            expect(paths.indexOf("/me")).toBeGreaterThan(landing);
+        } finally {
+            callbackPage = undefined;
+            releaseParser?.();
+            releaseParser = undefined;
+        }
+    },
+);
+
+test("completes authentication with 100 independent login stylesheets discovered together", async () => {
+    received.length = 0;
+    parallelStyles = true;
+    redirectStatus = 303;
+    denyEntry = false;
+    let release!: () => void;
+    stylesPending = new Promise<void>((resolve) => {
+        release = resolve;
+    });
+    const seen = new Set<string>();
+    const observation = createSsoObservation(appOrigin, idpOrigin);
+    onTestFailed(() => {
+        console.error(observation.report());
+    });
+    try {
+        await expect(
+            attempt({
+                observation,
+                configureContext(context) {
+                    const connect = context.newCDPSession.bind(context);
+                    context.newCDPSession = async (target) => {
+                        const session = await connect(target);
+                        session.on("Network.requestWillBeSent", (event) => {
+                            if (
+                                event.type === "Stylesheet" &&
+                                new URL(event.request.url).pathname.startsWith("/style-")
+                            )
+                                seen.add(event.requestId);
+                            if (seen.size === 100) release();
+                        });
+                        await session.send("Network.enable");
+                        return session;
+                    };
+                },
+            }),
+        ).resolves.toBe("tester");
+        expect(seen.size).toBe(100);
+        const submit = received.findIndex((r) => r.path === "/submit");
+        expect(
+            received.slice(0, submit).filter((r) => r.station === "IDP" && r.path.startsWith("/style-")),
+        ).toHaveLength(100);
+    } finally {
+        release();
+        stylesPending = undefined;
+        parallelStyles = false;
+    }
+});
+
+test.each([13, 14])("retains the sixteen-document redirect ceiling with %i extra redirects", async (hops) => {
+    redirectHops = hops;
+    redirectStatus = 303;
+    denyEntry = false;
+    try {
+        if (hops === 13) await expect(attempt()).resolves.toBe("tester");
+        else await expect(attempt()).rejects.toThrow("SSO_ORIGIN_NOT_ALLOWED");
+    } finally {
+        redirectHops = 0;
+    }
+});
+
+test("retains callback-page refresh and the final application-origin requirement", async () => {
+    redirectStatus = 303;
+    denyEntry = false;
+    try {
+        callbackPage = "meta";
+        const observation = createSsoObservation(appOrigin, idpOrigin);
+        onTestFailed(() => {
+            console.error(observation.report());
+        });
+        await expect(attempt({ observation })).resolves.toBe("tester");
+        callbackPage = "api";
+        received.length = 0;
+        await expect(attempt({ apiOrigin: identityOrigin })).rejects.toThrow();
+        expect(received.some((r) => r.path === "/api-landing")).toBe(true);
+        expect(received.some((r) => r.path === "/me")).toBe(false);
+    } finally {
+        callbackPage = undefined;
+    }
+});
+
+test("continues a business session after repeated superseded top-level read navigations", async () => {
+    redirectStatus = 303;
+    denyEntry = false;
+    try {
+        await attempt({
+            async afterLogin(page) {
+                for (let n = 0; n < 10; n++) {
+                    const arrived = new Promise<void>((resolve) => {
+                        receivedSlow = resolve;
+                    });
+                    const reading = page.goto(appOrigin + "/held-business").then(
+                        () => true,
+                        () => false,
+                    );
+                    await Promise.race([
+                        arrived,
+                        reading.then(() => {
+                            throw new Error("BUSINESS_REQUEST_DID_NOT_REACH_FIXTURE");
+                        }),
+                    ]);
+                    const fresh = await page.goto(appOrigin + "/protected", { waitUntil: "domcontentloaded" });
+                    expect(fresh?.ok()).toBe(true);
+                    await expect(reading).resolves.toBe(false);
+                }
+            },
+        });
+    } finally {
+        receivedSlow = undefined;
     }
 });
