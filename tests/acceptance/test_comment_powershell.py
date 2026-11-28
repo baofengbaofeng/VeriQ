@@ -2,6 +2,7 @@
 
 import importlib
 import hashlib
+from collections.abc import Callable
 import json
 import subprocess
 from pathlib import Path
@@ -363,7 +364,7 @@ def test_powershell_inherited_output_child_cannot_extend_deadline(
     )
     runtime = adapter.runtime_path()
     control = [sys.executable, str(parent), str(child), str(child_pid)]
-    original = adapter.run_parser
+    original: Callable[[list[str], Path, float, int], bytes] = adapter.run_parser
 
     def controlled(_arguments: list[str], directory: Path, timeout: float, limit: int) -> bytes:
         """只替换启动命令为快速受控父子进程，正式进程管理与完整回包校验均保持真实，避免冷启动抖动掩盖生命周期缺陷。"""
