@@ -9,7 +9,7 @@ import { closeTestDesktop } from "./desktop-close";
 import { selectDesktopWorkspace } from "./desktop-workspace";
 import { testEngine } from "./engine";
 import { observeHeadedRun, assertHeadedStopped } from "./headed";
-import { terminateRenderer } from "./renderer-fault";
+import { terminateRenderer, reconnectRenderer } from "./renderer-fault";
 import type { RecordingEvent } from "../../apps/desktop/src/shared/recording";
 let engine: Awaited<ReturnType<typeof testEngine>>;
 test.beforeAll(async () => {
@@ -765,6 +765,7 @@ test("connected reports and runs survive UI recovery and preserve stop evidence"
     const release = () => request.post("http://127.0.0.1:18891/__release");
     const failures: unknown[] = [];
     let diagnose: (() => Promise<void>) | undefined;
+    let rendererDriver: Awaited<ReturnType<typeof reconnectRenderer>> | undefined;
     try {
         await expect
             .poll(async () =>
@@ -980,7 +981,10 @@ test("connected reports and runs survive UI recovery and preserve stop evidence"
         // 故障恢复、退出、取消和有头取证各用独立 Run，释放业务响应后才做后续登录，避免耗尽同一次导航的十秒预算。
         const crashed = await queuedRun("renderer-crash");
         expect((await report(crashed.id)).run.state).toBe("RUNNING");
-        await terminateRenderer(electron, root, evidence);
+        const recovered = await terminateRenderer(electron, root, evidence);
+        rendererDriver = await reconnectRenderer(electron, profile, recovered, evidence);
+        page = rendererDriver.page;
+        trackedRun!.target = page;
         await expect.poll(async () => (await page.evaluate(() => window.veriq.state())).agent?.pid).toBe(agentPid);
         await release();
         await signIn();
@@ -990,6 +994,8 @@ test("connected reports and runs survive UI recovery and preserve stop evidence"
         await checkpoint("renderer-crash:stopped");
         const quitting = await queuedRun("ui-quit");
         expect((await report(quitting.id)).run.state).toBe("RUNNING");
+        await rendererDriver.disconnect();
+        rendererDriver = undefined;
         await closeTestDesktop(electron, "quit");
         electron = undefined;
         await release();
@@ -1168,6 +1174,11 @@ test("connected reports and runs survive UI recovery and preserve stop evidence"
             console.error("Connected recovery checkpoint failed:", diagnosticError);
         }
     } finally {
+        try {
+            if (rendererDriver) await rendererDriver.disconnect();
+        } catch (error) {
+            failures.push(error);
+        }
         try {
             await release();
         } catch (error) {
