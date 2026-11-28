@@ -675,9 +675,14 @@ test("completes authentication with 100 independent login stylesheets discovered
         release = resolve;
     });
     const seen = new Set<string>();
+    const observation = createSsoObservation(appOrigin, idpOrigin);
+    onTestFailed(() => {
+        console.error(observation.report());
+    });
     try {
         await expect(
             attempt({
+                observation,
                 configureContext(context) {
                     const connect = context.newCDPSession.bind(context);
                     context.newCDPSession = async (target) => {
