@@ -47,6 +47,11 @@ import type { CloudOperation } from "../shared/operations.generated";
 import type { DesktopState } from "../shared/bridge";
 import { privateDirectory, readPrivate, updatePrivate } from "../../../runtime/src/offline/config.ts";
 
+declare const __VERIQ_SOURCE_WORKBENCH__: boolean;
+const sourceWorkbench = __VERIQ_SOURCE_WORKBENCH__;
+const sourceOrigin = "http://127.0.0.1:5173";
+if (sourceWorkbench && app.isPackaged) throw new Error("SOURCE_WORKBENCH_REQUIRES_UNPACKAGED_APP");
+
 const logger = getLogger("desktop.main");
 installDiagnosticConsole("desktop.main.console");
 
@@ -93,9 +98,12 @@ function watchRecording(id: string, expiresAt: number): void {
     }
     check();
 }
-app.setName("VeriQ");
-const profile = process.env.VERIQ_DESKTOP_PROFILE ?? join(app.getPath("userData"), "profile");
-if (process.env.VERIQ_DESKTOP_PROFILE) app.setPath("userData", join(profile, "electron"));
+app.setName(sourceWorkbench ? "VeriQ Source Workbench" : "VeriQ");
+if (sourceWorkbench) app.setPath("userData", join(app.getPath("appData"), "VeriQ Source Workbench"));
+const profile = sourceWorkbench
+    ? app.getPath("userData")
+    : (process.env.VERIQ_DESKTOP_PROFILE ?? join(app.getPath("userData"), "profile"));
+if (!sourceWorkbench && process.env.VERIQ_DESKTOP_PROFILE) app.setPath("userData", join(profile, "electron"));
 process.title = "veriq";
 protocol.registerSchemesAsPrivileged([
     { scheme: "veriq", privileges: { standard: true, secure: true, supportFetchAPI: true } },
@@ -108,9 +116,9 @@ let release: DesktopRelease | undefined;
 let closeHintShown = false;
 let updatePreparing = false;
 let host: HostSession;
-let origin = "http://127.0.0.1:8888";
+let origin = sourceWorkbench ? sourceOrigin : "http://127.0.0.1:8888";
 let proxy = "";
-const client = new DesktopAgentClient(profile);
+const client = new DesktopAgentClient(profile, !sourceWorkbench);
 const node24 =
     process.env.VERIQ_DESKTOP_NODE ??
     join(process.resourcesPath, "node", process.platform === "win32" ? "node.exe" : "bin/node");
@@ -285,17 +293,20 @@ async function ensureAgent(): Promise<void> {
 async function state(): Promise<DesktopState> {
     let agent: DesktopState["agent"];
     let agentIssue: string | undefined;
-    try {
-        agent = (await client.call({ operation: "status" })) as DesktopState["agent"];
-    } catch (error) {
-        agent = undefined;
-        agentIssue =
-            error instanceof Error && /^[A-Z][A-Z0-9_]{1,100}$/.test(error.message)
-                ? error.message
-                : "AGENT_UNAVAILABLE";
+    if (!sourceWorkbench) {
+        try {
+            agent = (await client.call({ operation: "status" })) as DesktopState["agent"];
+        } catch (error) {
+            agent = undefined;
+            agentIssue =
+                error instanceof Error && /^[A-Z][A-Z0-9_]{1,100}$/.test(error.message)
+                    ? error.message
+                    : "AGENT_UNAVAILABLE";
+        }
     }
     return {
         origin,
+        ...(sourceWorkbench ? { sourceWorkbench: true } : {}),
         ...(agentIssue ? { agentIssue } : {}),
         ...(host.user ? { user: host.user } : {}),
         ...(host.workspace ? { workspace: host.workspace } : {}),
@@ -371,6 +382,11 @@ async function confirm(message: string) {
  * before-quit 绕过原生确认，也不把 UI 退出当成进程停止证明。
  */
 async function quitUI(): Promise<void> {
+    if (sourceWorkbench) {
+        quitting = true;
+        app.quit();
+        return;
+    }
     const current = await state();
     const busy = !!(current.agent?.active || current.agent?.preparing || current.agent?.online);
     if (
@@ -389,6 +405,7 @@ async function quitUI(): Promise<void> {
  * ，后续更新仍必须再次取得不含隔离占用的持久维护边界。
  */
 async function stopAgent(): Promise<void> {
+    if (sourceWorkbench) throw new Error("INSTALLED_RUNTIME_REQUIRED");
     if (await confirm("停止后台会取消正在执行的测试。 / Stop Agent and cancel active work?")) {
         const result = object(await client.call({ operation: "stop" }));
         if (result.stopped !== true) throw new Error("AGENT_STOP_UNCONFIRMED");
@@ -461,6 +478,7 @@ async function prepareUpdate(): Promise<void> {
  * 正在准备执行的取消使用独立 startupId，真实 Run 取消仍使用 RunID。
  */
 async function local(input: unknown) {
+    if (sourceWorkbench) throw new Error("INSTALLED_RUNTIME_REQUIRED");
     const command = object(input);
     const allowed = [
         "status",
@@ -554,6 +572,7 @@ async function local(input: unknown) {
  * 当前原始证据大小上限由 Runtime 和 HostSession 保持，窗口不提供无界文件浏览。
  */
 async function artifact(input: unknown) {
+    if (sourceWorkbench) throw new Error("INSTALLED_RUNTIME_REQUIRED");
     const value = object(input, ["local", "runId", "attemptId", "artifactId", "action"]);
     if (
         typeof value.local !== "boolean" ||
@@ -662,6 +681,7 @@ function installBridge() {
         switch (operation) {
             case "recordingOpen":
                 return openRecording(input, window);
+            case "recordingAnnotationAction":
             case "recordingMode":
             case "recordingBounds":
             case "recordingNavigate":
@@ -669,6 +689,7 @@ function installBridge() {
                 const scope = recordingScope();
                 if (!scope) throw new Error("RECORDING_SCOPE_REQUIRED");
                 const fields = {
+                    recordingAnnotationAction: ["sessionId", "targetId", "action"],
                     recordingMode: ["sessionId", "mode"],
                     recordingBounds: ["sessionId", "bounds"],
                     recordingNavigate: ["sessionId", "target"],
@@ -681,6 +702,8 @@ function installBridge() {
                         throw new Error("IPC_PAYLOAD_INVALID");
                     return recording.mode(scope, id, value.mode);
                 }
+                if (operation === "recordingAnnotationAction")
+                    return recording.annotationAction(scope, id, recordingId(value.targetId), value.action);
                 if (operation === "recordingBounds") return recording.bounds(scope, id, recordingBounds(value.bounds));
                 if (operation === "recordingNavigate") {
                     if (typeof value.target !== "string") throw new Error("IPC_PAYLOAD_INVALID");
@@ -696,6 +719,10 @@ function installBridge() {
                 if (typeof value.origin !== "string" || typeof value.proxy !== "string")
                     throw new Error("IPC_PAYLOAD_INVALID");
                 const next = controlOrigin(value.origin);
+                if (sourceWorkbench) {
+                    if (next !== sourceOrigin || value.proxy) throw new Error("SOURCE_WORKBENCH_LOCAL_ONLY");
+                    return;
+                }
                 if (value.proxy && !/^https?:\/\/[a-z0-9.:[\]-]+:\d{1,5}$/i.test(value.proxy))
                     throw new Error("PROXY_INVALID");
                 try {
@@ -733,6 +760,7 @@ function installBridge() {
                 const value = object(input, ["workspaceId"]);
                 if (typeof value.workspaceId !== "string") throw new Error("IPC_PAYLOAD_INVALID");
                 const selected = await host.select(value.workspaceId);
+                if (sourceWorkbench) return selected;
                 await updatePrivate(profile, "desktop-workspaces.json", (old: Record<string, unknown> | undefined) => ({
                     ...old,
                     [selected.id]: selected,
@@ -796,6 +824,41 @@ function installBridge() {
     );
 }
 
+/** Verify the installed host and its protected cookie store before opening the persistent partition. */
+async function preparePersistentSession(hostIdentity: Awaited<ReturnType<typeof verifyDesktopHost>>) {
+    await privateDirectory(profile);
+    try {
+        const config = await readPrivate<{ origin: string; proxy: string }>(profile, "desktop-settings.json");
+        origin = controlOrigin(config.origin);
+        proxy = config.proxy;
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+    const cookieProtection = await requireCookieProtection(safeStorage, process.platform, undefined, hostIdentity);
+    logger.notice("desktop.cookie_protection_verified", {
+        provider: cookieProtection.provider,
+        platform: cookieProtection.platform,
+        backend: cookieProtection.backend,
+        encrypted: cookieProtection.encrypted,
+    });
+    await prepareCookieStorage(profile, app.getPath("sessionData"), async () => {
+        const result = await dialog.showMessageBox({
+            type: "warning",
+            title: "VeriQ",
+            message: "删除旧登录 Cookie 并重新登录？ / Remove legacy login cookies and sign in again?",
+            detail:
+                "旧 Cookie 数据库及其日志可能以明文保存。仅删除 VeriQ 的这些文件；不会删除设" +
+                "备身份或业务凭据，也不保证介质擦除。 / Only VeriQ login cookie files" +
+                " are removed; device and business credentials remain. This does not guarantee physical erasure.",
+            buttons: ["取消 / Cancel", "删除并重新登录 / Remove and sign in again"],
+            defaultId: 0,
+            cancelId: 0,
+            noLink: true,
+        });
+        return result.response === 1;
+    });
+}
+
 /**
  * 应用准备完成后按私有配置、独立 Session、本地协议和主窗口的顺序建立桌面环境，首窗加载与控制平台恢复相互独立；离线或后
  * 台不可用不应让随包工作台消失，也不能因此放宽网络和沙箱设置。
@@ -850,39 +913,11 @@ async function main() {
         const { bindWindowsDistribution } = await import("../../../runtime/src/native/windows.ts");
         bindWindowsDistribution(installed);
     }
-    await privateDirectory(profile);
-    try {
-        const config = await readPrivate<{ origin: string; proxy: string }>(profile, "desktop-settings.json");
-        origin = controlOrigin(config.origin);
-        proxy = config.proxy;
-    } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-    }
-    const cookieProtection = await requireCookieProtection(safeStorage, process.platform, undefined, hostIdentity);
-    logger.notice("desktop.cookie_protection_verified", {
-        provider: cookieProtection.provider,
-        platform: cookieProtection.platform,
-        backend: cookieProtection.backend,
-        encrypted: cookieProtection.encrypted,
-    });
-    await prepareCookieStorage(profile, app.getPath("sessionData"), async () => {
-        const result = await dialog.showMessageBox({
-            type: "warning",
-            title: "VeriQ",
-            message: "删除旧登录 Cookie 并重新登录？ / Remove legacy login cookies and sign in again?",
-            detail:
-                "旧 Cookie 数据库及其日志可能以明文保存。仅删除 VeriQ 的这些文件；不会删除设" +
-                "备身份或业务凭据，也不保证介质擦除。 / Only VeriQ login cookie files" +
-                " are removed; device and business credentials remain. This does not guarantee physical erasure.",
-            buttons: ["取消 / Cancel", "删除并重新登录 / Remove and sign in again"],
-            defaultId: 0,
-            cancelId: 0,
-            noLink: true,
-        });
-        return result.response === 1;
-    });
-    const auth = session.fromPartition("persist:veriq-host");
-    await auth.setProxy(proxy ? { proxyRules: proxy } : { mode: "system" });
+    if (!sourceWorkbench) await preparePersistentSession(hostIdentity);
+    const auth = sourceWorkbench
+        ? session.fromPartition("veriq-source-host", { cache: false })
+        : session.fromPartition("persist:veriq-host");
+    await auth.setProxy(sourceWorkbench ? { mode: "direct" } : proxy ? { proxyRules: proxy } : { mode: "system" });
     host = new HostSession(auth, origin, closeRecording);
     const renderer = session.fromPartition("veriq-renderer");
     renderer.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
@@ -935,6 +970,11 @@ async function main() {
         void window?.loadURL("veriq://app/index.html");
     });
     window.on("close", (event) => {
+        if (sourceWorkbench && !quitting) {
+            quitting = true;
+            app.quit();
+            return;
+        }
         if (!quitting) {
             event.preventDefault();
             if (!closeHintShown) {
@@ -988,6 +1028,7 @@ async function main() {
     try {
         await host.restore();
     } catch {}
+    if (sourceWorkbench) return;
     try {
         await ensureAgent();
     } catch (error) {

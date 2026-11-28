@@ -238,5 +238,6 @@ __marimo__/
 
 /apps/web/dist-desktop/
 /apps/desktop/out/
+/apps/desktop/out-source/
 
 /apps/desktop/build/

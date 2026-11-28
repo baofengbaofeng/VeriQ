@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createServer } from "node:net";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { DesktopAgentClient } from "../src/agent/client.ts";
 import { updatePrivate } from "../../runtime/src/offline/config.ts";
@@ -11,7 +11,7 @@ import { updatePrivate } from "../../runtime/src/offline/config.ts";
  * ，避免页面状态调用永久挂起且不以长超时掩盖断连。
  */
 test("agent client rejects a connection closed without response", { timeout: 1500 }, async () => {
-    const root = await mkdtemp("/tmp/veriq-t19-client-");
+    const root = await realpath(await mkdtemp("/tmp/veriq-t19-client-"));
     const path = join(root, "desktop-agent.sock");
     const server = createServer((socket) => socket.once("data", () => socket.destroy()));
     await new Promise<void>((resolve) => server.listen(path, resolve));
@@ -25,4 +25,9 @@ test("agent client rejects a connection closed without response", { timeout: 150
         await new Promise<void>((resolve) => server.close(() => resolve()));
         await rm(root, { recursive: true, force: true });
     }
+});
+
+test("the source workbench reports installed-only operations before reading a runtime profile", async () => {
+    const client = new DesktopAgentClient("/unused-source-workbench-profile", false);
+    await assert.rejects(client.call({ operation: "status" }), /INSTALLED_RUNTIME_REQUIRED/);
 });

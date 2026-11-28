@@ -23,13 +23,17 @@ export class DesktopAgentClient {
      * 客户端只保存主进程已选定的私有档案根，实际 socket 与 nonce 在每次调用时重新读取；重新打开 GUI 可以连接原后台，而
      * renderer 不会得到可自行复用的认证描述。
      */
-    constructor(readonly root: string) {}
+    constructor(
+        readonly root: string,
+        private readonly available = true,
+    ) {}
 
     /**
      * 每次调用单独建立有界连接并读取一条完整响应，超时、错误或未知格式立即销毁连接；不开放监听 TCP 端口，也不允许调用
      * 者传入 socket 路径或认证 nonce。
      */
     async call(input: unknown): Promise<unknown> {
+        if (!this.available) throw new Error("INSTALLED_RUNTIME_REQUIRED");
         const descriptor = await readPrivate<{ socket: string; nonce: string }>(this.root, "desktop-agent.json");
         if (descriptor.socket !== join(this.root, "desktop-agent.sock") || !/^[0-9a-f]{64}$/.test(descriptor.nonce))
             throw new Error("AGENT_DESCRIPTOR_INVALID");

@@ -45,6 +45,7 @@
     "license": "AGPL-3.0-only",
     "main": "out/main/index.js",
     "scripts": {
+        "dev": "pnpm --filter @veriq/web build:desktop && electron-vite build --mode source-workbench && electron ./out-source/main/index.js",
         "build": "pnpm --filter @veriq/web build:desktop && node scripts/prepare-launcher.mjs && electron-vite build && node scripts/stage-runtime.mjs",
         "check": "pnpm --filter @veriq/web build:desktop:types && tsc -p tsconfig.host.json && tsc -p tsconfig.renderer.json && tsc -p tsconfig.packaging.json",
         "test:unit": "node --import tsx --test tests/*.test.ts",

@@ -3,8 +3,10 @@
  * 不继承旧 Web 的类型兼容选项。
  */
 export { installBrowserDiagnostics } from "./browser-logging";
+export { useOperationFeedback } from "./operation-feedback";
 export { ApiError, installHostTransport, scopeAgentFormSignal, type HostTransport, type Workspace } from "./api";
 export { canonicalBytes } from "@veriq/contracts";
+export { WorkspaceIdentityManager } from "./features/environments/IdentityManager";
 export { ResourceWorkspaceView } from "./features/resources/ResourcePage";
 export {
     CloudResourceAdapter,
@@ -34,7 +36,7 @@ export { AiWorkspaceView } from "./features/ai/AiPage";
 export { CloudAiAdapter } from "./features/ai/adapters";
 export { editorI18n } from "./features/resources/i18n";
 export { aiI18n } from "./features/ai/i18n";
-export { canExportWorkspaceTable } from "./table-view";
+export { canExportWorkspaceTable, DataTable, useTableView } from "./table-view";
 import "./style.css";
 import "./menu-focus";
 

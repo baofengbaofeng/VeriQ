@@ -1,6 +1,6 @@
 import type { PlatformComponents } from "@veriq/contracts";
 import type { CredentialIssue } from "./credential-status";
-import type { RecordingBounds, RecordingEvent, RecordingMode, RecordingOpen } from "./recording";
+import type { AnnotationAction, RecordingBounds, RecordingEvent, RecordingMode, RecordingOpen } from "./recording";
 import type { CloudOperation } from "./operations.generated";
 type S = PlatformComponents["schemas"];
 
@@ -9,6 +9,7 @@ type S = PlatformComponents["schemas"];
  * 主确认，而不是以客户端角色字段授权。
  */
 export interface DesktopState {
+    sourceWorkbench?: true;
     origin: string;
     user?: { user: S["UserDTO"]; expiresAt: string };
     workspace?: S["WorkspaceDTO"];
@@ -121,6 +122,7 @@ export interface DesktopBridge {
     /** 录制仅以工作区内已发布环境为网络授权，目标页面与可信编辑工作区通过独立进程和临时会话隔离。 */
     recordingOpen(input: RecordingOpen): Promise<{ sessionId: string }>;
     recordingMode(sessionId: string, mode: RecordingMode): Promise<{ path?: string }>;
+    recordingAnnotationAction(sessionId: string, targetId: string, action: AnnotationAction): Promise<void>;
     recordingBounds(sessionId: string, bounds: RecordingBounds | null): Promise<void>;
     recordingNavigate(sessionId: string, target: string): Promise<void>;
     recordingClose(sessionId: string): Promise<void>;

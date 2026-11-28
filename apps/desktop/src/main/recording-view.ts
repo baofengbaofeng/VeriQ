@@ -27,10 +27,10 @@ type ActiveRecording = {
     lastClick: number | undefined;
 };
 
-/** 执行器的 goto 相对于环境基准来源。其它批准来源及包含查询或片段的地址仍可访问，但不自动转成重放步骤。 */
+/** 已批准的跨源页面可显示地址，goto 步骤始终相对于环境基准来源。 */
 function replayPath(url: URL, baseOrigin: string): string | undefined {
-    if (url.origin !== baseOrigin || url.search || url.hash || url.pathname.length > 180) return;
-    if (/^\/(?:[a-z][a-z0-9_-]{0,23}\/?)*$/i.test(url.pathname)) return url.pathname;
+    if (url.origin !== baseOrigin || url.pathname.startsWith("//")) return;
+    return url.href.slice(url.origin.length).replaceAll("{", "%7B").replaceAll("}", "%7D");
 }
 
 function sameScope(left: RecordingScope, right: RecordingScope): boolean {
@@ -66,6 +66,7 @@ export class RecordingView {
         });
         const contents = view.webContents;
         const lifecycle = new RecordingSession(contents.id);
+        lifecycle.setMode("annotate");
         const current: ActiveRecording = {
             owner,
             view,
@@ -148,10 +149,10 @@ export class RecordingView {
             this.position(current);
             const navigationCause = cause ?? takeCause();
             cause = undefined;
+            send(lifecycle.location(finished.href));
             if (!report) return;
             const path = current.replayPath(finished);
             if (path) send(lifecycle.navigated(path, navigationCause));
-            else notice("PATH_REDACTED");
         };
         contents.on("did-finish-load", () => ready(contents.getURL()));
         contents.on("did-stop-loading", () => {
@@ -183,8 +184,10 @@ export class RecordingView {
             mode === "record" && active.lifecycle.arm
                 ? active.replayPath(new URL(active.view.webContents.getURL()))
                 : undefined;
-        active.lifecycle.setMode(mode);
-        if (active.lifecycle.arm) this.arm(active);
+        if (active.lifecycle.arm?.mode !== mode) {
+            active.lifecycle.setMode(mode);
+            if (active.lifecycle.arm) this.arm(active);
+        }
         return pathname ? { path: pathname } : {};
     }
 
@@ -205,6 +208,11 @@ export class RecordingView {
         const y = Math.min(bounds.y, height);
         const targetWidth = Math.min(bounds.width, width - x);
         const targetHeight = Math.min(bounds.height, height - y);
+        if (targetWidth > 0) {
+            // 给窄面板中的桌面站点保留约 1000 个 CSS 像素；缩放仅作用于独立录制会话。
+            const zoom = Math.min(1, Math.max(0.25, targetWidth / 1000));
+            if (Math.abs(view.webContents.getZoomFactor() - zoom) > 0.001) view.webContents.setZoomFactor(zoom);
+        }
         view.setBounds({ x, y, width: targetWidth, height: targetHeight });
         view.setVisible(targetWidth > 0 && targetHeight > 0);
     }
@@ -243,7 +251,26 @@ export class RecordingView {
         );
         if (value && !active.owner.window.isDestroyed()) {
             if (value.type === "click") active.lastClick = performance.now();
+            if (
+                value.type === "annotation-target" ||
+                value.type === "annotation-action" ||
+                (value.type === "notice" && (value.code === "OPTIONS_UNAVAILABLE" || value.code === "DATA_UNAVAILABLE"))
+            )
+                active.owner.window.webContents.focus();
             active.owner.window.webContents.send("veriq:recording-notice", value);
+        }
+    }
+
+    annotationAction(scope: RecordingScope, sessionId: string, targetId: string, action: unknown): void {
+        const active = this.owned(scope, sessionId);
+        const { window } = active.owner;
+        if (!active.armed || window.isDestroyed()) throw new Error("RECORDING_SESSION_DENIED");
+        const selection = active.lifecycle.chooseAnnotation(targetId, action);
+        if (!selection) throw new Error("RECORDING_ANNOTATION_DENIED");
+        if (selection.type === "read-options" || selection.type === "read-table") {
+            active.view.webContents.send("veriq:recording-capture", selection);
+        } else {
+            window.webContents.send("veriq:recording-notice", selection);
         }
     }
 

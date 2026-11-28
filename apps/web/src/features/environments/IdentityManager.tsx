@@ -16,11 +16,12 @@ import {
 } from "@veriq/contracts";
 import { Button, Section } from "@veriq/ui";
 import { Field, Select, SelectItem } from "../../components";
-import { ApiError } from "../../api";
+import { ApiError, type Workspace } from "../../api";
 import { useOperationFeedback } from "../../operation-feedback";
 import { useRequestLifetime } from "../../request-lifetime";
 import { DataTable, useTableView } from "../../table-view";
 import {
+    CloudIdentityAdapter,
     listAllAdapters,
     listAllCredentials,
     type AdapterSummary,
@@ -391,6 +392,22 @@ const identityTabs = [
 /**
  * 每次实际挂载效果都取得独立存活信号，在当前工作区的信号就绪后才创建身份表单和查询，重放时不能复用已中止的控制器。
  */
+export function WorkspaceIdentityManager({ workspace, signal }: { workspace: Workspace; signal?: AbortSignal }) {
+    const adapter = useMemo(() => new CloudIdentityAdapter(workspace.id), [workspace.id]);
+    if (!["OWNER", "ADMIN"].includes(workspace.role)) {
+        return <p>{tx("Only Workspace owners and administrators can manage credentials.")}</p>;
+    }
+    return (
+        <IdentityManager
+            key={`${workspace.id}:${workspace.archived}`}
+            adapter={adapter}
+            workspaceId={workspace.id}
+            signal={signal}
+            readOnly={workspace.archived}
+        />
+    );
+}
+
 export function IdentityManager({
     adapter,
     workspaceId,

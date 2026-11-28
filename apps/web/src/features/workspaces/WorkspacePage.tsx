@@ -21,8 +21,7 @@ import { useWorkspaceDirectory, WorkspaceStatus } from "./WorkspaceDirectory";
 import { useWorkspace } from "./WorkspaceContext";
 import type { WorkspaceCapability } from "../agent/workspace-forms";
 import { WorkspaceAiProviders } from "../ai/ProviderControls";
-import { IdentityManager } from "../environments/IdentityManager";
-import { CloudIdentityAdapter } from "../environments/identity-adapter";
+import { WorkspaceIdentityManager } from "../environments/IdentityManager";
 import { SettingsPanel, SettingsTabs, settingsTabs, type SettingsTab } from "./SettingsTabs";
 import { MemberActions, MemberRoster } from "./MemberActions";
 import { WorkspaceTableFilters } from "./WorkspaceTableFilters";
@@ -237,19 +236,7 @@ function WorkspaceDetail({ id, identity, pinned }: { id: string; identity: strin
  */
 function WorkspaceAuthentication({ workspace }: { workspace: Workspace }) {
     const { signal } = useWorkspace();
-    const adapter = useMemo(() => new CloudIdentityAdapter(workspace.id), [workspace.id]);
-    if (!["OWNER", "ADMIN"].includes(workspace.role)) {
-        return <p>{tx("Only Workspace owners and administrators can manage credentials.")}</p>;
-    }
-    return (
-        <IdentityManager
-            key={`${workspace.id}:${workspace.archived}`}
-            adapter={adapter}
-            workspaceId={workspace.id}
-            signal={signal}
-            readOnly={workspace.archived}
-        />
-    );
+    return <WorkspaceIdentityManager workspace={workspace} signal={signal} />;
 }
 
 type SettingsProps = { ws: Workspace; refresh: () => Promise<void> };
