@@ -172,7 +172,7 @@ export async function guardSsoPage(
         }
         if (method !== "GET" && method !== "HEAD") return false;
         if (document && url.origin === scope.idp) url.searchParams.forEach(protect);
-        if (!submitting) return "initial";
+        if (!submitting) return isIdpRead(url.origin, event.resourceType, method) ? "initialIdpRead" : "initial";
         if (lineage.confirmed("landing") && document) return appOrigins.has(url.origin) && "handoff";
         if (!document && appOrigins.has(url.origin)) return "resource";
         if (url.origin === scope.idp && !callback) {
@@ -241,6 +241,13 @@ export async function guardSsoPage(
         }
     }
 
+    /**
+     * 主框架在填写前读取固定身份站不依赖业务文档归属；填写后同一目标直接拒绝，迟到的网络通知不能成为其他跳的准入证明。
+     */
+    function isIdpRead(origin: string, type: string, method: string) {
+        return owner(origin) === "IDP" && !!type && type !== "Document" && (method === "GET" || method === "HEAD");
+    }
+
     function onNetwork(event: {
         requestId: string;
         loaderId: string;
@@ -257,6 +264,11 @@ export async function guardSsoPage(
             if (!["http:", "https:"].includes(url.protocol)) return;
             if (event.frameId !== mainFrameId || !event.type || !["GET", "HEAD", "POST"].includes(event.request.method))
                 return markViolation();
+            if (isIdpRead(url.origin, event.type, event.request.method)) {
+                if (!event.requestId || event.requestId.length > 256 || !event.loaderId || event.loaderId.length > 256)
+                    markViolation();
+                return;
+            }
             lineage.network(event.requestId, {
                 loader: event.loaderId,
                 ...(event.timestamp === undefined ? {} : { time: event.timestamp }),

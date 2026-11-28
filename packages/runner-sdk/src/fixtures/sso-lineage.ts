@@ -2,7 +2,7 @@
  * 在认证窗口内关联同一主框架的两类浏览器事件。只保留有限协议标识、来源分类和授权结果，原始请求不进入等待队列。
  */
 export type Owner = "APP" | "API" | "IDP" | "OTHER";
-export type Admission = "initial" | "chain" | "landing" | "handoff" | "identity" | "resource";
+export type Admission = "initial" | "initialIdpRead" | "chain" | "landing" | "handoff" | "identity" | "resource";
 
 interface Hop {
     method: string;
@@ -117,8 +117,36 @@ export class SsoLineage {
         this.match(key, pair);
     }
 
+    private usedDocumentId(id: string) {
+        return [...this.completed.values()].some((hop) => hop.last === id || hop.previous.includes(id));
+    }
+
+    private continueResource(id: string, admission: Admission) {
+        if (this.continuing.has(id)) return this.violation();
+        if (!this.withinBudget(1)) return this.decide(id, false, false);
+        const turn = {};
+        this.continuing.set(id, turn);
+        const acknowledge = () => {
+            if (this.continuing.get(id) === turn) this.continuing.delete(id);
+        };
+        this.decide(id, true, false, admission, undefined, acknowledge);
+    }
+
     paused(key: string, hop: PausedHop) {
         if (this.continuing.has(hop.id)) return this.violation();
+        if (hop.admission === "initialIdpRead") {
+            if (
+                !this.active ||
+                !validId(key) ||
+                !validId(hop.id) ||
+                (hop.parent !== undefined && !validId(hop.parent)) ||
+                this.usedDocumentId(hop.id) ||
+                this.pairs.has(key) ||
+                [...this.pairs.values()].some((pair) => pair.paused?.id === hop.id)
+            )
+                return this.decide(hop.id, false, false);
+            return this.continueResource(hop.id, "initial");
+        }
         const pair = this.entry(key);
         if (pair?.paused?.id === hop.id) {
             clearTimeout(pair.timer);
@@ -144,7 +172,7 @@ export class SsoLineage {
             network.target === paused.target &&
             network.redirected === paused.redirected &&
             (paused.type !== "Document" || this.completed.get(key)?.last === paused.parent) &&
-            ![...this.completed.values()].some((hop) => hop.last === paused.id || hop.previous.includes(paused.id));
+            !this.usedDocumentId(paused.id);
         if (allowed && paused.admission === "resource") {
             const owner = pair.source;
             allowed = !!owner?.valid;
@@ -154,14 +182,7 @@ export class SsoLineage {
         this.pairs.delete(key);
         if (paused.type !== "Document") {
             if (!allowed) return this.decide(paused.id, false, false);
-            const turn = {};
-            const id = paused.id;
-            this.continuing.set(id, turn);
-            const acknowledge = () => {
-                if (this.continuing.get(id) === turn) this.continuing.delete(id);
-            };
-            this.decide(id, true, false, paused.admission, undefined, acknowledge);
-            return;
+            return this.continueResource(paused.id, paused.admission);
         }
         const documentKind =
             paused.admission === "handoff"

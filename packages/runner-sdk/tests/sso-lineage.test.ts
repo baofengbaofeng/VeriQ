@@ -140,7 +140,7 @@ test("bounds retained protocol identifiers and fails closed for absent or oversi
 /**
  * 在同一守卫会话上控制文档履约的确认时刻，分别核对原始浏览器命令的继续与拒绝次数，取消不能把同一请求结算两次。
  */
-async function boundaryFixture(holdScript = false, holdHandoff = false) {
+async function initialBoundaryFixture(holdScript = false, holdHandoff = false) {
     const session = new EventEmitter();
     function deferred() {
         let resolve!: () => void;
@@ -182,9 +182,17 @@ async function boundaryFixture(holdScript = false, holdHandoff = false) {
         idp = "https://idp.example";
     const guard = await guardSsoPage(
         page as unknown as Page,
-        { app, idp, api: app, submitPath: "/submit", callbackPath: "/callback" },
+        { app, idp, api: "https://api.example", submitPath: "/submit", callbackPath: "/callback" },
         () => {},
         () => {},
+    );
+    return { session, guard, fulfilled, sent, scriptAck, handoffAck, commands, app, idp };
+}
+
+async function boundaryFixture(holdScript = false, holdHandoff = false) {
+    const { session, guard, fulfilled, sent, scriptAck, handoffAck, commands, app, idp } = await initialBoundaryFixture(
+        holdScript,
+        holdHandoff,
     );
     guard.prepareSubmission();
     guard.protectLoginMaterial("fixture-account", "fixture-only");
@@ -504,3 +512,171 @@ test.each(["network-first", "pause-first"])(
         lineage.close();
     },
 );
+
+/**
+ * 以浏览器已经观测到的两种到达次序重放初始样式的请求摘要，分别核实第一个继续命令的时刻以及填写开始后的拒绝结果。
+ */
+function initialTraffic(
+    session: EventEmitter,
+    id: string,
+    url: string,
+    options: {
+        method?: string;
+        type?: string;
+        frame?: string;
+        parent?: string;
+        networkId?: string;
+    } = {},
+) {
+    const request = { method: options.method ?? "GET", url };
+    const type = options.type ?? "Stylesheet",
+        frameId = options.frame ?? "main",
+        networkId = options.networkId ?? "network-" + id;
+    return {
+        network: () =>
+            session.emit("Network.requestWillBeSent", {
+                requestId: networkId,
+                loaderId: "login-loader",
+                frameId,
+                type,
+                documentURL: "https://idp.example/login",
+                request,
+                ...(options.parent ? { redirectResponse: {} } : {}),
+            }),
+        fetch: () =>
+            session.emit("Fetch.requestPaused", {
+                requestId: id,
+                networkId,
+                frameId,
+                resourceType: type,
+                request,
+                ...(options.parent ? { redirectedRequestId: options.parent } : {}),
+            }),
+    };
+}
+
+test.each(["fetch-first", "network-first"])("admits one hundred initial IdP reads in %s order", async (order) => {
+    const { session, guard, commands, idp } = await initialBoundaryFixture();
+    const reads = Array.from({ length: 100 }, (_, i) => initialTraffic(session, "read-" + i, idp + "/style-" + i));
+    try {
+        if (order === "network-first") for (const read of reads) read.network();
+        for (const read of reads) read.fetch();
+        expect(commands.filter((c) => c.name === "Fetch.continueRequest")).toHaveLength(100);
+        if (order === "fetch-first") for (const read of reads) read.network();
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(commands.filter((c) => c.name === "Fetch.failRequest")).toHaveLength(0);
+    } finally {
+        guard.stop();
+    }
+});
+
+test.each(["before", "after"])("uses the phase at initial IdP Fetch receipt %s submission", async (when) => {
+    const { session, guard, commands, idp } = await initialBoundaryFixture();
+    const read = initialTraffic(session, "read", idp + "/stylesheet", { method: "HEAD" });
+    try {
+        if (when === "before") read.fetch();
+        expect(commands.filter((c) => c.name === "Fetch.continueRequest")).toHaveLength(when === "before" ? 1 : 0);
+        guard.prepareSubmission();
+        read.network();
+        if (when === "after") read.fetch();
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(commands.filter((c) => c.name === "Fetch.failRequest")).toHaveLength(when === "after" ? 1 : 0);
+    } finally {
+        guard.stop();
+    }
+});
+
+test.each(["child", "post", "app", "api", "document", "embedded", "secret", "long-parent", "missing-network"] as const)(
+    "requires all initial IdP read predicates for %s",
+    async (kind) => {
+        const { session, guard, commands, app, idp } = await initialBoundaryFixture();
+        guard.protectLoginMaterial("fixture-user", "fixture-value");
+        const url =
+            kind === "app"
+                ? app
+                : kind === "api"
+                  ? "https://api.example"
+                  : kind === "embedded"
+                    ? "https://account@idp.example"
+                    : kind === "secret"
+                      ? idp + "/fixture-value"
+                      : idp;
+        const read = initialTraffic(session, "probe", url, {
+            frame: kind === "child" ? "child" : "main",
+            method: kind === "post" ? "POST" : "GET",
+            type: kind === "document" ? "Document" : "Stylesheet",
+            ...(kind === "long-parent" ? { parent: "x".repeat(257) } : {}),
+            ...(kind === "missing-network" ? { networkId: "" } : {}),
+        });
+        try {
+            read.fetch();
+            expect(commands.filter((c) => c.name === "Fetch.continueRequest")).toHaveLength(0);
+            if (kind === "app" || kind === "api" || kind === "document") {
+                read.network();
+                expect(commands.filter((c) => c.name === "Fetch.continueRequest")).toHaveLength(1);
+            } else {
+                await expect(guard.violation).rejects.toThrow("SSO_ORIGIN_NOT_ALLOWED");
+                expect(commands.filter((c) => c.name === "Fetch.failRequest")).toHaveLength(1);
+            }
+        } finally {
+            guard.stop();
+        }
+    },
+);
+
+test.each(["failure", "duplicate", "stop", "redirect"] as const)(
+    "settles an initial IdP read exactly once on %s",
+    async (outcome) => {
+        const { session, guard, commands, app, idp, scriptAck } = await initialBoundaryFixture(true);
+        const read = initialTraffic(session, "script", idp + "/start", { networkId: "logical" });
+        try {
+            read.fetch();
+            expect(commands.filter((c) => c.name === "Fetch.continueRequest" && c.id === "script")).toHaveLength(1);
+            if (outcome === "duplicate") read.fetch();
+            else if (outcome === "stop") guard.stop();
+            else if (outcome === "failure") scriptAck.reject(new Error("fixture"));
+            else {
+                guard.prepareSubmission();
+                const next = initialTraffic(session, "next", app + "/after", {
+                    parent: "script",
+                    networkId: "logical",
+                });
+                next.fetch();
+                next.network();
+                expect(commands.filter((c) => c.id === "next").map((c) => c.name)).toEqual(["Fetch.failRequest"]);
+            }
+            scriptAck.resolve();
+            if (outcome !== "stop") await expect(guard.violation).rejects.toThrow("SSO_ORIGIN_NOT_ALLOWED");
+            read.network();
+            await new Promise<void>((resolve) => setImmediate(resolve));
+            expect(commands.filter((c) => c.id === "script").map((c) => c.name)).toEqual(["Fetch.continueRequest"]);
+        } finally {
+            scriptAck.resolve();
+            guard.stop();
+        }
+    },
+);
+
+test("rejects an initial IdP read repeating the Fetch ID of an unsettled document", async () => {
+    const { session, commands, guard, app, idp } = await initialBoundaryFixture();
+    try {
+        initialTraffic(session, "shared", app + "/initial", { type: "Document" }).fetch();
+        initialTraffic(session, "shared", idp + "/style").fetch();
+        expect(commands.filter((c) => c.id === "shared").map((c) => c.name)).toEqual(["Fetch.failRequest"]);
+        await expect(guard.violation).rejects.toThrow("SSO_ORIGIN_NOT_ALLOWED");
+    } finally {
+        guard.stop();
+    }
+});
+
+test("counts initial IdP acknowledgments and unmatched APP events within one live budget", async () => {
+    const { session, commands, guard, app, idp } = await initialBoundaryFixture();
+    try {
+        for (let i = 0; i < 30; i++) initialTraffic(session, "app-" + i, app + "/style").network();
+        for (let i = 0; i < 89; i++) initialTraffic(session, "idp-" + i, idp + "/style").fetch();
+        expect(commands.filter((c) => c.name === "Fetch.continueRequest")).toHaveLength(88);
+        await expect(guard.violation).rejects.toThrow("SSO_ORIGIN_NOT_ALLOWED");
+    } finally {
+        guard.stop();
+    }
+});
