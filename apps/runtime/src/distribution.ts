@@ -1,3 +1,4 @@
+import type { BrowserMode } from "./browser-policy.ts";
 import { createHash } from "node:crypto";
 import { createReadStream, constants } from "node:fs";
 import { lstat, readFile, readdir, realpath, open } from "node:fs/promises";
@@ -361,6 +362,7 @@ export async function diagnoseRelease(options: {
     engineDirectory: string;
     engineVersion: string;
     browserExecutable: string;
+    browserMode?: BrowserMode;
     server?: string;
     signal?: AbortSignal;
     /**
@@ -374,6 +376,7 @@ export async function diagnoseRelease(options: {
     const release = await loadRelease(options.engineDirectory, options.engineVersion);
     const result = await doctor({
         executablePath: options.browserExecutable,
+        ...(options.browserMode ? { browserMode: options.browserMode } : {}),
         ...(options.server ? { server: options.server } : {}),
         ...(options.signal ? { signal: options.signal } : {}),
         distribution: release.entry,

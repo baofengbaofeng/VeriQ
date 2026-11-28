@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, rm, realpath } from "node:fs/promises";
+import { mkdtemp, rm, realpath, symlink } from "node:fs/promises";
 import { DesktopAgent } from "../src/agent/service.ts";
 
 /**
@@ -56,7 +56,18 @@ test("browser capability distinguishes the installed headless shell from headed 
     const binary = registry.registry.findExecutable("chromium-headless-shell").executablePath();
     assert.equal((await probeBrowser(binary, false)).available, true);
     assert.equal((await probeBrowser(binary, true)).available, false);
+    const { chromium } = await import("@playwright/test");
+    assert.equal((await probeBrowser(chromium.executablePath(), true)).available, true);
     assert.equal((await probeBrowser(undefined, true)).available, false);
+    const aliases = await realpath(await mkdtemp("/tmp/veriq-browser-alias-"));
+    try {
+        await symlink(binary, aliases + "/chrome");
+        assert.equal((await probeBrowser(aliases + "/chrome", true)).available, false);
+        await symlink(chromium.executablePath(), aliases + "/chromium");
+        assert.equal((await probeBrowser(aliases + "/chromium", true)).available, true);
+    } finally {
+        await rm(aliases, { recursive: true, force: true });
+    }
 });
 
 /**

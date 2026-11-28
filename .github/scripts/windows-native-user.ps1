@@ -421,6 +421,431 @@ public sealed class VeriQNativeJob : IDisposable {
 Add-Type -TypeDefinition $jobSource
 
 <#
+回收只对本次合成夹具使用备份意图句柄，逐级相对打开并核对真实拥有者，任何链接仅删除自身而不读取或改写目标。
+#>
+function Initialize-CleanupAccess {
+    if ('VeriQNativeCleanup' -as [type]) { return }
+    $cleanupSource = @'
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Security.AccessControl;
+using System.Security.Principal;
+using System.Text.RegularExpressions;
+using Microsoft.Win32.SafeHandles;
+public static class VeriQNativeCleanup {
+    [StructLayout(LayoutKind.Sequential)] struct SecurityAttributes {
+        public int Length; public IntPtr Descriptor; public int Inherit;
+    }
+    [StructLayout(LayoutKind.Sequential)] struct UnicodeName {
+        public ushort Length, MaximumLength; public IntPtr Buffer;
+    }
+    [StructLayout(LayoutKind.Sequential)] struct ObjectAttributes {
+        public int Length; public IntPtr Root, Name; public uint Attributes;
+        public IntPtr Security, Quality;
+    }
+    [StructLayout(LayoutKind.Sequential)] struct IoStatus { public IntPtr Status, Information; }
+    [StructLayout(LayoutKind.Sequential)] struct Privilege {
+        public uint Count, Low; public int High; public uint Attributes;
+    }
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    static extern SafeFileHandle CreateFileW(string path, uint access, uint share, IntPtr security,
+        uint disposition, uint flags, IntPtr template);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    static extern bool CreateDirectoryW(string path, ref SecurityAttributes attributes);
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    static extern bool ConvertStringSecurityDescriptorToSecurityDescriptorW(string sddl, uint revision,
+        out IntPtr descriptor, IntPtr size);
+    [DllImport("ntdll.dll")]
+    static extern int NtCreateFile(out SafeFileHandle file, uint access, ref ObjectAttributes attributes,
+        out IoStatus status, IntPtr allocation, uint fileAttributes, uint share, uint disposition,
+        uint options, IntPtr ea, uint eaLength);
+    [DllImport("ntdll.dll")] static extern uint RtlNtStatusToDosError(int status);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    static extern bool GetFileInformationByHandleEx(SafeFileHandle file, int kind, IntPtr buffer, uint bytes);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    static extern bool SetFileInformationByHandle(SafeFileHandle file, int kind, byte[] buffer, uint bytes);
+    [DllImport("advapi32.dll")]
+    static extern uint GetSecurityInfo(SafeFileHandle file, int kind, uint requested, out IntPtr owner,
+        out IntPtr group, out IntPtr dacl, out IntPtr sacl, out IntPtr descriptor);
+    [DllImport("advapi32.dll")]
+    static extern uint SetSecurityInfo(SafeFileHandle file, int kind, uint requested, byte[] owner,
+        IntPtr group, IntPtr dacl, IntPtr sacl);
+    [DllImport("advapi32.dll")] static extern uint GetSecurityDescriptorLength(IntPtr descriptor);
+    [DllImport("kernel32.dll")] static extern IntPtr LocalFree(IntPtr memory);
+    [DllImport("advapi32.dll", SetLastError = true)]
+    static extern bool DuplicateTokenEx(SafeAccessTokenHandle token, uint access, IntPtr attributes,
+        int level, int kind, out SafeAccessTokenHandle duplicate);
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    static extern bool LookupPrivilegeValueW(string system, string name, out long luid);
+    [DllImport("advapi32.dll", SetLastError = true)]
+    static extern bool AdjustTokenPrivileges(SafeAccessTokenHandle token, bool disableAll, ref Privilege privilege,
+        uint bytes, IntPtr previous, IntPtr required);
+    static void Require(bool value, string category) {
+        if (!value) throw new InvalidOperationException(category);
+    }
+    static void Check(bool value) {
+        if (!value) throw new Win32Exception(Marshal.GetLastWin32Error());
+    }
+    static void Enable(SafeAccessTokenHandle token, string name) {
+        long luid; Check(LookupPrivilegeValueW(null, name, out luid));
+        var privilege = new Privilege { Count = 1, Low = (uint)luid, High = (int)(luid >> 32), Attributes = 2 };
+        Check(AdjustTokenPrivileges(token, false, ref privilege, 0, IntPtr.Zero, IntPtr.Zero));
+        Require(Marshal.GetLastWin32Error() == 0, "NATIVE_CLEANUP_PRIVILEGE_NOT_HELD");
+    }
+    static void Privileged(string parent, Action action) {
+        using (var identity = WindowsIdentity.GetCurrent(TokenAccessLevels.Query | TokenAccessLevels.Duplicate)) {
+            Require(identity.User.Value == parent, "NATIVE_CLEANUP_PARENT_TOKEN_MISMATCH");
+            SafeAccessTokenHandle duplicate;
+            Check(DuplicateTokenEx(identity.AccessToken, 0x2C, IntPtr.Zero, 2, 2, out duplicate));
+            using (duplicate) {
+                Enable(duplicate, "SeBackupPrivilege"); Enable(duplicate, "SeRestorePrivilege");
+                try { WindowsIdentity.RunImpersonated(duplicate, action); }
+                finally {
+                    using (var restored = WindowsIdentity.GetCurrent()) {
+                        Require(restored.User.Value == parent, "NATIVE_CLEANUP_PARENT_TOKEN_NOT_RESTORED");
+                    }
+                }
+            }
+        }
+    }
+    static void Scope(string root, string scope) {
+        var expectedParent = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+        Require(Path.GetFullPath(root) == root && Path.GetDirectoryName(root) == expectedParent &&
+            Regex.IsMatch(Path.GetFileName(root), "\\AVeriQ-native-[a-f0-9]{32}\\z"),
+            "NATIVE_CLEANUP_ROOT_SCOPE_INVALID");
+        Require(scope == "fixtures" || scope == "cleanup-proof" || scope == "evidence" ||
+            scope == "runtime" || scope == "control" || scope == "readonly-inputs.json",
+            "NATIVE_CLEANUP_CHILD_SCOPE_INVALID");
+    }
+    static uint Attributes(SafeFileHandle file) {
+        IntPtr buffer = Marshal.AllocHGlobal(8);
+        try {
+            Check(GetFileInformationByHandleEx(file, 9, buffer, 8));
+            return unchecked((uint)Marshal.ReadInt32(buffer));
+        } finally { Marshal.FreeHGlobal(buffer); }
+    }
+    static void Owner(SafeFileHandle file, string user, string parent) {
+        IntPtr owner, group, dacl, sacl, descriptor;
+        uint error = GetSecurityInfo(file, 1, 1, out owner, out group, out dacl, out sacl, out descriptor);
+        if (error != 0) throw new Win32Exception((int)error);
+        try {
+            string sid = new SecurityIdentifier(owner).Value;
+            Require(sid == user || sid == parent, "NATIVE_CLEANUP_UNKNOWN_OWNER");
+        } finally { LocalFree(descriptor); }
+    }
+    static SafeFileHandle Root(string root, string parent) {
+        var file = CreateFileW(root, 0x130081, 3, IntPtr.Zero, 3, 0x02200000, IntPtr.Zero);
+        if (file.IsInvalid) { file.Dispose(); throw new Win32Exception(Marshal.GetLastWin32Error()); }
+        try {
+            Owner(file, parent, parent);
+            Require((Attributes(file) & 0x410) == 0x10, "NATIVE_CLEANUP_ROOT_REPARSE_REJECTED");
+            return file;
+        } catch { file.Dispose(); throw; }
+    }
+    static SafeFileHandle Relative(SafeFileHandle parent, string name, bool writeOwner = false,
+        IntPtr security = default(IntPtr), bool create = false) {
+        Require(name.Length > 0 && name.Length <= 255 && name != "." && name != ".." &&
+            name.IndexOfAny(new[] { '\\', '/', ':', '\0' }) < 0, "NATIVE_CLEANUP_COMPONENT_INVALID");
+        IntPtr text = Marshal.StringToHGlobalUni(name), structure = IntPtr.Zero;
+        try {
+            var unicode = new UnicodeName {
+                Length = checked((ushort)(name.Length * 2)), MaximumLength = checked((ushort)(name.Length * 2)),
+                Buffer = text
+            };
+            structure = Marshal.AllocHGlobal(Marshal.SizeOf<UnicodeName>());
+            Marshal.StructureToPtr(unicode, structure, false);
+            var attributes = new ObjectAttributes {
+                Length = Marshal.SizeOf<ObjectAttributes>(), Root = parent.DangerousGetHandle(),
+                Name = structure, Attributes = 0x40, Security = security
+            };
+            SafeFileHandle file; IoStatus io;
+            uint access = (create ? 0x130196U : 0x130081U) | (writeOwner ? 0x80000U : 0U);
+            int status = NtCreateFile(out file, access, ref attributes, out io, IntPtr.Zero, 0, 3, create ? 2U : 1U,
+                0x00204020, IntPtr.Zero, 0);
+            if (status < 0) { file?.Dispose(); throw new Win32Exception((int)RtlNtStatusToDosError(status)); }
+            return file;
+        } finally {
+            if (structure != IntPtr.Zero) Marshal.FreeHGlobal(structure);
+            Marshal.FreeHGlobal(text);
+        }
+    }
+    public static void CreateOutputDirectory(string root, string scope, string user, string parent) {
+        Scope(root, scope);
+        Require(scope == "cleanup-proof" || scope == "evidence", "NATIVE_CREATE_DIRECTORY_SCOPE_INVALID");
+        string sddl = "O:" + parent + "D:P(A;OICI;GA;;;" + parent + ")(A;OICI;GA;;;SY)";
+        if (scope == "evidence") sddl += "(A;OICI;0x1301bf;;;" + user + ")";
+        IntPtr descriptor;
+        Check(ConvertStringSecurityDescriptorToSecurityDescriptorW(sddl, 1, out descriptor, IntPtr.Zero));
+        try {
+            using (var directory = Root(root, parent)) {
+                var attributes = new SecurityAttributes {
+                    Length = Marshal.SizeOf<SecurityAttributes>(), Descriptor = descriptor, Inherit = 0
+                };
+                Check(CreateDirectoryW(Path.Combine(root, scope), ref attributes));
+            }
+        } finally { LocalFree(descriptor); }
+    }
+    public static void WriteOutput(string root, string scope, string document, string user, string parent) {
+        Scope(root, "control");
+        Require(scope == "readonly-inputs.json" || scope == "boundaries.json" || scope == "release-pending.json",
+            "NATIVE_CREATE_FILE_SCOPE_INVALID");
+        IntPtr descriptor;
+        Check(ConvertStringSecurityDescriptorToSecurityDescriptorW("O:" + parent + "D:P(A;;GA;;;" + parent +
+            ")(A;;GA;;;SY)(A;;GRGX;;;" + user + ")", 1, out descriptor, IntPtr.Zero));
+        try {
+            using (var directory = Root(root, parent)) {
+                SafeFileHandle control = null;
+                try {
+                    if (scope != "readonly-inputs.json") {
+                        control = Relative(directory, "control"); Owner(control, parent, parent);
+                        Require((Attributes(control) & 0x410) == 0x10, "NATIVE_CREATE_CONTROL_REPARSE_REJECTED");
+                    }
+                    using (var file = Relative(control ?? directory, scope, false, descriptor, true))
+                    using (var stream = new FileStream(file, FileAccess.Write)) {
+                        byte[] bytes = new System.Text.UTF8Encoding(false).GetBytes(document);
+                        stream.Write(bytes, 0, bytes.Length); stream.Flush(true);
+                    }
+                } finally { control?.Dispose(); }
+            }
+        } finally { LocalFree(descriptor); }
+    }
+    static void ProofAcl(SafeFileHandle file, string parent) {
+        IntPtr owner, group, dacl, sacl, descriptor;
+        uint error = GetSecurityInfo(file, 1, 5, out owner, out group, out dacl, out sacl, out descriptor);
+        if (error != 0) throw new Win32Exception((int)error);
+        try {
+            Require(new SecurityIdentifier(owner).Value == parent, "NATIVE_CLEANUP_PROOF_OWNER_INVALID");
+            uint length = GetSecurityDescriptorLength(descriptor);
+            Require(length > 0 && length <= 65536, "NATIVE_CLEANUP_PROOF_ACL_INVALID");
+            var bytes = new byte[length]; Marshal.Copy(descriptor, bytes, 0, checked((int)length));
+            var raw = new RawSecurityDescriptor(bytes, 0);
+            Require((raw.ControlFlags & ControlFlags.DiscretionaryAclProtected) != 0 &&
+                raw.DiscretionaryAcl != null && raw.DiscretionaryAcl.Count == 2,
+                "NATIVE_CLEANUP_PROOF_ACL_INVALID");
+            var expected = new HashSet<string>(new[] { parent, "S-1-5-18" }, StringComparer.Ordinal);
+            foreach (GenericAce ace in raw.DiscretionaryAcl) {
+                var allow = ace as CommonAce;
+                Require(allow != null && allow.AceQualifier == AceQualifier.AccessAllowed &&
+                    allow.AceFlags == (AceFlags.ContainerInherit | AceFlags.ObjectInherit) &&
+                    allow.AccessMask == 0x1F01FF && expected.Remove(allow.SecurityIdentifier.Value),
+                    "NATIVE_CLEANUP_PROOF_ACL_INVALID");
+            }
+            Require(expected.Count == 0, "NATIVE_CLEANUP_PROOF_ACL_INVALID");
+        } finally { LocalFree(descriptor); }
+    }
+    static SafeFileHandle OptionalRelative(SafeFileHandle parent, string name) {
+        try { return Relative(parent, name, true); }
+        catch (Win32Exception error) { if (error.NativeErrorCode == 2) return null; throw; }
+    }
+    static List<string> Names(SafeFileHandle directory) {
+        const int capacity = 65536;
+        var names = new List<string>(); IntPtr buffer = Marshal.AllocHGlobal(capacity);
+        try {
+            for (int batch = 0; ; batch++) {
+                Require(batch < 4096, "NATIVE_CLEANUP_ENUMERATION_LIMIT");
+                if (!GetFileInformationByHandleEx(directory, batch == 0 ? 15 : 14, buffer, capacity)) {
+                    int error = Marshal.GetLastWin32Error();
+                    if (error == 18) return names;
+                    throw new Win32Exception(error);
+                }
+                int offset = 0;
+                for (;;) {
+                    Require(offset >= 0 && offset <= capacity - 68, "NATIVE_CLEANUP_ENUMERATION_INVALID");
+                    int next = Marshal.ReadInt32(buffer, offset), length = Marshal.ReadInt32(buffer, offset + 60);
+                    Require(length > 0 && length <= 510 && (length & 1) == 0 && offset + 68 + length <= capacity,
+                        "NATIVE_CLEANUP_ENUMERATION_INVALID");
+                    string name = Marshal.PtrToStringUni(IntPtr.Add(buffer, offset + 68), length / 2);
+                    if (name != "." && name != "..") names.Add(name);
+                    Require(names.Count <= 100000, "NATIVE_CLEANUP_MEMBER_LIMIT");
+                    if (next == 0) break;
+                    Require(next >= 68 + length && (next & 7) == 0, "NATIVE_CLEANUP_ENUMERATION_INVALID");
+                    offset = checked(offset + next);
+                }
+            }
+        } finally { Marshal.FreeHGlobal(buffer); }
+    }
+    static void Delete(SafeFileHandle parent, string name, string user, string owner, int depth, ref int count) {
+        Require(depth <= 64 && ++count <= 100000, "NATIVE_CLEANUP_TREE_LIMIT");
+        using (var file = Relative(parent, name)) {
+            Owner(file, user, owner);
+            uint attributes = Attributes(file);
+            if ((attributes & 0x10) != 0 && (attributes & 0x400) == 0) {
+                foreach (string child in Names(file)) Delete(file, child, user, owner, depth + 1, ref count);
+            }
+            Check(SetFileInformationByHandle(file, 4, new byte[] { 1 }, 1));
+        }
+    }
+    public static int Remove(string root, string scope, string user, string parent) {
+        Scope(root, scope); int count = 0;
+        Privileged(parent, () => {
+            using (var directory = Root(root, parent)) Delete(directory, scope, user, parent, 0, ref count);
+        });
+        return count;
+    }
+    static void FreshOwner(SafeFileHandle file, string parent, string tokenOwner, uint kind) {
+        Owner(file, parent, tokenOwner);
+        Require((Attributes(file) & 0x410) == kind, "NATIVE_CLEANUP_FRESH_PROOF_KIND_INVALID");
+        var sid = new SecurityIdentifier(parent); var bytes = new byte[sid.BinaryLength];
+        sid.GetBinaryForm(bytes, 0);
+        uint error = SetSecurityInfo(file, 1, 1, bytes, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+        if (error != 0) throw new Win32Exception((int)error);
+        Owner(file, parent, parent);
+    }
+    public static void InitializeFreshProof(string root, string parent) {
+        Scope(root, "cleanup-proof"); string tokenOwner;
+        using (var identity = WindowsIdentity.GetCurrent()) tokenOwner = identity.Owner.Value;
+        Privileged(parent, () => {
+            using (var directory = Root(root, parent))
+            using (var proof = Relative(directory, "cleanup-proof")) {
+                ProofAcl(proof, parent);
+                Require((Attributes(proof) & 0x410) == 0x10, "NATIVE_CLEANUP_PROOF_REPARSE_REJECTED");
+                using (var external = OptionalRelative(proof, "external")) {
+                    if (external != null) {
+                        FreshOwner(external, parent, tokenOwner, 0x10);
+                        using (var sentinel = OptionalRelative(external, "sentinel.txt")) {
+                            if (sentinel != null) FreshOwner(sentinel, parent, tokenOwner, 0);
+                        }
+                    }
+                }
+                using (var tree = OptionalRelative(proof, "tree")) {
+                    if (tree != null) {
+                        FreshOwner(tree, parent, tokenOwner, 0x10);
+                        using (var junction = OptionalRelative(tree, "junction")) {
+                            if (junction != null) FreshOwner(junction, parent, tokenOwner, 0x410);
+                        }
+                    }
+                }
+            }
+        });
+    }
+    public static void Probe(string root, string user, string parent) {
+        Scope(root, "cleanup-proof");
+        bool rejected = false;
+        try { Remove(root, "../external", user, parent); }
+        catch (InvalidOperationException error) { rejected = error.Message == "NATIVE_CLEANUP_CHILD_SCOPE_INVALID"; }
+        Require(rejected, "NATIVE_CLEANUP_WRONG_SCOPE_NOT_REJECTED");
+        rejected = false;
+        try { Remove(Path.Combine(root, "fixtures"), "fixtures", user, parent); }
+        catch (InvalidOperationException error) { rejected = error.Message == "NATIVE_CLEANUP_ROOT_SCOPE_INVALID"; }
+        Require(rejected, "NATIVE_CLEANUP_WRONG_ROOT_NOT_REJECTED");
+        Privileged(parent, () => {
+            using (var directory = Root(root, parent))
+            using (var proof = Relative(directory, "cleanup-proof")) {
+                Owner(proof, parent, parent);
+                Require((Attributes(proof) & 0x410) == 0x10, "NATIVE_CLEANUP_PROOF_REPARSE_REJECTED");
+                bool ownerRejected = false; int rejectedCount = 0;
+                try { Delete(proof, "external", user, "S-1-5-18", 0, ref rejectedCount); }
+                catch (InvalidOperationException error) {
+                    ownerRejected = error.Message == "NATIVE_CLEANUP_UNKNOWN_OWNER";
+                }
+                Require(ownerRejected, "NATIVE_CLEANUP_UNKNOWN_OWNER_NOT_REJECTED");
+                int count = 0; Delete(proof, "tree", user, parent, 0, ref count);
+                Require(count == 2, "NATIVE_CLEANUP_JUNCTION_PROBE_COUNT_INVALID");
+            }
+        });
+    }
+    public static void RemoveEmptyRoot(string root, string parent) {
+        Scope(root, "fixtures");
+        Privileged(parent, () => {
+            using (var directory = Root(root, parent)) {
+                Require(Names(directory).Count == 0, "NATIVE_CLEANUP_UNKNOWN_TOP_LEVEL_MEMBER");
+                Check(SetFileInformationByHandle(directory, 4, new byte[] { 1 }, 1));
+            }
+        });
+    }
+}
+'@
+    Add-Type -TypeDefinition $cleanupSource
+}
+
+<#
+自验目录身份与阶段先保存在监管状态中，再以创建时私有描述符生成目录；恢复只接受同一随机身份且权限完全匹配的残留。
+#>
+function Start-CleanupProof {
+    $proof = Join-Path $state.outputRoot 'cleanup-proof'
+    if (Test-Path -LiteralPath $proof) {
+        if ($state.cleanupProofNonce -cne $state.nonce -or $state.cleanupProofPhase -notin @('creating', 'active')) {
+            throw 'NATIVE_CLEANUP_PROOF_STATE_MISMATCH'
+        }
+        [VeriQNativeCleanup]::InitializeFreshProof($state.outputRoot, $parentSid)
+        $null = [VeriQNativeCleanup]::Remove($state.outputRoot, 'cleanup-proof', $state.sid, $parentSid)
+        if (Test-Path -LiteralPath $proof) { throw 'NATIVE_CLEANUP_PROOF_RECOVERY_UNCONFIRMED' }
+        $state.cleanupProofRecovered = $true
+    }
+    $state.cleanupProofNonce = $state.nonce
+    $state.cleanupProofPhase = 'creating'
+    Save-State
+    [VeriQNativeCleanup]::CreateOutputDirectory($state.outputRoot, 'cleanup-proof', $state.sid, $parentSid)
+    $state.cleanupProofPhase = 'active'
+    Save-State
+}
+
+<#
+自验成员限定为刚创建的私有监管目录内固定两个子目录和哨兵连接，故障恢复必须经过相同成员构造和真实句柄校验。
+#>
+function New-CleanupProofMembers {
+    $proof = Join-Path $state.outputRoot 'cleanup-proof'
+    $external = Join-Path $proof 'external'
+    $tree = Join-Path $proof 'tree'
+    New-Item -ItemType Directory -Path $external, $tree | Out-Null
+    [IO.File]::WriteAllText((Join-Path $external 'sentinel.txt'), 'VeriQ cleanup must preserve this external sentinel.')
+    New-Item -ItemType Junction -Path (Join-Path $tree 'junction') -Target $external | Out-Null
+}
+
+<#
+永久清理自验在本次独占目录内创建外部哨兵与真实目录连接，实际删除后核对正文和完整权限，错范围与未知拥有者必须拒绝。
+#>
+function Test-CleanupBoundary {
+    $proof = Join-Path $state.outputRoot 'cleanup-proof'
+    Start-CleanupProof
+    if (!$state.cleanupProofRecoveryTested) {
+        New-CleanupProofMembers
+        # 只捕获此处刻意注入的固定失败，真实文件或身份错误仍外抛；保留注入记录并实际再进入同一补偿路径证明可重入。
+        $faultObserved = $false
+        try { throw 'NATIVE_CLEANUP_RECOVERY_PROBE_INJECTED' }
+        catch {
+            if ($_.Exception.Message -cne 'NATIVE_CLEANUP_RECOVERY_PROBE_INJECTED') { throw }
+            $faultObserved = $true
+        }
+        if (!$faultObserved) { throw 'NATIVE_CLEANUP_RECOVERY_PROBE_NOT_OBSERVED' }
+        Start-CleanupProof
+        if (!$state.cleanupProofRecovered) { throw 'NATIVE_CLEANUP_RECOVERY_PROBE_NOT_RECOVERED' }
+        $state.cleanupProofRecoveryTested = $true
+        Save-State
+        Write-Record 'standard-user-cleanup-recovery.json' @{
+            source = $Source; firstFailure = 'NATIVE_CLEANUP_RECOVERY_PROBE_INJECTED'
+            protectedStateMatched = $true; repeatedCleanupRecovered = $true
+        }
+    }
+    $external = Join-Path $proof 'external'
+    $tree = Join-Path $proof 'tree'
+    New-CleanupProofMembers
+    $sentinel = Join-Path $external 'sentinel.txt'
+    # 父身份默认拥有者也可能是管理员组，只初始化刚创建的四个固定自验成员，链接拥有者只经不跟随句柄设置。
+    [VeriQNativeCleanup]::InitializeFreshProof($state.outputRoot, $parentSid)
+    $section = [Security.AccessControl.AccessControlSections]::All
+    $before = (Get-Acl -LiteralPath $sentinel).GetSecurityDescriptorSddlForm($section)
+    $bytes = [IO.File]::ReadAllBytes($sentinel)
+    [VeriQNativeCleanup]::Probe($state.outputRoot, $state.sid, $parentSid)
+    $after = (Get-Acl -LiteralPath $sentinel).GetSecurityDescriptorSddlForm($section)
+    if (![string]::Equals($before, $after, [StringComparison]::Ordinal) -or
+        [Convert]::ToBase64String([IO.File]::ReadAllBytes($sentinel)) -cne [Convert]::ToBase64String($bytes) -or
+        (Test-Path -LiteralPath $tree)) { throw 'NATIVE_CLEANUP_EXTERNAL_SENTINEL_CHANGED' }
+    $null = [VeriQNativeCleanup]::Remove($state.outputRoot, 'cleanup-proof', $state.sid, $parentSid)
+    if (Test-Path -LiteralPath $proof) { throw 'NATIVE_CLEANUP_PROOF_REMOVAL_UNCONFIRMED' }
+    $state.cleanupProofPhase = 'complete'
+    Save-State
+    Write-Record 'standard-user-cleanup-boundaries.json' @{
+        source = $Source; externalSentinelContentUnchanged = $true; externalSentinelAclUnchanged = $true
+        junctionOnlyUnlinked = $true; wrongScopeRejected = $true; unknownOwnerRejected = $true
+        parentTokenRestored = $true
+    }
+}
+
+<#
 状态文件在本次运行的独占目录内原子替换且不含口令，目录只允许父身份与系统访问，补偿步骤必须重新校验来源。
 #>
 function Save-State {
@@ -608,6 +1033,19 @@ function Complete-Cleanup {
             }
         }
     }
+    if (Test-Path -LiteralPath $state.outputRoot) {
+        Initialize-CleanupAccess
+        Test-CleanupBoundary
+        $fixtures = Join-Path $state.outputRoot 'fixtures'
+        if (Test-Path -LiteralPath $fixtures) {
+            $members = [VeriQNativeCleanup]::Remove($state.outputRoot, 'fixtures', $state.sid, $parentSid)
+            if (Test-Path -LiteralPath $fixtures) { throw 'NATIVE_CLEANUP_FIXTURES_REMOVAL_UNCONFIRMED' }
+            Write-Record 'standard-user-cleanup-fixtures.json' @{
+                source = $Source; removedMembers = $members; scope = 'fixtures'; noFollow = $true
+                profileUnloaded = $true; sidProcessesRemaining = 0; parentTokenRestored = $true
+            }
+        }
+    }
     if ($state.aclChanged) {
         $acl = Get-Acl -LiteralPath $Workspace
         $section = [Security.AccessControl.AccessControlSections]::Access
@@ -636,6 +1074,16 @@ function Complete-Cleanup {
     }
     $state.aclRestored = $true
     Save-State
+    # 合成输出只接受固定顶层成员并按句柄回收，身份删除放在所有私有夹具之后，避免失败时失去本次拥有者的归属证据。
+    if (Test-Path -LiteralPath $state.outputRoot) {
+        foreach ($scope in @('evidence', 'runtime', 'control', 'readonly-inputs.json')) {
+            if (Test-Path -LiteralPath (Join-Path $state.outputRoot $scope)) {
+                $null = [VeriQNativeCleanup]::Remove($state.outputRoot, $scope, $state.sid, $parentSid)
+            }
+        }
+        [VeriQNativeCleanup]::RemoveEmptyRoot($state.outputRoot, $parentSid)
+        if (Test-Path -LiteralPath $state.outputRoot) { throw 'NATIVE_CLEANUP_OUTPUT_REMOVAL_UNCONFIRMED' }
+    }
     foreach ($profile in $profiles) { $profile | Remove-CimInstance }
     if ($state.sid) {
         if (@(Get-CimInstance Win32_UserProfile -Filter ("SID='" + $state.sid + "'")).Count) {
@@ -649,7 +1097,6 @@ function Complete-Cleanup {
             throw 'NATIVE_CLEANUP_ACCOUNT_REMOVAL_UNCONFIRMED'
         }
     }
-    if (Test-Path -LiteralPath $state.outputRoot) { Remove-Item -LiteralPath $state.outputRoot -Recurse -Force }
     $state.cleaned = $true
     Save-State
     Write-Record 'standard-user-cleanup.json' @{
@@ -712,6 +1159,8 @@ $state = [pscustomobject]@{
     aclChanged = $false; aclRestored = $false; forcedTermination = $false; cleaned = $false; exitCode = 1
     aclExactlyRestored = $false; autoInheritanceApplied = $false
     aclProtectedAndRequestMatched = $false; aclOrderedAcesMatched = $false
+    cleanupProofNonce = ''; cleanupProofPhase = ''; cleanupProofRecovered = $false
+    cleanupProofRecoveryTested = $false
 }
 Save-State
 $sourceNodePath = $NodePath
@@ -781,8 +1230,9 @@ try {
     $inputs = @($tracked | ForEach-Object { Join-Path $Workspace $_ }) + @($PSCommandPath, $NodePath)
     $inputs += @(Get-ChildItem -LiteralPath (Join-Path $Workspace 'apps/runtime/build') -File -Recurse |
         ForEach-Object { $_.FullName })
-    ConvertTo-Json -InputObject $inputs |
-        Set-Content -LiteralPath (Join-Path $OutputRoot 'readonly-inputs.json') -Encoding utf8
+    Initialize-CleanupAccess
+    [VeriQNativeCleanup]::WriteOutput(
+        $OutputRoot, 'readonly-inputs.json', (ConvertTo-Json -InputObject $inputs), $state.sid, $parentSid)
     $readAcl = Get-Acl -LiteralPath $Workspace
     # 源码根仅为新建身份增加读取与禁止修改规则，既有其他身份授权保持原样，退出时恢复并核对原根访问控制描述。
     $readAcl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new(
@@ -818,9 +1268,10 @@ try {
     }
     if ($checks.Count -gt 32) { throw 'NATIVE_PATH_BOUNDARY_BUDGET_EXCEEDED' }
     $boundaryManifest = @{ source = $Source; sid = $state.sid; checks = $checks.ToArray() }
-    [IO.File]::WriteAllText((Join-Path $control 'boundaries.json'), ($boundaryManifest | ConvertTo-Json -Depth 5))
+    [VeriQNativeCleanup]::WriteOutput(
+        $OutputRoot, 'boundaries.json', ($boundaryManifest | ConvertTo-Json -Depth 5), $state.sid, $parentSid)
     $userEvidence = Join-Path $OutputRoot 'evidence'
-    New-Item -ItemType Directory -Path $userEvidence | Out-Null
+    [VeriQNativeCleanup]::CreateOutputDirectory($OutputRoot, 'evidence', $state.sid, $parentSid)
     $parameters = @(
         '-NoLogo', '-NoProfile', '-NonInteractive', '-File', $PSCommandPath, '-Mode', 'Child',
         '-Workspace', $Workspace, '-EvidenceDirectory', $userEvidence, '-NodePath', $NodePath,
@@ -856,7 +1307,9 @@ try {
         source = $Source; sid = $state.sid; processId = $state.processId; creationTime = $state.creationTime
         runId = $runId; runAttempt = $runAttempt
     }
-    [IO.File]::WriteAllText((Join-Path $control 'release.json'), ($gate | ConvertTo-Json))
+    [VeriQNativeCleanup]::WriteOutput(
+        $OutputRoot, 'release-pending.json', ($gate | ConvertTo-Json), $state.sid, $parentSid)
+    [IO.File]::Move((Join-Path $control 'release-pending.json'), (Join-Path $control 'release.json'))
     $deadline = [DateTime]::UtcNow.AddMinutes(25)
     while (!$child.WaitForExit(1000)) {
         if ([DateTime]::UtcNow -ge $deadline) { throw 'NATIVE_TEST_TIME_BUDGET_EXHAUSTED' }

@@ -2,6 +2,8 @@
  * 本文件对运行环境做真实自检：核对稳定独立 Node24.x、引擎包、Chromium 渲染与可选控制 Origin：结果非信任证明（doctor）。
  */
 
+import { browserReadiness } from "./browser-readiness.ts";
+import { browserMode, type BrowserMode } from "./browser-policy.ts";
 import { diagnosticFetch } from "./diagnostics.ts";
 import { access, readFile } from "node:fs/promises";
 import { constants } from "node:fs";
@@ -41,6 +43,7 @@ export function doctorPlatform(os: NodeJS.Platform, architecture: string, instal
 export async function doctor(
     options: {
         server?: string | undefined;
+        browserMode?: BrowserMode;
         executablePath?: string | undefined;
         signal?: AbortSignal | undefined;
         /**
@@ -70,6 +73,7 @@ export async function doctor(
         darwinSource?: DarwinSourceCapability;
     } = {},
 ): Promise<DoctorResult> {
+    browserMode(options.browserMode);
     const checks: DoctorResult["checks"] = [];
     const os = platform();
     const architecture = arch();
@@ -115,31 +119,22 @@ export async function doctor(
     } catch {
         check("browser executable", false, "Chromium executable unavailable");
     }
-    let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
     try {
-        if (options.signal?.aborted) throw new Error();
-        browser = await chromium.launch({
+        const probe = await browserReadiness({
             executablePath,
-            headless: true,
-            timeout: 10_000,
+            ...(options.browserMode ? { browserMode: options.browserMode } : {}),
+            ...(options.signal ? { signal: options.signal } : {}),
+            ...(options.runtime ? { runnerExecutable: options.runtime.execution.runnerExecutable } : {}),
         });
         if (options.expectedBrowserVersion)
-            check("browser version", browser.version() === options.expectedBrowserVersion, browser.version());
-        const cancel = () => {
-            void browser?.close();
-        };
-        options.signal?.addEventListener("abort", cancel, { once: true });
-        try {
-            const page = await browser.newPage();
-            await page.setContent("<title>VeriQ doctor</title>", { timeout: 5_000 });
-            check("browser launch", (await page.title()) === "VeriQ doctor", "Chromium launched and rendered a page");
-        } finally {
-            options.signal?.removeEventListener("abort", cancel);
-        }
+            check("browser version", probe.version === options.expectedBrowserVersion, probe.version);
+        check("browser launch", probe.rendered, "Sandboxed Chromium launched and rendered a page");
     } catch {
-        check("browser launch", false, options.signal?.aborted ? "Cancelled" : "Chromium launch/render failed");
-    } finally {
-        await browser?.close();
+        check(
+            "browser launch",
+            false,
+            options.signal?.aborted ? "Cancelled" : "Sandboxed Chromium launch/render failed",
+        );
     }
     if (options.server) {
         try {

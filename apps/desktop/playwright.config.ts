@@ -5,6 +5,7 @@ import { defineConfig } from "@playwright/test";
  * 务证据目录而不是纳入产品源码或冒充目标 OS 安装验收。
  */
 export default defineConfig({
+    globalSetup: "../../tests/e2e/desktop-setup.ts",
     testDir: "../../tests/e2e",
     testMatch: ["desktop.spec.ts", "desktop-agent-panel.spec.ts"],
     workers: 1,

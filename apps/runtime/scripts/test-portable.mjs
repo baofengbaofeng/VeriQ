@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
  */
 const suites = {
     portable: [
+        "browser-policy",
         "connected-cli",
         "controlled-proof",
         "darwin-vault-operation-diagnostics",
@@ -23,6 +24,7 @@ const suites = {
         "vault-envelope",
     ],
     posix: [
+        "browser-launch-policy",
         // 这些夹具使用真实链接、描述符、UID 与权限位，并通过信号和本机 Unix socket 核验宿主行为。
         "archive-portability",
         "controlled-child",

@@ -9,8 +9,8 @@ from test_conversational_agent import conversation, submit
 from test_workspace import client, new_member
 
 
-@pytest.fixture
-async def credential_form(site):
+@pytest.fixture(name="credential_form")
+async def _credential_form(site):
     """成员以可降级的管理角色在自己的会话中打开凭据表单，空间所有者独立登录以验证同权限员工的操作隔离。"""
     owner, _ = site
     ws = await _scope(owner)

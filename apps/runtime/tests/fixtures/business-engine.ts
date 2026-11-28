@@ -525,6 +525,13 @@ export async function buildBusinessEngine(root: string) {
 export async function onlineBusiness(
     options: {
         browserExecutable?: string;
+        browserMode?: "headless" | "headed";
+        expectPreflightFailure?: boolean;
+        expectedPreflightReason?:
+            | "BROWSER_PREFLIGHT_FAILED"
+            | "VISIBLE_DISPLAY_UNAVAILABLE"
+            | "HEADED_BROWSER_REQUIRED";
+        expectBrowserStartFailure?: boolean;
         darwinSource?: DarwinSourceCapability;
         connectFailure?: boolean;
         signal?: AbortSignal;
@@ -560,6 +567,8 @@ export async function onlineBusiness(
         activation = false,
         loseActivation = false,
         serviceWorkerHits = 0,
+        credentialRequests = 0,
+        identityRequests = 0,
         currentToken = "a".repeat(43),
         origin = "";
     const server = createServer(async (req, res) => {
@@ -609,6 +618,7 @@ export async function onlineBusiness(
                 return;
             }
             if (path.endsWith("/credentials/resolve")) {
+                credentialRequests++;
                 assert(activation);
                 const value = JSON.parse(bytes.toString());
                 reply({
@@ -680,6 +690,7 @@ export async function onlineBusiness(
             return;
         }
         if (path === "/identity") {
+            identityRequests++;
             res.end(
                 JSON.stringify({
                     id: req.headers.authorization === "Bearer fixture-token" ? "fixture-service" : "reader",
@@ -804,6 +815,7 @@ export async function onlineBusiness(
             client,
             releaseDirectory: release,
             browserExecutable: options.browserExecutable ?? chromiumForTest(),
+            ...(options.browserMode ? { browserMode: options.browserMode } : {}),
             ...(options.darwinSource ? { darwinSource: options.darwinSource } : {}),
         });
         const results = [];
@@ -939,6 +951,28 @@ export async function onlineBusiness(
                         process.stderr.write(file + ": " + diagnostic.slice(0, 16000) + "\n");
                     } catch {}
             }
+            if (options.expectPreflightFailure) {
+                assert.equal(result.completion, undefined);
+                assert.equal(result.stop.reason, options.expectedPreflightReason ?? "BROWSER_PREFLIGHT_FAILED");
+                assert.equal(result.stop.processStopped, true);
+                assert.equal(result.stop.processStopScope, "NO_PROCESS_SPAWNED");
+                assert.equal(activation, false);
+                assert.equal(credentialRequests, 0);
+                assert.equal(identityRequests, 0);
+                assert.equal(fixtures.length, 0);
+                assert.deepEqual(supervisor.processes.active(), []);
+                break;
+            }
+            if (options.expectBrowserStartFailure) {
+                assert.equal(result.completion, undefined);
+                assert.equal(result.stop.processStopped, true);
+                assert.equal(result.stop.processStopScope, "FULL_DESCENDANT_TREE");
+                assert.equal(credentialRequests, 0);
+                assert.equal(identityRequests, 0);
+                assert.equal(fixtures.length, 0);
+                assert.deepEqual(supervisor.processes.active(), []);
+                break;
+            }
             if (options.expectIncomplete) {
                 assert.equal(result.completion, undefined);
                 if (options.expectedStop !== undefined) assert.equal(result.stop.processStopped, options.expectedStop);
@@ -977,7 +1011,14 @@ export async function onlineBusiness(
             assert.deepEqual(supervisor.processes.active(), []);
             await rm(join(root, "agent/work", claim.attemptId), { recursive: true, force: true });
         }
-        if (options.connectFailure || options.expectCancelled || options.expectIncomplete) return;
+        if (
+            options.connectFailure ||
+            options.expectCancelled ||
+            options.expectIncomplete ||
+            options.expectPreflightFailure ||
+            options.expectBrowserStartFailure
+        )
+            return;
         assert.equal(serviceWorkerHits, 0);
         loseActivation = true;
         const lost = {

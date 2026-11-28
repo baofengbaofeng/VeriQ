@@ -43,20 +43,20 @@ export function x11WindowIds(tree: string): string[] {
 
 /**
  * 业务响应被夹具暂缓期间，从真实 X11 窗口反查完整浏览器及监管器后代关系，并读取该 Attempt 的实际生成配置与 worker
- * 显示环境；所有观察都来自本轮拥有的进程，不能另起一个示例浏览器代替 runOffline 的
- * 接线证明。
+ * 显示环境；所有观察都来自本轮拥有的同一 Attempt，执行目录由测试宿主选定，不能另起示例浏览器代替实际 Run 的接线证明。
  */
 export async function observeHeadedRun(
     profile: string,
     agentPid: number,
     executable: string,
     evidence: string,
+    executionDirectory = "offline",
 ): Promise<Observation> {
     const display = process.env.DISPLAY;
     if (!display) throw new Error("TEST_DISPLAY_REQUIRED");
     const binary = await realpath(executable);
     expect((await command(binary, ["--version"])).stdout).toContain("158.0.8127.18");
-    const directory = join(profile, "offline", "processes");
+    const directory = join(profile, executionDirectory, "processes");
     const journals = await Promise.all(
         (await readdir(directory))
             .filter((name) => name.endsWith(".process.json"))
@@ -107,6 +107,12 @@ export async function observeHeadedRun(
                         cursor = Number(stat.slice(stat.lastIndexOf(")") + 2).split(" ")[1]);
                         ancestors.push(cursor);
                     }
+                    if (
+                        !ancestors.includes(owned.pid) ||
+                        !ancestors.includes(owned.guardianPid) ||
+                        !ancestors.includes(agentPid)
+                    )
+                        continue;
                     expect(ancestors).toContain(owned.pid);
                     expect(ancestors).toContain(owned.guardianPid);
                     expect(ancestors).toContain(agentPid);
@@ -116,10 +122,11 @@ export async function observeHeadedRun(
                     const environment = rawEnvironment.split("\0");
                     const arguments_ = rawCommand.split("\0").filter(Boolean);
                     expect(arguments_.some((argument) => argument.startsWith("--headless"))).toBe(false);
+                    expect(arguments_.some((argument) => /^--no-sandbox(?:=|$)/.test(argument))).toBe(false);
                     expect(environment).toContain(`DISPLAY=${process.env.DISPLAY}`);
                     if (process.env.XAUTHORITY) expect(environment).toContain(`XAUTHORITY=${process.env.XAUTHORITY}`);
                     const config = await readFile(
-                        join(profile, "offline", "work", owned.attemptId, "playwright.config.mjs"),
+                        join(profile, executionDirectory, "work", owned.attemptId, "playwright.config.mjs"),
                         "utf8",
                     );
                     const actual = JSON.parse(config.slice("export default ".length, config.lastIndexOf(";"))) as {
@@ -163,10 +170,11 @@ export async function assertHeadedStopped(
     observation: Observation,
     processStopped: unknown,
     evidence: string,
+    executionDirectory = "offline",
 ) {
     expect(processStopped).toBe(true);
     const journal = JSON.parse(
-        await readFile(join(profile, "offline", "processes", `${observation.attemptId}.process.json`), "utf8"),
+        await readFile(join(profile, executionDirectory, "processes", `${observation.attemptId}.process.json`), "utf8"),
     ) as { state: string };
     expect(journal.state).toBe("STOPPED");
     await expect

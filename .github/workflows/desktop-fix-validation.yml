@@ -148,7 +148,7 @@ jobs:
               run: |
                   set -o pipefail
                   test -x apps/runtime/build/veriq_runner
-                  pnpm --filter @veriq/runtime exec node --import tsx --test tests/runtime.test.ts tests/renewal.test.ts tests/distribution.test.ts tests/offline-store.test.ts tests/supervisor.test.ts tests/vault-envelope.test.ts tests/vault-integration.test.ts tests/vault-history.test.ts tests/vault-deletion.test.ts tests/restricted-file.test.ts tests/restricted-operation.test.ts 2>&1 | tee "$VERIQ_DESKTOP_EVIDENCE/runtime-affected.log"
+                  pnpm --filter @veriq/runtime exec node --import tsx --test tests/browser-policy.test.ts tests/browser-launch-policy.test.ts tests/physical.test.ts tests/runtime.test.ts tests/renewal.test.ts tests/distribution.test.ts tests/offline-store.test.ts tests/supervisor.test.ts tests/vault-envelope.test.ts tests/vault-integration.test.ts tests/vault-history.test.ts tests/vault-deletion.test.ts tests/restricted-file.test.ts tests/restricted-operation.test.ts 2>&1 | tee "$VERIQ_DESKTOP_EVIDENCE/runtime-affected.log"
             - name: Run the composed actual GUI suite with visible Chromium acceptance
               env:
                   DEBUG: pw:browser
@@ -168,8 +168,8 @@ jobs:
                   assert stopped['processStopped'] is True and stopped['journalState'] == 'STOPPED'
                   assert stopped['windowGone'] is True and stopped['ownedPidsExited'] is True
                   stats = results['stats']
-                  assert stats['expected'] == 7 and stats['unexpected'] == 0 and stats['skipped'] == 0 and stats['flaky'] == 0
-                  print('Composed GUI acceptance verified: 7 passed, 0 skipped; actual headed window and stop observations present')
+                  assert stats['expected'] == 8 and stats['unexpected'] == 0 and stats['skipped'] == 0 and stats['flaky'] == 0
+                  print('Composed GUI acceptance verified: 8 passed, 0 skipped; actual headed window and stop observations present')
                   PY
             - name: Always confirm owned Cookie service cleanup
               if: always()
@@ -198,5 +198,12 @@ jobs:
                       .superpowers/sdd/veriq-1/evidence/t20/desktop-${{ github.sha }}/userns-*.jsonl
                       .superpowers/sdd/veriq-1/evidence/t20/desktop-${{ github.sha }}/userns-*.profile
                       .superpowers/sdd/veriq-1/evidence/t20/desktop-${{ github.sha }}/gui-runtime-versions.json
+                      .superpowers/sdd/veriq-1/evidence/t20/desktop-${{ github.sha }}/desktop-suite.json
+                      .superpowers/sdd/veriq-1/evidence/t20/desktop-${{ github.sha }}/connected-report-summary.json
+                      .superpowers/sdd/veriq-1/evidence/t20/desktop-${{ github.sha }}/connected-recovery-summary.json
+                      .superpowers/sdd/veriq-1/evidence/t20/desktop-${{ github.sha }}/connected-headed-report.json
+                      .superpowers/sdd/veriq-1/evidence/t20/desktop-${{ github.sha }}/online-process-policy.json
+                      .superpowers/sdd/veriq-1/evidence/t20/desktop-${{ github.sha }}/historical-readonly-observation.json
+                      .superpowers/sdd/veriq-1/evidence/t20/desktop-${{ github.sha }}/cloud-editor-publications.jsonl
                       .superpowers/sdd/veriq-1/evidence/t20/desktop-${{ github.sha }}/playwright-results/**/error-context.md
                   if-no-files-found: warn

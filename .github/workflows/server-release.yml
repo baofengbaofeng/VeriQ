@@ -53,6 +53,9 @@ jobs:
         if: needs.admission.outputs.purpose == 'release'
         runs-on: ubuntu-24.04
         timeout-minutes: 60
+        env:
+            PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.superpowers/cache/playwright
+            VERIQ_SERVER_EVIDENCE: ${{ github.workspace }}/.superpowers/sdd/veriq-1/evidence/t20/server-${{ github.sha }}
         services:
             mysql:
                 image: mysql:8.4.13@sha256:a81d043930e51745522bd5c430961cf8286f0a23f0a9a2a6e0108f7ea71b0902
@@ -81,9 +84,32 @@ jobs:
                   echo "$RUNNER_TEMP/veriq-node-tools/node_modules/.bin" >> "$GITHUB_PATH"
             - name: Prepare isolated test inputs and matched browsers
               run: |
+                  mkdir -p "$VERIQ_SERVER_EVIDENCE"
                   uv sync --project apps/srv --frozen --all-groups
                   pnpm install --frozen-lockfile
                   pnpm --filter @veriq/runner-sdk exec playwright install --with-deps chromium
+                  pnpm --filter @veriq/runner-sdk exec node --input-type=module <<'JS'
+                  import fs from 'node:fs';
+                  import path from 'node:path';
+                  import { createRequire } from 'node:module';
+                  import { chromium } from '@playwright/test';
+                  const require = createRequire(import.meta.url);
+                  if (require('@playwright/test/package.json').version !== '1.65.0') {
+                      throw new Error('PLAYWRIGHT_PIN_MISMATCH');
+                  }
+                  const expected = path.join(process.env.PLAYWRIGHT_BROWSERS_PATH, 'chromium-1254/chrome-linux64/chrome');
+                  const actual = fs.realpathSync(chromium.executablePath());
+                  const invalid = Array.from(actual).some(character => {
+                      const code = character.charCodeAt(0);
+                      return code < 32 || code === 127;
+                  });
+                  if (actual !== expected || invalid) throw new Error('SERVER_BROWSER_PATH_INVALID');
+                  if (!fs.statSync(actual).isFile()) throw new Error('SERVER_BROWSER_NOT_FILE');
+                  fs.accessSync(actual, fs.constants.X_OK);
+                  const environmentFile = process.env.GITHUB_ENV;
+                  if (!environmentFile || !path.isAbsolute(environmentFile)) throw new Error('GITHUB_ENV_PATH_REQUIRED');
+                  fs.appendFileSync(environmentFile, `VERIQ_TEST_HEADED_BROWSER=${actual}\n`);
+                  JS
                   mkdir -p .superpowers/sdd/veriq-1/state
                   python - <<'PY'
                   import json, os
@@ -117,6 +143,13 @@ jobs:
                   uv run --project apps/srv --frozen --no-sync python -m pytest \
                     -c apps/srv/pyproject.toml \
                     tests/acceptance/test_windows_native_harness.py --tb=short -q
+            - name: Allow user namespaces only for this hosted server job's exact browsers
+              env:
+                  VERIQ_CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+              run: |
+                  set -o pipefail
+                  python tests/e2e/test_ci_userns.py 2>&1 | tee "$VERIQ_SERVER_EVIDENCE/userns-boundary-tests.log"
+                  python tests/e2e/ci_userns.py prepare --purpose server
             - name: Verify production database and CLI operator lifecycle
               run: |
                   uv run --project apps/srv --frozen --no-sync python -m pytest \
@@ -164,11 +197,17 @@ jobs:
                   docker run --detach --name veriq-control-test --read-only --tmpfs /tmp --tmpfs /var/lib/veriq:uid=10001,gid=10001 -v "$PWD/work/container-config:/etc/veriq:ro" -p 18888:8888 veriq-control:test
                   python scripts/probe_container.py
                   docker exec veriq-control-test python -c "import shutil; assert all(shutil.which(x) is None for x in ('node', 'chromium', 'google-chrome'))"
+            - name: Remove only this hosted server job's user namespace profiles
+              if: always()
+              env:
+                  VERIQ_CI_RUNNER_ENVIRONMENT: ${{ runner.environment }}
+              run: python tests/e2e/ci_userns.py cleanup --purpose server
             - name: Preserve evidence even when a real gate fails
               if: always()
               uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
               with:
                   name: server-release-evidence
+                  include-hidden-files: true
                   path: |
                       work/release-*/commands.json
                       work/release-*/processes.json
@@ -180,6 +219,10 @@ jobs:
                       work/release-*/comment-audit.json
                       work/server-regression-*/*.log
                       work/server-regression-*/*.xml
+                      .superpowers/sdd/veriq-1/evidence/t20/server-${{ github.sha }}/userns-*.json
+                      .superpowers/sdd/veriq-1/evidence/t20/server-${{ github.sha }}/userns-*.jsonl
+                      .superpowers/sdd/veriq-1/evidence/t20/server-${{ github.sha }}/userns-*.profile
+                      .superpowers/sdd/veriq-1/evidence/t20/server-${{ github.sha }}/userns-*.log
                       output/server/**
                   if-no-files-found: error
             - name: Stop candidate container

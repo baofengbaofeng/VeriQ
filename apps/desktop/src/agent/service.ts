@@ -1,3 +1,4 @@
+import { browserMode, type BrowserMode } from "../../../runtime/src/browser-policy.ts";
 import { join } from "node:path";
 import { rm, writeFile, lstat, readdir, chmod } from "node:fs/promises";
 import { randomUUID, createHash } from "node:crypto";
@@ -48,6 +49,7 @@ export interface AgentConfiguration {
     engineDirectory: string;
     engineVersion?: string;
     browserExecutable: string;
+    browserMode?: BrowserMode;
     headedExecutable?: string;
     /**
      * 正式安装由 main 写入唯一 Runtime 资源根，Agent 启动及准备执行时重新验证该目录；renderer 和签名业务包不能传入此字
@@ -118,6 +120,7 @@ export class DesktopAgent {
         readonly config: AgentConfiguration,
         credentials?: CredentialOptions,
     ) {
+        browserMode(config.browserMode);
         controlOrigin(config.origin);
         this.headedCapability = probeBrowser(config.headedExecutable, true);
         this.browserCapability = probeBrowser(config.browserExecutable, false);
@@ -884,6 +887,7 @@ export class DesktopAgent {
             engineDirectory: installed?.engineDirectory ?? this.config.engineDirectory,
             engineVersion: installed?.engineVersion ?? this.config.engineVersion ?? "1.0.0",
             browserExecutable: installed?.browserExecutable ?? this.config.browserExecutable,
+            browserMode: browserMode(this.config.browserMode),
             ...(network ? { server: this.config.origin } : {}),
         });
     }
@@ -942,6 +946,7 @@ export class DesktopAgent {
             client,
             releaseDirectory: this.config.engineDirectory,
             browserExecutable: this.config.browserExecutable,
+            browserMode: browserMode(this.config.browserMode),
         });
         this.online = claimLoop({
             root,

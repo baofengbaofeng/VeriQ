@@ -1,3 +1,4 @@
+import { runtimeBrowserMode } from "../../../runtime/src/browser-policy.ts";
 import {
     diagnosticCode,
     getLogger,
@@ -231,6 +232,7 @@ async function ensureAgent(): Promise<void> {
         )
             throw error;
     }
+    const browserMode = await runtimeBrowserMode(profile, process.env.VERIQ_DESKTOP_BROWSER_MODE);
     const agentNode = installed?.agentExecutable ?? node24;
     const environment = agentEnvironment(proxy);
     const version = await promisify(execFile)(agentNode, ["--version"], {
@@ -246,6 +248,7 @@ async function ensureAgent(): Promise<void> {
         throw new Error("INDEPENDENT_NODE24_REQUIRED");
     await updatePrivate(profile, "desktop-config.json", () => ({
         origin,
+        browserMode,
         ...(installed
             ? {
                   distributionRoot: installed.root,
