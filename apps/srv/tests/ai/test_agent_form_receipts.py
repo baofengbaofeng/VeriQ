@@ -42,6 +42,30 @@ async def history(admin, turns):
     return {turn["id"]: turn for turn in result.json()["data"]["items"]}
 
 
+async def test_auth_adapter_form_receipts_cover_only_state_changes(credential_form):
+    """每次提交后读取原会话历史，核对创建和首次撤销各写一条指向同一适配器版本的回执，重复撤销保留两条原回执。"""
+    _, admin, _, base, _, turns, original = credential_form
+    route = base + "/auth-adapters"
+    headers = {"X-VeriQ-Agent-Form": original["id"]}
+    configuration = {"kind": "HTTP_BEARER", "identityPath": "/me", "identityPointer": "/id"}
+    created = await admin.post(route, json={"configuration": configuration}, headers=headers)
+    assert created.status_code == 201, created.text
+    version = created.json()["data"]["versionId"]
+    receipts = (await history(admin, turns))[original["id"]]["workspaceFormReceipts"]
+    assert [(row["action"], row["targetId"]) for row in receipts] == [
+        ("auth_adapter.created", version)
+    ]
+    for _ in range(2):
+        revoked = await admin.post(f"{route}/{version}/revoke", json={}, headers=headers)
+        assert revoked.status_code == 200, revoked.text
+        assert revoked.json()["data"]["revoked"] is True
+        receipts = (await history(admin, turns))[original["id"]]["workspaceFormReceipts"]
+        assert [(row["action"], row["targetId"]) for row in receipts] == [
+            ("auth_adapter.created", version),
+            ("auth_adapter.revoked", version),
+        ]
+
+
 async def test_wrong_actor_and_wrong_workflow_roll_back_credential_creation(credential_form):
     """有领域权限的其他员工以及持有别种表单的原员工都不能借用轮次；拒绝后凭据和对话回执都不存在。"""
     owner, admin, _, base, model, turns, original = credential_form

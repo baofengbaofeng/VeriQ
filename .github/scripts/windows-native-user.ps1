@@ -23,6 +23,38 @@ function Write-Record([string]$Name, $Value) {
 }
 
 <#
+附加观察的读取与保存必须全部隔离失败，连固定回退记录也不能覆盖原拒绝；真正的权限设置和强断言不经过此入口。
+#>
+function Write-Observation([string]$Name, [scriptblock]$Observe) {
+    try {
+        $value = & $Observe
+        Write-Record $Name $value
+    } catch {
+        try { Write-Record $Name @{ source = $Source; observationAvailable = $false } }
+        catch {}
+    }
+}
+
+<#
+权限诊断只读取本次选定对象的拥有者与有限访问项，不记录文件正文或账户口令，诊断失败也不能替换原拒绝错误。
+#>
+function Get-AclObservation([string]$Path) {
+    $acl = Get-Acl -LiteralPath $Path
+    $rules = @($acl.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier]))
+    return @{
+        owner = $acl.GetOwner([Security.Principal.SecurityIdentifier]).Value
+        protected = $acl.AreAccessRulesProtected; ruleCount = $rules.Count
+        rules = @($rules | Select-Object -First 16 | ForEach-Object {
+            @{
+                sid = $_.IdentityReference.Value; rights = [int]$_.FileSystemRights
+                allow = $_.AccessControlType -eq 'Allow'; inherited = $_.IsInherited
+                inheritance = [int]$_.InheritanceFlags; propagation = [int]$_.PropagationFlags
+            }
+        })
+    }
+}
+
+<#
 构建摘要同时绑定确切运行时和全部原生构建成员，普通账户直接读取这些锁定文件，测试前后不得出现替换或重建。
 #>
 function Get-BuildHashes {
@@ -95,6 +127,15 @@ if ($Mode -eq 'Child') {
                 $inputPath, [IO.FileMode]::Open, [IO.FileAccess]::Write, [IO.FileShare]::ReadWrite)
         } catch [UnauthorizedAccessException] { continue }
         finally { if ($writable) { $writable.Dispose() } }
+        Write-Observation 'standard-user-readonly-failure.json' {
+            $memberName = if ($inputPath -eq $NodePath) { 'node' } else {
+                $inputPath.Substring($Workspace.Length).TrimStart('\', '/')
+            }
+            @{
+                source = $Source; code = 'NATIVE_CHECKOUT_MEMBER_MUST_BE_READ_ONLY'
+                member = $memberName; acl = (Get-AclObservation $inputPath)
+            }
+        }
         throw 'NATIVE_CHECKOUT_MEMBER_MUST_BE_READ_ONLY'
     }
     $member = Join-Path $env:TEMP 'node-owner-probe.json'
@@ -281,7 +322,7 @@ function Save-State {
 私有监管目录明确设置拥有者与保护授权，普通账户仅能读取启动闸门，不能伪造状态、提前放行或继承监管句柄。
 #>
 function Set-ControlAcl([string]$Path, [string]$Reader = '') {
-    $acl = Get-Acl -LiteralPath $Path
+    $acl = [Security.AccessControl.DirectorySecurity]::new()
     $acl.SetAccessRuleProtection($true, $false)
     $acl.SetOwner([Security.Principal.SecurityIdentifier]::new($parentSid))
     foreach ($sid in @($parentSid, 'S-1-5-18')) {
@@ -295,6 +336,10 @@ function Set-ControlAcl([string]$Path, [string]$Reader = '') {
             'ContainerInherit,ObjectInherit', 'None', 'Allow'))
     }
     Set-Acl -LiteralPath $Path -AclObject $acl
+    $scope = if ($Path -eq $stateDirectory) { 'state' } elseif ($Reader) { 'gate' } else { 'output' }
+    Write-Observation ('standard-user-acl-' + $scope + '.json') {
+        @{ source = $Source; scope = $scope; acl = (Get-AclObservation $Path) }
+    }
 }
 
 <#
@@ -309,6 +354,9 @@ function Assert-StateContainer {
     }
     $acl = Get-Acl -LiteralPath $stateDirectory
     $rules = @($acl.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier]))
+    Write-Observation 'standard-user-acl-state.json' {
+        @{ source = $Source; scope = 'state'; acl = (Get-AclObservation $stateDirectory) }
+    }
     if (!$acl.AreAccessRulesProtected -or $rules.Count -ne 2) { throw 'NATIVE_CLEANUP_STATE_ACL_INVALID' }
     foreach ($rule in $rules) {
         if ($rule.IdentityReference.Value -notin @($parentSid, 'S-1-5-18') -or
@@ -442,7 +490,8 @@ function Complete-Cleanup {
     $userEvidence = Join-Path $state.outputRoot 'evidence'
     if (Test-Path -LiteralPath $userEvidence) {
         foreach ($name in @(
-            '', 'standard-user-identity.json', 'standard-user-file-owner.json', 'standard-user-build-inputs.json'
+            '', 'standard-user-identity.json', 'standard-user-file-owner.json', 'standard-user-build-inputs.json',
+            'standard-user-readonly-failure.json'
         )) {
             $path = if ($name) { Join-Path $userEvidence $name } else { $userEvidence }
             if (Test-Path -LiteralPath $path) {
@@ -501,8 +550,11 @@ if ($Mode -eq 'Cleanup') {
     $state = Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
     try { Complete-Cleanup }
     catch {
-        Write-Record 'standard-user-cleanup-failure.json' @{ source = $Source; code = 'NATIVE_CLEANUP_UNCONFIRMED' }
-        throw
+        $cleanupError = $_
+        Write-Observation 'standard-user-cleanup-failure.json' {
+            @{ source = $Source; code = 'NATIVE_CLEANUP_UNCONFIRMED' }
+        }
+        throw $cleanupError
     }
     exit 0
 }
@@ -612,18 +664,36 @@ try {
         if ([DateTime]::UtcNow -ge $deadline) { throw 'NATIVE_TEST_TIME_BUDGET_EXHAUSTED' }
     }
     $state.exitCode = $child.ExitCode
+    if ($state.exitCode -ne 0) {
+        Write-Observation 'standard-user-test-exit.json' {
+            @{ source = $Source; code = 'NATIVE_CHILD_NONZERO_EXIT'; exitCode = $state.exitCode }
+        }
+    }
     Save-State
     $after = Get-BuildHashes
     if ($before.Count -ne $after.Count -or @($before.Keys | Where-Object { $before[$_] -ne $after[$_] }).Count) {
         throw 'NATIVE_BUILD_INPUTS_CHANGED'
     }
+} catch {
+    $originalError = $_
+    Write-Observation 'standard-user-harness-failure.json' {
+        $category = $originalError.Exception.GetType().FullName
+        $code = if ($originalError.Exception.Message -cmatch '^NATIVE_[A-Z0-9_]+$') {
+            $originalError.Exception.Message
+        } else { 'NATIVE_HARNESS_FAILURE' }
+        @{ source = $Source; code = $code; category = $category }
+    }
+    throw $originalError
 } finally {
     try {
         if ($child) { $child.Dispose() }
         Complete-Cleanup
     } catch {
-        Write-Record 'standard-user-cleanup-failure.json' @{ source = $Source; code = 'NATIVE_CLEANUP_UNCONFIRMED' }
-        throw
+        $cleanupError = $_
+        Write-Observation 'standard-user-cleanup-failure.json' {
+            @{ source = $Source; code = 'NATIVE_CLEANUP_UNCONFIRMED' }
+        }
+        throw $cleanupError
     } finally {
         if ($job) { $job.Dispose() }
         $password.Dispose()
