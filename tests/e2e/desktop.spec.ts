@@ -1,4 +1,5 @@
 import { test, expect, _electron, chromium } from "../../apps/desktop/tests/fixtures";
+import type { PlatformComponents } from "../../packages/contracts/src/index.ts";
 import { mkdtemp, rm, appendFile, readFile, mkdir, writeFile, realpath, readdir } from "node:fs/promises";
 import { resolve, dirname } from "node:path";
 import { createRequire } from "node:module";
@@ -763,6 +764,7 @@ test("connected reports and runs survive UI recovery and preserve stop evidence"
     let headedAgentPid: number | undefined;
     const release = () => request.post("http://127.0.0.1:18891/__release");
     const failures: unknown[] = [];
+    let diagnose: (() => Promise<void>) | undefined;
     try {
         await expect
             .poll(async () =>
@@ -787,6 +789,50 @@ test("connected reports and runs survive UI recovery and preserve stop evidence"
                     window.veriq.cloud({ operation: "getRunReport", params: { workspaceId, runId: id } }),
                 { workspaceId, id },
             ) as Promise<any>;
+        let trackedRun: { id: string; runtimeId: string; target: typeof page } | undefined;
+        const checkpoint = async (stage: string) => {
+            const target = trackedRun?.target ?? page;
+            const observation: Record<string, unknown> = { stage, at: new Date().toISOString(), runId: trackedRun?.id };
+            try {
+                const state = await target.evaluate(() => window.veriq.state());
+                const agent = state.agent;
+                observation.agent = agent && {
+                    pid: agent.pid,
+                    online: agent.online,
+                    active: agent.active,
+                    preparing: agent.preparing,
+                    workspaceId: agent.workspaceId,
+                    device: agent.device,
+                    pausedReason: agent.pausedReason,
+                    scratchCleanupPending: agent.scratchCleanupPending,
+                    error: agent.error,
+                };
+                observation.hostWorkspaceId = state.workspace?.id;
+            } catch {
+                observation.agentUnavailable = true;
+            }
+            if (trackedRun) {
+                try {
+                    const value: PlatformComponents["schemas"]["RunReportDTO"] = await report(trackedRun.id);
+                    observation.run = { id: value.run.id, state: value.run.state, outcome: value.run.outcome };
+                    observation.attempts = value.cases.flatMap((item) =>
+                        item.attempts.map((attempt) => ({
+                            id: attempt.id,
+                            runtimeId: attempt.runtimeId,
+                            phase: attempt.phase,
+                            outcome: attempt.outcome,
+                            processStopped: attempt.facts?.processStopped,
+                            processStopScope: attempt.facts?.processStopScope,
+                        })),
+                    );
+                    observation.expectedRuntimeId = trackedRun.runtimeId;
+                } catch {
+                    observation.reportUnavailable = true;
+                }
+            }
+            await appendFile(resolve(evidence, "connected-run-checkpoints.log"), JSON.stringify(observation) + "\n");
+        };
+        diagnose = () => checkpoint("primary-failure");
         expect((await report(saved.runId)).run.outcome).toBe("PASSED");
         await page.getByRole("button", { name: "报告与历史", exact: true }).click();
         await page.getByRole("button", { name: saved.runId, exact: true }).click();
@@ -862,8 +908,30 @@ test("connected reports and runs survive UI recovery and preserve stop evidence"
         expect((await readdir(exportPath)).sort()).toEqual(priorExports);
         expect((await page.evaluate(() => window.veriq.state())).agent!.pid).toBe(agentPid);
         await page.getByRole("button", { name: "工作台", exact: true }).click();
-        await page.getByRole("button", { name: "启动在线领取 / Start online worker", exact: true }).click();
-        await expect.poll(async () => (await page.evaluate(() => window.veriq.state())).agent?.online).toBe(true);
+        const stopIdleWorker = async (target: typeof page, expectedPid: number) => {
+            const state = (await target.evaluate(() => window.veriq.state())).agent!;
+            expect(state.pid).toBe(expectedPid);
+            expect(state.active).toBeNull();
+            expect(state.preparing).toBeUndefined();
+            if (trackedRun?.target === target) {
+                const previous = await report(trackedRun.id);
+                expect(previous.run.state).toBe("FINISHED");
+                for (const item of previous.cases)
+                    for (const attempt of item.attempts) expect(attempt.facts.processStopped).toBe(true);
+            }
+            if (state.online) {
+                await target.getByRole("button", { name: "停止在线领取 / Stop online worker", exact: true }).click();
+                await expect
+                    .poll(async () => (await target.evaluate(() => window.veriq.state())).agent?.online)
+                    .toBe(false);
+            }
+            expect((await target.evaluate(() => window.veriq.state())).agent!.pid).toBe(expectedPid);
+        };
+        const startWorker = async (target: typeof page, expectedPid: number) => {
+            await target.getByRole("button", { name: "启动在线领取 / Start online worker", exact: true }).click();
+            await expect.poll(async () => (await target.evaluate(() => window.veriq.state())).agent?.online).toBe(true);
+            expect((await target.evaluate(() => window.veriq.state())).agent!.pid).toBe(expectedPid);
+        };
         const create = () =>
             page.evaluate(
                 ({ workspaceId, caseVersionId, environmentVersionId, runtimeId }) =>
@@ -887,6 +955,22 @@ test("connected reports and runs survive UI recovery and preserve stop evidence"
             expect
                 .poll(async () => (await (await request.get("http://127.0.0.1:18891/__state")).json()).waiting)
                 .toBe(1);
+        const queuedRun = async (stage: string) => {
+            await stopIdleWorker(page, agentPid!);
+            expect((await request.post("http://127.0.0.1:18891/__hold")).ok()).toBe(true);
+            const run = await create();
+            trackedRun = { id: run.id, runtimeId: saved.runtimeId, target: page };
+            await checkpoint(`${stage}:queued`);
+            expect((await report(run.id)).run.state).toBe("QUEUED");
+            await startWorker(page, agentPid!);
+            await checkpoint(`${stage}:worker-started`);
+            await waitForBusiness();
+            const running = await report(run.id);
+            expect(running.run.state).toBe("RUNNING");
+            expect(running.cases[0].attempts[0].runtimeId).toBe(saved.runtimeId);
+            await checkpoint(`${stage}:business-held`);
+            return run;
+        };
         const signIn = async () => {
             await page.getByLabel("邮箱 / Email").fill("desktop-admin@example.com");
             await page.getByLabel("密码 / Password").fill("Desktop password 123!");
@@ -894,9 +978,7 @@ test("connected reports and runs survive UI recovery and preserve stop evidence"
             await selectDesktopWorkspace(page, workspaceId);
         };
         // 故障恢复、退出、取消和有头取证各用独立 Run，释放业务响应后才做后续登录，避免耗尽同一次导航的十秒预算。
-        await request.post("http://127.0.0.1:18891/__hold");
-        const crashed = await create();
-        await waitForBusiness();
+        const crashed = await queuedRun("renderer-crash");
         expect((await report(crashed.id)).run.state).toBe("RUNNING");
         await terminateRenderer(electron, profile, evidence);
         await expect.poll(async () => (await page.evaluate(() => window.veriq.state())).agent?.pid).toBe(agentPid);
@@ -905,24 +987,23 @@ test("connected reports and runs survive UI recovery and preserve stop evidence"
         await expect.poll(async () => (await report(crashed.id)).run.outcome, { timeout: 30000 }).toBe("PASSED");
         const crashReport = await report(crashed.id);
         expect(crashReport.cases[0].attempts[0].facts.processStopped).toBe(true);
-        await request.post("http://127.0.0.1:18891/__hold");
-        const quitting = await create();
-        await waitForBusiness();
+        await checkpoint("renderer-crash:stopped");
+        const quitting = await queuedRun("ui-quit");
         expect((await report(quitting.id)).run.state).toBe("RUNNING");
         await closeTestDesktop(electron, "quit");
         electron = undefined;
         await release();
         electron = await launch();
         page = await electron.firstWindow();
+        trackedRun!.target = page;
         await page.getByLabel("语言 / Language").selectOption("zh");
         await expect.poll(async () => (await page.evaluate(() => window.veriq.state())).agent?.pid).toBe(agentPid);
         await signIn();
         await expect.poll(async () => (await report(quitting.id)).run.outcome, { timeout: 30000 }).toBe("PASSED");
         const completed = await report(quitting.id);
         expect(completed.cases[0].attempts[0].facts.processStopped).toBe(true);
-        await request.post("http://127.0.0.1:18891/__hold");
-        const cancelled = await create();
-        await waitForBusiness();
+        await checkpoint("ui-quit:stopped");
+        const cancelled = await queuedRun("platform-cancel");
         await page.evaluate(
             ({ workspaceId, id }) =>
                 window.veriq.cloud({
@@ -936,6 +1017,8 @@ test("connected reports and runs survive UI recovery and preserve stop evidence"
         const stopped = await report(cancelled.id);
         expect(stopped.cases[0].attempts[0].facts.processStopped).toBe(true);
         await release();
+        await checkpoint("platform-cancel:stopped");
+        await stopIdleWorker(page, agentPid!);
         const policyFailures: unknown[] = [];
         if (!process.env.VERIQ_TEST_HEADED_BROWSER) throw new Error("MATCHED_HEADED_BROWSER_REQUIRED");
         const headedBrowser = process.env.VERIQ_TEST_HEADED_BROWSER;
@@ -978,9 +1061,8 @@ test("connected reports and runs survive UI recovery and preserve stop evidence"
                 }),
             { workspaceId, runtimeId: headedRuntimeId },
         );
-        await headedPage.getByRole("button", { name: "启动在线领取 / Start online worker", exact: true }).click();
-        await expect.poll(async () => (await headedPage.evaluate(() => window.veriq.state())).agent?.online).toBe(true);
-        await request.post("http://127.0.0.1:18891/__hold");
+        await stopIdleWorker(headedPage, headedAgentPid!);
+        expect((await request.post("http://127.0.0.1:18891/__hold")).ok()).toBe(true);
         const policyRun = (await headedPage.evaluate(
             ({ workspaceId, caseVersionId, environmentVersionId, runtimeId }) =>
                 window.veriq.cloud({
@@ -999,8 +1081,15 @@ test("connected reports and runs survive UI recovery and preserve stop evidence"
                 }),
             { ...saved, runtimeId: headedRuntimeId },
         )) as { id: string };
+        trackedRun = { id: policyRun.id, runtimeId: headedRuntimeId, target: headedPage };
+        await checkpoint("headed:queued");
+        expect((await report(policyRun.id)).run.state).toBe("QUEUED");
+        await startWorker(headedPage, headedAgentPid!);
+        await checkpoint("headed:worker-started");
         await waitForBusiness();
         const running = await report(policyRun.id);
+        expect(running.run.state).toBe("RUNNING");
+        await checkpoint("headed:business-held");
         const attemptId = running.cases[0].attempts[0].id;
         expect(running.cases[0].attempts[0].runtimeId).toBe(headedRuntimeId);
         const config = await readFile(resolve(headedProfile, "agent/work", attemptId, "playwright.config.mjs"), "utf8");
@@ -1052,6 +1141,8 @@ test("connected reports and runs survive UI recovery and preserve stop evidence"
                 evidence,
                 "agent",
             );
+            await checkpoint("headed:stopped");
+            await stopIdleWorker(headedPage, headedAgentPid!);
         }
         await writeFile(
             resolve(evidence, "connected-recovery-summary.json"),
@@ -1071,6 +1162,11 @@ test("connected reports and runs survive UI recovery and preserve stop evidence"
     } catch (error) {
         console.error("Connected recovery primary failure:", error);
         failures.push(error);
+        try {
+            await diagnose?.();
+        } catch (diagnosticError) {
+            console.error("Connected recovery checkpoint failed:", diagnosticError);
+        }
     } finally {
         try {
             await release();
@@ -1279,6 +1375,19 @@ test("shared cloud editor publishes through the desktop host transport", async (
             },
         });
         const page = await electron.firstWindow();
+        const assets: { url: string; status: number; contentType: string }[] = [];
+        const isTypeScriptWorker = (url: string) => /^veriq:\/\/app\/assets\/ts\.worker-[^/?]+\.js$/.test(url);
+        const workers = new Set(page.workers().filter((worker) => isTypeScriptWorker(worker.url())));
+        page.on("response", (response) =>
+            assets.push({
+                url: response.url(),
+                status: response.status(),
+                contentType: response.headers()["content-type"] ?? "",
+            }),
+        );
+        page.on("worker", (worker) => {
+            if (isTypeScriptWorker(worker.url())) workers.add(worker);
+        });
         await page.getByLabel("语言 / Language").selectOption("zh");
         await expect.poll(async () => (await page.evaluate(() => window.veriq.state())).agent?.pid).toBeTruthy();
         agentPid = (await page.evaluate(() => window.veriq.state())).agent!.pid;
@@ -1427,8 +1536,6 @@ test("shared cloud editor publishes through the desktop host transport", async (
         const publicationReceipt = article.getByText(/^v1 · [0-9a-f-]{36} · [0-9a-f]{64}$/);
         await expect(publicationReceipt).toBeVisible();
         const publication = await publicationReceipt.innerText();
-        const assets: string[] = [];
-        page.on("response", (response) => assets.push(response.url()));
         await article.getByLabel("Retained file", { exact: true }).click();
         await page
             .getByRole("listbox")
@@ -1441,12 +1548,35 @@ test("shared cloud editor publishes through the desktop host transport", async (
             .locator(".vq-monaco");
         await expect(generated).toBeVisible();
         await expect(generated).toContainText("import");
-        await expect(generated.locator(".monaco-editor")).toHaveAttribute("data-mode-id", "typescript");
-        await expect.poll(() => assets.some((url) => url.includes("ts.worker"))).toBe(true);
+        await expect(generated).toHaveAttribute("data-mode-id", "typescript");
+        await expect.poll(() => page.workers().some((worker) => workers.has(worker))).toBe(true);
+        const worker = page.workers().find((worker) => workers.has(worker))!;
+        await expect
+            .poll(() =>
+                worker.evaluate(() => ({
+                    location: self.location.href,
+                    handler: typeof self.onmessage,
+                })),
+            )
+            .toEqual({ location: worker.url(), handler: "function" });
+        await expect
+            .poll(() =>
+                assets.some(
+                    (asset) =>
+                        asset.url === worker.url() &&
+                        asset.status === 200 &&
+                        /^(?:text|application)\/javascript(?:;|$)/i.test(asset.contentType),
+                ),
+            )
+            .toBe(true);
+        const workerObservation = await worker.evaluate(() => ({
+            location: self.location.href,
+            handler: typeof self.onmessage,
+        }));
         await page.screenshot({ path: resolve(evidence, "desktop-cloud-published.png"), fullPage: true });
         await appendFile(
             resolve(evidence, "cloud-editor-publications.jsonl"),
-            JSON.stringify({ key, publication, workspaceId, assets }) + "\n",
+            JSON.stringify({ key, publication, workspaceId, assets, workerObservation }) + "\n",
         );
         await page
             .getByRole("dialog")
