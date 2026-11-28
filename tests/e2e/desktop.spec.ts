@@ -980,7 +980,7 @@ test("connected reports and runs survive UI recovery and preserve stop evidence"
         // 故障恢复、退出、取消和有头取证各用独立 Run，释放业务响应后才做后续登录，避免耗尽同一次导航的十秒预算。
         const crashed = await queuedRun("renderer-crash");
         expect((await report(crashed.id)).run.state).toBe("RUNNING");
-        await terminateRenderer(electron, profile, evidence);
+        await terminateRenderer(electron, root, evidence);
         await expect.poll(async () => (await page.evaluate(() => window.veriq.state())).agent?.pid).toBe(agentPid);
         await release();
         await signIn();
