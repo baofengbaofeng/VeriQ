@@ -5,6 +5,7 @@ import { resolve, dirname } from "node:path";
 import { createRequire } from "node:module";
 import { trackFixture, stopFixture } from "./lifecycle";
 import { stopTestAgent } from "./agent-owner";
+import { recoveryTest } from "./owned-recovery";
 import { closeTestDesktop } from "./desktop-close";
 import { selectDesktopWorkspace } from "./desktop-workspace";
 import { testEngine } from "./engine";
@@ -710,7 +711,8 @@ test("production candidate completes the real connected desktop workflow", async
  * 恢复场景只复用真实联网 Run 的平台记录，原生报告、界面故障、退出重开和平台取消均观察实际 Agent 与浏览器生命周期。
  * 同 Attempt 的可见窗口和浏览器沙箱仍是硬门禁，当前能力不足必须留下失败证据，不能改用独立浏览器示例代替。
  */
-test("connected reports and runs survive UI recovery and preserve stop evidence", async ({ request }) => {
+const recoveryTitle = "connected reports and runs survive UI recovery and preserve stop evidence";
+recoveryTest(recoveryTitle, async ({ request, owned }, testInfo) => {
     test.setTimeout(180000);
     const root = resolve("../..");
     const evidence = resolve(root, process.env.VERIQ_DESKTOP_EVIDENCE ?? ".superpowers/sdd/veriq-1/evidence/t19");
@@ -718,6 +720,7 @@ test("connected reports and runs survive UI recovery and preserve stop evidence"
     const { profile, fixture, workspaceId } = saved;
     const { spawn, execFile } = await import("node:child_process");
     const command = (await import("node:util")).promisify(execFile);
+    owned.check();
     const server = trackFixture(
         spawn(
             "flock",
@@ -733,6 +736,7 @@ test("connected reports and runs survive UI recovery and preserve stop evidence"
             { cwd: root, env: applicationEnvironment, stdio: ["ignore", "pipe", "pipe"] },
         ),
     );
+    owned.defer(() => stopFixture(server));
     server.stdout.on("data", (data) => void appendFile(resolve(evidence, "resume-server.log"), data));
     server.stderr.on("data", (data) => void appendFile(resolve(evidence, "resume-server.log"), data));
     const env = {
@@ -751,18 +755,17 @@ test("connected reports and runs survive UI recovery and preserve stop evidence"
             : {}),
     };
     const launch = () =>
-        _electron.launch({
-            chromiumSandbox: true,
-            executablePath: process.env.VERIQ_TEST_ELECTRON!,
-            args: [resolve(".")],
-            env,
-        });
+        owned.launch(profile, () =>
+            _electron.launch({
+                chromiumSandbox: true,
+                executablePath: process.env.VERIQ_TEST_ELECTRON!,
+                args: [resolve(".")],
+                env,
+            }),
+        );
     let electron: Awaited<ReturnType<typeof _electron.launch>> | undefined;
-    let agentPid: number | undefined;
-    let headedElectron: Awaited<ReturnType<typeof _electron.launch>> | undefined;
-    let headedProfile: string | undefined;
-    let headedAgentPid: number | undefined;
-    const release = () => request.post("http://127.0.0.1:18891/__release");
+    const release = () => owned.business("release");
+    const hold = () => owned.business("hold");
     const failures: unknown[] = [];
     let diagnose: (() => Promise<void>) | undefined;
     let rendererDriver: Awaited<ReturnType<typeof reconnectRenderer>> | undefined;
@@ -779,7 +782,9 @@ test("connected reports and runs survive UI recovery and preserve stop evidence"
         let page = await electron.firstWindow();
         await page.getByLabel("语言 / Language").selectOption("zh");
         await expect.poll(async () => (await page.evaluate(() => window.veriq.state())).agent?.pid).toBeTruthy();
-        agentPid = (await page.evaluate(() => window.veriq.state())).agent!.pid;
+        const agentPid = (await page.evaluate(() => window.veriq.state())).agent?.pid;
+        if (!agentPid) throw new Error("TEST_AGENT_IDENTITY_MISMATCH");
+        await owned.verifyAgent(profile, agentPid);
         await page.getByLabel("邮箱 / Email").fill("desktop-admin@example.com");
         await page.getByLabel("密码 / Password").fill("Desktop password 123!");
         await page.getByRole("button", { name: "登录", exact: true }).click();
@@ -929,12 +934,14 @@ test("connected reports and runs survive UI recovery and preserve stop evidence"
             expect((await target.evaluate(() => window.veriq.state())).agent!.pid).toBe(expectedPid);
         };
         const startWorker = async (target: typeof page, expectedPid: number) => {
+            owned.check();
             await target.getByRole("button", { name: "启动在线领取 / Start online worker", exact: true }).click();
             await expect.poll(async () => (await target.evaluate(() => window.veriq.state())).agent?.online).toBe(true);
             expect((await target.evaluate(() => window.veriq.state())).agent!.pid).toBe(expectedPid);
         };
-        const create = () =>
-            page.evaluate(
+        const create = () => {
+            owned.check();
+            return page.evaluate(
                 ({ workspaceId, caseVersionId, environmentVersionId, runtimeId }) =>
                     window.veriq.cloud({
                         operation: "createRun",
@@ -952,18 +959,19 @@ test("connected reports and runs survive UI recovery and preserve stop evidence"
                     }),
                 saved,
             ) as Promise<{ id: string }>;
+        };
         const waitForBusiness = () =>
             expect
                 .poll(async () => (await (await request.get("http://127.0.0.1:18891/__state")).json()).waiting)
                 .toBe(1);
         const queuedRun = async (stage: string) => {
-            await stopIdleWorker(page, agentPid!);
-            expect((await request.post("http://127.0.0.1:18891/__hold")).ok()).toBe(true);
+            await stopIdleWorker(page, agentPid);
+            expect((await hold()).ok()).toBe(true);
             const run = await create();
             trackedRun = { id: run.id, runtimeId: saved.runtimeId, target: page };
             await checkpoint(`${stage}:queued`);
             expect((await report(run.id)).run.state).toBe("QUEUED");
-            await startWorker(page, agentPid!);
+            await startWorker(page, agentPid);
             await checkpoint(`${stage}:worker-started`);
             await waitForBusiness();
             const running = await report(run.id);
@@ -982,7 +990,11 @@ test("connected reports and runs survive UI recovery and preserve stop evidence"
         const crashed = await queuedRun("renderer-crash");
         expect((await report(crashed.id)).run.state).toBe("RUNNING");
         const recovered = await terminateRenderer(electron, root, evidence);
-        rendererDriver = await reconnectRenderer(electron, profile, recovered, evidence);
+        const crashedWindow = electron;
+        rendererDriver = await owned.acquire(
+            () => reconnectRenderer(crashedWindow, profile, recovered, evidence),
+            (driver) => driver.disconnect(),
+        );
         page = rendererDriver.page;
         trackedRun!.target = page;
         await expect.poll(async () => (await page.evaluate(() => window.veriq.state())).agent?.pid).toBe(agentPid);
@@ -994,14 +1006,39 @@ test("connected reports and runs survive UI recovery and preserve stop evidence"
         await checkpoint("renderer-crash:stopped");
         const quitting = await queuedRun("ui-quit");
         expect((await report(quitting.id)).run.state).toBe("RUNNING");
+        diagnose = () =>
+            appendFile(
+                resolve(evidence, "connected-run-checkpoints.log"),
+                JSON.stringify({
+                    stage: "primary-failure",
+                    at: new Date().toISOString(),
+                    runId: quitting.id,
+                    agentUnavailable: true,
+                    reportUnavailable: true,
+                    reason: "RENDERER_DRIVER_DISCONNECTED",
+                }) + "\n",
+            );
         await rendererDriver.disconnect();
         rendererDriver = undefined;
-        await closeTestDesktop(electron, "quit");
+        const quit = owned.close(electron, "quit");
+        await expect
+            .poll(
+                async () => {
+                    await quit;
+                    return true;
+                },
+                {
+                    timeout: testInfo.timeout,
+                    message: "Confirmed UI quit requires normal exit of the original Electron child",
+                },
+            )
+            .toBe(true);
         electron = undefined;
         await release();
         electron = await launch();
         page = await electron.firstWindow();
         trackedRun!.target = page;
+        diagnose = () => checkpoint("primary-failure");
         await page.getByLabel("语言 / Language").selectOption("zh");
         await expect.poll(async () => (await page.evaluate(() => window.veriq.state())).agent?.pid).toBe(agentPid);
         await signIn();
@@ -1024,27 +1061,31 @@ test("connected reports and runs survive UI recovery and preserve stop evidence"
         expect(stopped.cases[0].attempts[0].facts.processStopped).toBe(true);
         await release();
         await checkpoint("platform-cancel:stopped");
-        await stopIdleWorker(page, agentPid!);
+        await stopIdleWorker(page, agentPid);
         const policyFailures: unknown[] = [];
         if (!process.env.VERIQ_TEST_HEADED_BROWSER) throw new Error("MATCHED_HEADED_BROWSER_REQUIRED");
         const headedBrowser = process.env.VERIQ_TEST_HEADED_BROWSER;
-        headedProfile = await realpath(await mkdtemp("/tmp/veriq-connected-headed-"));
-        headedElectron = await _electron.launch({
-            chromiumSandbox: true,
-            executablePath: process.env.VERIQ_TEST_ELECTRON!,
-            args: [resolve(".")],
-            env: {
-                ...env,
-                VERIQ_DESKTOP_PROFILE: headedProfile,
-                VERIQ_DESKTOP_BROWSER_MODE: "headed",
-                VERIQ_DESKTOP_BROWSER: headedBrowser,
-                VERIQ_DESKTOP_HEADED_BROWSER: headedBrowser,
-            },
-        });
+        const headedProfile = await realpath(await mkdtemp("/tmp/veriq-connected-headed-"));
+        const headedElectron = await owned.launch(headedProfile, () =>
+            _electron.launch({
+                chromiumSandbox: true,
+                executablePath: process.env.VERIQ_TEST_ELECTRON!,
+                args: [resolve(".")],
+                env: {
+                    ...env,
+                    VERIQ_DESKTOP_PROFILE: headedProfile,
+                    VERIQ_DESKTOP_BROWSER_MODE: "headed",
+                    VERIQ_DESKTOP_BROWSER: headedBrowser,
+                    VERIQ_DESKTOP_HEADED_BROWSER: headedBrowser,
+                },
+            }),
+        );
         const headedPage = await headedElectron.firstWindow();
         await headedPage.getByLabel("语言 / Language").selectOption("zh");
         await expect.poll(async () => (await headedPage.evaluate(() => window.veriq.state())).agent?.pid).toBeTruthy();
-        headedAgentPid = (await headedPage.evaluate(() => window.veriq.state())).agent!.pid;
+        const headedAgentPid = (await headedPage.evaluate(() => window.veriq.state())).agent?.pid;
+        if (!headedAgentPid) throw new Error("TEST_AGENT_IDENTITY_MISMATCH");
+        await owned.verifyAgent(headedProfile, headedAgentPid);
         await headedPage.getByLabel("邮箱 / Email").fill("desktop-admin@example.com");
         await headedPage.getByLabel("密码 / Password").fill("Desktop password 123!");
         await headedPage.getByRole("button", { name: "登录", exact: true }).click();
@@ -1067,8 +1108,9 @@ test("connected reports and runs survive UI recovery and preserve stop evidence"
                 }),
             { workspaceId, runtimeId: headedRuntimeId },
         );
-        await stopIdleWorker(headedPage, headedAgentPid!);
-        expect((await request.post("http://127.0.0.1:18891/__hold")).ok()).toBe(true);
+        await stopIdleWorker(headedPage, headedAgentPid);
+        expect((await hold()).ok()).toBe(true);
+        owned.check();
         const policyRun = (await headedPage.evaluate(
             ({ workspaceId, caseVersionId, environmentVersionId, runtimeId }) =>
                 window.veriq.cloud({
@@ -1090,7 +1132,7 @@ test("connected reports and runs survive UI recovery and preserve stop evidence"
         trackedRun = { id: policyRun.id, runtimeId: headedRuntimeId, target: headedPage };
         await checkpoint("headed:queued");
         expect((await report(policyRun.id)).run.state).toBe("QUEUED");
-        await startWorker(headedPage, headedAgentPid!);
+        await startWorker(headedPage, headedAgentPid);
         await checkpoint("headed:worker-started");
         await waitForBusiness();
         const running = await report(policyRun.id);
@@ -1123,7 +1165,7 @@ test("connected reports and runs survive UI recovery and preserve stop evidence"
         }
         let headed: Awaited<ReturnType<typeof observeHeadedRun>> | undefined;
         try {
-            headed = await observeHeadedRun(headedProfile, headedAgentPid!, headedBrowser, evidence, "agent");
+            headed = await observeHeadedRun(headedProfile, headedAgentPid, headedBrowser, evidence, "agent");
             expect(headed.attemptId).toBe(attemptId);
         } catch (error) {
             console.error("Same-Attempt headed acceptance failed:", error);
@@ -1148,7 +1190,7 @@ test("connected reports and runs survive UI recovery and preserve stop evidence"
                 "agent",
             );
             await checkpoint("headed:stopped");
-            await stopIdleWorker(headedPage, headedAgentPid!);
+            await stopIdleWorker(headedPage, headedAgentPid);
         }
         await writeFile(
             resolve(evidence, "connected-recovery-summary.json"),
@@ -1169,31 +1211,10 @@ test("connected reports and runs survive UI recovery and preserve stop evidence"
         console.error("Connected recovery primary failure:", error);
         failures.push(error);
         try {
+            owned.check();
             await diagnose?.();
         } catch (diagnosticError) {
             console.error("Connected recovery checkpoint failed:", diagnosticError);
-        }
-    } finally {
-        try {
-            if (rendererDriver) await rendererDriver.disconnect();
-        } catch (error) {
-            failures.push(error);
-        }
-        try {
-            await release();
-        } catch (error) {
-            console.error("Connected recovery release failed:", error);
-            failures.push(error);
-        }
-        try {
-            if (headedProfile) await teardownDesktop(headedElectron, headedProfile, headedAgentPid);
-        } catch (error) {
-            failures.push(error);
-        }
-        try {
-            await teardownDesktop(electron, profile, agentPid, server);
-        } catch (error) {
-            failures.push(error);
         }
     }
     if (failures.length) throw new AggregateError(failures, "CONNECTED_DESKTOP_RECOVERY_FAILED");
