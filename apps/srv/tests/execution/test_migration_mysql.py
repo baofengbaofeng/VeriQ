@@ -306,7 +306,7 @@ async def test_bound_file_volume_refuses_relative_downgrade(site):
 
 
 async def test_form_receipt_prevents_downgrade_and_preserves_large_revision(site):
-    """已保存的私有回执必须阻止回退，数据库读回原有标识及超过 32 位范围的修订号。"""
+    """验证已有私有回执会阻止数据库回退，并从数据库读回原有实体标识及超出三十二位范围的修订号，避免历史丢失。"""
     client, database = site
     await test_auth.setup(client)
     await test_auth.login(client)
@@ -350,16 +350,44 @@ async def test_form_receipt_prevents_downgrade_and_preserves_large_revision(site
             )
         )
     async with _migration_connection(database) as (connection, change):
+        before_revision = (
+            await connection.execute(sa.text("SELECT version_num FROM veriq_alembic_version"))
+        ).scalar_one()
+        before_schema = await connection.run_sync(_schema_shape)
         with pytest.raises(
             RuntimeError, match="Persisted Test Agent form receipts must be retained"
         ):
             await change("0026_agent_tasks", downgrade=True)
         assert (
             await connection.execute(sa.text("SELECT version_num FROM veriq_alembic_version"))
-        ).scalar_one() == "0027_agent_form_receipts"
+        ).scalar_one() == before_revision
+        assert await connection.run_sync(_schema_shape) == before_schema
     async with database.sessions() as session:
         saved = await session.get(models.AgentFormReceipt, receipt_id)
         assert saved is not None and saved.turn_id == turn_id and saved.revision == revision
+
+
+def _schema_shape(connection):
+    """从真实连接反射全部表的列、索引和约束，证明拒绝回退前没有已被 MySQL 隐式提交的结构变更残留。"""
+    inspector = sa.inspect(connection)
+    return {
+        table: {
+            "columns": [
+                (
+                    column["name"],
+                    str(column["type"]),
+                    column["nullable"],
+                    column["default"],
+                )
+                for column in inspector.get_columns(table)
+            ],
+            "indexes": inspector.get_indexes(table),
+            "primary_key": inspector.get_pk_constraint(table),
+            "foreign_keys": inspector.get_foreign_keys(table),
+            "unique_constraints": inspector.get_unique_constraints(table),
+        }
+        for table in inspector.get_table_names()
+    }
 
 
 async def _has_agent_tables(connection):

@@ -140,9 +140,12 @@ test("Windows Cookie retirement checks fixed metadata without expanding private 
 });
 
 test("Windows Cookie migration preserves declined state and retires only approved members", async (context) => {
-    const root = await mkdtemp(join(tmpdir(), "veriq cookie migrate 中文 "));
+    const container = await mkdtemp(join(tmpdir(), "veriq cookie migrate 中文 "));
+    const root = join(container, "private profile");
     const native = windowsNative();
     try {
+        assert.throws(() => native.privatePath(container, true), /NATIVE_ACL_NOT_PRIVATE/);
+        assert.throws(() => native.privatePath(container, false), /NATIVE_ACL_NOT_PRIVATE/);
         native.privatePath(root, true);
         const partition = join(root, "electron/Partitions/veriq-host");
         native.privatePath(join(partition, "Network"), true);
@@ -169,6 +172,6 @@ test("Windows Cookie migration preserves declined state and retires only approve
         ]);
         throw error;
     } finally {
-        await rm(root, { recursive: true, force: true });
+        await rm(container, { recursive: true, force: true });
     }
 });

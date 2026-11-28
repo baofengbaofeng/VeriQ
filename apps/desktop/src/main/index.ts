@@ -1,3 +1,4 @@
+import { runtimeBrowserMode } from "../../../runtime/src/browser-policy.ts";
 import {
     diagnosticCode,
     getLogger,
@@ -154,7 +155,9 @@ function recordingBounds(value: unknown): RecordingBounds | null {
     return { x: coordinate("x"), y: coordinate("y"), width: coordinate("width"), height: coordinate("height") };
 }
 
-/** 可信窗口只提交环境版本标识。宿主用自己的已认证会话核对发布版本，且在异步返回后再次核对用户和工作区。 */
+/**
+ * 可信窗口只提交环境版本标识。宿主用自己的已认证会话核对发布版本，且在异步返回后再次核对用户和工作区。
+ */
 async function openRecording(input: unknown, owner: BrowserWindow): Promise<{ sessionId: string }> {
     const scope = recordingScope();
     if (!scope) throw new Error("RECORDING_SCOPE_REQUIRED");
@@ -229,6 +232,7 @@ async function ensureAgent(): Promise<void> {
         )
             throw error;
     }
+    const browserMode = await runtimeBrowserMode(profile, process.env.VERIQ_DESKTOP_BROWSER_MODE);
     const agentNode = installed?.agentExecutable ?? node24;
     const environment = agentEnvironment(proxy);
     const version = await promisify(execFile)(agentNode, ["--version"], {
@@ -244,6 +248,7 @@ async function ensureAgent(): Promise<void> {
         throw new Error("INDEPENDENT_NODE24_REQUIRED");
     await updatePrivate(profile, "desktop-config.json", () => ({
         origin,
+        browserMode,
         ...(installed
             ? {
                   distributionRoot: installed.root,
@@ -711,6 +716,7 @@ function installBridge() {
                 }
                 recording.close(scope, id);
                 if (mountedRecording === id) closeRecording();
+                return state();
             }
             case "state":
                 return state();
@@ -824,7 +830,9 @@ function installBridge() {
     );
 }
 
-/** Verify the installed host and its protected cookie store before opening the persistent partition. */
+/**
+ * 持久会话打开前先核验已安装宿主身份、加密提供者和旧 Cookie 退役状态，只有全部通过才允许使用登录分区。
+ */
 async function preparePersistentSession(hostIdentity: Awaited<ReturnType<typeof verifyDesktopHost>>) {
     await privateDirectory(profile);
     try {

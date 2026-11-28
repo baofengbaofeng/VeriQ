@@ -174,7 +174,7 @@ async def test_round_denied_before_first_sdk_request_retains_no_charge():
 
 @pytest.mark.parametrize("adapter", ["ANTHROPIC", "OPENAI_COMPATIBLE"])
 async def test_stream_tool_schema_exceeding_round_limit_is_never_sent(adapter):
-    """工具声明即使在首轮也要计入请求上限，发出首次请求前本地拒绝的用量为零。"""
+    """验证首轮也将完整工具声明计入请求上限，超限时不向供应商发送任何请求，并将确定未发出的调用用量记为零。"""
     async with emulator(port=0) as model:
         gateway = ProviderGateway(
             {"adapter": adapter, "baseURL": model.base_url, "model": "emulator"}, "test"

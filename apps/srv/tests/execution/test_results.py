@@ -564,7 +564,7 @@ def test_nested_query_error_cannot_skip_outside_a_continuing_flow(use_assertion)
 
 
 def test_lifecycle_requires_only_matching_cleanup_and_keeps_business_failure():
-    """只计入业务结果匹配的清理分支，区分准备失败与清理失败，并拒绝其它分支的事件。"""
+    """验证结果归并只接受与业务结局匹配的清理分支，区分准备失败与清理失败，同时拒绝来自其它分支的执行事件。"""
     plan = {
         "steps": [
             expected_step("prepare", 0, phase="PREPARE"),
@@ -596,7 +596,7 @@ def test_lifecycle_requires_only_matching_cleanup_and_keeps_business_failure():
 
 
 def test_cooperative_cancellation_requires_declared_cleanup():
-    """从真实取消状态保留不完整业务步骤，但清理分支必须有独立执行证据。"""
+    """验证真实取消状态允许业务步骤不完整，但声明的取消清理分支仍须提供独立执行证据，缺失证据时拒绝归并。"""
     plan = {
         "steps": [
             expected_step("main", 0),

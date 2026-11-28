@@ -92,7 +92,9 @@ function fieldValue(key: string, value: unknown): string | undefined {
     return text.includes("@") ? text.replace(email, redacted) : text;
 }
 
-/** Render one line using a bounded UTF-8 representation and UTC's numeric offset. */
+/**
+ * 将级别、时间、来源及结构化字段编码成有字节上限的单行日志，统一使用零时区数字偏移并转义控制字符。
+ */
 export function renderLog({ level, timestamp, location, tag = "_undef", fields }: LogInput): string {
     const upperLevel = level.toUpperCase();
     const resolvedLevel =

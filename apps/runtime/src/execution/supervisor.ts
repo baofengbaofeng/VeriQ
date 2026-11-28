@@ -5,6 +5,7 @@
 import { diagnosticFetch } from "../diagnostics.ts";
 import {
     mkdtemp,
+    access,
     mkdir,
     readFile,
     writeFile,
@@ -55,6 +56,7 @@ import { allocateScratch, monitorStorage, retireScratch, type DataCleanup, type 
 import { storagePauseReason } from "./storage-admission.ts";
 import { loadRelease, sha256 } from "./release.ts";
 import { developmentExecutionPaths, containedPath, type ExecutionPaths } from "./paths.ts";
+import { browserMode, requireBrowserExecutableMode, type BrowserMode } from "../browser-policy.ts";
 import { offlineWorkerEnvironment } from "../offline/worker-environment.ts";
 import { privateDirectory, readBoundedFile } from "../offline/config.ts";
 /**
@@ -92,6 +94,7 @@ export interface SupervisorOptions {
     client: AgentClient;
     releaseDirectory: string;
     browserExecutable: string;
+    browserMode?: BrowserMode;
     storageLimit?: number;
     /**
      * 本机可信调用方可设定正安全整数下限，未设定时每卷保留五百一十二 MiB；任务内容无法更改这项准入。
@@ -120,6 +123,7 @@ export class ExecutionSupervisor {
     private readonly minimumFreeBytes: bigint;
     private completed: AttemptJournal | undefined;
     constructor(private options: SupervisorOptions) {
+        browserMode(options.browserMode);
         const minimumFreeBytes = options.minimumFreeBytes === undefined ? 512 * 1024 ** 2 : options.minimumFreeBytes;
         if (!Number.isSafeInteger(minimumFreeBytes) || minimumFreeBytes < 1) {
             throw new Error("INVALID_MINIMUM_FREE_BYTES");
@@ -777,6 +781,23 @@ export class ExecutionSupervisor {
             const datasetProtected = !!(
                 execution?.datasetVersionId || Object.keys(execution?.datasetBindings ?? {}).length
             );
+            let browserExecutable = this.options.browserExecutable;
+            if (manifest.kind === "TEST")
+                browserExecutable = await requireBrowserExecutableMode(browserExecutable, this.options.browserMode);
+            const workerEnvironment = offlineWorkerEnvironment(
+                tmp,
+                join(work, "provider.mjs"),
+                manifest.kind !== "TEST" || browserMode(this.options.browserMode) === "headless",
+                process.env,
+                { runnerExecutable: executionPaths.runnerExecutable },
+            );
+            if (manifest.kind === "TEST") {
+                try {
+                    await access(browserExecutable, constants.X_OK);
+                } catch {
+                    throw new Error("BROWSER_PREFLIGHT_FAILED");
+                }
+            }
             const selectedRole = execution?.environment.roles.find((role) => role.roleKey === execution?.roleKey);
             const browserSso = execution?.authAdapters?.some(
                 (adapter) =>
@@ -959,14 +980,15 @@ export class ExecutionSupervisor {
                     outputDir: join(tmp, "test-results"),
                     use: {
                         browserName: execution.browser,
+                        headless: browserMode(this.options.browserMode) === "headless",
                         locale: execution.environment.locale,
                         timezoneId: execution.environment.timezone,
                         serviceWorkers: "block",
                         trace: evidenceProtected ? "off" : "on",
                         acceptDownloads: !evidenceProtected,
                         launchOptions: {
-                            executablePath: this.options.browserExecutable,
-                            args: ["--no-sandbox"],
+                            executablePath: browserExecutable,
+                            chromiumSandbox: true,
                             downloadsPath: invocation.downloads,
                         },
                     },
@@ -1014,15 +1036,14 @@ export class ExecutionSupervisor {
                     args: [executionPaths.workerEntry, join(work, "invocation.json")],
                     cwd: work,
                     env: {
-                        ...offlineWorkerEnvironment(tmp, join(work, "provider.mjs"), true, process.env, {
-                            runnerExecutable: executionPaths.runnerExecutable,
-                        }),
+                        ...workerEnvironment,
                         ...(evidenceProtected ? { VERIQ_DATASET_PROTECTED: "1", PLAYWRIGHT_NO_COPY_PROMPT: "1" } : {}),
                     },
                 },
                 this.source
                     ? {
                           kind: manifest.kind,
+                          headless: browserMode(this.options.browserMode) === "headless",
                           ownerGeneration: claim.fencingToken,
                           downloadsPath: invocation.downloads,
                           ...(evidenceProtected ? { protectedTemporaryName: basename(tmp) } : {}),

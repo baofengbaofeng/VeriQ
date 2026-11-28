@@ -12,11 +12,11 @@ import hmac
 import secrets
 from datetime import datetime, timedelta, UTC
 from uuid import uuid4
-from typing import Any
+from typing import Any, cast
 
 from argon2 import PasswordHasher
 from argon2.exceptions import VerificationError
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .db import AuditLog, Database, Installation, User, UserSession, UserToken
@@ -220,13 +220,15 @@ async def issue_reset(s: AsyncSession, user: User, minutes: int) -> tuple[str, d
     """
     await s.execute(delete(UserToken).where(UserToken.user_id == user.id))
     token = secrets.token_urlsafe(32)
-    expiry = now() + timedelta(minutes=minutes)
+    issued = cast(datetime, (await s.execute(select(func.utc_timestamp(6)))).scalar_one())
+    expiry = issued + timedelta(minutes=minutes)
     s.add(
         UserToken(
             id=str(uuid4()),
             user_id=user.id,
             token_hash=digest(token),
             expires_at=expiry,
+            issued_at=issued,
             consumed=False,
         )
     )

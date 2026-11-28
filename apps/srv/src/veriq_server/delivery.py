@@ -3,19 +3,27 @@
 """
 
 import asyncio
+from datetime import datetime, timedelta
 from logging import ERROR
 import smtplib
 import ssl
 from email.message import EmailMessage
-from typing import Protocol
+from typing import Protocol, cast
+from time import monotonic
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 
 from .db import Database, User, UserToken
 from .log import log
 from .outbound import outbound
 from .service import audit, digest, issue_reset, lock_installation, stamp
 from .settings import Settings
+
+# 这些预算保护单个 API 进程；同邮箱的跨节点投递冷却由数据库令牌签发时间在安装锁内判定。
+MAX_PENDING_RESETS = 32
+RESET_SOURCE_LIMIT = 5
+RESET_WINDOW_SECONDS = 60
+MAX_RESET_SOURCES = 1024
 
 
 class Delivery(Protocol):
@@ -104,18 +112,49 @@ class ResetDispatcher:
         """
         self.db, self.config, self.delivery = db, config, delivery
         self.pending: set[asyncio.Task[None]] = set()
+        self._emails: set[str] = set()
+        self._sources: dict[str, tuple[float, int]] = {}
 
-    def submit(self, email: str) -> None:
-        """入队重置任务；未配置 delivery 时直接返回，避免与登录枚举以外的行为产生差异，ResetDispatcher.submit
-        的失败路径返回稳定错误。
-        submit 实现于 apps/srv/src/veriq_server/delivery.py：请按该符号的输入校验、错误码与调用方契约阅读，
-        勿假设通用成功默认值。
-        """
+    def submit(self, email: str, *, source: str | None = None) -> None:
+        """在创建 Task 前限制来源、总积压及同邮箱在途任务；拒绝时静默合并，公开响应与账户存在性无关。"""
         if self.delivery is None:
             return
+        if source is not None and not self._admit_source(source):
+            return
+        email_key = digest(email.lower())
+        if len(self.pending) >= MAX_PENDING_RESETS or email_key in self._emails:
+            return
+        self._emails.add(email_key)
         task = asyncio.create_task(self._run(email))
         self.pending.add(task)
-        task.add_done_callback(self.pending.discard)
+
+        def completed(done: asyncio.Task[None]) -> None:
+            """任务结束或取消均释放本进程任务名额及邮箱摘要，去重只覆盖在途任务，不保留邮箱正文或无限历史。"""
+            self.pending.discard(done)
+            self._emails.discard(email_key)
+
+        task.add_done_callback(completed)
+
+    def _admit_source(self, source: str) -> bool:
+        """固定窗口只保存有界来源摘要；满表拒绝新来源，避免通过轮换来源驱逐尚有效的限流记录。"""
+        clock = monotonic()
+        self._sources = {
+            key: value
+            for key, value in self._sources.items()
+            if clock - value[0] < RESET_WINDOW_SECONDS
+        }
+        key = digest(source)
+        existing = self._sources.get(key)
+        if existing is None:
+            if len(self._sources) >= MAX_RESET_SOURCES:
+                return False
+            self._sources[key] = (clock, 1)
+            return True
+        started, count = existing
+        if count >= RESET_SOURCE_LIMIT:
+            return False
+        self._sources[key] = (started, count + 1)
+        return True
 
     async def _run(self, email: str) -> None:
         """投递失败时撤销本次令牌。投递成功后的审计故障按请求审计 ID 记录，供运维核对。"""
@@ -131,6 +170,20 @@ class ResetDispatcher:
                     )
                 ).scalar_one_or_none()
                 if user is None:
+                    return
+                clock = cast(
+                    datetime, (await session.execute(select(func.utc_timestamp(6)))).scalar_one()
+                )
+                recent = await session.scalar(
+                    select(UserToken.id)
+                    .where(
+                        UserToken.user_id == user.id,
+                        UserToken.consumed.is_(False),
+                        UserToken.issued_at > clock - timedelta(seconds=RESET_WINDOW_SECONDS),
+                    )
+                    .limit(1)
+                )
+                if recent is not None:
                     return
                 user_id = user.id
                 recipient = user.email

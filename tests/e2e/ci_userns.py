@@ -1,4 +1,4 @@
-"""仅 GitHub-hosted Ubuntu24.04 桌面验收为当前任务三个已验证二进制建立精确 userns 例外，并在结束时卸载自有策略；
+"""仅 GitHub-hosted Ubuntu24.04 的已知桌面与服务端验收为当前任务已验证二进制建立精确 userns 例外，并卸载自有策略；
 本模块不改变全局 sysctl，不适合作为用户安装步骤，也不运行带 sudo 的应用程序。
 """
 
@@ -11,9 +11,37 @@ import re
 import stat
 import subprocess
 import sys
-from typing import Any
+from typing import Any, TypedDict
 
 KINDS = ("electron", "shell", "chrome")
+
+
+class PurposeSpec(TypedDict):
+    """每种目的固定绑定工作流、作业、策略前缀和完整角色集合，调用者不能借参数拼装新的宿主授权组合或缩减清理范围。"""
+
+    workflow: str
+    job: str
+    stem: str
+    kinds: tuple[str, ...]
+    evidence: str
+
+
+PURPOSES: dict[str, PurposeSpec] = {
+    "desktop": {
+        "workflow": "Desktop focused verification",
+        "job": "ubuntu-desktop",
+        "stem": "veriq-t19",
+        "kinds": KINDS,
+        "evidence": "VERIQ_DESKTOP_EVIDENCE",
+    },
+    "server": {
+        "workflow": "Server release verification",
+        "job": "ubuntu-release",
+        "stem": "veriq-t20-server",
+        "kinds": ("shell", "chrome"),
+        "evidence": "VERIQ_SERVER_EVIDENCE",
+    },
+}
 LIMITS = {
     "apparmor_restrict_unprivileged_userns": "/proc/sys/kernel/apparmor_restrict_unprivileged_userns",
     "unprivileged_userns_clone": "/proc/sys/kernel/unprivileged_userns_clone",
@@ -21,16 +49,26 @@ LIMITS = {
 }
 
 
-def job_identity(environment: dict[str, str], release: dict[str, str]) -> str:
+def purpose_spec(purpose: str) -> PurposeSpec:
+    """目的只能选择预先审核的两份完整授权规格，未知值在读取宿主配置或执行命令前拒绝，不允许按任意名字推导策略范围。"""
+    if purpose not in PURPOSES:
+        raise ValueError("CI_PROFILE_PURPOSE_INVALID")
+    return PURPOSES[purpose]
+
+
+def job_identity(
+    environment: dict[str, str], release: dict[str, str], purpose: str = "desktop"
+) -> str:
     """宿主策略入口必须同时匹配 GitHub 官方托管上下文、固定 QA 工作流和实际 Ubuntu24.04 发行信息；普通本机调用或自托管
     runner 在读取策略文件和执行任何 sudo 前拒绝，任务标识也只能由有界数字组成。
     """
+    spec = purpose_spec(purpose)
     required = {
         "GITHUB_ACTIONS": "true",
         "VERIQ_CI_RUNNER_ENVIRONMENT": "github-hosted",
         "RUNNER_OS": "Linux",
-        "GITHUB_JOB": "ubuntu-desktop",
-        "GITHUB_WORKFLOW": "Desktop focused verification",
+        "GITHUB_JOB": spec["job"],
+        "GITHUB_WORKFLOW": spec["workflow"],
     }
     if any(environment.get(key) != value for key, value in required.items()):
         raise ValueError("CI_HOSTED_CONTEXT_REQUIRED")
@@ -40,16 +78,17 @@ def job_identity(environment: dict[str, str], release: dict[str, str]) -> str:
     attempt = environment.get("GITHUB_RUN_ATTEMPT", "")
     if not re.fullmatch(r"[1-9][0-9]{0,19}", run) or not re.fullmatch(r"[1-9][0-9]{0,4}", attempt):
         raise ValueError("CI_JOB_ID_INVALID")
-    return f"veriq-t19-{run}-{attempt}"
+    return f"{spec['stem']}-{run}-{attempt}"
 
 
-def profile_text(name: str, executable: str) -> str:
-    """策略使用官方 unconfined 加 userns 模型，但附件路径只能是无控制字符、无 AppArmor 通配或变量语法的绝对文件名；三个
+def profile_text(name: str, executable: str, purpose: str = "desktop") -> str:
+    """策略使用官方 unconfined 加 userns 模型，但附件路径只能是无控制字符、无 AppArmor 通配或变量语法的绝对文件名；各份
     profile 各有本 job 唯一名字，使加载中途失败时也能逐个精确卸载而不触及其它策略。
     """
-    if not re.fullmatch(
-        r"veriq-t19-[1-9][0-9]{0,19}-[1-9][0-9]{0,4}-(electron|shell|chrome)", name
-    ):
+    spec = purpose_spec(purpose)
+    kinds = "|".join(spec["kinds"])
+    pattern = re.escape(spec["stem"]) + r"-[1-9][0-9]{0,19}-[1-9][0-9]{0,4}-(" + kinds + ")"
+    if not re.fullmatch(pattern, name):
         raise ValueError("CI_PROFILE_NAME_INVALID")
     if not re.fullmatch(r"/[A-Za-z0-9_./@+-]+", executable):
         raise ValueError("CI_PROFILE_PATH_INVALID")
@@ -152,31 +191,42 @@ def cookie_electron(root: Path, evidence: Path) -> Path:
     return selected
 
 
-def binaries(root: Path, evidence: Path) -> dict[str, Any]:
+def binaries(root: Path, evidence: Path, purpose: str = "desktop") -> dict[str, Any]:
     """白名单只接受本工作区官方 Electron 包和固定 Playwright1254 分发路径，逐个确认真实普通可执行文件、非 SUID
     权限及字节摘要；浏览器另执行实际版本探测，Electron 的内嵌版本仍由后续真实窗口单独记录。
     """
-    browser_root = (root / ".superpowers/cache/playwright").resolve(strict=True)
+    spec = purpose_spec(purpose)
+    canonical_root = root / ".superpowers/cache/playwright"
+    browser_root = canonical_root.resolve(strict=True)
+    if browser_root != canonical_root or os.environ["PLAYWRIGHT_BROWSERS_PATH"] != str(
+        canonical_root
+    ):
+        raise ValueError("CI_BROWSER_ROOT_MISMATCH")
     if Path(os.environ["PLAYWRIGHT_BROWSERS_PATH"]).resolve(strict=True) != browser_root:
         raise ValueError("CI_BROWSER_ROOT_MISMATCH")
-    package = root / "apps/desktop/node_modules/electron"
-    if json.loads((package / "package.json").read_bytes())["version"] != "45.3.1":
-        raise ValueError("CI_ELECTRON_PACKAGE_MISMATCH")
     selected = {
-        "electron": cookie_electron(root, evidence),
         "shell": browser_root
         / "chromium_headless_shell-1254/chrome-headless-shell-linux64/chrome-headless-shell",
         "chrome": browser_root / "chromium-1254/chrome-linux64/chrome",
     }
     expected = {
-        "electron": os.environ["VERIQ_TEST_ELECTRON"],
         "chrome": os.environ["VERIQ_TEST_HEADED_BROWSER"],
     }
+    if purpose == "desktop":
+        package = root / "apps/desktop/node_modules/electron"
+        if json.loads((package / "package.json").read_bytes())["version"] != "45.3.1":
+            raise ValueError("CI_ELECTRON_PACKAGE_MISMATCH")
+        selected = {"electron": cookie_electron(root, evidence), **selected}
+        expected["electron"] = os.environ["VERIQ_TEST_ELECTRON"]
+    if set(selected) != set(spec["kinds"]):
+        raise ValueError("CI_PROFILE_ROLE_MISMATCH")
     result = {}
     for kind, path in selected.items():
         actual = path.resolve(strict=True)
+        if kind != "electron" and actual != path:
+            raise ValueError("CI_BINARY_PATH_MISMATCH")
         actual.relative_to(root)
-        profile_text(f"veriq-t19-1-1-{kind}", str(actual))
+        profile_text(f"{spec['stem']}-1-1-{kind}", str(actual), purpose)
         if kind in expected and Path(expected[kind]).resolve(strict=True) != actual:
             raise ValueError("CI_BINARY_PATH_MISMATCH")
         info = actual.stat()
@@ -222,19 +272,25 @@ def owned_file(path: Path, expected: str) -> bool:
         or info.st_uid != 0
         or info.st_gid != 0
         or stat.S_IMODE(info.st_mode) != 0o644
-        or path.read_text() != expected
+        or path.read_bytes() != expected.encode("utf-8")
     ):
         raise ValueError("CI_PROFILE_OWNERSHIP_MISMATCH")
     return True
 
 
-def prepare(root: Path, evidence: Path, stem: str) -> None:
-    """先持久化未修改的宿主限制和三份精确策略意图，再逐个安装 root 文件并调用成熟 parser 加载；任何能力或所有权不符都停
+def prepare(root: Path, evidence: Path, stem: str, purpose: str = "desktop") -> None:
+    """先持久化未修改的宿主限制和本目的精确策略意图，再逐个安装 root 文件并调用成熟 parser 加载；能力或所有权不符即停
     止，always 清理步骤可根据已保存意图收回此前成功加载的部分，而不会开启全局 userns。
     """
+    kinds = purpose_spec(purpose)["kinds"]
+    state_file = evidence / "userns-state.json"
+    if os.path.lexists(state_file):
+        raise ValueError("CI_PROFILE_STATE_ALREADY_EXISTS")
     before = snapshot(evidence)
     save(evidence / "userns-before.json", before)
-    selected = binaries(root, evidence)
+    selected = binaries(root, evidence, purpose)
+    if set(selected) != set(kinds):
+        raise ValueError("CI_PROFILE_ROLE_MISMATCH")
     save(evidence / "userns-binaries.json", selected)
     if (
         before["apparmorEnabled"] != "Y"
@@ -248,27 +304,25 @@ def prepare(root: Path, evidence: Path, stem: str) -> None:
     help_result = invoke(evidence, [parser, "--help"])
     if "--skip-cache" not in help_result.stdout + help_result.stderr:
         raise ValueError("CI_PARSER_SKIP_CACHE_UNAVAILABLE")
-    state = {
+    state: dict[str, Any] = {
         "stem": stem,
+        "purpose": purpose,
+        "kinds": list(kinds),
         "before": before,
         "binaries": selected,
         "parser": parser,
         "owned": [],
     }
-    state_file = evidence / "userns-state.json"
-    if state_file.exists():
-        raise ValueError("CI_PROFILE_STATE_ALREADY_EXISTS")
-    for kind in KINDS:
+    for kind in kinds:
         name = f"{stem}-{kind}"
-        if (
-            any(line.split(" (", 1)[0] == name for line in before["profiles"])
-            or (Path("/etc/apparmor.d") / name).exists()
+        if any(line.split(" (", 1)[0] == name for line in before["profiles"]) or os.path.lexists(
+            Path("/etc/apparmor.d") / name
         ):
             raise ValueError("CI_PROFILE_ALREADY_EXISTS")
     save(state_file, state)
-    for kind in KINDS:
+    for kind in kinds:
         name = f"{stem}-{kind}"
-        text = profile_text(name, selected[kind]["realpath"])
+        text = profile_text(name, selected[kind]["realpath"], purpose)
         source = evidence / f"userns-{kind}.profile"
         source.write_text(text)
         target = Path("/etc/apparmor.d") / name
@@ -306,33 +360,70 @@ def prepare(root: Path, evidence: Path, stem: str) -> None:
     save(evidence / "userns-after-load.json", after)
     names = {line.split(" (", 1)[0] for line in after["profiles"]}
     baseline_names = {line.split(" (", 1)[0] for line in before["profiles"]}
-    expected_names = {f"{stem}-{kind}" for kind in KINDS}
+    expected_names = {f"{stem}-{kind}" for kind in kinds}
+    unrelated = [line for line in after["profiles"] if line.split(" (", 1)[0] not in expected_names]
     if (
         after["limits"] != before["limits"]
         or after["apparmorEnabled"] != before["apparmorEnabled"]
         or after["label"] != before["label"]
         or names != baseline_names | expected_names
+        or unrelated != before["profiles"]
     ):
         raise ValueError("CI_PROFILE_LOAD_PROOF_FAILED")
     print("Job-scoped userns profiles loaded; global restrictions unchanged")
 
 
-def cleanup(evidence: Path, stem: str) -> None:
-    """清理只从本次意图恢复固定三个名字，确认已加载身份后逐个卸载并删除相同 root 文件；即使某项失败也继续尝试其它自有项
+def cleanup(evidence: Path, stem: str, purpose: str = "desktop") -> None:
+    """清理只从本次意图恢复当前目的固定名字，确认已加载身份后逐个卸载并删除同一 root 文件；某项失败也继续尝试其它自有项
     ，最后检查所有目标消失和全局限制未变，不能把清理错误吞成绿色验收。
     """
+    kinds = purpose_spec(purpose)["kinds"]
     state_file = evidence / "userns-state.json"
-    if not state_file.exists():
-        save(evidence / "userns-cleanup.json", {"status": "NOT_INSTALLED", "stem": stem})
+    if not os.path.lexists(state_file):
+        current = snapshot(evidence)
+        owned_names = {f"{stem}-{kind}" for kind in kinds}
+        remaining_profiles = [
+            line for line in current["profiles"] if line.split(" (", 1)[0] in owned_names
+        ]
+        files = [
+            str(Path("/etc/apparmor.d") / name)
+            for name in sorted(owned_names)
+            if os.path.lexists(Path("/etc/apparmor.d") / name)
+        ]
+        residue = bool(remaining_profiles or files)
+        save(
+            evidence / "userns-cleanup.json",
+            {
+                "status": "FAILED" if residue else "NOT_INSTALLED",
+                "stem": stem,
+                "purpose": purpose,
+                "after": current,
+                "remainingProfiles": remaining_profiles,
+                "remainingFiles": files,
+                "ownedProfilesAndFilesRemoved": not residue,
+            },
+        )
+        if residue:
+            raise ValueError("CI_PROFILE_STATE_MISSING_WITH_RESIDUE")
         return
+    if state_file.is_symlink():
+        raise ValueError("CI_PROFILE_STATE_MISMATCH")
     state = json.loads(state_file.read_bytes())
-    if state["stem"] != stem or state["parser"] != "/usr/sbin/apparmor_parser":
+    if (
+        not isinstance(state, dict)
+        or state.get("stem") != stem
+        or state.get("purpose") != purpose
+        or state.get("kinds") != list(kinds)
+        or state.get("parser") != "/usr/sbin/apparmor_parser"
+        or not isinstance(state.get("binaries"), dict)
+        or set(state["binaries"]) != set(kinds)
+    ):
         raise ValueError("CI_PROFILE_STATE_MISMATCH")
     errors = []
-    for kind in KINDS:
+    for kind in kinds:
         name = f"{stem}-{kind}"
         target = Path("/etc/apparmor.d") / name
-        expected = profile_text(name, state["binaries"][kind]["realpath"])
+        expected = profile_text(name, state["binaries"][kind]["realpath"], purpose)
         try:
             current = snapshot(evidence)
             loaded = any(line.split(" (", 1)[0] == name for line in current["profiles"])
@@ -344,6 +435,9 @@ def cleanup(evidence: Path, stem: str) -> None:
                     evidence,
                     ["sudo", "-n", state["parser"], "--skip-cache", "-R", str(target)],
                 )
+                confirmed = snapshot(evidence)
+                if any(line.split(" (", 1)[0] == name for line in confirmed["profiles"]):
+                    raise ValueError("CI_PROFILE_UNLOAD_UNCONFIRMED")
             if exists:
                 invoke(evidence, ["sudo", "-n", "rm", "--", str(target)])
         except Exception as error:
@@ -355,12 +449,11 @@ def cleanup(evidence: Path, stem: str) -> None:
         and after["apparmorEnabled"] == state["before"]["apparmorEnabled"]
         and after["label"] == state["before"]["label"]
     )
-    other_profiles_unchanged = names == {
-        line.split(" (", 1)[0] for line in state["before"]["profiles"]
-    }
+    other_profiles_unchanged = after["profiles"] == state["before"]["profiles"]
     removed = all(
-        f"{stem}-{kind}" not in names and not (Path("/etc/apparmor.d") / f"{stem}-{kind}").exists()
-        for kind in KINDS
+        f"{stem}-{kind}" not in names
+        and not os.path.lexists(Path("/etc/apparmor.d") / f"{stem}-{kind}")
+        for kind in kinds
     )
     save(
         evidence / "userns-cleanup.json",
@@ -382,16 +475,17 @@ def cleanup(evidence: Path, stem: str) -> None:
     print("Job-scoped userns profiles removed; global restrictions unchanged")
 
 
-def evidence_path(root: Path, environment: dict[str, str]) -> Path:
+def evidence_path(root: Path, environment: dict[str, str], purpose: str = "desktop") -> Path:
     """证据目录只能由已验证 checkout 根和完整小写源码 SHA 推导，环境变量必须逐字匹配唯一位置；逐层拒绝符号链接与缺失目录
     ，使准备和清理都不能借重定向、旧候选路径或任意用户提供地址扩大策略作用范围。
     """
+    spec = purpose_spec(purpose)
     source = environment.get("GITHUB_SHA", "")
     if not re.fullmatch(r"[0-9a-f]{40}", source):
         raise ValueError("CI_SOURCE_SHA_INVALID")
-    relative = Path(f".superpowers/sdd/veriq-1/evidence/t20/desktop-{source}")
+    relative = Path(f".superpowers/sdd/veriq-1/evidence/t20/{purpose}-{source}")
     expected = root / relative
-    if environment.get("VERIQ_DESKTOP_EVIDENCE") != str(expected):
+    if environment.get(spec["evidence"]) != str(expected):
         raise ValueError("CI_EVIDENCE_PATH_MISMATCH")
     current = root
     for part in relative.parts:
@@ -407,21 +501,31 @@ def main() -> None:
     """入口在任何策略读取或 sudo 前验证托管 QA 上下文和普通 runner 身份，证据目录也固定在当前工作区；prepare 与 cleanup
     都必须通过同样边界，测试模块导入只暴露纯文本及上下文校验而不触发系统修改。
     """
-    stem = job_identity(dict(os.environ), platform.freedesktop_os_release())
+    arguments = sys.argv[1:]
+    purpose = arguments[2] if len(arguments) == 3 and arguments[1] == "--purpose" else "desktop"
+    stem = job_identity(dict(os.environ), platform.freedesktop_os_release(), purpose)
     if os.geteuid() == 0:
         raise ValueError("CI_UNPRIVILEGED_RUNNER_REQUIRED")
     root = Path(os.environ["GITHUB_WORKSPACE"]).resolve(strict=True)
     if root != Path(__file__).resolve().parents[2]:
         raise ValueError("CI_CHECKOUT_ROOT_MISMATCH")
-    if sys.argv[1:] not in (["prepare"], ["cleanup"]):
+    if arguments not in (
+        ["prepare"],
+        ["cleanup"],
+        ["prepare", "--purpose", purpose],
+        ["cleanup", "--purpose", purpose],
+    ):
         raise ValueError("CI_PROFILE_OPERATION_INVALID")
-    operation = sys.argv[1]
-    evidence = evidence_path(root, dict(os.environ))
+    operation = arguments[0]
+    evidence = evidence_path(root, dict(os.environ), purpose)
     try:
         if operation == "prepare":
-            prepare(root, evidence, stem)
+            if purpose == "desktop":
+                prepare(root, evidence, stem)
+            else:
+                prepare(root, evidence, stem, purpose)
         else:
-            cleanup(evidence, stem)
+            cleanup(evidence, stem, purpose)
     except Exception as error:
         save(
             evidence / f"userns-{operation}-failure.json",

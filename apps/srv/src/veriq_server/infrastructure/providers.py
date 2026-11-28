@@ -226,7 +226,7 @@ async def limit_response(response: httpx.Response) -> None:
 
 
 def _anthropic_tools(tools: list[dict[str, Any]]) -> list[ToolParam]:
-    """使用同一份 Claude 工具声明计算预留和发送请求。"""
+    """将工具名称、描述和参数模式映射成供应商协议声明，预留计算与实际请求共用同一结构，避免漏算工具输入。"""
     return [
         {"name": t["name"], "description": t["description"], "input_schema": t["parameters"]}
         for t in tools
@@ -234,7 +234,7 @@ def _anthropic_tools(tools: list[dict[str, Any]]) -> list[ToolParam]:
 
 
 def _openai_tools(tools: list[dict[str, Any]]) -> list[ChatCompletionFunctionToolParam]:
-    """计入 Chat Completions 为每个函数添加的协议封装。"""
+    """为每个工具函数添加类型和函数对象的协议封装，确保输入预留按实际发送的声明结构计算而不漏掉封装开销。"""
     return [
         {
             "type": "function",
@@ -249,7 +249,7 @@ def _openai_tools(tools: list[dict[str, Any]]) -> list[ChatCompletionFunctionToo
 
 
 def _json_size(value: object) -> int:
-    """按 UTF-8 计算含转义后的 JSON 字节。"""
+    """按不转义中文的紧凑格式序列化对象，再统计编码字节数，使引号和控制字符等实际转义开销计入请求预算。"""
     return len(json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode())
 
 
@@ -510,7 +510,7 @@ class ProviderGateway:
         round_bound = initial_bound
 
         def can_send(history: object) -> bool:
-            """续轮的消息包括全部模型块、工具参数和返回值；同时保留本轮允许的最大输出。"""
+            """续轮输入计入完整模型块、工具参数及返回值的序列化开销，同时核对剩余输入预留和本轮允许的最大输出。"""
             nonlocal round_bound
             round_bound = initial_bound + (_json_size(history) if history else 0)
             return (

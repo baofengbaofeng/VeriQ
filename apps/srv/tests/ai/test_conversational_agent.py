@@ -242,7 +242,7 @@ async def test_agent_running_replay_expiry_and_late_result_fencing(site, monkeyp
         host_offset = timedelta(minutes=-15)
 
         class SkewedClock(datetime):
-            """模拟发起、轮询和回调所在节点相反的主机时钟偏差，数据库 UTC 保持真实。"""
+            """模拟发起、轮询和回调节点方向相反的主机时钟偏差，数据库时间保持真实，用于检验期限与迟到回写围栏。"""
 
             @classmethod
             def now(cls, tz=None):

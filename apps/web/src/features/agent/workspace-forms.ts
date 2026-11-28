@@ -93,7 +93,7 @@ export function formLabel(capability: WorkspaceCapability, language: "zh" | "en"
 }
 
 /**
- * 两个宿主共用固定页面映射；桌面资源、证据及保留设置另用原生视图。
+ * 根据已验证的卡片能力选择固定页面目的地，两个宿主共享网页映射，桌面资源、证据及保留设置使用原生视图。
  */
 export function formDestination(
     card: WorkspaceFormCard,

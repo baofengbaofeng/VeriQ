@@ -24,7 +24,7 @@ describe("shared schema behavior", () => {
         const python = execFileSync(
             root + "apps/srv/.venv/bin/python",
             [root + "apps/srv/tests/contracts/validation_results.py"],
-            { cwd: root, encoding: "utf8" },
+            { cwd: root, encoding: "utf8", timeout: 45000 },
         );
         expect(
             fixtures.map((x) => ({
@@ -32,7 +32,7 @@ describe("shared schema behavior", () => {
                 valid: validateSchema(x.schema, x.value).length === 0,
             })),
         ).toEqual(JSON.parse(python));
-    });
+    }, 60000);
     test.each([
         NaN,
         Infinity,

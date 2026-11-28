@@ -49,7 +49,7 @@ export class Heartbeat {
                 },
             );
             if (this.done) return;
-            // 取消不延长租约。页面清理仅在平台明确授权后继续短间隔复核，失去授权立即停机。
+            // 取消不会延长当前执行租约；页面清理仅在平台明确授权后继续短间隔复核，失去授权立即停机。
             if (grant.cancelRequested) {
                 if (grant.pageCleanupAllowed === true) {
                     this.deadline = Math.min(this.deadline, leaseDeadline(grant, sent, performance.now()));

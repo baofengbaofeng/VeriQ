@@ -153,12 +153,19 @@ class AccountAPI(API):
                 await invalidate(s, user.id)
                 await s.execute(delete(UserToken).where(UserToken.user_id == user.id))
                 audit(s, "password.changed", user.id, user.id)
-                self.respond({})
             elif self.action == "revoke-own":
                 self.body("Empty")
+                await lock_installation(s)
                 user, _ = await self.identity(s)
                 await invalidate(s, user.id)
                 audit(s, "sessions.revoked", user.id, user.id)
-                self.respond({})
             else:
                 raise Problem(404, "NOT_FOUND", "API endpoint not found")
+        # 事务提交成功才清除浏览器 Cookie；回滚或提交失败须保留原 Cookie，不能让失败请求表现为成功注销。
+        self.clear_cookie(
+            "veriq_session",
+            path="/",
+            samesite="Strict",
+            secure=self.config.environment == "production",
+        )
+        self.respond({})

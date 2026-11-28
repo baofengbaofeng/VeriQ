@@ -1,4 +1,4 @@
-"""Result logging shared by the server's outbound transport boundaries."""
+"""在服务端下游传输边界共享结果日志和父子跨度关联，统一处理成功、异常及取消，并隔离诊断输出失败。"""
 
 import asyncio
 from collections.abc import Iterator
@@ -33,7 +33,7 @@ class OutboundCall:
             self.span = child_span()
 
     def finish(self, error: BaseException | None = None) -> None:
-        """Record the terminal outcome once, including when a stream is later closed."""
+        """以幂等方式记录下游调用的最终结果和耗时，使用父跨度关联子调用标识，重复结束或流关闭不会重复记录。"""
         if self.finished:
             return
         self.finished = True
@@ -42,7 +42,7 @@ class OutboundCall:
             "cspanid": self.span.span_id,
             "proc_time": monotonic() - self.started,
         }
-        # An unavailable log sink must never replace a transport's result.
+        # 日志输出不可用时必须保留传输调用原有的结果或异常，因此在父跨度作用域内忽略诊断输出自身的错误。
         with suppress(Exception), use_trace(self.parent):
             if error is not None or (self.status is not None and self.status >= 300):
                 error_type = type(error).__name__ if error is not None else "HTTPStatusError"
@@ -74,7 +74,7 @@ def outbound(
     failure_event: str | None = None,
     **fields: str,
 ) -> Iterator[OutboundCall]:
-    """Bind a child span during the operation and log the outcome on its parent."""
+    """下游操作期间绑定独立子跨度，退出时在父跨度上记录一次结果；异常和异步取消记录后仍向调用方传播。"""
     call = OutboundCall(transport, event, fields, failure_event)
     try:
         with use_trace(call.span):
@@ -88,7 +88,7 @@ def outbound(
 
 @contextmanager
 def s3_operation(event: str) -> Iterator[None]:
-    """Capture an S3 operation, including a streamed body when read by the caller."""
+    """围住对象存储调用及调用方在作用域内读取响应流的过程，将服务错误中的状态码交给统一下游结果日志。"""
     from botocore.exceptions import ClientError
 
     with outbound("http", event, uri=event) as call:

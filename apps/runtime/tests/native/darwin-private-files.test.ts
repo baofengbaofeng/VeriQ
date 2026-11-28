@@ -240,7 +240,12 @@ test("native directory traversal rejects links and never repairs read-only paths
  */
 test("native component and numeric limits are finite and production exports stay narrow", mac, async () =>
     nativeFixture((directory, session) => {
-        assert.deepEqual(Object.keys(darwinNative()), ["openPrivateDirectory", "privateCookieFile"]);
+        assert.deepEqual(Object.keys(darwinNative()), [
+            "openPrivateDirectory",
+            "privateCookieFile",
+            "retirePrivateEvidence",
+            "retirePrivateInventory",
+        ]);
         for (const name of ["", ".", "..", "a/b", "a\\b", "a\0b", "x".repeat(256), "é".repeat(128)])
             assert.throws(() => session.read(name, 64), failure("DARWIN_PRIVATE_INVALID", "name"));
         assert.throws(() => session.read("\ud800", 64), failure("DARWIN_PRIVATE_INVALID", "argument.unicode"));
@@ -1011,7 +1016,7 @@ for (const [action, accepted] of [
  * 两模块打开同一真实 fixture 的独立目录会话，接口形状相同但原生类型身份不同。
  * 故障计划先设置，再执行正式 replace，正式写入必须成功且不能消耗故障计数。
  * 随后的故障 replace 必须在 replace.write 阶段抛固定 EIO，不能因没有 hook 而发布。
- * 原生正式导出仍只有 openPrivateDirectory，不接受调度或任意描述符采用。
+ * 原生正式导出精确包含目录、Cookie 与两个有限保留期入口，不接受调度或任意描述符采用。
  * 子进程实际退出状态与 stderr 一起检查，准备错误不算观察点正确激活。
  * 子进程最终 reset、close、rm，顺序保留故障撤销和资源拥有者责任。
  * 路径通过参数数组传入，Node eval 不拼接用户文件名或 shell 代码。
@@ -1037,7 +1042,8 @@ for (const order of ["prod-first", "fault-first"]) {
                 'p`,Buffer.from("public"),64);assert.equal(prod.read("production",64).toString(),"public");',
             '    assert.throws(()=>fault.replace("fault",`.${randomUUID()}.tmp`,Buffer.from("public"),64),error=' +
                 '>error.code==="DARWIN_PRIVATE_IO"&&error.phase==="replace.write");assert.deepEqual(Object.keys(' +
-                'loaded.prod),["openPrivateDirectory","privateCookieFile"]);',
+                'loaded.prod),["openPrivateDirectory","privateCookieFile","retirePrivateEvidence","retirePriva' +
+                'teInventory"]);',
             "}finally{loaded.fault.resetFaults();fault.close();prod.close();rmSync(directory,{recursive:true,for" +
                 "ce:true});}",
         ].join("\n");

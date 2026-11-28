@@ -4,7 +4,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, readFile, writeFile, realpath } from "node:fs/promises";
 import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -31,7 +31,7 @@ test("Agent reconfiguration preserves existing active online and enrolled guards
  * 缺失引擎库存的明确路径证明请求已越过凭据前检，而不是把设备缺席异常直接抛回。
  */
 test("DesktopAgent preserves a genuinely unenrolled source profile", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "veriq-desktop-unenrolled-"));
+    const directory = await realpath(await mkdtemp(join(tmpdir(), "veriq-desktop-unenrolled-")));
     try {
         const agent = new DesktopAgent(directory, {
             origin: "https://control.example",
@@ -45,17 +45,19 @@ test("DesktopAgent preserves a genuinely unenrolled source profile", async () =>
         assert.equal(status.credentialError, undefined);
         assert.equal(status.device, undefined);
         assert.doesNotThrow(() => assertAgentReconfigurationAllowed(status));
-        await assert.rejects(agent.dispatch({ operation: "enroll", name: "first-device" }), {
-            code: "ENOENT",
-            path: join(directory, "engine/inventory.json"),
-        });
+        await assert.rejects(
+            agent.dispatch({ operation: "enroll", name: "first-device" }),
+            process.platform === "darwin"
+                ? { message: "DARWIN_NATIVE_DISTRIBUTION_REQUIRED" }
+                : { code: "ENOENT", path: join(directory, "engine/inventory.json") },
+        );
     } finally {
         await rm(directory, { recursive: true, force: true });
     }
 });
 
 test("DesktopAgent exposes explicit migration through its guarded finite dispatch", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "veriq-desktop-vault-"));
+    const directory = await realpath(await mkdtemp(join(tmpdir(), "veriq-desktop-vault-")));
     const keys = new Map<string, Buffer>();
     const backend: VaultKeyBackend = {
         async get(scope) {
@@ -122,7 +124,7 @@ test("DesktopAgent exposes explicit migration through its guarded finite dispatc
  * 真实消费者验证新版本可用，不能靠按钮回显声称缺失主密钥已恢复。
  */
 test("DesktopAgent exposes explicit empty key initialization recovery", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "veriq-desktop-initialization-"));
+    const directory = await realpath(await mkdtemp(join(tmpdir(), "veriq-desktop-initialization-")));
     const keys = new Map<string, Buffer>();
     let failFirst = true;
     const backend: VaultKeyBackend = {
@@ -180,10 +182,12 @@ test("DesktopAgent exposes explicit empty key initialization recovery", async ()
         assert.equal(recovered.device, undefined);
         assert.deepEqual(recovered.history, []);
         assert.doesNotThrow(() => assertAgentReconfigurationAllowed(recovered));
-        await assert.rejects(agent.dispatch({ operation: "enroll", name: "first-device" }), {
-            code: "ENOENT",
-            path: join(directory, "engine/inventory.json"),
-        });
+        await assert.rejects(
+            agent.dispatch({ operation: "enroll", name: "first-device" }),
+            process.platform === "darwin"
+                ? { message: "DARWIN_NATIVE_DISTRIBUTION_REQUIRED" }
+                : { code: "ENOENT", path: join(directory, "engine/inventory.json") },
+        );
         await assert.rejects(
             agent.dispatch({ operation: "recoverCredentialInitialization", force: true }),
             /AGENT_OPERATION_DENIED|INVALID/,
@@ -199,7 +203,7 @@ test("DesktopAgent exposes explicit empty key initialization recovery", async ()
  * 投影及秘密不外泄，再恢复同一后端读取原设备，不能用新建空档案把失败伪装为未绑定。
  */
 test("DesktopAgent keeps credential failures visible without exposing secrets or replacing keys", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "veriq-desktop-locked-"));
+    const directory = await realpath(await mkdtemp(join(tmpdir(), "veriq-desktop-locked-")));
     const keys = new Map<string, Buffer>();
     let blocked: "locked" | "unavailable" | "failed" | "unexpected" | "enoent" | "null" | "undefined" | undefined;
     let sets = 0;

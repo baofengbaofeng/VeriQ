@@ -372,6 +372,13 @@ async function observeBusiness(
             reportNativeFailure("BROWSER_LAUNCH", error);
             throw new Error("NATIVE_BROWSER_LAUNCH_FAILED");
         }
+        const argv = server.process().spawnargs;
+        assert.equal(argv.includes("--no-sandbox"), false);
+        if (expectedHeadless !== undefined)
+            assert.equal(
+                argv.some((arg) => arg.startsWith("--headless")),
+                expectedHeadless,
+            );
         servers.push(server);
         const endpoint = server.wsEndpoint();
         endpoints.push(endpoint);
@@ -487,25 +494,66 @@ async function observeBusiness(
  * 线上业务复用原 physical 的真实失败与第二次成功，并在清理前扫描实际上传和报告容器；HTTP 夹具只确认传输封套，容量、
  * fence 服务事务和真实 MySQL 结论仍由独立 Linux 服务门禁证明。
  */
+for (const browserMode of ["headless", "headed"] as const)
+    test(
+        `online ${browserMode} actual SDK assertion FAIL/PASS preserves CONTROLLED proof and scans decoded artifacts`,
+        { timeout: 240000 },
+        async () => {
+            const source = await createDarwinSource({ temporaryDirectory: root });
+            await observeBusiness(
+                "ONLINE_ASSERT_FAIL_PASS",
+                async (inspect, assertClean) =>
+                    onlineBusiness({
+                        browserMode,
+                        beforeDelivery: assertClean,
+                        darwinSource: source,
+                        browserExecutable: chromium.executablePath(),
+                        inspect: async ({ result, uploads, events }) => {
+                            for (const upload of uploads.values()) await inspect(upload.bytes, upload.filename);
+                            await inspect(
+                                Buffer.from(JSON.stringify({ completion: result.completion, events })),
+                                "events-completion.json",
+                            );
+                        },
+                    }),
+                false,
+                browserMode === "headless",
+            );
+        },
+    );
+
+/**
+ * 原生在线 Attempt 移除浏览器后必须在真实业务认证和夹具前失败关闭，零派生回执不冒充受控浏览器已经成功启动或停止。
+ */
+test("online missing browser fails before business credentials and fixture actions", { timeout: 180000 }, async () => {
+    const source = await createDarwinSource({ temporaryDirectory: root });
+    await onlineBusiness({
+        darwinSource: source,
+        browserExecutable: "/absent/veriq-browser",
+        expectPreflightFailure: true,
+    });
+});
+
+/**
+ * 已存在且可执行的无头专用候选也必须在在线 TEST 的认证、凭据及夹具前拒绝；真实控制面夹具断言零请求和未派生证明，
+ * 不能仅凭 SDK 生命周期单元模拟来推断提前拒绝已成立。
+ */
 test(
-    "online actual SDK assertion FAIL/PASS preserves CONTROLLED proof and scans decoded artifacts",
-    { timeout: 240000 },
+    "online headed shell alias misconfiguration fails before credentials and fixtures",
+    { timeout: 180000 },
     async () => {
         const source = await createDarwinSource({ temporaryDirectory: root });
-        await observeBusiness("ONLINE_ASSERT_FAIL_PASS", async (inspect, assertClean) =>
-            onlineBusiness({
-                beforeDelivery: assertClean,
-                darwinSource: source,
-                browserExecutable: chromium.executablePath(),
-                inspect: async ({ result, uploads, events }) => {
-                    for (const upload of uploads.values()) await inspect(upload.bytes, upload.filename);
-                    await inspect(
-                        Buffer.from(JSON.stringify({ completion: result.completion, events })),
-                        "events-completion.json",
-                    );
-                },
-            }),
-        );
+        const executablePath = join(root, "chrome-headless-shell");
+        await writeFile(executablePath, "#!/bin/sh\nexit 0\n", { mode: 0o700 });
+        const alias = join(root, "chrome");
+        await fs.symlink(executablePath, alias);
+        await onlineBusiness({
+            darwinSource: source,
+            browserExecutable: alias,
+            browserMode: "headed",
+            expectPreflightFailure: true,
+            expectedPreflightReason: "HEADED_BROWSER_REQUIRED",
+        });
     },
 );
 

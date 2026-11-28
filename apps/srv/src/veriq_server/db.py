@@ -114,6 +114,8 @@ class UserToken(Base):
     user_id: Mapped[str] = mapped_column(uuid_type, ForeignKey("veriq_users.id"), index=True)
     token_hash: Mapped[str] = mapped_column(hash_type, unique=True)
     expires_at: Mapped[datetime] = mapped_column(DATETIME(fsp=6))
+    # 旧令牌保留空值；新签发以数据库 UTC 记录，邮件冷却不依赖各 API 节点墙钟或内存。
+    issued_at: Mapped[datetime | None] = mapped_column(DATETIME(fsp=6))
     consumed: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
@@ -240,7 +242,7 @@ class Notification(Base):
 
 
 def instrument_database(engine: Engine) -> None:
-    """Record each cursor execution, including ORM flushes and raw statements."""
+    """在引擎执行边界记录连接及游标操作结果，覆盖对象映射刷新和原始语句，日志不包含语句正文或参数。"""
     methods = {
         "SELECT",
         "INSERT",
@@ -259,7 +261,7 @@ def instrument_database(engine: Engine) -> None:
         operation = statement.lstrip()[:16].split(None, 1)
         method = operation[0].upper() if operation else ""
         result = {"method_name": method if method in methods else "OTHER"}
-        # Statement introspection is optional metadata. It cannot block database I/O.
+        # 语句内省仅用于补充已知表名，提取失败时忽略这项可选元数据，避免诊断逻辑阻断数据库实际操作。
         with suppress(Exception):
             compiled = context.compiled
             clause = compiled.statement if compiled is not None else None
@@ -564,6 +566,7 @@ class Job(Base):
         ),
         Index("ix_veriq_job_claim", "workspace_id", "state", "created_at", "id"),
         Index("ix_job_server_compile_queue", "kind", "state", "created_at", "id"),
+        Index("ix_job_server_compile_slots", "state", "server_compile_expires_at", "workspace_id"),
         CheckConstraint(
             "server_compilation_id IS NULL OR (kind = 'VALIDATE' AND active_attempt_id IS NULL)",
             name="ck_job_server_compile_origin",
@@ -1354,7 +1357,7 @@ class AgentTurn(Base):
 
 
 class AgentFormReceipt(Base):
-    """领域事务的私有回执只保存操作类型、实体标识和可选修订号，不保存表单内容。"""
+    """领域事务的私有回执关联来源轮次，只保存操作类型、实体标识和可选修订号，不保存用户填写的表单内容。"""
 
     __tablename__ = "veriq_agent_form_receipts"
     __table_args__ = (Index("ix_agent_form_history", "turn_id", "created_at", "id"),)

@@ -28,7 +28,9 @@ function networkURL(input: string, base?: string): URL {
     return url;
 }
 
-/** 目标路径以已发布环境的基准 URL 解析，调用者提供的 URL 不能自行扩张已授权来源。 */
+/**
+ * 目标路径以已发布环境的基准 URL 解析，调用者提供的 URL 不能自行扩张已授权来源。
+ */
 export function recordingTarget(base: string, origins: readonly string[], input = base): URL {
     try {
         const primary = networkURL(base);
@@ -136,7 +138,9 @@ function validatedTable(input: unknown): RecordingTable | undefined {
     return { columns: [...table.columns], rows };
 }
 
-/** 本记录能力只属于创建时的 WebContents，导航开始即撤销前一文档，当前主 frame 加载完成后方可继续收集。 */
+/**
+ * 本记录能力只属于创建时的 WebContents，导航开始即撤销前一文档，当前主 frame 加载完成后方可继续收集。
+ */
 export class RecordingSession {
     readonly id = randomUUID();
     private navigation = 1;
@@ -321,19 +325,19 @@ export class RecordingSession {
             this.selected = { target, requestId: event.requestId };
             return target;
         }
-        if (this.mode !== "record" || Object.keys(event).length !== (Object.hasOwn(event, "value") ? 5 : 4)) return;
-        if (Object.hasOwn(event, "value")) {
-            if (
-                typeof event.value !== "string" ||
-                event.value.length > 4096 ||
-                !candidates.some(
-                    ({ locator }) => locator.by === "role" && ["textbox", "searchbox"].includes(locator.role),
-                )
-            )
-                return;
+        if (this.mode !== "record") return;
+        const keys = Object.keys(event).length;
+        if (Object.hasOwn(event, "value") || event.type === "fill-pending") {
+            const isCombobox = event.editableCombobox === true;
+            const roles = candidates.flatMap(({ locator }) => (locator.by === "role" ? [locator.role] : []));
+            if (keys !== (isCombobox ? 6 : 5) || roles.length !== 1) return;
+            const [role] = roles;
+            if (isCombobox ? role !== "combobox" : role !== "textbox" && role !== "searchbox") return;
+            if (event.type === "fill-pending") return { ...this.identity(), type: "fill-pending", candidates };
+            if (typeof event.value !== "string" || event.value.length > 4096) return;
             return { ...this.identity(), type: "fill", value: event.value, candidates };
         }
-        return { ...this.identity(), type: "click", candidates };
+        if (keys === 4) return { ...this.identity(), type: "click", candidates };
     }
 
     private identity() {

@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { basename } from "node:path";
+import { browserDistribution, requireBrowserExecutableMode } from "../../../runtime/src/browser-policy.ts";
 import { access } from "node:fs/promises";
 import { constants } from "node:fs";
 
@@ -26,14 +26,15 @@ export async function probeBrowser(
     headed: boolean,
 ): Promise<{ available: boolean; version?: string; source: string }> {
     if (!executable) return { available: false, source: "Not configured" };
-    const name = basename(executable).toLowerCase();
-    const shell = name.includes("headless") || name.includes("shell");
+    const distribution = browserDistribution(executable);
+    const shell = distribution === "headless-shell";
     if (headed && shell) return { available: false, source: "Headless shell cannot provide visible windows" };
-    if (headed && !["chrome", "chrome.exe", "chromium", "chromium.exe"].includes(name))
+    if (headed && distribution !== "headed")
         return { available: false, source: "Unrecognized headed browser distribution" };
     try {
-        await access(executable, constants.X_OK);
-        const result = await promisify(execFile)(executable, ["--version"], {
+        const launchExecutable = await requireBrowserExecutableMode(executable, headed ? "headed" : "headless");
+        await access(launchExecutable, constants.X_OK);
+        const result = await promisify(execFile)(launchExecutable, ["--version"], {
             timeout: 5000,
             maxBuffer: 8192,
         });

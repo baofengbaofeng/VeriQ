@@ -1,4 +1,4 @@
-"""来自私有轮次的表单请求随领域事务保存经验证的精简回执，普通请求不关联对话。"""
+"""来自私有轮次的表单请求在验证员工、空间与领域权限后随业务事务保存精简回执，普通请求不关联对话。"""
 
 import re
 from typing import Any
@@ -71,7 +71,7 @@ async def list_form_receipts(
     *,
     for_model: bool = False,
 ) -> list[dict[str, Any]]:
-    """调用方已验证会话归属；只在当前仍具备领域权限时返回最近的有界结果。"""
+    """调用方须先验证会话归属，此处再次检查当前领域权限，仅返回已完成表单轮次的有限条近期回执并按时间正序排列。"""
     capability = turn.workspace_capability
     if turn.status != "COMPLETED" or not capability:
         return []

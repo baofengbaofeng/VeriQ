@@ -231,7 +231,7 @@ async def main():
                     business_waiting -= 1
                 self.set_header("Content-Type", "text/html")
                 self.finish(
-                    '<html><h1 data-testid="ready">Desktop business ready</h1></html>'
+                    '<html><h1 veriq-id="ready">Desktop business ready</h1></html>'
                 )
 
     business = HTTPServer(Application([(r"/.*", Business)]))

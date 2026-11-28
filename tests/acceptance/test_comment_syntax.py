@@ -563,11 +563,18 @@ def test_all_tracked_actual_html_keeps_original_bytes_and_no_comments() -> None:
         "apps/web/tests/agent-strict-fixture.html": (
             "d7a8c188fddbc1f6e9a721ccb0889cdd140a77c37a8809a1ebf0e38084f8868d"
         ),
+        "apps/web/tests/desktop-notifications-fixture.html": (
+            "72b3ff7d9fe626e3efd11c1760277de542fa1ae75600c6cb1961deb935269ec4"
+        ),
         "apps/web/tests/identity-strict-fixture.html": (
             "73b19cb6c847410b6bfe8a122e7c8627f409f166d2f212586c33eddb0636196f"
         ),
         "apps/web/tests/interaction-fixture.html": "dc64c3ddc545fc17404716ca3f1c925caaa99356c02c2970117a50c9397ffd7e",
+        "apps/web/tests/workspace-form-bridge-fixture.html": (
+            "faf7a08e494994ffc7e739c12dd968fc1e7351cb969f730d1b5717c2ce17b836"
+        ),
         "fixtures/demo-app/index.html": "a18e94a56ac8757946e458abb46686b0dee08729d9dfd46de5417faea80e3d22",
+        "index.html": "67c01c1e0307516026197e1186cb6a1b634689c6929b3067b92b5c6329526658",
     }
     paths = subprocess.check_output(["git", "ls-files", "-z", "--", "*.html"], cwd=ROOT)
     assert paths.decode().split("\0") == [*expected, ""]

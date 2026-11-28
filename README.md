@@ -79,6 +79,22 @@ VeriQ/
 
 本地开发按开发指南准备工具链、数据库和锁定依赖。贡献者按仓库约定提交代码与实际验证证据。[开发指南](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/%E5%BC%80%E5%8F%91%E4%BD%BF%E7%94%A8%E4%B8%8E%E6%8E%A5%E5%85%A5%E6%8C%87%E5%8D%97/%E6%9C%AC%E5%9C%B0%E5%BC%80%E5%8F%91%E7%8E%AF%E5%A2%83%E4%B8%8E%E9%A1%B9%E7%9B%AE%E9%AA%8C%E8%AF%81%E6%8C%87%E5%8D%97.md) · [工程基线](https://github.com/baofengbaofeng/VeriQ-Knowledge/blob/master/%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E4%B8%8E%E5%86%B3%E7%AD%96%E8%AE%B0%E5%BD%95/ADR-003-%E5%B7%A5%E7%A8%8B%E5%B7%A5%E5%85%B7%E9%93%BE%E4%B8%8E%E5%85%B1%E4%BA%AB%E5%A5%91%E7%BA%A6%E5%9F%BA%E7%BA%BF.md)
 
+### 开发验证入口
+
+根目录 `pnpm check` 检查工作区类型与契约生成物，`pnpm lint` 检查列宽、注释排版和 Biome。
+`pnpm test` 运行契约、编译器、Runner SDK 和 Runtime 平台无关套件；浏览器用例需要锁定 Playwright 对应的浏览器。
+Runtime 默认入口不构建 Linux 启动器，其他验证按实际宿主分别执行：
+
+```sh
+pnpm --filter @veriq/runtime test:posix
+pnpm --filter @veriq/runtime test:linux
+```
+
+`test:posix` 验证实际 POSIX 文件权限、链接、归档和受控子进程夹具；`test:linux` 构建启动器并保留完整根测试集，
+普通服务端发行门禁明确运行后者。默认入口会核对每个测试文件的分组，不能用遗漏文件或默认跳过制造通过。
+上述源码测试不替代四个目标平台的原生凭据、停止证明、浏览器沙箱及已安装候选验收。
+服务端、Web 和桌面端到端检查仍按根 `AGENTS.md` 分别执行，全仓注释覆盖率另运行 `scripts/comment_audit.py`。
+
 ## 5. 许可证说明
 
 VeriQ 采用 **GNU Affero 通用公共许可证第 3 版（AGPL-3.0）**。如果修改后的版本支持通过计算机网络远程交互，许可证第 13 条要求向所有与该版本远程交互的用户显著提供获取对应源代码的机会，并通过网络服务器免费提供访问。[许可证原文](LICENSE)

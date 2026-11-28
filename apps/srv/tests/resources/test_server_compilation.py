@@ -2,12 +2,16 @@
 
 import asyncio
 import json
+import multiprocessing
+import os
+from concurrent.futures import ProcessPoolExecutor
 from copy import deepcopy
 from datetime import timedelta
 from hashlib import sha256
 from uuid import uuid4
 
 import pytest
+from pydantic import SecretStr
 from sqlalchemy import func, select
 from sqlalchemy.exc import OperationalError
 from test_publish import CATALOG
@@ -16,6 +20,7 @@ from veriq_server.contracts import canonical_bytes
 from veriq_server.db import (
     Attempt,
     Base,
+    CapacityPool,
     Database,
     Job,
     ValidationReceipt,
@@ -101,36 +106,154 @@ async def _queued_validation(site, tmp_path):
         },
     )
     settings = _settings(tmp_path)
-    scope = WorkspaceScope(str(uuid4()))
     async with db.sessions.begin() as session:
         await lock_installation(session)
-        session.add(
-            Workspace(
-                id=scope.workspace_id,
-                key="compile",
-                name="Compile",
-                archived=False,
-                created_at=now(),
-            )
-        )
-        await session.flush()
-        session.add(
-            WorkspaceMember(
-                workspace_id=scope.workspace_id, user_id=actor.id, role="OWNER", status="ACTIVE"
-            )
-        )
-        await session.flush()
-        resources = ResourceService(session, actor, settings=settings)
-        resource = await resources.create(
-            scope,
-            {"key": "catalog", "name": "Catalog", "kind": CATALOG["kind"], "content": CATALOG},
-        )
-        preview = await resources.preview(scope, resource["id"])
-        job = await resources.validate(
-            scope, resource["id"], preview["revision"], preview["sourceHash"]
-        )
-
+        scope = await _workspace(session, actor, "compile")
+        resource, job = await _enqueue(session, actor, settings, scope, "catalog")
     return db, actor, settings, scope, resource, job
+
+
+async def _workspace(session, actor, key):
+    """在真实数据库中建立由同一请求者管理的授权空间，使不同空间中的合法作业可分别参加两级配额竞争。"""
+    scope = WorkspaceScope(str(uuid4()))
+    session.add(
+        Workspace(id=scope.workspace_id, key=key, name=key, archived=False, created_at=now())
+    )
+    await session.flush()
+    session.add(
+        WorkspaceMember(
+            workspace_id=scope.workspace_id, user_id=actor.id, role="OWNER", status="ACTIVE"
+        )
+    )
+    await session.flush()
+    return scope
+
+
+async def _enqueue(session, actor, settings, scope, key):
+    """沿用正式资源服务写入可领取的独立资源、清单和冻结输入，返回作业标识用于核对实际调度次序。"""
+    resources = ResourceService(session, actor, settings=settings)
+    resource = await resources.create(
+        scope, {"key": key, "name": key.title(), "kind": CATALOG["kind"], "content": CATALOG}
+    )
+    preview = await resources.preview(scope, resource["id"])
+    job = await resources.validate(
+        scope, resource["id"], preview["revision"], preview["sourceHash"]
+    )
+    return resource, job
+
+
+def _claim_in_worker(settings, ready):
+    """新进程独立建立连接池并仅尝试领取一次，进程退出后未完成的领取必须仍被后续轮询计入。"""
+
+    async def run():
+        """在子进程的事件循环创建并释放连接池，只把领取结果传回父进程，避免继承连接影响会话独立性。"""
+        db = Database(settings)
+        try:
+            async with db.engine.connect():
+                ready.send(os.getpid())
+            return await _claim(db, settings)
+        finally:
+            ready.close()
+            await db.close()
+
+    return asyncio.run(run())
+
+
+async def test_workers_bypass_saturated_workspace_and_share_global_quota(queued_validation):
+    """两个进程先领取两个不同空间的最早作业，第三空间等待全局容量；占满的设备池保持独立。"""
+    db, actor, settings, scope, _, first = queued_validation
+    settings.database_url = SecretStr(db.engine.url.render_as_string(hide_password=False))
+    async with db.sessions.begin() as session:
+        await lock_installation(session)
+        _, blocked = await _enqueue(session, actor, settings, scope, "another")
+        second_scope = await _workspace(session, actor, "second")
+        _, second = await _enqueue(session, actor, settings, second_scope, "catalog")
+        third_scope = await _workspace(session, actor, "third")
+        _, third = await _enqueue(session, actor, settings, third_scope, "catalog")
+        session.add(CapacityPool(key="00/global/browser", limit=4, used=4))
+    # 子进程返回时断开所有连接。父进程新会话仍须读到已提交的预留，无法仅依赖进程内信号量。
+    context = multiprocessing.get_context("spawn")
+    receive, send = context.Pipe(duplex=False)
+    with receive, send, ProcessPoolExecutor(max_workers=1, mp_context=context) as pool:
+        async with db.sessions.begin() as barrier:
+            await lock_installation(barrier)
+            remote = asyncio.get_running_loop().run_in_executor(
+                pool, _claim_in_worker, settings, send
+            )
+            assert await asyncio.to_thread(receive.poll, 30) and receive.recv() != os.getpid()
+            local = asyncio.create_task(_claim(db, settings))
+        claims = await asyncio.gather(remote, local)
+    assert all(claim is not None for claim in claims)
+    by_job = {claim.job_id: claim for claim in claims}
+    assert set(by_job) == {first["id"], second["id"]}
+    assert await _claim(db, settings) is None
+    await _finalize(db, settings, by_job[second["id"]], None, {"errorCode": "COMPILATION_FAILED"})
+    next_claim = await _claim(db, settings)
+    assert next_claim is not None and next_claim.job_id == third["id"]
+    await _finalize(db, settings, by_job[first["id"]], None, {"errorCode": "COMPILATION_FAILED"})
+    sibling = await _claim(db, settings)
+    assert sibling is not None and sibling.job_id == blocked["id"]
+    async with db.sessions() as session:
+        assert [(row.key, row.used) for row in await session.scalars(select(CapacityPool))] == [
+            ("00/global/browser", 4)
+        ]
+
+
+async def test_inflight_legacy_fences_each_consume_capacity_until_expiry(queued_validation):
+    """升级前同一空间可能已有两个有效围栏，必须逐项占用全局配额，并在首个过期后放行其他空间。"""
+    db, actor, settings, scope, _, first = queued_validation
+    async with db.sessions.begin() as session:
+        await lock_installation(session)
+        _, sibling = await _enqueue(session, actor, settings, scope, "second")
+        other = await _workspace(session, actor, "next")
+        _, waiting = await _enqueue(session, actor, settings, other, "catalog")
+        clock = await database_time(session)
+        for job_id in (first["id"], sibling["id"]):
+            row = await session.get(Job, job_id)
+            row.state = "RUNNING"
+            row.server_compilation_id = str(uuid4())
+            row.server_compile_expires_at = clock + timedelta(minutes=5)
+    assert await _claim(db, settings) is None
+    async with db.sessions.begin() as session:
+        await lock_installation(session)
+        expired = await session.get(Job, first["id"])
+        expired.server_compile_expires_at = await database_time(session) - timedelta(seconds=1)
+    admitted = await _claim(db, settings)
+    assert admitted is not None and admitted.job_id == waiting["id"]
+
+
+async def test_one_slot_survives_return_expiry_and_late_replays(queued_validation):
+    """归还与过期接管换围栏；已归还或过期的进程不能再释放单槽，新作业只能在当前围栏完成后领取。"""
+    db, actor, settings, _, _, first = queued_validation
+    settings.compile_slots = 1
+    async with db.sessions.begin() as session:
+        await lock_installation(session)
+        other_scope = await _workspace(session, actor, "other")
+        _, waiting = await _enqueue(session, actor, settings, other_scope, "catalog")
+    original = await _claim(db, settings)
+    assert original is not None and original.job_id == first["id"]
+    assert await _claim(db, settings) is None
+    await server_compilation._return_claim(db, original)
+    replacement = await _claim(db, settings)
+    assert replacement is not None and replacement.job_id == first["id"]
+    assert replacement.compilation_id != original.compilation_id
+    await server_compilation._return_claim(db, original)
+    await _finalize(db, settings, original, None, {"errorCode": "STALE_RESULT"})
+    assert await _claim(db, settings) is None
+
+    async with db.sessions.begin() as session:
+        await lock_installation(session)
+        row = await session.get(Job, first["id"])
+        row.server_compile_expires_at = await database_time(session) - timedelta(seconds=1)
+    takeover = await _claim(db, settings)
+    assert takeover is not None and takeover.job_id == first["id"]
+    assert takeover.compilation_id not in (original.compilation_id, replacement.compilation_id)
+    await server_compilation._return_claim(db, replacement)
+    await _finalize(db, settings, replacement, None, {"errorCode": "STALE_RESULT"})
+    assert await _claim(db, settings) is None
+    await _finalize(db, settings, takeover, None, {"errorCode": "COMPILATION_FAILED"})
+    current = await _claim(db, settings)
+    assert current is not None and current.job_id == waiting["id"]
 
 
 @pytest.mark.asyncio

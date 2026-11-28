@@ -48,7 +48,7 @@ async def workspace_form_card(
 async def authorize_workspace_form(
     session: AsyncSession, scope: WorkspaceScope, user: User, capability: str, *, opening: bool
 ) -> None:
-    """读取历史回执沿用表单权限，同时允许仍获授权的员工核对归档前已提交的事实。"""
+    """打开写入类表单时要求空间可写，读取历史回执仍检查对应领域权限，同时允许获授权员工核对归档前的事实。"""
     if not isinstance(capability, str) or capability not in _FORMS:
         raise Problem(422, "AGENT_CAPABILITY_INVALID", "Select a supported workspace form")
     permission, writable = _FORMS[capability]

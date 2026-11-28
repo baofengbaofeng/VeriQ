@@ -144,7 +144,7 @@ class API(RequestHandler):
         if isinstance(exc, Problem):
             status_code, code, message = (exc.status, exc.code, exc.message)
         elif isinstance(exc, IntegrityError):
-            status_code, code, message = (409, "CONFLICT", "Account already exists")
+            status_code, code, message = (409, "CONFLICT", "Request conflicts with existing data")
         else:
             code = {
                 400: "INVALID_REQUEST",
@@ -173,7 +173,7 @@ class API(RequestHandler):
             super()._handle_request_exception(e)
 
     def log_exception(self, typ: Any, value: Any, tb: Any) -> None:
-        """只记录意外错误的类型，避免将正文、SQL 或凭据带入日志。"""
+        """仅为非预期异常或服务端错误记录异常类型，不展开异常消息与堆栈，避免请求正文、查询或凭据进入日志。"""
         if not isinstance(value, HTTPError) or value.status_code >= 500:
             log("_undef", "request.error", level=ERROR, error_type=typ.__name__)
 

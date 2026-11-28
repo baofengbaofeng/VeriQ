@@ -216,7 +216,7 @@ class AuthAdapterAPI(API):
                 ).scalar_one_or_none()
                 if row is None:
                     raise Problem(404, "AUTH_ADAPTER_NOT_FOUND", "Authentication adapter not found")
-                changed = not row.revoked
+                write_receipt = not row.revoked
                 row.revoked = True
             else:
                 config = data["configuration"]
@@ -229,6 +229,7 @@ class AuthAdapterAPI(API):
                     created_at=now(),
                 )
                 session.add(row)
+                write_receipt = True
             audit(
                 session,
                 "auth_adapter.revoked" if version_id else "auth_adapter.created",
@@ -236,7 +237,7 @@ class AuthAdapterAPI(API):
                 row.id,
                 workspace_id=workspace_id,
             )
-            if not version_id or changed:
+            if write_receipt:
                 await record_form_receipt(
                     session,
                     self.request.headers.get(FORM_ORIGIN_HEADER),

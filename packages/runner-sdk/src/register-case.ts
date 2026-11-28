@@ -114,7 +114,9 @@ export interface ExecutionOptions {
     lifecycle?: LifecycleProvider;
     credentials?: CredentialProvider;
     signal?: AbortSignal;
-    /** Distinct runtime authority; lease loss aborts cleanup even during user cancellation grace. */
+    /**
+     * 独立传递运行时清理授权信号，即使仍在用户取消的清理宽限期内，租约失效也必须立即中断清理阶段。
+     */
     cleanupSignal?: AbortSignal;
     files?: StepContextOptions["files"];
     downloads?: StepContextOptions["downloads"];
@@ -432,32 +434,34 @@ export async function executeCase(
                     options.page.isClosed() ||
                     options.cleanupSignal?.aborted ||
                     (options.signal?.aborted && condition !== "CANCELLED")
-                )
-                    throw new Error("PAGE_CLEANUP_UNAVAILABLE");
-                originFailure = false;
-                const didFail = await bounded(
-                    async (signal) => {
-                        await Promise.allSettled(ctx?.inFlight ?? []);
-                        if (signal.aborted || options.page.isClosed()) throw new Error("PAGE_CLEANUP_UNAVAILABLE");
-                        const context = createStepContext({
-                            ...stepOptions!,
-                            signal,
-                            deadline,
-                            onEvent: async (event) => {
-                                if (!signal.aborted) await stepOptions?.onEvent?.(event);
-                            },
-                        });
-                        try {
-                            return await runSteps(cleanup.steps, context, undefined, signal);
-                        } finally {
-                            context.dispose();
-                        }
-                    },
-                    maximumCleanupMs,
-                    options.cleanupSignal,
-                );
-                if (didFail || originFailure) cleanupFailed("PAGE_CLEANUP_FAILED");
-                else result.cleanupStatus = "SUCCEEDED";
+                ) {
+                    cleanupFailed("PAGE_CLEANUP_UNAVAILABLE");
+                } else {
+                    originFailure = false;
+                    const didFail = await bounded(
+                        async (signal) => {
+                            await Promise.allSettled(ctx?.inFlight ?? []);
+                            if (signal.aborted || options.page.isClosed()) throw new Error("PAGE_CLEANUP_UNAVAILABLE");
+                            const context = createStepContext({
+                                ...stepOptions!,
+                                signal,
+                                deadline,
+                                onEvent: async (event) => {
+                                    if (!signal.aborted) await stepOptions?.onEvent?.(event);
+                                },
+                            });
+                            try {
+                                return await runSteps(cleanup.steps, context, undefined, signal);
+                            } finally {
+                                context.dispose();
+                            }
+                        },
+                        maximumCleanupMs,
+                        options.cleanupSignal,
+                    );
+                    if (didFail || originFailure) cleanupFailed("PAGE_CLEANUP_FAILED");
+                    else result.cleanupStatus = "SUCCEEDED";
+                }
             } catch {
                 cleanupFailed("PAGE_CLEANUP_UNAVAILABLE");
             }

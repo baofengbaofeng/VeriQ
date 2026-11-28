@@ -61,7 +61,9 @@ export interface StepContextOptions {
     data?: JsonObject;
     vars?: JsonObject;
     signal?: AbortSignal;
-    /** Preserve the page for a distinct cleanup phase after interrupted work settles. */
+    /**
+     * 中断业务执行时保留页面并跟踪尚未结束的操作，供后续独立清理阶段等待操作收敛后继续使用同一页面。
+     */
     preservePageOnAbort?: boolean;
     deadline?: number;
     downloads?: { directory: string; maxBytes: number };

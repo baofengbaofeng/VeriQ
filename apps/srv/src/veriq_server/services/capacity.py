@@ -95,7 +95,7 @@ class CapacityService:
         if recorded != expected:
             return False
         if state == "RELEASED":
-            # 关闭后共享池可被其他 Attempt 占用，原请求只重放自己的释放记录。
+            # 尝试关闭后共享池可能已被其它执行占用，重放原请求只核对自身预留均已释放，不再要求共享池计数为零。
             return True
         # 设备专用键之外的池可由多个 Workspace 共用；释放前用该池的全部未释放预留核对计数。
         held = (

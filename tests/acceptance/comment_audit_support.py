@@ -33,6 +33,8 @@ def repository_fixture(tmp_path: pathlib.Path) -> pathlib.Path:
         "comment_audit.py",
         "source_inventory.py",
         "comment_syntax.py",
+        "comment_powershell.py",
+        "comment_powershell_process.py",
     ):
         target = scripts / name
         shutil.copyfile(_ROOT / "scripts" / name, target)

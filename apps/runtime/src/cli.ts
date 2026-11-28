@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { browserMode, runtimeBrowserMode, type BrowserMode } from "./browser-policy.ts";
 
 /**
  * 开发期 CLI 提供注册、联网认领和历史报告读取，诊断输出与命令结果分别发送到 stderr 和 stdout。
@@ -52,6 +53,8 @@ const program = new Command()
     .version(entryDistribution?.productVersion ?? "0.1.0");
 program.option("--config-dir <directory>", "Private development configuration directory");
 program.option("--distribution-root <directory>", "Installed Runtime distribution root");
+program.option("--browser-mode <mode>", "Private Runtime browser mode: headless or headed; persist explicit choice");
+let executionBrowserMode: BrowserMode = "headless";
 program.option(
     "--credential-mode <mode>",
     "Credential backend: os-vault or explicit managed Linux restricted-file",
@@ -65,6 +68,12 @@ program.option("--acknowledge-unencrypted-storage", "Acknowledge restricted-file
  * 任等级，未选模式却携带服务参数同样拒绝，避免操作者误以为限制已经生效。
  */
 program.hook("preAction", async () => {
+    const browserDirectory = store().directory;
+    const explicitBrowserMode = program.opts<{ browserMode?: string }>().browserMode;
+    executionBrowserMode =
+        explicitBrowserMode === undefined
+            ? await runtimeBrowserMode(browserDirectory)
+            : browserMode(explicitBrowserMode);
     const options = program.opts<{
         credentialMode: string;
         managedServiceUid?: string;
@@ -83,7 +92,7 @@ program.hook("preAction", async () => {
             throw new Error("RESTRICTED_FILE_CONTEXT_REQUIRED");
         entryCredentials = await managedFileCredentials({
             mode: "restricted-file",
-            managedHeadless: true,
+            managedHeadless: executionBrowserMode === "headless",
             serviceUid: Number(options.managedServiceUid),
             persistentVolume: options.persistentVolume,
             profileDirectory: options.configDir,
@@ -105,6 +114,7 @@ program.hook("preAction", async () => {
             throw new Error("RUNTIME_VAULT_CAPABILITY_UNVERIFIED");
         entryCredentials = entryDistribution ? installedCredentials(entryDistribution) : undefined;
     }
+    if (explicitBrowserMode !== undefined) await runtimeBrowserMode(browserDirectory, executionBrowserMode);
 });
 
 /**
@@ -144,12 +154,14 @@ async function nativeDoctor(options: { server?: string; browserExecutable?: stri
         return doctor({
             ...options,
             executablePath: options.browserExecutable,
+            browserMode: executionBrowserMode,
             signal: controller.signal,
         });
     if (options.browserExecutable && options.browserExecutable !== installed.browserExecutable)
         throw new Error("RUNTIME_CONFIGURATION_MISMATCH");
     return diagnoseRelease({
         ...installed,
+        browserMode: executionBrowserMode,
         ...(options.server ? { server: options.server } : {}),
         runtime: installed,
         ...(await installedDarwinExecution(installed, store().directory)),
@@ -377,6 +389,7 @@ runtime
             engineDirectory: releaseDirectory,
             engineVersion: installed?.engineVersion ?? "0.1.0",
             browserExecutable,
+            browserMode: executionBrowserMode,
             signal: controller.signal,
             ...(installed ? { runtime: installed } : {}),
             ...(await installedDarwinExecution(installed, store().directory)),
@@ -423,6 +436,7 @@ runtime
                 client: transport,
                 releaseDirectory,
                 browserExecutable,
+                browserMode: executionBrowserMode,
                 ...(installed ? { execution: installed.execution } : {}),
                 ...(await installedDarwinExecution(installed, profile.directory)),
             });

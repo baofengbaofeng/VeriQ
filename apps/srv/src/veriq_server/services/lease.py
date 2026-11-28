@@ -224,7 +224,7 @@ class LeaseService:
                 if run_deadline is not None
                 else current + timedelta(seconds=60)
             )
-        # 明确取消只在原租约和授权仍有效时允许清理，不给租约续期或重新授权已失效的尝试。
+        # 明确取消仅在原租约、运行期限及发起人授权仍有效时允许清理，不延长执行租约，也不重新授权已失效的尝试。
         page_cleanup_allowed = (
             user_cancelled
             and requester_allowed

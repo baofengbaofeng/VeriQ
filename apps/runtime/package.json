@@ -27,7 +27,10 @@
     "type": "module",
     "license": "AGPL-3.0-only",
     "scripts": {
-        "test": "pnpm build:launcher && node --import tsx --test tests/*.test.ts",
+        "test": "pnpm test:portable",
+        "test:portable": "node scripts/test-portable.mjs portable",
+        "test:posix": "node scripts/test-portable.mjs posix",
+        "test:linux": "pnpm build:launcher && node --import tsx --test tests/*.test.ts",
         "check": "tsc --noEmit",
         "dev": "node --import tsx src/cli.ts",
         "build:launcher": "node scripts/build-launcher.mjs",

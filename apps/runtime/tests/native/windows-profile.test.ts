@@ -76,10 +76,10 @@ async function fixture(context: TestContext, run: (root: string) => Promise<void
 }
 
 /**
- * 独立的 Windows ACL 查询只读取测试成员的真实安全描述符，校验每个允许项属于当前 SID 且来自继承；这证明库创建时收到父目
- * 录权限，而非原生检查器与被测实现相互重复断言。
+ * 独立的 Windows ACL 查询校验每个成员只有当前 SID 的允许项；原生预创建的主库必须显式受保护，其余库创建的成员必须来自
+ * 父目录继承，不能把两种合法来源混为一种或让宽权限成员借继承名义通过。
  */
-async function inheritedAcl(paths: string[]) {
+async function privateChildAcl(paths: string[], explicitDatabase: string) {
     const { stdout } = await promisify(execFile)(
         powershell,
         encoded(
@@ -95,10 +95,11 @@ $records = @(foreach ($path in $paths) {
     $acl = if ([System.IO.Directory]::Exists($path)) { [System.IO.Directory]::GetAccessControl($path) } else { [Syst` +
                 `em.IO.File]::GetAccessControl($path) }
     $rules = @($acl.GetAccessRules($true,$true,[System.Security.Principal.SecurityIdentifier]) | ForEach-Object {
-        @{ sid=$_.IdentityReference.Value; inherited=$_.IsInherited; allow=($_.AccessControlType -eq 'Allow') }
+        @{ sid=$_.IdentityReference.Value; inherited=$_.IsInherited; allow=($_.AccessControlType -eq 'Allow');
+            rights=[int]$_.FileSystemRights }
     })
     @{ path=$path; inputType=$path.GetType().FullName; owner=$acl.GetOwner([System.Security.Principal.SecurityIdenti` +
-                `fier]).Value; rules=$rules }
+                `fier]).Value; protected=$acl.AreAccessRulesProtected; rules=$rules }
 })
 ConvertTo-Json -InputObject @{ inputCount=@($paths).Count; pipelineInputs=$pipelineInputs; records=$records } -Depth` +
                 ` 5 -Compress
@@ -118,7 +119,8 @@ ConvertTo-Json -InputObject @{ inputCount=@($paths).Count; pipelineInputs=$pipel
             path: string;
             inputType: string;
             owner: string;
-            rules: Array<{ sid: string; inherited: boolean; allow: boolean }>;
+            protected: boolean;
+            rules: Array<{ sid: string; inherited: boolean; allow: boolean; rights: number }>;
         }>;
     };
     console.log(`Owned ACL probe before assertions: ${JSON.stringify(observed)}`);
@@ -132,8 +134,11 @@ ConvertTo-Json -InputObject @{ inputCount=@($paths).Count; pipelineInputs=$pipel
     for (const record of observed.records) {
         assert.equal(record.inputType, "System.String");
         assert.equal(record.owner, native.sid);
-        assert(record.rules.length > 0);
-        for (const rule of record.rules) assert.deepEqual(rule, { sid: native.sid, inherited: true, allow: true });
+        assert.equal(record.rules.length, 1);
+        const explicit = record.path === explicitDatabase;
+        assert.equal(record.protected, explicit);
+        for (const rule of record.rules)
+            assert.deepEqual(rule, { sid: native.sid, inherited: !explicit, allow: true, rights: 2032127 });
     }
     return observed;
 }
@@ -162,7 +167,8 @@ test("Windows private profile inherits ACLs into Node SQLite and lockfile childr
                     join(profile, "local/veriq.sqlite-wal"),
                     join(profile, "local/veriq.sqlite-shm"),
                 ];
-                context.diagnostic(`Inherited child ACLs: ${JSON.stringify(await inheritedAcl(children))}`);
+                const observed = await privateChildAcl(children, join(profile, "local/veriq.sqlite"));
+                context.diagnostic(`Private child ACLs: ${JSON.stringify(observed)}`);
                 assert.deepEqual(await readPrivate(profile, "node.json"), { owned: true });
                 for (const path of children) native.privatePath(path, false);
             } finally {

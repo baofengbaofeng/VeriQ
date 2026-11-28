@@ -23,7 +23,6 @@ from typing import Any, Never
 import boto3
 import pytest
 from botocore.stub import Stubber
-from sqlalchemy import event
 
 import veriq_server
 from veriq_server import db, readiness, recovery, settings, snapshot_io
@@ -68,14 +67,12 @@ class _DatabaseTrap:
     database: db.Database
     attempts: int = 0
 
-    def refuse_connection(
-        self, dialect: object, record: object, args: object, kwargs: object
-    ) -> Never:
+    def refuse_connection(self, *args: object, **kwargs: object) -> Never:
         """
         记录恢复逻辑跨过全部本地校验后的连接企图，并抛出仅含固定哨兵的异常，阻止驱动执行网络或数据库操作。
         """
-        # 回调签名由 SQLAlchemy 连接事件确定，丢弃驱动参数以免密码进入任何诊断或连接计数。
-        del dialect, record, args, kwargs
+        # 丢弃真实方言传入的连接参数，哨兵只记录访问次数，不能把合成凭据或连接信息写入断言和诊断。
+        del args, kwargs
         self.attempts += 1
         raise _DatabaseAccessError("SYNTHETIC_DB_ACCESS_ATTEMPT")
 
@@ -94,16 +91,16 @@ async def _database_trap(
     recovery_case: _RecoveryCase, monkeypatch: pytest.MonkeyPatch
 ) -> AsyncIterator[_DatabaseTrap]:
     """
-    从专用测试配置建立真实惰性引擎并安装驱动前哨兵，退出夹具时关闭引擎并移除只在当前用例生效的监听器。
+    从专用配置建立真实惰性引擎，在其独占方言的驱动入口安装哨兵，既保留连接观测也在任何联网前拒绝。
     """
     database = db.Database(recovery_case.target)
     trap = _DatabaseTrap(database)
     monkeypatch.setattr(recovery, "s3_client", _refuse_s3_client)
-    event.listen(database.engine.sync_engine, "do_connect", trap.refuse_connection)
+    # do_connect 观测器会返回连接并终止后续事件，直接守住本引擎的最终驱动入口，不依赖被忽略的事件排序参数。
+    monkeypatch.setattr(database.engine.sync_engine.dialect, "connect", trap.refuse_connection)
     try:
         yield trap
     finally:
-        event.remove(database.engine.sync_engine, "do_connect", trap.refuse_connection)
         await database.close()
 
 
@@ -245,7 +242,7 @@ def _tree_state(root: pathlib.Path) -> dict[str, tuple[int, str]]:
 
 async def _restore(case: _RecoveryCase, trap: _DatabaseTrap, **flags: bool) -> None:
     """
-    调用公开恢复函数，让各场景单独指定所需的归档与操作员确认。
+    通过公开恢复入口传入归档摘要、目标配置和默认操作员确认，各场景可单独覆盖确认项以检验恢复前置守卫。
     """
     confirmations = {
         "services_stopped": True,
@@ -302,7 +299,7 @@ async def test_untouched_archive_reaches_database_trap(
 async def test_empty_s3_archive_requires_inventory_permission(
     recovery_case: _RecoveryCase, database_trap: _DatabaseTrap
 ) -> None:
-    """即使快照中没有 S3 对象或墓碑，也必须先获得清点目标桶的许可。"""
+    """验证对象存储部署即使归档内没有对象或墓碑，也必须取得清点目标桶的操作员许可，才能继续后续恢复检查。"""
     await _assert_restore_refused(
         recovery_case, database_trap, "RESTORE_S3_LIST_PERMISSION_CONFIRMATION_REQUIRED"
     )
@@ -318,7 +315,7 @@ async def test_empty_s3_archive_checks_target_bucket_before_database(
     monkeypatch: pytest.MonkeyPatch,
     occupied: bool,
 ) -> None:
-    """以受控 SDK 响应模拟有对象和无对象的桶，只有清点为空才可进入数据库校验。"""
+    """通过受控客户端响应模拟有对象和无对象的目标桶，验证清点确认桶为空后才进入数据库校验，非空时提前拒绝。"""
     client = boto3.Session().client(
         "s3", region_name="us-east-1", aws_access_key_id="synthetic", aws_secret_access_key="test"
     )
@@ -350,7 +347,7 @@ async def test_empty_s3_archive_checks_target_bucket_before_database(
 async def test_file_restore_with_s3_history_still_requires_inventory(
     recovery_case: _RecoveryCase, database_trap: _DatabaseTrap, history: str
 ) -> None:
-    """默认写入 FILE 的部署也必须为历史 S3 对象或墓碑授权清点。"""
+    """验证默认写入本地文件的部署若归档仍含历史对象存储数据或墓碑，也必须取得清点目标桶许可后才能继续恢复。"""
     manifest = _archive_manifest(recovery_case)
     key = "historical/object"
     if history == "object":

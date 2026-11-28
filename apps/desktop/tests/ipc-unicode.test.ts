@@ -3,7 +3,7 @@ import test from "node:test";
 import { createServer, connect, type Socket } from "node:net";
 import { once } from "node:events";
 import { setImmediate } from "node:timers/promises";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, realpath } from "node:fs/promises";
 import { join } from "node:path";
 import { DesktopAgentClient } from "../src/agent/client.ts";
 import { AttemptBroker } from "../../runtime/src/execution/broker.ts";
@@ -14,7 +14,7 @@ import { updatePrivate } from "../../runtime/src/offline/config.ts";
  * 替换原始业务字符串或放宽源码哈希来掩盖传输损坏。
  */
 test("client preserves fragmented Chinese and non-BMP response bytes", async () => {
-    const root = await mkdtemp("/tmp/veriq-unicode-client-");
+    const root = await realpath(await mkdtemp("/tmp/veriq-unicode-client-"));
     const path = join(root, "desktop-agent.sock");
     const sockets = new Set<Socket>();
     const value = "资源中文𠮷🙂\nsource";
@@ -52,7 +52,7 @@ test("client preserves fragmented Chinese and non-BMP response bytes", async () 
  * 节必须在业务回调前拒绝，不能改用 JavaScript 字符长度计费。
  */
 test("broker preserves fragmented input and enforces its raw byte cap", async () => {
-    const root = await mkdtemp("/tmp/veriq-unicode-broker-");
+    const root = await realpath(await mkdtemp("/tmp/veriq-unicode-broker-"));
     let received: unknown;
     let calls = 0;
     const broker = new AttemptBroker(join(root, "broker.sock"), async (message) => {
@@ -95,7 +95,7 @@ test("broker preserves fragmented input and enforces its raw byte cap", async ()
  * 不等待协议超时，也不让本机字符串解码后的长度改变预算。
  */
 test("client caps raw response bytes before a complete frame", async () => {
-    const root = await mkdtemp("/tmp/veriq-unicode-limit-");
+    const root = await realpath(await mkdtemp("/tmp/veriq-unicode-limit-"));
     const path = join(root, "desktop-agent.sock");
     const sockets = new Set<Socket>();
     const server = createServer((socket) => {

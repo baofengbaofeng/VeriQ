@@ -157,7 +157,7 @@ async def _page(
     token = _WIRE_ACTIVE.set(True)
     try:
         with outbound("http", "dataset.request", uri="dataset.read", method=wire.method) as call:
-            # Preserve authored headers, the wire budget and each retry's signed bytes.
+            # 仅在头部预算允许且不覆盖已有字段时注入链路标识，读取结束后移除，保留后续重试的原始签名字节。
             headers = trace_headers(call.span)
             size = sum(len(name) + len(value) + 4 for name, value in wire.headers.raw)
             size += sum(len(name) + len(value) + 4 for name, value in headers.items())

@@ -51,7 +51,7 @@ export function findDataElement(element: Element): DataElement | undefined {
 }
 
 /**
- * 仅遍历当前单元格或列表项。表单控件的值、不可见文本与内层列表均不属于该项，
+ * 提取范围只限当前单元格或列表项，主动排除表单控件值、不可见文本与内层列表，避免混入相邻或敏感内容；
  * 遇到不规则或超长的数据时拒绝整次提取，避免把截断内容交给数据集编辑器。
  */
 function visibleText(root: HTMLElement): string | null {

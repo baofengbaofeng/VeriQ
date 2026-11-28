@@ -1981,7 +1981,7 @@ async def test_historical_scheduler_redirect_keeps_only_its_original_lineage(
 
 
 def test_lifecycle_dependencies_and_protected_occurrences_share_compiler_paths():
-    """准备和清理所依赖的资产一并冻结，受保护事件仅接受编译器生成的出现位置。"""
+    """验证准备和清理分支引用的资产一并纳入冻结依赖，受保护事件仅接受编译器生成的出现位置并拒绝伪造路径。"""
     from veriq_server.services.connected_datasets import protected_occurrences
     from veriq_server.services.resource import asset_references
 

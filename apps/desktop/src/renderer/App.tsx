@@ -38,6 +38,7 @@ const labels = {
         refresh: "刷新",
         workspace: "工作区",
         cancel: "取消执行",
+        cancelStartup: "取消启动",
         empty: "尚无本机执行记录",
         error: "操作未完成",
         connected: "已登录",
@@ -62,6 +63,7 @@ const labels = {
         refresh: "Refresh",
         workspace: "Workspace",
         cancel: "Cancel run",
+        cancelStartup: "Cancel startup",
         empty: "No local runs yet",
         error: "Operation failed",
         connected: "Signed in",
@@ -238,6 +240,18 @@ export function App() {
                                       ? "在线领取 / Online worker"
                                       : "就绪 / Idle"}
                         </small>
+                        {agent?.preparing && (
+                            <button
+                                type="button"
+                                disabled={agent.preparing.cancelling}
+                                onClick={() => {
+                                    const startupId = agent.preparing?.id;
+                                    if (startupId) void action(() => bridge.local({ operation: "cancel", startupId }));
+                                }}
+                            >
+                                {t.cancelStartup}
+                            </button>
+                        )}
                     </div>
                 )}
                 <button type="button" onClick={() => void action(() => bridge.lifecycle("hide"))}>
@@ -402,7 +416,8 @@ export function App() {
                             <p>
                                 {language === "zh"
                                     ? "设备注册和本机测试执行需要安装桌面 Runtime。"
-                                    : "Device enrollment and local test execution require an installed desktop Runtime."}
+                                    : "Device enrollment and local test execution require " +
+                                      "an installed desktop Runtime."}
                             </p>
                         </section>
                     )}

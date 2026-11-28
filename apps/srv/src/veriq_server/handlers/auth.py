@@ -1,7 +1,7 @@
 import secrets
-from datetime import timedelta
+from datetime import datetime, timedelta
 from uuid import uuid4
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from ..auth.session_client import classify_session_client
 from ..db import Installation, User, UserSession, UserToken
 from ..service import (
@@ -122,7 +122,7 @@ class AuthAPI(API):
                 data = self.body("EmailRequest")
                 # 重置请求统一提交到投递器后返回相同正文，不根据邮箱注册状态改变响应，避免请求接口泄露账户是否存在。
                 dispatcher = cast(ResetDispatcher, self.application.settings["reset_dispatcher"])
-                dispatcher.submit(data["email"])
+                dispatcher.submit(data["email"], source=self.request.remote_ip)
                 self.respond({})
             elif self.action == "reset-confirm":
                 data = self.body("ResetPasswordRequest")
@@ -134,7 +134,10 @@ class AuthAPI(API):
                         .with_for_update()
                     )
                 ).scalar_one_or_none()
-                if not reset_token or reset_token.consumed or reset_token.expires_at <= now():
+                clock = cast(
+                    datetime, (await s.execute(select(func.utc_timestamp(6)))).scalar_one()
+                )
+                if not reset_token or reset_token.consumed or reset_token.expires_at <= clock:
                     raise Problem(400, "INVALID_RESET_TOKEN", "Reset link is invalid or expired")
                 user = await s.get(User, reset_token.user_id)
                 if not user or user.disabled:

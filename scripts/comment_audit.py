@@ -234,6 +234,8 @@ def _comment_body(name: str, raw: str) -> str:
         return _java_body(raw)
     if Path(name).suffix == ".html":
         return raw[4:-3]
+    if Path(name).suffix == ".ps1":
+        return raw[2:-2] if raw.startswith("<#") else raw[1:]
     if _is_shell(name):
         return raw.removeprefix("#").lstrip()
     return raw.removeprefix("//").removeprefix("/*").removesuffix("*/").lstrip("* ")
@@ -253,7 +255,7 @@ def _java_body(raw: str) -> str:
 
 def _first_comment_line(name: str, content: str) -> str:
     """首行跳过纯空白分隔符但保留脚本正文的字面星号，块注释续行仍沿用原有星号前缀剥离和 Unicode 长度契约。"""
-    if Path(name).suffix in {".java", ".html"}:
+    if Path(name).suffix in {".java", ".html", ".ps1"}:
         return next((line.strip() for line in content.splitlines() if line.strip()), "")
     return next(
         (
@@ -268,9 +270,15 @@ def _first_comment_line(name: str, content: str) -> str:
 def _read_source(root: Path, name: str, ranges: dict[str, Sequence[_SourceCommentRange]]) -> str:
     """读取源文时保留原始换行并为新增语言装入已验证区间，保证字节定位与后续码点遮罩来自同一份未经转换的文本。"""
     suffix = Path(name).suffix
-    if suffix in source_inventory.TREE_SITTER_FILE_EXTENSIONS or _is_shell(name):
+    if (
+        suffix in source_inventory.TREE_SITTER_FILE_EXTENSIONS
+        or _is_shell(name)
+        or suffix == ".ps1"
+    ):
         raw = (root / name).read_bytes()
         language = suffix[1:] if suffix in source_inventory.TREE_SITTER_FILE_EXTENSIONS else "shell"
+        if suffix == ".ps1":
+            language = "powershell"
         ranges[name] = comment_syntax.comment_ranges(raw, language, name)
         return raw.decode("utf-8")
     with (root / name).open(encoding="utf-8", newline="") as source:
@@ -279,7 +287,7 @@ def _read_source(root: Path, name: str, ranges: dict[str, Sequence[_SourceCommen
 
 def _comment_lines(name: str, start: int, content: str) -> set[int]:
     """按现有适配器的物理分行从真实正文计算覆盖，区分结构化正文与样式表和脚本已采用的空分隔符判断。"""
-    if Path(name).suffix in {".java", ".html"}:
+    if Path(name).suffix in {".java", ".html", ".ps1"}:
         return {start + offset for offset, line in enumerate(content.splitlines()) if line.strip()}
     return {
         start + offset

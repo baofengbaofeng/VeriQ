@@ -262,7 +262,7 @@ class WorkspaceAPI(API):
                 )
                 result["delivery"] = "SENT"
             except Exception:
-                # 投递适配层记录调用结果。邮件发送失败时仍保留可复制的接受链接。
+                # 投递适配层负责记录调用结果；邮件发送失败只标记投递状态，仍返回已创建邀请的可复制接受链接。
                 result["delivery"] = "FAILED"
         self.respond(result, 201)
 
