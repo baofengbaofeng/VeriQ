@@ -1,6 +1,14 @@
 import { credentialGuidance } from "./credential-status";
 
 const guidance: Record<string, readonly [string, string]> = {
+    INSTALLED_RUNTIME_REQUIRED: [
+        "此功能需要已安装的本机 Runtime。",
+        "This feature requires an installed local Runtime.",
+    ],
+    SOURCE_WORKBENCH_LOCAL_ONLY: [
+        "源码工作台使用本机 5173 端口直连。",
+        "The source workbench connects directly to the local platform on port 5173.",
+    ],
     USER_CANCELLED: ["已取消，尚未发送需要确认的操作。", "Cancelled before the protected request was sent."],
     AGENT_BUSY: [
         "后台正在准备、执行或处理其它变更，请等待完成后重试。",

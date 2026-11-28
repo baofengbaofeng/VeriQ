@@ -314,85 +314,195 @@ main {
     max-width: 100%;
 }
 
+.desktop-content:has(.recording-workspace) {
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+}
+
+.desktop-content:has(.recording-workspace) > main {
+    flex: 1;
+    min-height: 0;
+    max-width: none;
+    width: 100%;
+    margin: 0;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    overflow: auto;
+}
+
 .recording-workspace {
+    flex: 1;
     display: grid;
-    gap: 1rem;
+    grid-template-columns: clamp(268px, 24vw, 400px) minmax(0, 1fr);
+    gap: 12px;
+    min-height: 300px;
+    font-size: 12px;
+}
+
+.recording-toolbox,
+.recording-browser {
+    min-height: 0;
+    min-width: 0;
+    margin: 0;
+    border: 1px solid var(--desktop-border, #d5dce7);
+    border-radius: 8px;
+    background: var(--desktop-surface, white);
+}
+
+.recording-toolbox {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    overflow: hidden;
+}
+
+.recording-tabs,
+.recording-context-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.recording-tabs {
+    padding: 8px;
+    border-bottom: 1px solid var(--desktop-border, #d5dce7);
+}
+
+.recording-tabs button {
+    padding: 5px 7px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+}
+
+.recording-tabs button[aria-current="page"] {
+    color: #234d81;
+    border-bottom-color: #3875c9;
+    font-weight: 600;
+}
+
+.recording-tool-content {
+    overflow: auto;
+    padding: 12px;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+}
+.recording-feedback {
+    padding: 4px 12px;
+    border-top: 1px solid var(--desktop-border, #d5dce7);
+    max-height: 7rem;
+    overflow: auto;
+}
+.recording-feedback p {
+    margin: 4px 0;
+}
+.recording-target p {
+    overflow-wrap: anywhere;
+}
+
+.recording-tool-content .panel {
+    border: 0;
+    padding: 0;
+    margin-bottom: 12px;
+    box-shadow: none;
+}
+
+.recording-workspace h2 {
+    font-size: 16px;
+    margin: 0 0 8px;
+}
+
+.recording-workspace label {
+    margin-bottom: 0;
 }
 
 .recording-workspace fieldset {
     display: grid;
-    gap: 0.65rem;
+    gap: 8px;
     min-width: 0;
     border: 1px solid var(--desktop-border, #d5dce7);
-    border-radius: 0.5rem;
-    padding: 0.75rem;
+    border-radius: 6px;
+    padding: 8px;
 }
-
+.recording-workspace .header-actions {
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+.recording-workspace button {
+    min-height: 28px;
+    padding: 4px 8px;
+}
+.recording-workspace input,
+.recording-workspace select,
+.recording-workspace textarea {
+    padding: 5px 7px;
+}
 .recording-workspace .recording-inline {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 8px;
 }
-
 .recording-workspace .recording-inline input,
 .recording-step input[type="checkbox"] {
     width: auto;
 }
-
+.recording-browser {
+    display: flex;
+    flex-direction: column;
+    padding: 12px;
+    overflow: hidden;
+}
+.recording-browser .header-actions label {
+    flex: 1 1 140px;
+}
+.recording-browser p {
+    margin: 4px 0;
+    overflow-wrap: anywhere;
+}
 .recording-viewport {
-    height: clamp(280px, 50vh, 540px);
-    margin-top: 0.75rem;
+    flex: 1;
+    min-height: 0;
+    margin-top: 6px;
     border: 1px solid var(--desktop-border, #d5dce7);
     background: var(--desktop-surface, #f5f7fb);
 }
-
 .recording-step {
+    min-width: 0;
+    overflow-wrap: anywhere;
     border: 1px solid var(--desktop-border, #d5dce7);
-    border-radius: 0.5rem;
-    padding: 0.65rem;
+    border-radius: 6px;
+    padding: 6px;
 }
-
 .recording-step summary {
     cursor: pointer;
 }
-
 .recording-step[open] summary {
-    margin-bottom: 0.65rem;
+    margin-bottom: 6px;
 }
-
 .recording-workspace .recording-mode {
     display: flex;
     flex-wrap: wrap;
+    gap: 4px;
+    padding: 4px 8px;
 }
-
-.recording-authoring {
-    display: grid;
-    gap: 1rem;
-    min-width: 0;
+.recording-context-actions {
+    margin-top: 8px;
 }
-
-@media (min-width: 1120px) {
-    .recording-workspace {
-        grid-template-columns: minmax(0, 1.2fr) minmax(22rem, 0.8fr);
-        align-items: start;
-    }
-
-    .recording-settings {
-        grid-column: 2;
-        grid-row: 1;
-    }
-
-    .recording-browser {
-        grid-column: 1;
-        grid-row: 1 / span 2;
-        position: sticky;
-        top: 0.75rem;
-        min-width: 0;
-    }
-
-    .recording-authoring {
-        grid-column: 2;
-        grid-row: 2;
+.recording-capture-scroll {
+    width: 100%;
+    overflow-x: auto;
+}
+.recording-capture-scroll th,
+.recording-capture-scroll td {
+    white-space: nowrap;
+    text-align: start;
+    padding: 4px 6px;
+}
+@media (forced-colors: active) {
+    .recording-tabs button[aria-current="page"] {
+        border-bottom-color: Highlight;
     }
 }
 

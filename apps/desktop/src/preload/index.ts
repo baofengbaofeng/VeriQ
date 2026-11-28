@@ -8,6 +8,8 @@ import type { DesktopBridge } from "../shared/bridge";
 const bridge: DesktopBridge = {
     recordingOpen: (input) => ipcRenderer.invoke("veriq:desktop", "recordingOpen", input),
     recordingMode: (sessionId, mode) => ipcRenderer.invoke("veriq:desktop", "recordingMode", { sessionId, mode }),
+    recordingAnnotationAction: (sessionId, targetId, action) =>
+        ipcRenderer.invoke("veriq:desktop", "recordingAnnotationAction", { sessionId, targetId, action }),
     recordingBounds: (sessionId, bounds) =>
         ipcRenderer.invoke("veriq:desktop", "recordingBounds", { sessionId, bounds }),
     recordingNavigate: (sessionId, target) =>

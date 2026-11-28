@@ -195,3 +195,29 @@ test("an initial approved page is replayed before a click and added only once", 
         ["goto", "click"],
     );
 });
+
+test("recording keeps the query, fragment and committed field value in action order", () => {
+    const event = { sessionId: "session", navigation: 1 };
+    const path = "/search?q=杭州#tomorrow";
+    const start = applyRecordingEvent(newRecordingDraft(), {
+        ...event,
+        type: "navigation",
+        cause: "explicit",
+        id: "open",
+        path,
+    });
+    const edit = applyRecordingEvent(start, {
+        ...event,
+        type: "fill",
+        id: "edit",
+        candidates: [],
+        value: "杭州明天的天气",
+    });
+    assert.deepEqual(
+        edit.steps.map(({ step }) => step),
+        [
+            { id: "step_open", action: "goto", path },
+            { id: "step_edit", action: "fill", value: "杭州明天的天气", target: "" },
+        ],
+    );
+});

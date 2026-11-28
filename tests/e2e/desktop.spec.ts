@@ -430,7 +430,28 @@ test("production candidate completes the real desktop offline workflow", async (
                 )
                 .toBe(true);
             await click();
-            await expect.poll(async () => (await observed()).some((event) => event.type === "annotation")).toBe(true);
+            const currentTarget = () =>
+                observed().then((events) => events.find((event) => event.type === "annotation-target"));
+            await expect.poll(async () => (await currentTarget())?.actions).toContain("catalog");
+            const target = await currentTarget();
+            expect(target?.actions).not.toContain("captureOptions");
+            await page.evaluate(
+                ({ recording, id }) => window.veriq.recordingAnnotationAction(recording, id, "catalog"),
+                {
+                    recording,
+                    id: target!.id,
+                },
+            );
+            await expect
+                .poll(async () =>
+                    (await observed()).some(
+                        (event) =>
+                            event.type === "annotation-action" &&
+                            event.targetId === target!.id &&
+                            event.action === "catalog",
+                    ),
+                )
+                .toBe(true);
             const activations = await electron.evaluate(({ BrowserWindow, WebContentsView }) => {
                 const view = BrowserWindow.getAllWindows()[0]?.contentView.children.find(
                     (child) => child instanceof WebContentsView,
@@ -468,16 +489,18 @@ test("production candidate completes the real desktop offline workflow", async (
             await editor.getByTestId("recording-environment").selectOption(environment.version.id);
             await editor.getByTestId("recording-role").selectOption("reader");
             await editor.getByTestId("recording-catalog").selectOption(recordedCatalog.version.id);
+            await editor.getByTestId("recording-tab-data").click();
             await editor.getByTestId("recording-dataset").selectOption(dataset.version.id);
-            await editor.getByTestId("recording-runtime").selectOption(device.id);
             for (const key of ["first", "second"]) {
                 await editor.getByTestId("recording-data-rows").getByRole("checkbox", { name: key }).check();
             }
+            await editor.getByTestId("recording-tab-run").click();
+            await editor.getByTestId("recording-runtime").selectOption(device.id);
             await editor.getByTestId("recording-browser-open").click();
             await editor.getByTestId("recording-mode-record").click();
             await editor.getByLabel(/Target path/).fill("/recording");
             await editor.getByRole("button", { name: "前往 / Go", exact: true }).click();
-            await expect(editor.getByTestId("recording-current-path")).toHaveText("/recording");
+            await expect(editor.getByTestId("recording-current-path")).toHaveText("http://127.0.0.1:18891/recording");
             await electron!.evaluate(({ BrowserWindow, WebContentsView }) => {
                 const view = BrowserWindow.getAllWindows()[0]?.contentView.children.find(
                     (child) => child instanceof WebContentsView,
@@ -487,8 +510,10 @@ test("production candidate completes the real desktop offline workflow", async (
                 for (const type of ["mouseDown", "mouseUp"] as const)
                     view.webContents.sendInputEvent({ type, x: 20, y: 20, button: "left", clickCount: 1 });
             });
+            await editor.getByTestId("recording-tab-steps").click();
             await expect(editor.locator("summary").filter({ hasText: /\bclick\b/ })).toHaveCount(1);
             await editor.getByTestId("recording-browser-close").click();
+            await editor.getByTestId("recording-tab-run").click();
             await editor.getByTestId("recording-save").click();
             await expect(editor.getByTestId("recording-status")).toContainText("Draft saved");
             await editor.getByTestId("recording-trial").click();

@@ -115,13 +115,16 @@ export function applyRecordingEvent(draft: RecordingDraft, event: RecordingEvent
     ) {
         return { ...draft, steps: [...draft.steps, { step: { id, action: "goto", path: event.path } }] };
     }
-    if (event.type !== "click") return draft;
+    if (event.type !== "click" && event.type !== "fill") return draft;
     return {
         ...draft,
         steps: [
             ...draft.steps,
             {
-                step: { id, action: "click", target: "" },
+                step:
+                    event.type === "fill"
+                        ? { id, action: "fill", target: "", value: event.value }
+                        : { id, action: "click", target: "" },
                 recording: { catalogVersionId: draft.catalogVersionId, candidates: event.candidates },
             },
         ],

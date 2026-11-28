@@ -13,6 +13,7 @@ import type { PlatformComponents } from "@veriq/contracts";
 import type { DesktopState } from "../shared/bridge";
 import { DesktopAgentForms } from "./AgentForms";
 import { RetentionPanel } from "./RetentionPanel";
+import { RecordingResources } from "./recording/RecordingResources";
 import { RecordingWorkspace } from "./recording/RecordingWorkspace";
 import { desktopErrorMessage, desktopStateLabel } from "../shared/desktop-errors";
 import { credentialGuidance } from "../shared/credential-status";
@@ -118,6 +119,7 @@ export function App() {
     // biome-ignore lint/correctness/useExhaustiveDependencies: 依赖随授权视图作用域变化
     const scope = useMemo(() => new AbortController(), [cloudScope, localWorkspace, reportLocal]);
     const agent = state?.agent;
+    const installedRuntimeRequired = state?.sourceWorkbench === true;
 
     const refresh = useCallback(async () => {
         const value = await bridge.state();
@@ -209,6 +211,7 @@ export function App() {
                             key={key}
                             aria-current={tab === key ? "page" : undefined}
                             onClick={() => {
+                                setError("");
                                 setTab(key);
                             }}
                         >
@@ -216,25 +219,27 @@ export function App() {
                         </button>
                     ))}
                 </nav>
-                <div className="sidebar-status">
-                    <span className={agent ? "status-dot ready" : "status-dot"} />
-                    {agent
-                        ? `Agent · Node ${agent.node}`
-                        : state?.agentIssue === "LOCAL_CACHE_MAINTENANCE_BUSY"
-                          ? "后台维护中 / Agent maintenance"
-                          : "后台不可用 / Agent unavailable"}
-                    <small>
-                        {!agent
-                            ? "状态未确认 / Status unconfirmed"
-                            : agent.preparing
-                              ? "准备中 / Preparing"
-                              : agent.active
-                                ? desktopStateLabel(agent.active.state)
-                                : agent.online
-                                  ? "在线领取 / Online worker"
-                                  : "就绪 / Idle"}
-                    </small>
-                </div>
+                {!installedRuntimeRequired && (
+                    <div className="sidebar-status">
+                        <span className={agent ? "status-dot ready" : "status-dot"} />
+                        {agent
+                            ? `Agent · Node ${agent.node}`
+                            : state?.agentIssue === "LOCAL_CACHE_MAINTENANCE_BUSY"
+                              ? "后台维护中 / Agent maintenance"
+                              : "后台不可用 / Agent unavailable"}
+                        <small>
+                            {!agent
+                                ? "状态未确认 / Status unconfirmed"
+                                : agent.preparing
+                                  ? "准备中 / Preparing"
+                                  : agent.active
+                                    ? desktopStateLabel(agent.active.state)
+                                    : agent.online
+                                      ? "在线领取 / Online worker"
+                                      : "就绪 / Idle"}
+                        </small>
+                    </div>
+                )}
                 <button type="button" onClick={() => void action(() => bridge.lifecycle("hide"))}>
                     {t.tray}
                 </button>
@@ -391,7 +396,17 @@ export function App() {
                             )}
                         </section>
                     )}
-                    {tab === "overview" && (
+                    {tab === "overview" && installedRuntimeRequired && (
+                        <section className="panel">
+                            <h2>设备与独立后台 / Device &amp; Agent</h2>
+                            <p>
+                                {language === "zh"
+                                    ? "设备注册和本机测试执行需要安装桌面 Runtime。"
+                                    : "Device enrollment and local test execution require an installed desktop Runtime."}
+                            </p>
+                        </section>
+                    )}
+                    {tab === "overview" && !installedRuntimeRequired && (
                         <>
                             <div className="summary-grid">
                                 <section className="panel">
@@ -590,6 +605,12 @@ export function App() {
                                     <button
                                         type="button"
                                         aria-pressed={reportLocal}
+                                        disabled={installedRuntimeRequired}
+                                        title={
+                                            installedRuntimeRequired
+                                                ? desktopErrorMessage("INSTALLED_RUNTIME_REQUIRED", language)
+                                                : undefined
+                                        }
                                         onClick={() => setReportLocal(true)}
                                     >
                                         本机报告 / Local reports
@@ -672,6 +693,16 @@ export function App() {
                                 workspaceId={workspace.id}
                                 owner={JSON.stringify([state.origin, userId, workspace.id])}
                                 language={language}
+                                resourceTools={
+                                    adapters && (
+                                        <RecordingResources
+                                            workspace={workspace}
+                                            adapters={adapters}
+                                            language={language}
+                                            signal={scope.signal}
+                                        />
+                                    )
+                                }
                                 openReport={(id) => {
                                     setCloudRun({ owner: cloudScope, id });
                                     setReportLocal(false);
@@ -697,7 +728,13 @@ export function App() {
                                     language={language}
                                     localWorkspaceId={agent?.workspaceId}
                                     retentionUnavailable={
-                                        !!(busy || agent?.active || agent?.preparing || agent?.online)
+                                        !!(
+                                            installedRuntimeRequired ||
+                                            busy ||
+                                            agent?.active ||
+                                            agent?.preparing ||
+                                            agent?.online
+                                        )
                                     }
                                     onRetentionComplete={async () => {
                                         setRun("");
@@ -742,11 +779,16 @@ export function App() {
                                 <h2>连接与存储 / Connection & storage</h2>
                                 <label>
                                     服务端 Origin / Server origin
-                                    <input value={origin} onChange={(event) => setOrigin(event.target.value)} />
+                                    <input
+                                        readOnly={installedRuntimeRequired}
+                                        value={origin}
+                                        onChange={(event) => setOrigin(event.target.value)}
+                                    />
                                 </label>
                                 <label>
                                     HTTP(S) 代理 / Proxy
                                     <input
+                                        disabled={installedRuntimeRequired}
                                         value={proxy}
                                         placeholder="http://proxy.example:8080"
                                         onChange={(event) => setProxy(event.target.value)}
@@ -754,6 +796,7 @@ export function App() {
                                 </label>
                                 <button
                                     type="button"
+                                    disabled={installedRuntimeRequired}
                                     onClick={() => void action(() => bridge.configure(origin, proxy))}
                                 >
                                     {t.save}
@@ -770,130 +813,153 @@ export function App() {
                                     打开资源目录 / Open resource directory
                                 </button>
                             </section>
-                            <section className="panel">
-                                <h2>签发者信任 / Issuer trust</h2>
-                                <p>
-                                    HTTPS 绑定从认证控制平台刷新；本机开发 HTTP 必须核对管理员提供的公钥指纹。 / Verify
-                                    an administrator-provided fingerprint for local HTTP development.
-                                </p>
-                                <label>
-                                    公钥 JSON / Public issuer JSON
-                                    <textarea value={issuer} onChange={(event) => setIssuer(event.target.value)} />
-                                </label>
-                                <label>
-                                    已核对的 SHA256 指纹 / Verified fingerprint
-                                    <input
-                                        value={fingerprint}
-                                        onChange={(event) => setFingerprint(event.target.value)}
-                                    />
-                                </label>
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        void action(() =>
-                                            bridge.local({
-                                                operation: "trust",
-                                                issuer: JSON.parse(issuer),
-                                                fingerprint,
-                                            }),
-                                        )
-                                    }
-                                >
-                                    建立信任 / Trust issuer
-                                </button>
-                            </section>
-                            <section className="panel">
-                                <h2>自检与恢复 / Diagnostics & recovery</h2>
-                                <div className="toolbar">
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            void action(async () =>
-                                                setDiagnostics(await bridge.local({ operation: "doctor" })),
-                                            )
-                                        }
-                                    >
-                                        运行自检 / Run diagnostics
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            void action(async () =>
-                                                setDiagnostics(await bridge.local({ operation: "recover" })),
-                                            )
-                                        }
-                                    >
-                                        恢复中断执行 / Recover interrupted run
-                                    </button>
-                                </div>
-                                <p>
-                                    {"停止本机执行和在线领取后，可显式迁移旧凭据。" +
-                                        "迁移会核验系统保险库和加密数据，再移除旧明文文件。"}{" "}
-                                    / Stop execution and online polling before explicitly migrating legacy credentials.
-                                    Migration verifies the system vault and encrypted data before removing legacy
-                                    plaintext.
-                                </p>
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        void action(async () =>
-                                            setDiagnostics(
-                                                await bridge.local({
-                                                    operation: "migrateCredentials",
-                                                }),
-                                            ),
-                                        )
-                                    }
-                                >
-                                    迁移本机凭据 / Migrate local credentials
-                                </button>
-                                <p>
-                                    {"初始化中断且尚无凭据时，可明确恢复空保险库。" +
-                                        "已激活档案缺钥不会被替换；请先停止执行与在线领取。"}{" "}
-                                    / An interrupted empty initialization can be explicitly recovered. Missing keys in
-                                    active profiles are not replaced. Stop execution and online polling first.
-                                </p>
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        void action(async () =>
-                                            setDiagnostics(
-                                                await bridge.local({
-                                                    operation: "recoverCredentialInitialization",
-                                                }),
-                                            ),
-                                        )
-                                    }
-                                >
-                                    恢复空保险库初始化 / Recover empty vault initialization
-                                </button>
-                                {diagnostics !== undefined && (
-                                    <pre data-testid="diagnostics">{JSON.stringify(diagnostics, null, 2)}</pre>
-                                )}
-                                <RetentionPanel
-                                    workspaceId={agent?.workspaceId}
-                                    unavailable={!!(busy || agent?.active || agent?.preparing || agent?.online)}
-                                    onCompleted={async () => {
-                                        setRun("");
-                                        queries.clear();
-                                        await refresh();
-                                    }}
-                                />
-                                <button type="button" onClick={() => void action(() => bridge.installUpdate())}>
-                                    准备已验证升级或回滚 / Prepare verified update
-                                </button>
-                                <p>
-                                    {"更新前请停止在线领取与执行；隔离或未知进程必须先恢复。" +
-                                        "卸载默认保留本机配置、凭据与历史。"}{" "}
-                                    / Stop online polling and execution before updates; recover unknown or quarantined
-                                    processes first. Uninstall keeps local settings, credentials and history.
-                                </p>
-                                {state?.diagnostics && <pre>{JSON.stringify(state.diagnostics, null, 2)}</pre>}
-                                <p>
-                                    VeriQ {state?.version} · Node24 Agent {agent?.node ?? "unavailable"} ·{" "}
-                                    {agent?.browser.version ?? "Browser unavailable"} · {agent?.browser.source}
-                                </p>
-                            </section>
+                            {!installedRuntimeRequired && (
+                                <>
+                                    <section className="panel">
+                                        <h2>签发者信任 / Issuer trust</h2>
+                                        <p>
+                                            HTTPS 绑定从认证控制平台刷新；本机开发 HTTP 必须核对管理员提供的公钥指纹。 /
+                                            Verify an administrator-provided fingerprint for local HTTP development.
+                                        </p>
+                                        <label>
+                                            公钥 JSON / Public issuer JSON
+                                            <textarea
+                                                value={issuer}
+                                                onChange={(event) => setIssuer(event.target.value)}
+                                            />
+                                        </label>
+                                        <label>
+                                            已核对的 SHA256 指纹 / Verified fingerprint
+                                            <input
+                                                value={fingerprint}
+                                                onChange={(event) => setFingerprint(event.target.value)}
+                                            />
+                                        </label>
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                void action(() =>
+                                                    bridge.local({
+                                                        operation: "trust",
+                                                        issuer: JSON.parse(issuer),
+                                                        fingerprint,
+                                                    }),
+                                                )
+                                            }
+                                        >
+                                            建立信任 / Trust issuer
+                                        </button>
+                                    </section>
+                                    <section className="panel">
+                                        <h2>自检与恢复 / Diagnostics & recovery</h2>
+                                        <div className="toolbar">
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    void action(async () =>
+                                                        setDiagnostics(await bridge.local({ operation: "doctor" })),
+                                                    )
+                                                }
+                                            >
+                                                运行自检 / Run diagnostics
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    void action(async () =>
+                                                        setDiagnostics(await bridge.local({ operation: "recover" })),
+                                                    )
+                                                }
+                                            >
+                                                恢复中断执行 / Recover interrupted run
+                                            </button>
+                                        </div>
+                                        <p>
+                                            {"停止本机执行和在线领取后，可显式迁移旧凭据。" +
+                                                "迁移会核验系统保险库和加密数据，再移除旧明文文件。"}{" "}
+                                            / Stop execution and online polling before explicitly migrating legacy
+                                            credentials. Migration verifies the system vault and encrypted data before
+                                            removing legacy plaintext.
+                                        </p>
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                void action(async () =>
+                                                    setDiagnostics(
+                                                        await bridge.local({
+                                                            operation: "migrateCredentials",
+                                                        }),
+                                                    ),
+                                                )
+                                            }
+                                        >
+                                            迁移本机凭据 / Migrate local credentials
+                                        </button>
+                                        <p>
+                                            {"初始化中断且尚无凭据时，可明确恢复空保险库。" +
+                                                "已激活档案缺钥不会被替换；请先停止执行与在线领取。"}{" "}
+                                            / An interrupted empty initialization can be explicitly recovered. Missing
+                                            keys in active profiles are not replaced. Stop execution and online polling
+                                            first.
+                                        </p>
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                void action(async () =>
+                                                    setDiagnostics(
+                                                        await bridge.local({
+                                                            operation: "recoverCredentialInitialization",
+                                                        }),
+                                                    ),
+                                                )
+                                            }
+                                        >
+                                            恢复空保险库初始化 / Recover empty vault initialization
+                                        </button>
+                                        {diagnostics !== undefined && (
+                                            <pre data-testid="diagnostics">{JSON.stringify(diagnostics, null, 2)}</pre>
+                                        )}
+                                        <RetentionPanel
+                                            workspaceId={agent?.workspaceId}
+                                            unavailable={
+                                                !!(
+                                                    installedRuntimeRequired ||
+                                                    busy ||
+                                                    agent?.active ||
+                                                    agent?.preparing ||
+                                                    agent?.online
+                                                )
+                                            }
+                                            onCompleted={async () => {
+                                                setRun("");
+                                                queries.clear();
+                                                await refresh();
+                                            }}
+                                        />
+                                        <button type="button" onClick={() => void action(() => bridge.installUpdate())}>
+                                            准备已验证升级或回滚 / Prepare verified update
+                                        </button>
+                                        <p>
+                                            {"更新前请停止在线领取与执行；隔离或未知进程必须先恢复。" +
+                                                "卸载默认保留本机配置、凭据与历史。"}{" "}
+                                            / Stop online polling and execution before updates; recover unknown or
+                                            quarantined processes first. Uninstall keeps local settings, credentials and
+                                            history.
+                                        </p>
+                                        {state?.diagnostics && <pre>{JSON.stringify(state.diagnostics, null, 2)}</pre>}
+                                        <p>
+                                            VeriQ {state?.version} · Node24 Agent {agent?.node ?? "unavailable"} ·{" "}
+                                            {agent?.browser.version ?? "Browser unavailable"} · {agent?.browser.source}
+                                        </p>
+                                    </section>
+                                </>
+                            )}
+                            {installedRuntimeRequired && state?.diagnostics && (
+                                <section className="panel">
+                                    <h2>版本与诊断 / Versions and diagnostics</h2>
+                                    <pre>{JSON.stringify(state.diagnostics, null, 2)}</pre>
+                                </section>
+                            )}
                         </>
                     )}
                 </main>

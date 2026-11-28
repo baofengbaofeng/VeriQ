@@ -1,5 +1,6 @@
 import { RecordingStepConfiguration, type RecordingVersionOption } from "@veriq/web/desktop";
 import type { LocatorV1 } from "@veriq/contracts";
+import { useCallback } from "react";
 import { requiresTarget, type CatalogVersion, type DraftStep, type StepPhase } from "./draft-model";
 
 const phases: Record<StepPhase, string> = {
@@ -25,6 +26,7 @@ interface StepListProps {
     update(items: DraftStep[]): void;
     propose(locator: LocatorV1): void;
     bindings: string[];
+    revealStepId?: string;
 }
 
 export function RecordingStepList({
@@ -36,7 +38,13 @@ export function RecordingStepList({
     update,
     propose,
     bindings,
+    revealStepId,
 }: StepListProps) {
+    const reveal = useCallback((element: HTMLDetailsElement | null) => {
+        if (!element) return;
+        element.open = true;
+        element.querySelector("summary")?.focus();
+    }, []);
     function replace(id: string, updateItem: (item: DraftStep) => DraftStep) {
         update(steps.map((item) => (item.step.id === id ? updateItem(item) : item)));
     }
@@ -46,7 +54,12 @@ export function RecordingStepList({
             {steps.map((item, index) => {
                 const { step, target, recording } = item;
                 return (
-                    <details key={step.id} className="recording-step">
+                    <details
+                        key={step.id}
+                        ref={step.id === revealStepId ? reveal : undefined}
+                        data-testid={`recording-step-${step.id}`}
+                        className="recording-step"
+                    >
                         <summary>
                             {index + 1}. {step.action}
                             {item.disabled ? " · disabled" : ""}

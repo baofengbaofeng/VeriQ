@@ -19,7 +19,7 @@ import {
     type ReactNode,
     type RefObject,
 } from "react";
-import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
+import { Link, Navigate, useInRouterContext, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FormProvider, useForm, useWatch } from "react-hook-form";
 import { useReactTable, getCoreRowModel, flexRender, type ColumnDef } from "@tanstack/react-table";
@@ -1482,6 +1482,7 @@ function ScopedResourceEditor({
     webConsole = false,
     standalone = false,
 }: ResourceEditorViewProps & { signal: AbortSignal }) {
+    const hasRouter = useInRouterContext();
     const { language } = useAppLocale();
     const { t } = useTranslation(undefined, useEditorTranslationOptions);
     const { showSuccess, showFailure, showPending } = useOperationFeedback();
@@ -1818,7 +1819,10 @@ function ScopedResourceEditor({
                 allowDatasetExport={allowDatasetExport}
                 datasetImportGeneration={standaloneDatasetSource ? datasetImportGeneration : undefined}
                 authenticationSettings={
-                    resource.kind === "ENVIRONMENT" && writable && adapter instanceof CloudResourceAdapter ? (
+                    hasRouter &&
+                    resource.kind === "ENVIRONMENT" &&
+                    writable &&
+                    adapter instanceof CloudResourceAdapter ? (
                         <Link to={`/workspaces?tab=auth-credentials&workspaceId=${workspace.id}`}>
                             {tx("Manage authentication and credentials")}
                         </Link>
