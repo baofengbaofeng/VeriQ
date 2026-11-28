@@ -476,17 +476,7 @@ function Complete-Cleanup {
             }
         }
     }
-    if ($state.aclChanged) {
-        $acl = Get-Acl -LiteralPath $Workspace
-        $section = [Security.AccessControl.AccessControlSections]::Access
-        $acl.SetSecurityDescriptorSddlForm($state.originalDacl, $section)
-        Set-Acl -LiteralPath $Workspace -AclObject $acl
-        if ((Get-Acl -LiteralPath $Workspace).GetSecurityDescriptorSddlForm($section) -ne $state.originalDacl) {
-            throw 'NATIVE_SOURCE_ACL_RESTORE_UNCONFIRMED'
-        }
-    }
-    $state.aclRestored = $true
-    Save-State
+    # 只在完整排空和档案卸载后复制固定证据，使原始失败可独立回查，不能让后续权限恢复错误再次遮住具体成员。
     $userEvidence = Join-Path $state.outputRoot 'evidence'
     if (Test-Path -LiteralPath $userEvidence) {
         foreach ($name in @(
@@ -502,6 +492,25 @@ function Complete-Cleanup {
             }
         }
     }
+    if ($state.aclChanged) {
+        $acl = Get-Acl -LiteralPath $Workspace
+        $section = [Security.AccessControl.AccessControlSections]::Access
+        $beforeDacl = $acl.GetSecurityDescriptorSddlForm($section)
+        $acl.SetSecurityDescriptorSddlForm($state.originalDacl, $section)
+        Set-Acl -LiteralPath $Workspace -AclObject $acl
+        $afterDacl = (Get-Acl -LiteralPath $Workspace).GetSecurityDescriptorSddlForm($section)
+        Write-Observation 'standard-user-source-acl.json' {
+            @{
+                source = $Source; expectedDacl = $state.originalDacl; beforeDacl = $beforeDacl
+                afterDacl = $afterDacl; exactlyRestored = $afterDacl -eq $state.originalDacl
+            }
+        }
+        if ($afterDacl -ne $state.originalDacl) {
+            throw 'NATIVE_SOURCE_ACL_RESTORE_UNCONFIRMED'
+        }
+    }
+    $state.aclRestored = $true
+    Save-State
     foreach ($profile in $profiles) { $profile | Remove-CimInstance }
     if ($state.sid) {
         if (@(Get-CimInstance Win32_UserProfile -Filter ("SID='" + $state.sid + "'")).Count) {
